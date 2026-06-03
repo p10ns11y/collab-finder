@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "project": "devprofile",
+  "last_updated": "2026-05-26T00:00:00Z",
+  "fused_abstractions": [
+    {
+      "id": "brave-e2e-reactor",
+      "name": "BraveE2eReactor",
+      "stability_score": 92,
+      "source_files": ["playwright.brave.ts", "playwright.config.ts", "tests/e2e/global-setup.ts"],
+      "related_concepts": ["connected-reactor"],
+      "usage_count": 0,
+      "compressed_representation": "BRAVE_BETA_EXECUTABLE from env|default. braveBetaLaunchOptions() returns { executablePath } only (IDE-safe). assertBraveBetaInstalled() in globalSetup at test run. Type: PlaywrightTestConfig['use']['launchOptions'] — not LaunchOptions from @playwright/test.",
+      "expansion_hint": "Read all three E2E files full; see tests/e2e/README.md for Brave Beta constraints."
+    },
+    {
+      "id": "connected-reactor",
+      "name": "ConnectedReactor",
+      "stability_score": 88,
+      "source_files": [
+        ".agents/skills/ai-optimization/SKILL.md",
+        ".agents/skills/fusion-sage/SKILL.md",
+        ".agents/rules/fusion-sage.mdc"
+      ],
+      "related_concepts": ["brave-e2e-reactor"],
+      "usage_count": 0,
+      "compressed_representation": "fusion-sage.mdc (alwaysApply) routes fission (ai-optimization) + fusion (fusion-sage). /fission = no surplus. /fusion = Fused Insight + Surplus required.",
+      "expansion_hint": "Load both SKILL.md files and AGENTS.md Connected System section."
+    }
+  ],
+  "global_stats": {
+    "total_fusions_performed": 2,
+    "total_tokens_saved": 0,
+    "average_q_factor": 1.0
+  }
+}

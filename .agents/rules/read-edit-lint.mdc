@@ -1,0 +1,15 @@
+---
+description: Default implementation loop — read context, minimal edit, lint
+alwaysApply: true
+---
+
+# Read → edit → lint
+
+For code changes:
+
+1. **Read** the file and callers (Grep/Glob) before editing.
+2. **Minimal diff** — StrReplace or ApplyPatch; match existing style.
+3. **ReadLints** on touched files after substantive edits.
+4. **Shell** — run relevant test/build only when lints pass or behavior must be proven.
+
+Avoid rewriting whole files when a focused patch suffices.

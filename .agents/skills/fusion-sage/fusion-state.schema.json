@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fusion Sage Knowledge Graph Schema",
+  "description": "Lightweight, evolving representation of fused abstractions in a project. Designed to reduce repeated Landauer tax by caching high-stability concepts.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Schema version"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project name or path"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fused_abstractions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable ID, e.g. 'user-auth-domain'"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable fused concept name"
+          },
+          "stability_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Binding energy / iron-peak score"
+          },
+          "source_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Files this abstraction was synthesized from"
+          },
+          "related_concepts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "IDs of other fused abstractions this connects to"
+          },
+          "last_used": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "usage_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "compressed_representation": {
+            "type": "string",
+            "description": "One-paragraph summary + key signatures"
+          },
+          "expansion_hint": {
+            "type": "string",
+            "description": "What to show when user says 'expand <id>'"
+          }
+        },
+        "required": ["id", "name", "stability_score", "source_files"]
+      }
+    },
+    "global_stats": {
+      "type": "object",
+      "properties": {
+        "total_fusions_performed": { "type": "integer" },
+        "total_tokens_saved": { "type": "integer" },
+        "average_q_factor": { "type": "number" }
+      }
+    }
+  },
+  "required": ["version", "project", "fused_abstractions"]
+}

@@ -1,43 +1,31 @@
 # collab-finder
 
-Personal intelli dashboard (Tauri desktop app) for discovering and preparing for jobs, collabs, side hustles, and community builds using **live X API** + **xAI**.
+**Highly autonomous, agentic X opportunity hunter** (Tauri desktop). Self-guarded reactor with pauses, smart decisions (xAI structured), MCP exposure for agents (Grok/Cursor/etc can drive "run hunt, pause on low fit or CV promote"). User intervenes only on guards.
 
-- Fully editable X search queries (tune anytime, presets as starting points).
-- xAI-powered analysis, cover letters, CV deltas (sidecars always).
-- "Promote insights" flow to safely evolve your master CV in the portfolio repo (with preview + backup).
-- Local-only, portable JSON data (shareable with future Hono viewer or scripts).
-- Designed to let you finish prep for promising leads **without leaving the app**.
+Live guarded autonomous cycles, X skill.md/llms context baked in, CV promote via sidecar+preview+confirm (cv-promote-guard), full query control.
 
-Separate repo from your public [devprofile](https://github.com/p10ns11y/devprofile) portfolio (which maintains the canonical `cvdata.json` + PDF).
+See .agents/ (AGENTS.md, SKILL.md, hunter-reactor/agentic-reactor/x-agent-resources/cv-promote-guard/tauri-agentic skills, rules) + docs/x-tools.md for the high-standard agentic foundation from day 1. Development compounds exponentially (fusion surplus, subagents, bdd for guards).
 
-## Status
-
-Scaffold phase. Real X search, xAI calls (with CV pruning), lead management, prep packs, export, tracker, and promote coming in phases.
-
-## Quick start (after full setup)
+## Quick Start (agentic dev ready)
 
 ```bash
+cd ~/Work/personal/collab-finder
 pnpm install
-# one-time: cargo install tauri-cli (or use the one in path)
+# (cargo tauri if needed)
 pnpm tauri dev
 ```
 
-Configure X Bearer token + xAI key + path to your devprofile checkout in the app (first run / settings). Keys stored securely via Tauri plugins (Rust side only).
+- Provide temp X Bearer in UI.
+- Use ⌘K palette or "Run Autonomous Cycle" for guarded hunt (uses X resources, applies cost/rate/fit/CV guards, surfaces pauses).
+- Configure devprofile path in future for real CV grounding + guarded promote.
 
-## Key design choices (per your guidance)
+## Architecture (per agentic-reactor + friends)
 
-- Tauri (Rust backend + React web frontend) for the contained "finish everything" interface.
-- Separate from portfolio → no bloat on the public site.
-- Sidecars + explicit promote for CV.
-- Maximum flexibility: live editable queries + manual add (paste from arena lists, LinkedIn, etc.).
-- Data files enable web viewers / other tools to coexist.
+- **HunterReactor (Rust core)**: State in app_data, guards (Cost/XRate/Fit/CVPromote), X via x-agent-resources (skill.md context + low-level search), stub xAI decisions (real soon: pruned CV + X skill prefix), MCP tools (run_hunter_cycle, promote_lead, get_reactor_state).
+- **Tauri Shell**: React minimal UI (command palette as agent iface, guard dashboard, pause modals, autonomous button).
+- **Autonomy**: Loop with self-guards/pauses; only intervene on low conf/high stakes/CV. Surplus after cycles.
+- **Exponential**: MCP so agents drive it; .agents/ skills for us (load fusion + hunter-reactor when building); X official resources prevent reinvention.
 
-See plan.md in the devprofile session artifacts for full architecture, phases, and surplus notes.
+Full setup follows devprofile's connected fission/fusion + X agent resources (llms.txt, skill.md, MCP, xurl) for composable, high-value autonomy.
 
-## X + xAI tips
-
-- Use xurl (official) or the X playground for testing complex queries before pasting into the app.
-- The app will support the full recent search operators so you stay in control.
-- CV is pruned (fission-style) before sending to xAI for token efficiency and focus.
-
-Built for Peramanathan Sathyamoorthy (@peramanathan / p10ns11y).
+Private tool for p10ns11y. See session plan for full vision.

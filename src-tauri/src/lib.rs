@@ -1,5 +1,8 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod hunter_reactor;
+
 use anyhow::Result;
+use hunter_reactor::{Decision, ReactorState, run_hunter_cycle, get_reactor_state, promote_lead};
 use serde::{Deserialize, Serialize};
 
 #[tauri::command]
@@ -53,7 +56,7 @@ async fn search_x_recent(query: String, bearer: String, max_results: Option<u32>
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, search_x_recent])
+        .invoke_handler(tauri::generate_handler![greet, search_x_recent, run_hunter_cycle, get_reactor_state, promote_lead])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

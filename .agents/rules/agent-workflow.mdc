@@ -1,0 +1,43 @@
+---
+description: Triage tasks before acting; full orchestration only when warranted
+alwaysApply: true
+---
+
+# Agent workflow (triage first)
+
+Read [agent-orchestrator](.agents/skills/agent-orchestrator/SKILL.md) when work is non-trivial.
+
+## Triage (~10s)
+
+| Mode | When | Do |
+|------|------|-----|
+| **Single-shot** | ≤1–2 files, obvious fix, low risk | Implement → `pnpm type-check` / `pnpm lint` → done. No brief, worktree, or subagents. |
+| **Light** | Small scope, one concern | Short outcome + verify bullets in chat, then implement in one checkout. |
+| **Full** | Multi-agent, spike, merge, verify other's "done", vague/large ask | Orchestrator checklist, task brief, worktrees, independent verification. |
+
+**Escalate** if a simple task grows past ~2 files or new unknowns appear.
+
+## Always (even single-shot)
+
+- Minimal diff; match repo conventions in `AGENTS.md`
+- Run stated verification commands yourself — do not trust "done" without checks on non-trivial work
+- Never integrate worktrees via `cp`; use merge per [git-worktrees](.agents/skills/git-worktrees/SKILL.md)
+- **Commit message hygiene**: Never suggest or include boilerplate from other LLMs ("Generated with Claude Code", "Co-Authored-By: Claude", etc.) in commit messages unless the user has explicitly confirmed they are using that LLM on this machine. Default to clean, factual messages. See `docs/agent-workflow-lessons.md` Lesson 6.
+- **Before commit**: Run `pnpm precommit` (imports → format → lint:fix → lint); see [pre-commit-checks](pre-commit-checks.mdc). Add `pnpm type-check` when TS/TSX changed.
+
+## Verify (after non-trivial code changes)
+
+From repo root:
+
+```bash
+pnpm type-check
+pnpm lint
+```
+
+If **`package.json`**, **`pnpm-lock.yaml`**, or **`pnpm-workspace.yaml`** changed: also `pnpm audit` (see [fix-dependency-security](.agents/skills/fix-dependency-security/SKILL.md)).
+
+If **E2E** files changed: use Brave Beta workflow — [tests/e2e/README.md](tests/e2e/README.md).
+
+## Skills index
+
+See [AGENTS.md](AGENTS.md) for when to load domain skills (react-client-expert, fix-dependency-security, split-to-prs, etc.).

@@ -1,0 +1,16 @@
+---
+description: Search callers and references before editing symbols or paths
+alwaysApply: true
+---
+
+# Grep before edit
+
+Corpus pattern: **Read → Grep** (107 pairs) precedes most successful **StrReplace** edits.
+
+Before renaming, moving, or changing a symbol:
+
+1. **Grep** (or semantic search) for imports, string literals, and config references.
+2. **Read** each hit that will be affected — not just the primary file.
+3. Apply **minimal StrReplace** / ApplyPatch across all sites in one pass when possible.
+
+Do not edit a single file when the user’s request implies cross-file impact (rename, API change, manifest key).

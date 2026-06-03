@@ -1,0 +1,16 @@
+---
+description: Tauri-specific rules for agentic desktop: MCP, guards in Rust/TS, secure storage, UI for pauses. Follow react-client-expert for frontend.
+globs: ["src-tauri/**", "src/**/*.tsx", "tauri.conf.json"]
+---
+# Tauri Agentic Rules for collab-finder
+
+- Backend (Rust): central hunter_reactor module with guards, MCP server (stdio or local HTTP), secure keyring for X/xAI keys, app_data_dir for state (JSON leads/preps).
+- No direct X/xAI calls outside reactor.
+- Capabilities: scope fs to app_data + approved devprofile_path only; dialog for exports/promotes.
+- Frontend: minimal state, deliberate tauri invoke, command palette for agent actions, visual guard indicators (cost, rate, fit).
+- MCP: expose search, analyze, prep, promote, get_state as tools; use pause responses for intervention.
+- Integrate X resources: load .agents/x-resources/skill.md at startup for context.
+- Follow tauri-agentic/SKILL.md + react-client-expert.
+- Surplus for UI/UX improvements that make agent interaction cheaper.
+
+Use with hunter-reactor and fusion-sage.

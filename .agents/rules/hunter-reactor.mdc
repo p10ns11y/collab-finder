@@ -1,0 +1,19 @@
+---
+description: Rules for implementing, extending, or debugging the hunter-reactor in collab-finder. Enforce self-guards, pauses, structured decisions, surplus. Use with fusion-sage.
+globs: ["src-tauri/src/**/*.rs", "src/**/*.tsx", ".agents/skills/hunter-reactor/**"]
+---
+# Hunter Reactor Rules
+
+- Every decision point MUST have explicit guard (cost, rate, fit, CV) + pause path + logging.
+- Use structured output for xAI "decide" (recommendation, confidence, guards, rationale).
+- All X calls respect x-agent-resources (skill.md context, MCP/xurl patterns).
+- CV interactions ALWAYS via cv-promote-guard (sidecar-first, no direct mutation).
+- Surplus after every significant change or cycle.
+- MCP tools must be safe-by-default (read-heavy, writes guarded).
+- In UI: surface pauses immediately, command palette maps to reactor actions.
+- Test guards with bdd-strategizer style scenarios.
+- When editing reactor: load hunter-reactor + x-agent-resources + tauri-agentic + fusion-sage.
+
+Activation: "hunter-reactor" or when touching autonomous logic.
+
+See .agents/skills/hunter-reactor/SKILL.md for full principles.
