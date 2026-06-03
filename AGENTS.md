@@ -34,7 +34,7 @@ See `docs/x-tools.md` and `.agents/skills/x-agent-resources/SKILL.md` (to be cre
 
 | When the user (or agent) asks about… | Read |
 |-------------------------------------|------|
-| Overall hunter architecture, self-guards, pauses, autonomous decisions, intervention points | `.agents/skills/hunter-reactor/SKILL.md` (core — fusion style with fission pruning) |
+| Overall finder architecture, self-guards, pauses, autonomous decisions, intervention points | `.agents/skills/finder-reactor/SKILL.md` (core — fusion style with fission pruning) |
 | X integration (search, MCP, xurl, official skill/llms ingestion) | `.agents/skills/x-agent-resources/SKILL.md` |
 | Safe CV read/prune + promote insights with diff preview, backups, external devprofile guard | `.agents/skills/cv-promote-guard/SKILL.md` |
 | Tauri/Rust + React agentic UI (MCP server exposure, command palette as agent interface, minimal state with reactors) | `.agents/skills/tauri-agentic/SKILL.md` + `react-client-expert` |
@@ -68,7 +68,7 @@ Rules live in `.agents/rules/` (canonical). Cursor loads via `.cursor/rules` →
 
 Enable:
 - `fusion-sage.mdc` (alwaysApply: true) — routes fission/fusion + agentic surplus.
-- Project-specific: `hunter-reactor.mdc`, `x-agent.mdc`, `cv-guard.mdc`, `tauri-agentic.mdc`.
+- Project-specific: `finder-reactor.mdc`, `x-agent.mdc`, `cv-guard.mdc`, `tauri-agentic.mdc`.
 
 Auto-load skills:
 ```bash
@@ -76,11 +76,11 @@ mkdir -p .cursor/skills
 # Symlink core + custom (run after creating skills)
 ln -sf ../.agents/skills/ai-optimization .cursor/skills/ai-optimization
 ln -sf ../.agents/skills/fusion-sage .cursor/skills/fusion-sage
-ln -sf ../.agents/skills/hunter-reactor .cursor/skills/hunter-reactor
+ln -sf ../.agents/skills/finder-reactor .cursor/skills/finder-reactor
 # ... etc for others
 ```
 
-Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AGENTS.md. Use subagent-delegation, spawn_subagent for complex hunter features.
+Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AGENTS.md. Use subagent-delegation, spawn_subagent for complex finder features.
 
 ## Conventions (Tailored for Tauri + pnpm + Rust + X + Agentic)
 
@@ -92,7 +92,7 @@ Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AG
 - **Agentic code**: Every decision point must have self-guard (threshold, pause hook, log + user intervention path). Use structured output (zod in TS, serde in Rust) for xAI "decide next".
 - **X layer**: Always respect official skill.md constraints. Prefer patterns from xurl/XMCP. Ingest llms/skill for prompts.
 - **CV promote**: Strict guard — sidecar + preview + explicit confirm. Never mutate external repo without user in loop.
-- **MCP exposure**: Core hunter functions (search, analyze, prep, promote) must be callable as tools (for this env + future agents).
+- **MCP exposure**: Core finder functions (search, analyze, prep, promote) must be callable as tools (for this env + future agents).
 - After agent runs (execute-plan, subagents, concurrent): run `grok worktree gc` + cleanup scripts. Use worktrees for parallel reactor development.
 - Commit hygiene: Clean factual messages. No LLM attribution boilerplate unless user confirmed the exact LLM in context.
 
@@ -106,9 +106,9 @@ Run `pnpm` / `cargo` in the appropriate subdir (src-tauri for Rust).
 
 ## Long-Running / Exponential Development
 
-- Use `agent-orchestrator` + briefs for any non-trivial feature (the hunter reactor, MCP server, CV guard).
+- Use `agent-orchestrator` + briefs for any non-trivial feature (the finder reactor, MCP server, CV guard).
 - Concurrent development via `concurrent-cli-agents` + git worktrees (isolate Rust vs React vs prompt engineering).
-- Self-improvement: After every major task, generate surplus (cheaper future hunter iterations, better guard patterns).
+- Self-improvement: After every major task, generate surplus (cheaper future finder iterations, better guard patterns).
 - The app itself is the "exponential value engine": once the agentic core (reactor + guards + MCP) is in, development of features (new search strategies, better prep, community collabs) compounds because agents can drive it.
 
 See `docs/agent-workflow-lessons.md` (copy/adapt from devprofile as needed) and git-worktrees skill.

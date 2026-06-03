@@ -42,7 +42,7 @@ function App() {
     setLoading(true)
     setError(null)
     try {
-      const dec = await invoke<Decision>('run_hunter_cycle', { query, bearer: bearer.trim(), cvSummary })
+      const dec = await invoke<Decision>('run_finder_cycle', { query, bearer: bearer.trim(), cvSummary })
       setDecision(dec)
       if (dec.guards_triggered && dec.guards_triggered.length > 0) {
         const pauseMsg = `PAUSED on guards: ${JSON.stringify(dec.guards_triggered)}. Review and intervene (per agentic-reactor self-guards).`
@@ -96,7 +96,7 @@ function App() {
             {commands.map((c, i) => (
               <button key={i} onClick={() => { c.action(); setShowPalette(false) }} className="block w-full text-left px-3 py-2 hover:bg-zinc-800 rounded text-sm">{c.label}</button>
             ))}
-            <div className="text-[10px] text-zinc-500 px-3 pt-2">Agent interface: calls guarded reactor (per tauri-agentic + hunter-reactor skills)</div>
+            <div className="text-[10px] text-zinc-500 px-3 pt-2">Agent interface: calls guarded reactor (per tauri-agentic + finder-reactor skills)</div>
           </div>
         </div>
       )}
@@ -169,7 +169,7 @@ function App() {
         )}
 
         <div className="border border-zinc-800 rounded p-4 text-xs text-zinc-500">
-          Agentic reactor live (per hunter-reactor/agentic-reactor/tauri-agentic skills): guarded cycle with X skill.md context, cost/rate/fit/CV guards, pauses for intervention, MCP tools (run_hunter_cycle etc), sidecar CV promote. X resources loaded from .agents/x-resources/. Next: real xAI (with pruned CV + X skill prefix), full prep artifacts, background autonomous mode.
+          Agentic reactor live (per finder-reactor/agentic-reactor/tauri-agentic skills): guarded cycle with X skill.md context, cost/rate/fit/CV guards, pauses for intervention, MCP tools (run_finder_cycle etc), sidecar CV promote. X resources loaded from .agents/x-resources/. Next: real xAI (with pruned CV + X skill prefix), full prep artifacts, background autonomous mode.
           <br />Query fully tunable. Presets respect official X capabilities.
         </div>
       </div>

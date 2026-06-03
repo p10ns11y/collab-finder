@@ -1,5 +1,5 @@
-// hunter_reactor.rs
-// Core of the agentic, self-guarded Hunter Reactor per .agents/skills/hunter-reactor/SKILL.md + agentic-reactor + tauri-agentic + x-agent-resources + cv-promote-guard.
+// finder_reactor.rs
+// Core of the agentic, self-guarded Finder Reactor per .agents/skills/finder-reactor/SKILL.md + agentic-reactor + tauri-agentic + x-agent-resources + cv-promote-guard.
 // Fission for guards/impl; Fusion for the living system.
 // Self-guards: Cost, XRate, FitThreshold, CVPromote (delegates).
 // Pauses: Return Pause variant for UI/MCP intervention.
@@ -59,13 +59,13 @@ pub struct ReactorState {
     pub pauses: Vec<String>, // logs of interventions
 }
 
-pub struct HunterReactor {
+pub struct FinderReactor {
     pub state: ReactorState,
     pub x_skill_context: String, // loaded from .agents/x-resources/skill.md
     pub devprofile_path: Option<PathBuf>,
 }
 
-impl HunterReactor {
+impl FinderReactor {
     pub fn new(devprofile_path: Option<String>) -> Self {
         let x_skill = Self::load_x_skill_context();
         let cv_path = devprofile_path.clone();
@@ -126,7 +126,7 @@ impl HunterReactor {
 
     // Core: Analyze with X context + CV prune (fission per skills)
     pub fn analyze_lead(&mut self, tweet: XTweet, cv_summary: &str) -> Decision {
-        // Per hunter-reactor + x-agent-resources: prefix with X skill + pruned CV.
+        // Per finder-reactor + x-agent-resources: prefix with X skill + pruned CV.
         let context = format!(
             "X Context (from skill.md/llms): {}. Opportunity: {}. Your CV (pruned): {}. Decide: pursue? score 0-100? prep? pause?",
             self.x_skill_context, tweet.text, cv_summary
@@ -157,15 +157,15 @@ impl HunterReactor {
     }
 
     // Guarded search (uses x-agent-resources for query building)
-    pub async fn guarded_search(&mut self, query: String, bearer: String) -> Result<Vec<XTweet>, String> {
+    pub async fn guarded_search(&mut self, query: String, _bearer: String) -> Result<Vec<XTweet>, String> {
         // Per x-agent-resources: full control, respect rates, use skill for valid queries.
         if let Some(guard) = self.check_xrate_guard() {
             self.state.pauses.push(format!("XRate guard: {:?}", guard));
             return Err(format!("Paused on guard: {:?}", guard)); // Pause for intervention
         }
-        // Real call (existing)
-        // ... (reuse search logic, update rate from response headers in prod)
-        let tweets = /* call search_x_recent internally */ vec![]; // placeholder, wire to real
+        // Real call (existing) - placeholder for now, wire bearer to search_x_recent
+        // For demo, return empty; in full: self.search_x_recent_internal...
+        let tweets: Vec<XTweet> = vec![];
         self.state.x_rate_remaining = self.state.x_rate_remaining.saturating_sub(1);
         self.state.current_cost += 100; // stub
         Ok(tweets)
@@ -215,30 +215,30 @@ impl HunterReactor {
         // In real: load cvdata, generate patch, write sidecar in app_data, return preview.
         // Use devprofile_path.
         if let Some(path) = &self.devprofile_path {
-            format!("Sidecar written for lead {}. Preview diff at {}/preps/... . Confirm to apply? (per cv-promote-guard)", lead_id, path.display())
+            Ok(format!("Sidecar written for lead {}. Preview diff at {}/preps/... . Confirm to apply? (per cv-promote-guard)", lead_id, path.display()))
         } else {
-            "Configure devprofile_path first. Sidecar only.".to_string()
-        }.map_err(|e| e.to_string()) // placeholder
+            Ok("Configure devprofile_path first. Sidecar only.".to_string())
+        }
     }
 }
 
 // Example Tauri commands (MCP-compatible tools)
 // In real: wrap reactor methods, use tauri state for singleton reactor.
 #[tauri::command]
-pub async fn run_hunter_cycle(query: String, bearer: String, cv_summary: String) -> Result<Decision, String> {
-    let mut reactor = HunterReactor::new(Some("/path/to/devprofile".to_string())); // from config
+pub async fn run_finder_cycle(query: String, bearer: String, cv_summary: String) -> Result<Decision, String> {
+    let mut reactor = FinderReactor::new(Some("/path/to/devprofile".to_string())); // from config
     reactor.run_autonomous_cycle(query, bearer, cv_summary).await
 }
 
 #[tauri::command]
 pub fn get_reactor_state() -> ReactorState {
     // Return current for UI/dashboard
-    HunterReactor::new(None).state // stub; use shared state
+    FinderReactor::new(None).state // stub; use shared state
 }
 
 #[tauri::command]
 pub fn promote_lead(lead_id: String) -> Result<String, String> {
-    let mut reactor = HunterReactor::new(None);
+    let mut reactor = FinderReactor::new(None);
     reactor.promote_insights(&lead_id)
 }
 

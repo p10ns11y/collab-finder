@@ -1,13 +1,13 @@
 ---
 name: agentic-reactor
-description: Overarching patterns for self-guarded, pause-aware, agent-driven systems in collab-finder. Combines hunter-reactor logic, tauri-agentic shell, X resources, CV guard into a cohesive autonomous platform with intervention only on guards. Use for high-level design of autonomy, meta-improvement loops, MCP composability. Fusion for the "reactor as living system"; fission for specific guards.
+description: Overarching patterns for self-guarded, pause-aware, agent-driven systems in collab-finder. Combines finder-reactor logic, tauri-agentic shell, X resources, CV guard into a cohesive autonomous platform with intervention only on guards. Use for high-level design of autonomy, meta-improvement loops, MCP composability. Fusion for the "reactor as living system"; fission for specific guards.
 ---
 
 # Agentic Reactor — The Living, Self-Improving Hunter Platform
 
 **Core Mission**: Make collab-finder not just a tool, but an autonomous agent that runs with minimal human input, using self-guards and pauses to stay safe and aligned. It decides, acts (search, prep), learns, and improves — surfacing only when necessary (low fit, high cost, CV changes, etc.). Exponential value comes from the feedback loop: real opportunities refine the CV/profile, better profile = better hunts, agents drive the loop.
 
-## Principles (from hunter-reactor + tauri-agentic + others)
+## Principles (from finder-reactor + tauri-agentic + others)
 
 - **Autonomy with Guardrails**: Reactor loop runs (search -> analyze with X skill/llms + CV packet -> decide with confidence -> prep if cleared -> track).
 - **Pauses**: Explicit points for user (or outer agent) intervention. UI dialogs, MCP "pause" tool responses, notifications.
@@ -37,7 +37,7 @@ Meta: Use fusion-sage + this skill for evolving the reactor itself (e.g., new gu
 - Startup: load X resources (copy or fetch .agents/x-resources/), init CV path, secure keys.
 - Every xAI: prefix with current X skill.md excerpt + pruned CV.
 - Pauses: return special result or show dialog; log for surplus.
-- Surplus: always after loop/cycle; track in .agents/skills/hunter-reactor/surplus-log.md or fusion-state.
+- Surplus: always after loop/cycle; track in .agents/skills/finder-reactor/surplus-log.md or fusion-state.
 - Testing: bdd-strategizer for guard scenarios (e.g., "low rate -> pause").
 
 ## Surplus Protocol
@@ -49,9 +49,9 @@ Suggested: [next improvement, e.g., auto-generate CV update skill from promotes]
 
 ## Activation
 
-- High-level agentic design: "use fusion" + load agentic-reactor + hunter-reactor + tauri-agentic + fusion-sage.
+- High-level agentic design: "use fusion" + load agentic-reactor + finder-reactor + tauri-agentic + fusion-sage.
 - For the app's internal "agent": prefix code/prompts with this.
-- In this Grok session: use spawn_subagent with hunter-reactor prompts for features.
+- In this Grok session: use spawn_subagent with finder-reactor prompts for features.
 
 See related skills for details. This is the "glue" for exponential, high-value autonomy.
 

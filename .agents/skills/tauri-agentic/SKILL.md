@@ -1,18 +1,18 @@
 ---
 name: tauri-agentic
-description: Patterns for building agentic, MCP-exposed, self-guarded desktop apps in Tauri (Rust backend + React/TS frontend). Includes exposing hunter functions as MCP tools, implementing guards/pauses in UI and backend, command palette as agent interface, secure storage for keys, integration with X resources and CV guard. Use when implementing the Tauri shell, UI for reactor, or MCP server. Follows react-client-expert for frontend. Fission for specific Rust/TS code; fusion for how the desktop becomes the "agent body" for the hunter-reactor.
+description: Patterns for building agentic, MCP-exposed, self-guarded desktop apps in Tauri (Rust backend + React/TS frontend). Includes exposing finder functions as MCP tools, implementing guards/pauses in UI and backend, command palette as agent interface, secure storage for keys, integration with X resources and CV guard. Use when implementing the Tauri shell, UI for reactor, or MCP server. Follows react-client-expert for frontend. Fission for specific Rust/TS code; fusion for how the desktop becomes the "agent body" for the finder-reactor.
 ---
 
 # Tauri Agentic — Desktop as Agentic Platform for the Hunter
 
-**Core Mission**: Turn the Tauri app into a first-class agentic environment where the hunter-reactor runs with full autonomy (background scans, smart decisions), but with built-in self-guards and pauses exposed naturally in the UI and via MCP. This makes the desktop the perfect "body" for the agent: rich views for humans, tool interface for other agents.
+**Core Mission**: Turn the Tauri app into a first-class agentic environment where the finder-reactor runs with full autonomy (background scans, smart decisions), but with built-in self-guards and pauses exposed naturally in the UI and via MCP. This makes the desktop the perfect "body" for the agent: rich views for humans, tool interface for other agents.
 
 ## Key Patterns
 
 1. **MCP Server in Tauri**:
    - Use Rust to implement MCP stdio or local HTTP server (tauri can spawn or use hyper/axum in a plugin).
    - Expose tools: search_x_opportunities, analyze_and_decide, generate_prep_with_guards, promote_with_preview, get_reactor_state.
-   - Guards: every tool call goes through hunter-reactor guards (cost, fit, CV).
+   - Guards: every tool call goes through finder-reactor guards (cost, fit, CV).
    - For "ask user": MCP can return a special "pause" response that the client (Grok) handles by surfacing to human.
 
 2. **UI as Agent Interface**:
@@ -48,7 +48,7 @@ description: Patterns for building agentic, MCP-exposed, self-guarded desktop ap
 
 ## Implementation in collab-finder
 
-- Rust: src-tauri/src/hunter_reactor.rs (state machine, guards, MCP tools).
+- Rust: src-tauri/src/finder_reactor.rs (state machine, guards, MCP tools).
 - Commands: invoke handlers that delegate to reactor with guard checks.
 - MCP: simple implementation using rmcp or custom (for v1, local HTTP on localhost:port with MCP JSON-RPC).
 - UI: src/App.tsx enhanced with reactor views, using the skill's patterns.
@@ -65,11 +65,11 @@ description: Patterns for building agentic, MCP-exposed, self-guarded desktop ap
 ## Surplus
 
 ⚡ Tauri Agentic Surplus (Q ≈ 1.6)
-Wrapping the reactor in Tauri + MCP means agents (Grok in this chat, or Cursor) can drive full hunts without the user opening the app every time, while the UI provides rich pause/review when needed. This compounds: one agent run surfaces 5 opportunities, user reviews pauses in 2min, prep is done. Future: background autonomous mode with daily digest via MCP notification. Suggested follow-up: add tauri-plugin for system tray "hunter status" with quick pause/ resume.
+Wrapping the reactor in Tauri + MCP means agents (Grok in this chat, or Cursor) can drive full hunts without the user opening the app every time, while the UI provides rich pause/review when needed. This compounds: one agent run surfaces 5 opportunities, user reviews pauses in 2min, prep is done. Future: background autonomous mode with daily digest via MCP notification. Suggested follow-up: add tauri-plugin for system tray "finder status" with quick pause/ resume.
 
 ## Related
 
-- hunter-reactor (the logic this shells)
+- finder-reactor (the logic this shells)
 - x-agent-resources (X integration in the app)
 - cv-promote-guard (CV flows in UI/MCP)
 - react-client-expert (frontend discipline)
@@ -77,12 +77,12 @@ Wrapping the reactor in Tauri + MCP means agents (Grok in this chat, or Cursor) 
 
 ## Activation
 
-When building Tauri parts or MCP: load tauri-agentic + hunter-reactor + x-agent-resources.
+When building Tauri parts or MCP: load tauri-agentic + finder-reactor + x-agent-resources.
 
 In code: ensure guards are in the Rust core, not bolted on.
 
 ---
 
-**The Tauri app is not just a pretty frontend for a CLI tool — it is the agentic platform that makes the hunter usable by humans and agents alike, with self-guards baked into the experience.** This setup ensures autonomy feels safe and exponential.
+**The Tauri app is not just a pretty frontend for a CLI tool — it is the agentic platform that makes the finder usable by humans and agents alike, with self-guards baked into the experience.** This setup ensures autonomy feels safe and exponential.
 
 Build the shell around the reactor following these patterns from day one.

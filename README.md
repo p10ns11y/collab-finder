@@ -1,10 +1,10 @@
 # collab-finder
 
-**Highly autonomous, agentic X opportunity hunter** (Tauri desktop). Self-guarded reactor with pauses, smart decisions (xAI structured), MCP exposure for agents (Grok/Cursor/etc can drive "run hunt, pause on low fit or CV promote"). User intervenes only on guards.
+**Highly autonomous, agentic X opportunity finder** (Tauri desktop). Self-guarded reactor with pauses, smart decisions (xAI structured), MCP exposure for agents (Grok/Cursor/etc can drive "run hunt, pause on low fit or CV promote"). User intervenes only on guards.
 
 Live guarded autonomous cycles, X skill.md/llms context baked in, CV promote via sidecar+preview+confirm (cv-promote-guard), full query control.
 
-See .agents/ (AGENTS.md, SKILL.md, hunter-reactor/agentic-reactor/x-agent-resources/cv-promote-guard/tauri-agentic skills, rules) + docs/x-tools.md for the high-standard agentic foundation from day 1. Development compounds exponentially (fusion surplus, subagents, bdd for guards).
+See .agents/ (AGENTS.md, SKILL.md, finder-reactor/agentic-reactor/x-agent-resources/cv-promote-guard/tauri-agentic skills, rules) + docs/x-tools.md for the high-standard agentic foundation from day 1. Development compounds exponentially (fusion surplus, subagents, bdd for guards).
 
 ## Quick Start (agentic dev ready)
 
@@ -21,10 +21,10 @@ pnpm tauri dev
 
 ## Architecture (per agentic-reactor + friends)
 
-- **HunterReactor (Rust core)**: State in app_data, guards (Cost/XRate/Fit/CVPromote), X via x-agent-resources (skill.md context + low-level search), stub xAI decisions (real soon: pruned CV + X skill prefix), MCP tools (run_hunter_cycle, promote_lead, get_reactor_state).
+- **FinderReactor (Rust core)**: State in app_data, guards (Cost/XRate/Fit/CVPromote), X via x-agent-resources (skill.md context + low-level search), stub xAI decisions (real soon: pruned CV + X skill prefix), MCP tools (run_finder_cycle, promote_lead, get_reactor_state).
 - **Tauri Shell**: React minimal UI (command palette as agent iface, guard dashboard, pause modals, autonomous button).
 - **Autonomy**: Loop with self-guards/pauses; only intervene on low conf/high stakes/CV. Surplus after cycles.
-- **Exponential**: MCP so agents drive it; .agents/ skills for us (load fusion + hunter-reactor when building); X official resources prevent reinvention.
+- **Exponential**: MCP so agents drive it; .agents/ skills for us (load fusion + finder-reactor when building); X official resources prevent reinvention.
 
 Full setup follows devprofile's connected fission/fusion + X agent resources (llms.txt, skill.md, MCP, xurl) for composable, high-value autonomy.
 

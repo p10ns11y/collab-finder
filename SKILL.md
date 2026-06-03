@@ -38,7 +38,7 @@ Primary docs + X resources: https://docs.x.com/tools/ai (llms, skill, mcp, xurl)
 
 ## Quick reference (capabilities)
 
-### Core hunter flows (MCP tools + Tauri commands + UI)
+### Core finder flows (MCP tools + Tauri commands + UI)
 - `search_x` / `search_x_recent(query: string, filters?)` — fully editable queries, returns enriched leads.
 - `analyze_opportunity(lead, cv_packet?)` — xAI fit score + rationale + gaps + angle (using X skill.md + your pruned CV + llms context).
 - `generate_prep_pack(lead)` — letter.md, cv-delta.json (structured), research.md, outreach.md, manifest. Writes sidecar in app data.
@@ -107,7 +107,7 @@ The system logs decisions, costs, and intervention points for review.
 - When using MCP/XMCP, respect allow-lists for safety.
 - The Tauri UI and MCP surface must stay in sync (same guards).
 
-## Verification checklist (before marking hunter feature "done")
+## Verification checklist (before marking finder feature "done")
 
 - [ ] All decision points have explicit self-guard + pause path + logging.
 - [ ] X calls respect official skill.md constraints + rate headers.
@@ -115,16 +115,16 @@ The system logs decisions, costs, and intervention points for review.
 - [ ] MCP tools (if added) are documented in this SKILL and tested.
 - [ ] Prompts include current X skill.md + llms context (or reference to fresh fetch).
 - [ ] User can intervene at any guard without losing state.
-- [ ] Surplus generated: how did this make future hunter iterations cheaper / higher value?
+- [ ] Surplus generated: how did this make future finder iterations cheaper / higher value?
 - [ ] Cargo check + pnpm build + tauri check pass.
 - [ ] BDD scenarios (via bdd-strategizer) cover the guard + pause cases.
 
 ## Resources
 
 - Official X: https://docs.x.com/tools/ai (llms.txt, skill.md, mcp, xurl)
-- This project's agent system: root `AGENTS.md`, `.agents/skills/hunter-reactor/SKILL.md`, etc.
+- This project's agent system: root `AGENTS.md`, `.agents/skills/finder-reactor/SKILL.md`, etc.
 - Your devprofile (CV source + public face): sibling repo with its own strong agent setup.
-- MCP in this environment: use to drive or extend the hunter.
+- MCP in this environment: use to drive or extend the finder.
 
 ---
 
@@ -132,4 +132,4 @@ The system logs decisions, costs, and intervention points for review.
 
 You (the human) stay in the loop only for the decisions that truly matter. Agents handle the rest.
 
-#x-agentic #hunter-reactor #self-guarded #xai #mcp #skill-md
+#x-agentic #finder-reactor #self-guarded #xai #mcp #skill-md

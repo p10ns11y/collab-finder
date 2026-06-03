@@ -1,11 +1,11 @@
 ---
 name: cv-promote-guard
-description: Strict self-guarded mechanism for reading the user's devprofile CV (cvdata.json) for grounding and safely promoting insights/deltas back with sidecars, diffs, previews, backups, and explicit user confirmation. Never mutates external portfolio without multiple gates. Use for any CV-related logic in hunter-reactor or prep flows. Enforces sidecar-first, auditability, and intervention points. Fission for safe edit code; fusion for how it protects the public profile while improving future matches.
+description: Strict self-guarded mechanism for reading the user's devprofile CV (cvdata.json) for grounding and safely promoting insights/deltas back with sidecars, diffs, previews, backups, and explicit user confirmation. Never mutates external portfolio without multiple gates. Use for any CV-related logic in finder-reactor or prep flows. Enforces sidecar-first, auditability, and intervention points. Fission for safe edit code; fusion for how it protects the public profile while improving future matches.
 ---
 
 # CV Promote Guard — Safe, Auditable, Sidecar-First Profile Evolution
 
-**Core Mission**: Allow the hunter-reactor to use the user's real, rich CV from devprofile for hyper-relevant analysis and prep, while making any "promote insights" (suggested improvements to one_liner, experience bullets, skills, etc. derived from real opportunities) completely safe, reversible, and user-controlled. This guard is what enables compounding: better CV → better matches → more insights → even better CV, without ever risking the public portfolio accidentally.
+**Core Mission**: Allow the finder-reactor to use the user's real, rich CV from devprofile for hyper-relevant analysis and prep, while making any "promote insights" (suggested improvements to one_liner, experience bullets, skills, etc. derived from real opportunities) completely safe, reversible, and user-controlled. This guard is what enables compounding: better CV → better matches → more insights → even better CV, without ever risking the public portfolio accidentally.
 
 ## Immutable Principles
 
@@ -21,7 +21,7 @@ description: Strict self-guarded mechanism for reading the user's devprofile CV 
 
 ## Reactor Integration
 
-In hunter-reactor loop:
+In finder-reactor loop:
 - Analyze/Prep: load pruned CV packet from configured devprofile_path/src/data/cvdata.json (using cv-promote-guard logic for pruning).
 - Decide on promote: only after outcome (e.g., "this lead highlighted a gap in my energy-efficiency experience").
 - Promote flow: generate delta (structured JSON Patch or list of edits with "why"), write sidecar, present preview, user/agent confirms, then safe write + backup.
@@ -67,7 +67,7 @@ This sidecar + diff flow would have prevented X accidental public profile change
 
 ## Related Skills
 
-- hunter-reactor (primary consumer)
+- finder-reactor (primary consumer)
 - x-agent-resources (opportunities that trigger promotes)
 - tauri-agentic (UI/MCP for the guard dialogs/tools)
 - ai-optimization (for CV pruning in packets)
@@ -75,7 +75,7 @@ This sidecar + diff flow would have prevented X accidental public profile change
 
 ## Activation for Agents
 
-When touching CV or promote: load cv-promote-guard + hunter-reactor + fusion-sage (for the guard as a cross-cutting concern).
+When touching CV or promote: load cv-promote-guard + finder-reactor + fusion-sage (for the guard as a cross-cutting concern).
 
 In code reviews: verify no raw fs writes to cvdata without going through this.
 

@@ -1,11 +1,11 @@
 ---
 name: x-agent-resources
-description: Integration and usage of official X Developer Platform agent resources (llms.txt, skill.md, MCP/XMCP, xurl, OpenAPI) for accurate, smooth, composable X access in collab-finder. Use when building search, analysis, posting, or any X interaction. Ensures we leverage llms/skill for prompt context, MCP for tool exposure, xurl for CLI UX, and follow the spec for our own SKILL/MCP. Fission for implementation details; fusion for how it unifies with hunter-reactor and overall agentic design.
+description: Integration and usage of official X Developer Platform agent resources (llms.txt, skill.md, MCP/XMCP, xurl, OpenAPI) for accurate, smooth, composable X access in collab-finder. Use when building search, analysis, posting, or any X interaction. Ensures we leverage llms/skill for prompt context, MCP for tool exposure, xurl for CLI UX, and follow the spec for our own SKILL/MCP. Fission for implementation details; fusion for how it unifies with finder-reactor and overall agentic design.
 ---
 
 # X Agent Resources — Official Primitives for X-Powered Agents
 
-**Core Mission**: Make every X interaction in collab-finder correct, efficient, and agent-composable by treating the official X agent resources as first-class citizens — not afterthoughts. This enables exponential value because the hunter can be driven by agents (including itself in meta-loops), and development reuses battle-tested specs instead of reinventing.
+**Core Mission**: Make every X interaction in collab-finder correct, efficient, and agent-composable by treating the official X agent resources as first-class citizens — not afterthoughts. This enables exponential value because the finder can be driven by agents (including itself in meta-loops), and development reuses battle-tested specs instead of reinventing.
 
 ## Key Resources (Always Reference Fresh or Cached)
 
@@ -22,8 +22,8 @@ See docs/x-tools.md for full details and how-to (curl, npx skills add, etc.).
 
 ## Integration Principles
 
-1. **Ingest for Intelligence**: Every xAI call in the hunter-reactor MUST include (or reference cached) relevant excerpts from X skill.md + llms context. This prevents hallucinated operators, wrong auth assumptions, rate limit ignorance.
-2. **MCP for Composability**: Expose hunter functions (search, analyze, prep, promote) as MCP tools. Allow XMCP for direct X ops when richer than our custom client. This makes the whole system usable by Grok, Cursor, etc., without GUI.
+1. **Ingest for Intelligence**: Every xAI call in the finder-reactor MUST include (or reference cached) relevant excerpts from X skill.md + llms context. This prevents hallucinated operators, wrong auth assumptions, rate limit ignorance.
+2. **MCP for Composability**: Expose finder functions (search, analyze, prep, promote) as MCP tools. Allow XMCP for direct X ops when richer than our custom client. This makes the whole system usable by Grok, Cursor, etc., without GUI.
 3. **xurl for UX & Fallback**: Document and optionally shell to xurl for ad-hoc or when our Rust client needs a trusted path. Its Bubble Tea TUI and token mgmt are models for our Tauri UI.
 4. **Follow the Spec**: Our root SKILL.md and any MCP server must be compatible with agentskills.io + X's format so agents discover us reliably.
 5. **Self-Guards Apply**: MCP tool calls respect the same guards/pauses as the UI (e.g., no auto-post without approval; fit guards before heavy prep).
@@ -39,7 +39,7 @@ See docs/x-tools.md for full details and how-to (curl, npx skills add, etc.).
   - generate_prep_with_guards(lead)
   - promote_with_preview(insights)
 - **UI**: Command palette / buttons that map 1:1 to MCP tools for consistency.
-- **Prompt Library**: Central place (e.g. src-tauri/src/prompts/x_context.md or generated) that combines X skill + our CV packet + hunter state.
+- **Prompt Library**: Central place (e.g. src-tauri/src/prompts/x_context.md or generated) that combines X skill + our CV packet + finder state.
 - **Testing**: Use bdd-strategizer for "agent calls MCP search, guard fires on low rate, pauses".
 - **Dev**: When coding X features, load this skill + xurl/xmcp repos for reference.
 
@@ -53,7 +53,7 @@ See docs/x-tools.md for full details and how-to (curl, npx skills add, etc.).
 
 ## Activation
 
-- Building X search/prep logic: load x-agent-resources + hunter-reactor + ai-optimization (for pruning X posts + skill context).
+- Building X search/prep logic: load x-agent-resources + finder-reactor + ai-optimization (for pruning X posts + skill context).
 - Architecture of MCP exposure: fusion-sage + this skill + tauri-agentic.
 - Using in prompts or agent calls: reference the official URLs + our SKILL.md.
 
@@ -66,13 +66,13 @@ Track updates in surplus-log or fusion-state.
 
 ## Related
 
-- hunter-reactor (the consumer of these resources)
+- finder-reactor (the consumer of these resources)
 - Root SKILL.md (we publish our own following the pattern)
 - tauri-agentic (MCP server impl)
 - Official: https://docs.x.com/tools/ai , xurl repo, xmcp repo
 
 ---
 
-**These resources are the "easy connect" that makes the entire agentic vision possible.** Without them, we'd reinvent X integration poorly. With them, the hunter is accurate, composable, and compounds with the broader X agent ecosystem (including this project's own contributions back via our SKILL/MCP).
+**These resources are the "easy connect" that makes the entire agentic vision possible.** Without them, we'd reinvent X integration poorly. With them, the finder is accurate, composable, and compounds with the broader X agent ecosystem (including this project's own contributions back via our SKILL/MCP).
 
 Always start X-related work by loading this skill.

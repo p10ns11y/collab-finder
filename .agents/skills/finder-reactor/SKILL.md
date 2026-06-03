@@ -1,11 +1,11 @@
 ---
-name: hunter-reactor
+name: finder-reactor
 description: The core autonomous, self-guarded decision and execution loop for collab-finder. Handles opportunity discovery (X search), analysis (xAI + CV + X skill.md context), prep generation, tracking, and promote with built-in guards (cost, rate, fit, CV mutation), pauses for human intervention, smart intelli decisions (structured xAI "recommend next action + confidence"), and logging. Use for designing, implementing, or debugging the agentic heart of the app. Fission for tight loops; fusion for the overall reactor architecture and surplus (cheaper future decisions, better guards).
 ---
 
-# Hunter Reactor — Self-Guarded, Pause-Aware, Agentic Opportunity Engine
+# Finder Reactor — Self-Guarded, Pause-Aware, Agentic Opportunity Engine
 
-**Core Mission**: Turn raw X firehose + your CV + xAI into a reliable, low-intervention personal opportunity system. The reactor decides what to pursue, prepares materials, tracks outcomes, and improves itself — while **never** acting on high-stakes things (CV changes to public profile, expensive runs, low-confidence fits) without explicit guard clearance and user pause points.
+**Core Mission**: Turn raw X firehose + your CV + xAI into a reliable, low-intervention personal opportunity system. The finder decides what to pursue, prepares materials, tracks outcomes, and improves itself — while **never** acting on high-stakes things (CV changes to public profile, expensive runs, low-confidence fits) without explicit guard clearance and user pause points.
 
 It is the "intelli" part that makes development (and usage) feel exponential: agents can drive large parts of the loop, the loop itself improves with use, and surplus from each cycle compounds the quality of future cycles.
 
@@ -85,7 +85,7 @@ This is how the system gets dramatically better in days/weeks of use + agentic d
 
 ## Activation for Agents Building the Reactor
 
-- Architecture / overall loop / new guard design: "use fusion" or load hunter-reactor + fusion-sage.
+- Architecture / overall loop / new guard design: "use fusion" or load finder-reactor + fusion-sage.
 - Implementing a specific guard, prompt, or MCP tool: load ai-optimization + relevant (cv-promote-guard, x-agent-resources, tauri-agentic).
 - Adding tests or BDD for autonomy: bdd-strategizer.
 - Parallel work on Rust backend vs React UI vs prompt library: agent-orchestrator + git-worktrees + concurrent-cli-agents.
@@ -93,7 +93,7 @@ This is how the system gets dramatically better in days/weeks of use + agentic d
 
 ## Surplus Generation (Mandatory After Reactor Changes)
 
-Every response or PR that touches the hunter must end with:
+Every response or PR that touches the finder must end with:
 
 ```
 ⚡ Hunter Surplus (Q ≈ X.X)
@@ -102,7 +102,7 @@ Concrete future win: [specific example].
 Suggested follow-up: [one small thing that compounds].
 ```
 
-Track in `.agents/skills/hunter-reactor/surplus-log.md` (or fusion-state style).
+Track in `.agents/skills/finder-reactor/surplus-log.md` (or fusion-state style).
 
 ## Language / Tech Specifics
 
@@ -113,13 +113,13 @@ Track in `.agents/skills/hunter-reactor/surplus-log.md` (or fusion-state style).
 
 ## IDE / Agent Integration
 
-- Cursor: Load `hunter-reactor.mdc` (to be created in rules) + fusion-sage.
-- This Grok session: Prefix with "hunter-reactor" or just let AGENTS.md route. Use spawn_subagent for guard logic, prep generation, etc.
+- Cursor: Load `finder-reactor.mdc` (to be created in rules) + fusion-sage.
+- This Grok session: Prefix with "finder-reactor" or just let AGENTS.md route. Use spawn_subagent for guard logic, prep generation, etc.
 - The running app: Expose the same reactor via MCP so you can say in chat "use collab-finder to find me 3 collabs this week and prep the best one".
 
 ---
 
-**The hunter-reactor is what makes collab-finder *autonomous and high-value*.** It is not a dumb search + generate tool. It is a self-improving, guard-railed agent that does the boring/scary/expensive parts for you and only surfaces the decisions that benefit from your judgment.
+**The finder-reactor is what makes collab-finder *autonomous and high-value*.** It is not a dumb search + generate tool. It is a self-improving, guard-railed agent that does the boring/scary/expensive parts for you and only surfaces the decisions that benefit from your judgment.
 
 Build it with the same care as the X + xAI primitives it consumes. The compounding will be obvious within days.
 

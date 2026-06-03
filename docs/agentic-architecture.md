@@ -1,6 +1,6 @@
 # Agentic Architecture — collab-finder
 
-See root .agents/skills/agentic-reactor/SKILL.md (overarching), hunter-reactor, tauri-agentic, x-agent-resources, cv-promote-guard for full details.
+See root .agents/skills/agentic-reactor/SKILL.md (overarching), finder-reactor, tauri-agentic, x-agent-resources, cv-promote-guard for full details.
 
 ## Principles
 - Autonomy with self-guards/pauses (no silent high-stakes actions).
@@ -12,7 +12,7 @@ See root .agents/skills/agentic-reactor/SKILL.md (overarching), hunter-reactor, 
 - Fission (prune, tight code) + Fusion (synthesis, living reactor).
 
 ## Components
-- Rust: hunter_reactor.rs (state machine, guards, X context load, MCP tools stubs).
+- Rust: finder_reactor.rs (state machine, guards, X context load, MCP tools stubs).
 - Tauri: commands expose reactor; secure storage; capabilities scoped.
 - React: command palette, guard dashboard, pause surfaces, autonomous trigger (minimal state).
 - .agents/: full skills/rules for dev (load via fusion-sage.mdc etc.); X resources in .agents/x-resources/.
