@@ -1,0 +1,12 @@
+/* Tailwind will be added once build stabilized (postcss + vite 8 rolldown edge in this env).
+   For scaffold we use a few inline styles + system fonts. */
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: #09090b;
+  color: #e4e4e7;
+}
