@@ -9,7 +9,7 @@ This project uses a **connected agent skills system** (fission + fusion) + **off
 ## Core Agent Skills System (Fission + Fusion)
 
 - **`ai-optimization`** (fission): Token-efficient pruning, context compression, relevance scoring. Use for fast impl, prompt engineering, large contexts (CV + X posts + X skill.md).
-- **`fusion-sage`** (fusion): Synthesis, surplus generation, self-improvement loops, higher-order abstractions (e.g. "HunterReactor", "CVPromoteGuard", "XOpportunityAgent"). Use for architecture, long-term value, agentic design.
+- **`fusion-sage`** (fusion): Synthesis, surplus generation, self-improvement loops, higher-order abstractions (e.g. "FinderReactor", "CVPromoteGuard", "XOpportunityAgent"). Use for architecture, long-term value, agentic design.
 
 **Recommended activation**:
 - Normal work: Let auto-decide (fusion-sage routes).
@@ -23,10 +23,10 @@ See `.agents/skills/fusion-sage/SKILL.md` and `.agents/skills/ai-optimization/SK
 Integrated from day 1 (https://docs.x.com/tools/ai):
 - **llms.txt / llms-full.txt**: Fetch and use as structured context for xAI (X API operators, auth, rate limits, endpoints, best practices).
 - **skill.md**: The canonical agentskills.io capability spec for X (actions, params, constraints, workflows, gotchas, checklists). Ingest into every xAI prompt. Template for *this project's own* SKILL.md.
-- **MCP (XMCP + Docs MCP)**: XMCP exposes 200+ X API endpoints as callable tools (with OAuth). Docs MCP for live doc search. The app itself will expose hunter tools via MCP (search + prep + promote) so agents (Grok, Cursor, future) can drive it.
+- **MCP (XMCP + Docs MCP)**: XMCP exposes 200+ X API endpoints as callable tools (with OAuth). Docs MCP for live doc search. The app itself will expose finder tools via MCP (search + prep + promote) so agents (Grok, Cursor, future) can drive it.
 - **xurl**: Official CLI with smooth auth, token storage, shortcuts (`xurl search`, `xurl post`). Has its own SKILL.md. App can shell to it for UX or fall back; use its patterns for our X layer.
 
-**Philosophy alignment**: "Easy to connect X, read and writing smooth". The hunter is not a silo — it is a composable agent skill in the X + xAI ecosystem.
+**Philosophy alignment**: "Easy to connect X, read and writing smooth". The finder is not a silo — it is a composable agent skill in the X + xAI ecosystem.
 
 See `docs/x-tools.md` and `.agents/skills/x-agent-resources/SKILL.md` (to be created).
 

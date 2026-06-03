@@ -9,7 +9,7 @@ metadata:
   self-guards: true
 ---
 
-# collab-finder — X-Powered Opportunity Hunter (Agentic, Self-Guarded)
+# collab-finder — X-Powered Opportunity Finder (Agentic, Self-Guarded)
 
 ## Product summary
 

@@ -7,12 +7,12 @@ alwaysApply: true
 Follow the full fusion-sage/SKILL.md.
 
 For this project:
-- Hunter-reactor is the core fusion abstraction: self-guarded autonomous loop.
+- Finder-reactor is the core fusion abstraction: self-guarded autonomous loop.
 - Use for designing MCP exposure, CV promote guards, X integration with official resources.
-- Always generate surplus: how does this make future hunter iterations or agent runs cheaper/higher value?
+- Always generate surplus: how does this make future finder iterations or agent runs cheaper/higher value?
 - Prefix responses with fusion budget/surplus when in fusion mode.
 - For agentic code: fuse Rust reactor + TS UI + MCP + prompts into "AgenticHunterPlatform".
 
 When user says "use fusion" or "ignite", activate fully.
 
-See also hunter-reactor, tauri-agentic, x-agent-resources skills.
+See also finder-reactor, tauri-agentic, x-agent-resources skills.

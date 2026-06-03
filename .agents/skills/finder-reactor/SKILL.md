@@ -55,7 +55,7 @@ Every arrow has a guard or pause hook.
 - Structured output schemas (zod in TS side for UI, serde in Rust).
 
 **Fusion (for the architecture & self-improvement)**:
-- Treat the whole thing as a "HunterReactor" state machine (XState in frontend? or Rust + events for durability).
+- Treat the whole thing as a "FinderReactor" state machine (XState in frontend? or Rust + events for durability).
 - Cross-cutting: CVPromoteGuard, CostGuard, XRateGuard, DecisionLogger, SurplusGenerator.
 - Evolving knowledge: persist "what worked" (successful preps → better future scoring prompts or CV packet refinements).
 - Surplus every cycle: "This guard heuristic would have saved 2 xAI calls on the last 5 opportunities."
@@ -96,7 +96,7 @@ This is how the system gets dramatically better in days/weeks of use + agentic d
 Every response or PR that touches the finder must end with:
 
 ```
-⚡ Hunter Surplus (Q ≈ X.X)
+⚡ Finder Surplus (Q ≈ X.X)
 This change would have [saved Y tokens / avoided Z bad decisions / enabled W new autonomous flows] on the last N real opportunities (or during dev).
 Concrete future win: [specific example].
 Suggested follow-up: [one small thing that compounds].

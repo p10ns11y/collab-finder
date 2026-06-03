@@ -3,7 +3,7 @@ name: agentic-reactor
 description: Overarching patterns for self-guarded, pause-aware, agent-driven systems in collab-finder. Combines finder-reactor logic, tauri-agentic shell, X resources, CV guard into a cohesive autonomous platform with intervention only on guards. Use for high-level design of autonomy, meta-improvement loops, MCP composability. Fusion for the "reactor as living system"; fission for specific guards.
 ---
 
-# Agentic Reactor — The Living, Self-Improving Hunter Platform
+# Agentic Reactor — The Living, Self-Improving Finder Platform
 
 **Core Mission**: Make collab-finder not just a tool, but an autonomous agent that runs with minimal human input, using self-guards and pauses to stay safe and aligned. It decides, acts (search, prep), learns, and improves — surfacing only when necessary (low fit, high cost, CV changes, etc.). Exponential value comes from the feedback loop: real opportunities refine the CV/profile, better profile = better hunts, agents drive the loop.
 
@@ -18,7 +18,7 @@ description: Overarching patterns for self-guarded, pause-aware, agent-driven sy
 
 ## Architecture (Fusion View)
 
-HunterReactor (Rust core):
+FinderReactor (Rust core):
 - State: leads/preps/tracker in app data (reversible JSON).
 - Guards: CostGuard, XRateGuard, FitThresholdGuard, CVPromoteGuard (delegates to cv-promote-guard).
 - X Layer: via x-agent-resources (context from fetched skill.md/llms.txt, optional xurl shell or XMCP client).

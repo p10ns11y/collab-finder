@@ -13,4 +13,4 @@ globs: ["src-tauri/**", "src/**/*.tsx", "tauri.conf.json"]
 - Follow tauri-agentic/SKILL.md + react-client-expert.
 - Surplus for UI/UX improvements that make agent interaction cheaper.
 
-Use with hunter-reactor and fusion-sage.
+Use with finder-reactor and fusion-sage.

@@ -3,7 +3,7 @@ name: tauri-agentic
 description: Patterns for building agentic, MCP-exposed, self-guarded desktop apps in Tauri (Rust backend + React/TS frontend). Includes exposing finder functions as MCP tools, implementing guards/pauses in UI and backend, command palette as agent interface, secure storage for keys, integration with X resources and CV guard. Use when implementing the Tauri shell, UI for reactor, or MCP server. Follows react-client-expert for frontend. Fission for specific Rust/TS code; fusion for how the desktop becomes the "agent body" for the finder-reactor.
 ---
 
-# Tauri Agentic — Desktop as Agentic Platform for the Hunter
+# Tauri Agentic — Desktop as Agentic Platform for the Finder
 
 **Core Mission**: Turn the Tauri app into a first-class agentic environment where the finder-reactor runs with full autonomy (background scans, smart decisions), but with built-in self-guards and pauses exposed naturally in the UI and via MCP. This makes the desktop the perfect "body" for the agent: rich views for humans, tool interface for other agents.
 
@@ -22,7 +22,7 @@ description: Patterns for building agentic, MCP-exposed, self-guarded desktop ap
    - "Autonomous mode" toggle: runs background reactor loop (with pauses surfacing as notifications/dialogs).
 
 3. **Backend Guards in Rust**:
-   - Central HunterReactor struct that wraps X client (using x-agent-resources), xAI calls (with pruning), state (leads, preps in app_data_dir JSON).
+   - Central FinderReactor struct that wraps X client (using x-agent-resources), xAI calls (with pruning), state (leads, preps in app_data_dir JSON).
    - Every decision: structured output from xAI, then apply guards (e.g., if fit < threshold { return Pause(Reason::LowFit) }).
    - Secure keys: tauri-plugin-keyring or store for X bearer, xAI key.
    - CV: use cv-promote-guard module for all reads/writes to devprofile path.
