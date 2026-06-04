@@ -62,10 +62,9 @@ pub(crate) fn persist_cycle_search(
 }
 
 pub(crate) fn persist_cycle_lead(store: &SqliteStore, result: &CycleResult) -> i64 {
-    if result.tweets.is_empty() {
+    let Some(best) = &result.best_tweet else {
         return 0;
-    }
-    let best = &result.tweets[0];
+    };
     let decision_json = serde_json::to_string(&result.decision).ok();
     store
         .upsert_lead(
@@ -165,8 +164,41 @@ mod tests {
                 next_steps: vec![],
             },
             tweets: vec![],
+            best_tweet: None,
         };
         assert_eq!(persist_cycle_lead(&store, &result), 0);
+    }
+
+    #[test]
+    fn persist_cycle_lead_uses_best_tweet_not_first_in_list() {
+        let (_d, store) = temp_store();
+        let low = tweet("low");
+        let high = XTweet {
+            id: "high".into(),
+            text: "rust typescript hiring collab agent".into(),
+            author_id: None,
+            created_at: None,
+        };
+        let result = CycleResult {
+            decision: Decision {
+                action: "prep".into(),
+                confidence: 80,
+                rationale: "".into(),
+                guards_triggered: vec![],
+                next_steps: vec![],
+            },
+            tweets: vec![low, high.clone()],
+            best_tweet: Some(high),
+        };
+        let lead_id = persist_cycle_lead(&store, &result);
+        assert!(lead_id > 0);
+        let leads = store
+            .get_leads(&crate::db::LeadFilter {
+                limit: Some(5),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(leads[0].tweet_id, "high");
     }
 
     #[test]

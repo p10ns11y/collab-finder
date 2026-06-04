@@ -16,6 +16,8 @@ export type Decision = {
 export type CycleResult = {
   decision: Decision
   tweets: Tweet[]
+  /** Analyzed lead from the cycle; may differ from `tweets[0]`. */
+  best_tweet: Tweet | null
 }
 
 export type ReactorState = {

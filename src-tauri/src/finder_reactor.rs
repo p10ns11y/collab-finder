@@ -19,7 +19,10 @@ pub enum Guard {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CycleResult {
     pub decision: Decision,
+    /// Full search result (API order). Use `best_tweet` for the analyzed lead.
     pub tweets: Vec<XTweet>,
+    /// Tweet that `complete_cycle` scored and decided on (may not be `tweets[0]`).
+    pub best_tweet: Option<XTweet>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -181,6 +184,7 @@ impl FinderReactor {
                     next_steps: vec!["broaden_query".into()],
                 },
                 tweets: vec![],
+                best_tweet: None,
             };
         }
 
@@ -202,18 +206,22 @@ impl FinderReactor {
         if !decision.guards_triggered.is_empty() {
             self.state.pauses.push(format!("Cycle paused: {:?}", decision.guards_triggered));
             self.state.leads.push(Lead {
-                tweet: best_tweet,
+                tweet: best_tweet.clone(),
                 score: Some(best_score),
                 decision: Some(decision.clone()),
                 prep_artifacts: None,
                 status: "paused".to_string(),
             });
-            return CycleResult { decision, tweets };
+            return CycleResult {
+                decision,
+                tweets,
+                best_tweet: Some(best_tweet),
+            };
         }
 
         if decision.action == "prep" {
             self.state.leads.push(Lead {
-                tweet: best_tweet,
+                tweet: best_tweet.clone(),
                 score: Some(best_score),
                 decision: Some(decision.clone()),
                 prep_artifacts: Some(HashMap::from([
@@ -236,7 +244,11 @@ impl FinderReactor {
                 .push("CV promote guard triggered - sidecar only, user confirm required".to_string());
         }
 
-        CycleResult { decision, tweets }
+        CycleResult {
+            decision,
+            tweets,
+            best_tweet: Some(best_tweet),
+        }
     }
 
     pub async fn run_autonomous_cycle(
@@ -266,9 +278,9 @@ impl FinderReactor {
 mod tests {
     use super::*;
 
-    fn tweet(text: &str) -> XTweet {
+    fn tweet(id: &str, text: &str) -> XTweet {
         XTweet {
-            id: "1".into(),
+            id: id.into(),
             text: text.into(),
             author_id: None,
             created_at: None,
@@ -284,7 +296,7 @@ mod tests {
     #[test]
     fn analyze_low_fit_triggers_pause() {
         let mut reactor = FinderReactor::new(None);
-        let d = reactor.analyze_lead(tweet("unrelated topic"), "cv");
+        let d = reactor.analyze_lead(tweet("1", "unrelated topic"), "cv");
         assert_eq!(d.action, "pause");
         assert!(d.guards_triggered.iter().any(|g| matches!(g, Guard::FitThreshold { .. })));
     }
@@ -292,7 +304,7 @@ mod tests {
     #[test]
     fn analyze_high_fit_without_rate_pressure_suggests_prep() {
         let mut reactor = FinderReactor::new(None);
-        let d = reactor.analyze_lead(tweet("rust agent hiring collab"), "cv");
+        let d = reactor.analyze_lead(tweet("1", "rust agent hiring collab"), "cv");
         assert_eq!(d.action, "prep");
         assert!(d.confidence >= 70);
     }
@@ -327,9 +339,10 @@ mod tests {
     #[test]
     fn complete_cycle_prep_adds_lead_with_artifacts() {
         let mut reactor = FinderReactor::new(None);
-        let tweets = vec![tweet("rust typescript hiring collab agent ai")];
+        let tweets = vec![tweet("1", "rust typescript hiring collab agent ai")];
         let result = reactor.complete_cycle(tweets, "cv");
         assert_eq!(result.decision.action, "prep");
+        assert_eq!(result.best_tweet.as_ref().unwrap().id, "1");
         assert_eq!(reactor.state.leads.len(), 1);
         assert_eq!(reactor.state.leads[0].status, "prepped");
         assert!(reactor.state.leads[0].prep_artifacts.is_some());
@@ -339,19 +352,21 @@ mod tests {
     fn complete_cycle_picks_highest_fit_tweet() {
         let mut reactor = FinderReactor::new(None);
         let tweets = vec![
-            tweet("hello"),
-            tweet("rust hiring collab typescript agent"),
+            tweet("low", "hello"),
+            tweet("high", "rust hiring collab typescript agent"),
         ];
         let result = reactor.complete_cycle(tweets, "cv");
         assert_eq!(result.decision.action, "prep");
-        assert_eq!(reactor.state.leads[0].tweet.text, "rust hiring collab typescript agent");
+        assert_eq!(result.best_tweet.as_ref().unwrap().id, "high");
+        assert_eq!(result.tweets[0].id, "low");
+        assert_eq!(reactor.state.leads[0].tweet.id, "high");
     }
 
     #[test]
     fn analyze_cost_guard_when_budget_exceeded() {
         let mut reactor = FinderReactor::new(None);
         reactor.state.current_cost = 9800;
-        let d = reactor.analyze_lead(tweet("rust hiring"), "cv");
+        let d = reactor.analyze_lead(tweet("1", "rust hiring"), "cv");
         assert!(d.guards_triggered.iter().any(|g| matches!(g, Guard::Cost { .. })));
     }
 

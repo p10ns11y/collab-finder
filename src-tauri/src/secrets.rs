@@ -97,6 +97,15 @@ pub struct BearerStorageStatus {
     pub keyring: BearerKeyringStorageInfo,
 }
 
+/// Which store `get_x_bearer_optional` will read from (keyring first, then file).
+fn resolve_active_source() -> BearerActiveSource {
+    match read_keyring() {
+        Ok(Some(token)) if !token.is_empty() => BearerActiveSource::Keyring,
+        _ if file_store::is_present() => BearerActiveSource::File,
+        _ => BearerActiveSource::None,
+    }
+}
+
 fn probe_keyring() -> BearerKeyringStorageInfo {
     let service = SERVICE.to_string();
     let user = USER.to_string();
@@ -138,14 +147,7 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
     let keyring = probe_keyring();
     let file_present = file_store::is_present();
     let file_path = file_store::path_display().unwrap_or_default();
-
-    let active_source = if keyring.present {
-        BearerActiveSource::Keyring
-    } else if file_present {
-        BearerActiveSource::File
-    } else {
-        BearerActiveSource::None
-    };
+    let active_source = resolve_active_source();
 
     let why_not_encrypted = if file_present {
         Some(
@@ -179,11 +181,13 @@ pub fn set_x_bearer(token: &str) -> Result<(), String> {
 
     if let Err(e) = write_keyring(trimmed) {
         eprintln!("[secrets] keyring save skipped (using file store): {e}");
+        // Drop stale keyring entry so reads do not shadow the file we just wrote.
+        let _ = clear_keyring();
     }
 
-    match get_x_bearer_optional()? {
+    match file_store::read()? {
         Some(stored) if stored == trimmed => Ok(()),
-        Some(_) => Err("Saved credential could not be verified (mismatch).".to_string()),
+        Some(_) => Err("Saved credential could not be verified (file mismatch).".to_string()),
         None => Err(
             "Credential save failed — could not read back token. Check app data permissions."
                 .to_string(),
@@ -264,6 +268,37 @@ mod tests {
             get_x_bearer_optional().unwrap().as_deref(),
             Some("file-only-token")
         );
+    }
+
+    #[test]
+    fn active_source_matches_read_path_not_keyring_metadata_alone() {
+        let _g = TestDir::new();
+        file_store::write("from-file").unwrap();
+        let _ = clear_keyring();
+        assert_eq!(resolve_active_source(), BearerActiveSource::File);
+        write_keyring("from-keyring").expect("keyring write");
+        assert_eq!(resolve_active_source(), BearerActiveSource::Keyring);
+        assert_eq!(
+            get_x_bearer_optional().unwrap().as_deref(),
+            Some("from-keyring")
+        );
+    }
+
+    #[test]
+    fn set_succeeds_when_keyring_stale_but_file_written() {
+        let _g = TestDir::new();
+        write_keyring("stale-keyring-token").expect("seed keyring");
+        set_x_bearer("fresh-file-token").expect("set should verify file, update keyring");
+        assert_eq!(
+            file_store::read().unwrap().as_deref(),
+            Some("fresh-file-token")
+        );
+        let status = get_bearer_storage_status();
+        assert_eq!(
+            get_x_bearer_optional().unwrap().as_deref(),
+            Some("fresh-file-token")
+        );
+        assert_eq!(status.active_source, BearerActiveSource::Keyring);
     }
 
     #[cfg(target_os = "linux")]

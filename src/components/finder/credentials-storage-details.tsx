@@ -56,9 +56,10 @@ export function CredentialsStorageDetails({ storage, checking }: Props) {
       </div>
 
       <p className="text-[11px] text-ink-faint">
-        Searches read the token from Rust only — never from this UI after save. On save, both
-        keyring (best-effort) and file fallback are written; the active source is whichever Rust
-        loads first (keyring wins when present).
+        Searches read the token from Rust only — never from this UI after save. Save always writes
+        the file; keyring is best-effort. Active shows where reads come from: keyring when it has a
+        token, otherwise the file. If keyring save fails, stale keyring entries are cleared so the
+        file is used.
       </p>
 
       <div className="space-y-1.5 rounded-md border border-border-subtle/80 bg-background/40 px-2.5 py-2">
