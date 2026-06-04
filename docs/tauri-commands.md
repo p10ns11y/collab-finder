@@ -9,6 +9,7 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 | Command | Args | Returns | Adapter |
 |---------|------|---------|---------|
 | `has_x_bearer` | — | `boolean` | `credentials-adapter.ts` |
+| `get_x_bearer_storage` | — | `BearerStorageStatus` | same — active source, file path, keyring reachability |
 | `set_x_bearer` | `{ token: string }` | `void` | same |
 | `clear_x_bearer` | — | `void` | same |
 

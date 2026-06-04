@@ -26,7 +26,11 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 anyhow = "1"
 urlencoding = "2"
-keyring = "3"
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 dirs = "6"
 rusqlite = { version = "0.31", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros"] }
 

@@ -1,20 +1,53 @@
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const FILE_NAME: &str = "x-bearer";
 
+#[cfg(test)]
+pub(crate) mod test_harness {
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+
+    static ROOT: Mutex<Option<PathBuf>> = Mutex::new(None);
+    pub static LOCK: Mutex<()> = Mutex::new(());
+
+    pub fn set(root: PathBuf) {
+        *ROOT.lock().expect("test lock") = Some(root);
+    }
+
+    pub fn clear() {
+        *ROOT.lock().expect("test lock") = None;
+    }
+
+    pub fn get() -> Option<PathBuf> {
+        ROOT.lock().expect("test lock").clone()
+    }
+}
+
 /// Shared app data dir for collab-finder (used by secrets + db for consistency).
 pub(crate) fn app_data_dir() -> Result<PathBuf, String> {
+    #[cfg(test)]
+    if let Some(root) = test_harness::get() {
+        return Ok(root);
+    }
     let base = dirs::data_local_dir().ok_or("Could not resolve app data directory")?;
     Ok(base.join("collab-finder"))
 }
 
-fn store_path() -> Result<PathBuf, String> {
+pub(crate) fn store_path() -> Result<PathBuf, String> {
     Ok(app_data_dir()?.join(FILE_NAME))
 }
 
-fn ensure_parent(path: &PathBuf) -> Result<(), String> {
+pub(crate) fn path_display() -> Result<String, String> {
+    Ok(store_path()?.display().to_string())
+}
+
+pub(crate) fn is_present() -> bool {
+    read().ok().flatten().is_some()
+}
+
+fn ensure_parent(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         #[cfg(unix)]
@@ -67,4 +100,62 @@ pub fn clear() -> Result<(), String> {
         fs::remove_file(path).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::TempDir;
+
+    struct TestDir {
+        _dir: TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestDir {
+        fn new() -> Self {
+            let lock = test_harness::LOCK.lock().expect("file store test lock");
+            let dir = TempDir::new().expect("tempdir");
+            test_harness::set(dir.path().to_path_buf());
+            Self { _dir: dir, _lock: lock }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            test_harness::clear();
+        }
+    }
+
+    #[test]
+    fn roundtrip_trim_and_clear() {
+        let _guard = TestDir::new();
+        write("  token-with-space  ").unwrap();
+        assert_eq!(read().unwrap().as_deref(), Some("token-with-space"));
+        clear().unwrap();
+        assert!(read().unwrap().is_none());
+    }
+
+    #[test]
+    fn empty_file_treated_as_missing() {
+        let _guard = TestDir::new();
+        let path = store_path().unwrap();
+        ensure_parent(&path).unwrap();
+        fs::write(&path, "   \n").unwrap();
+        assert!(read().unwrap().is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn file_mode_is_0600() {
+        let _guard = TestDir::new();
+        write("secret").unwrap();
+        let mode = fs::metadata(store_path().unwrap())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+    }
 }

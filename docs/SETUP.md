@@ -47,7 +47,7 @@ cd src-tauri && cargo check
 **Storage (Rust `src-tauri/src/secrets.rs`):**
 
 - Primary: OS keyring (`collab-finder` / `x-bearer`)
-- Reliable fallback: encrypted file under app data (used when keyring is unavailable in dev)
+- Reliable fallback: plaintext file `~/.local/share/collab-finder/x-bearer` (mode `0600`) when keyring is unavailable; requires `keyring` crate `sync-secret-service` feature on Linux (see `src-tauri/Cargo.toml`)
 - Search and reactor commands read the token from storage — you do not pass `bearer` on each search invoke
 
 ## What works vs stubs
