@@ -1,0 +1,74 @@
+# Setup — collab-finder
+
+Desktop Tauri app (Rust + React). This guide matches what works in the repo today.
+
+## Prerequisites
+
+| Tool | Notes |
+|------|--------|
+| **Node.js** | LTS recommended; project uses `pnpm` |
+| **pnpm** | `corepack enable` or install pnpm globally |
+| **Rust** | Stable toolchain + `cargo` |
+| **Tauri v2 system deps** | Linux: GTK/WebKit, `libsecret`/keyring for credential storage. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). |
+
+## Install and run
+
+```bash
+git clone <your-remote> collab-finder
+cd collab-finder
+pnpm install
+pnpm tauri dev
+```
+
+Production build:
+
+```bash
+pnpm build          # tsc + vite (frontend)
+cd src-tauri && cargo build
+pnpm tauri build    # full desktop bundle
+```
+
+## Verify (commands that exist today)
+
+```bash
+pnpm build
+cd src-tauri && cargo check
+```
+
+`package.json` does not yet define `type-check`, `lint`, or `precommit` scripts.
+
+## X Bearer credentials
+
+1. Create an app on the [X Developer Portal](https://developer.x.com/) and copy the **Bearer token** (app-only).
+2. In the app, open **X connection** (credentials panel).
+3. Paste the token and choose **Save to keychain**.
+4. The draft field is cleared after save; the token is **not** kept in React state.
+
+**Storage (Rust `src-tauri/src/secrets.rs`):**
+
+- Primary: OS keyring (`collab-finder` / `x-bearer`)
+- Reliable fallback: encrypted file under app data (used when keyring is unavailable in dev)
+- Search and reactor commands read the token from storage — you do not pass `bearer` on each search invoke
+
+## What works vs stubs
+
+| Feature | Status |
+|---------|--------|
+| Recent X search (`search_x_recent`) | Live HTTP to `api.x.com` |
+| Credential save/clear | Live |
+| Autonomous cycle (`run_finder_cycle_cmd`) | Stub: reactor `guarded_search` returns empty; xAI/heuristics only |
+| CV / devprofile grounding | Not wired (hardcoded path in reactor) |
+| MCP server for external agents | Planned (today: Tauri `invoke` only) |
+| xAI structured decisions | Planned (stub in `finder_reactor.rs`) |
+
+See [tauri-commands.md](./tauri-commands.md) and [agentic-architecture.md](./agentic-architecture.md).
+
+## Optional: agent dev skills
+
+Symlink project skills into Cursor (see root `AGENTS.md`). Load `finder-reactor`, `tauri-agentic`, and `x-agent-resources` when changing reactor, UI, or X integration.
+
+## Troubleshooting
+
+- **"X bearer not configured"** — Save token in credentials panel; restart app if read-back failed.
+- **X API 401/403** — Regenerate bearer; check app permissions and query syntax (see `docs/x-tools.md`).
+- **Keyring warnings in terminal** — Expected in some dev environments; file store still holds the token.

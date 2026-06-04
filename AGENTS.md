@@ -28,7 +28,7 @@ Integrated from day 1 (https://docs.x.com/tools/ai):
 
 **Philosophy alignment**: "Easy to connect X, read and writing smooth". The finder is not a silo — it is a composable agent skill in the X + xAI ecosystem.
 
-See `docs/x-tools.md` and `.agents/skills/x-agent-resources/SKILL.md` (to be created).
+See `docs/x-tools.md`, `docs/SETUP.md`, `docs/agentic-architecture.md`, and `.agents/skills/x-agent-resources/SKILL.md`.
 
 ## Project-Specific Skills (collab-finder)
 
@@ -68,7 +68,7 @@ Rules live in `.agents/rules/` (canonical). Cursor loads via `.cursor/rules` →
 
 Enable:
 - `fusion-sage.mdc` (alwaysApply: true) — routes fission/fusion + agentic surplus.
-- Project-specific: `finder-reactor.mdc`, `x-agent.mdc`, `cv-guard.mdc`, `tauri-agentic.mdc`.
+- Project-specific: `finder-reactor.mdc`, `tauri-agentic.mdc` (see `.agents/rules/` for the full list).
 
 Auto-load skills:
 ```bash
@@ -86,8 +86,8 @@ Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AG
 
 - Repo root for commands.
 - Prefer `pnpm` (lockfile present).
-- After changes: `pnpm install`, audit if deps, `pnpm type-check && pnpm lint && cargo check`.
-- **Lint/Format**: Biome for TS/TSX (same policy as devprofile: lint for correctness/best-practices, format separate). Rust: cargo fmt + clippy.
+- After changes: `pnpm install`, audit if deps changed, `pnpm build`, `cd src-tauri && cargo check` (add `cargo clippy` when tightening Rust).
+- **Lint/Format**: Biome planned (devprofile policy); not in `package.json` yet. Rust: `cargo fmt` + `cargo clippy`.
 - **React client**: follow `react-client-expert` (minimal state, deliberate effects; no RSC for UI logic — this is desktop webview).
 - **Agentic code**: Every decision point must have self-guard (threshold, pause hook, log + user intervention path). Use structured output (zod in TS, serde in Rust) for xAI "decide next".
 - **X layer**: Always respect official skill.md constraints. Prefer patterns from xurl/XMCP. Ingest llms/skill for prompts.
@@ -111,7 +111,7 @@ Run `pnpm` / `cargo` in the appropriate subdir (src-tauri for Rust).
 - Self-improvement: After every major task, generate surplus (cheaper future finder iterations, better guard patterns).
 - The app itself is the "exponential value engine": once the agentic core (reactor + guards + MCP) is in, development of features (new search strategies, better prep, community collabs) compounds because agents can drive it.
 
-See `docs/agent-workflow-lessons.md` (copy/adapt from devprofile as needed) and git-worktrees skill.
+See `agent-orchestrator` skill and `git-worktrees` skill for workflow patterns.
 
 ## Agent Attribution & Hygiene
 

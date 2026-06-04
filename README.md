@@ -1,31 +1,38 @@
 # collab-finder
 
-**Highly autonomous, agentic X opportunity finder** (Tauri desktop). Self-guarded reactor with pauses, smart decisions (xAI structured), MCP exposure for agents (Grok/Cursor/etc can drive "run hunt, pause on low fit or CV promote"). User intervenes only on guards.
+**Agentic X opportunity finder** (Tauri desktop): self-guarded reactor, MVU React shell, secure X credentials, and a path to MCP + xAI autonomy. You intervene when guards fire — not on every step.
 
-Live guarded autonomous cycles, X skill.md/llms context baked in, CV promote via sidecar+preview+confirm (cv-promote-guard), full query control.
-
-See .agents/ (AGENTS.md, SKILL.md, finder-reactor/agentic-reactor/x-agent-resources/cv-promote-guard/tauri-agentic skills, rules) + docs/x-tools.md for the high-standard agentic foundation from day 1. Development compounds exponentially (fusion surplus, subagents, bdd for guards).
-
-## Quick Start (agentic dev ready)
+## Quick start
 
 ```bash
-cd ~/Work/personal/collab-finder
 pnpm install
-# (cargo tauri if needed)
 pnpm tauri dev
 ```
 
-- Provide temp X Bearer in UI.
-- Use ⌘K palette or "Run Autonomous Cycle" for guarded hunt (uses X resources, applies cost/rate/fit/CV guards, surfaces pauses).
-- Configure devprofile path in future for real CV grounding + guarded promote.
+Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs/SETUP.md)**.
 
-## Architecture (per agentic-reactor + friends)
+1. Open **X connection**, paste your app Bearer token, **Save to keychain** (stored in Rust — not kept in UI state).
+2. Use the search workspace for **live** recent search (`search_x_recent`).
+3. **Run autonomous cycle** exercises the reactor (stub search inside cycle until wired; see architecture doc).
+4. Command palette (⌘K) and guard/pause panels surface intervention points.
 
-- **FinderReactor (Rust core)**: State in app_data, guards (Cost/XRate/Fit/CVPromote), X via x-agent-resources (skill.md context + low-level search), stub xAI decisions (real soon: pruned CV + X skill prefix), MCP tools (run_finder_cycle, promote_lead, get_reactor_state).
-- **Tauri Shell**: React minimal UI (command palette as agent iface, guard dashboard, pause modals, autonomous button).
-- **Autonomy**: Loop with self-guards/pauses; only intervene on low conf/high stakes/CV. Surplus after cycles.
-- **Exponential**: MCP so agents drive it; .agents/ skills for us (load fusion + finder-reactor when building); X official resources prevent reinvention.
+## Architecture (short)
 
-Full setup follows devprofile's connected fission/fusion + X agent resources (llms.txt, skill.md, MCP, xurl) for composable, high-value autonomy.
+| Layer | Location |
+|-------|----------|
+| MVU UI + guards | `src/core/finder/`, `src/view/`, `src/components/finder/` |
+| Tauri bridge | `src/adapters/tauri/`, `src/ports/` |
+| Live X search + secrets | `src-tauri/src/lib.rs`, `secrets.rs` |
+| Reactor + guards (Rust) | `src-tauri/src/finder_reactor.rs` |
 
-Private tool for p10ns11y. See session plan for full vision.
+**Tauri commands today** (MCP server planned): `search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`, `has_x_bearer`, `set_x_bearer`, `clear_x_bearer`.
+
+Diagrams and milestone matrix: **[docs/agentic-architecture.md](docs/agentic-architecture.md)** · **[docs/tauri-commands.md](docs/tauri-commands.md)** · interactive **[architecture canvas](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx)**
+
+## Agent / dev resources
+
+- **AGENTS.md** — skills index, triage, conventions
+- **docs/x-tools.md** — official X llms.txt, skill.md, XMCP, xurl
+- **.agents/skills/** — finder-reactor, tauri-agentic, cv-promote-guard, x-agent-resources, fusion-sage
+
+Private tool for p10ns11y.
