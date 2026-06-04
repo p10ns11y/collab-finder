@@ -12,6 +12,8 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 
 Official X operator reference: https://docs.x.com/x-api/posts/search/integrate/operators
 
+**X agent snapshots (upstream):** [.agents/x-resources/README.md](../../.agents/x-resources/README.md) → [skill.md](../../.agents/x-resources/skill.md) before changing queries or prompts. Refresh: `../../.agents/x-resources/refresh.sh`.
+
 Rust validates queries via `src-tauri/src/x_query.rs` before any API call.
 
 ## Related docs (repo root)
@@ -23,5 +25,6 @@ Rust validates queries via `src-tauri/src/x_query.rs` before any API call.
 | [docs/tauri-commands.md](../../docs/tauri-commands.md) | Commands that consume queries + CV packet |
 | [docs/tauri-ipc-and-intent-engine.md](../../docs/tauri-ipc-and-intent-engine.md) | MVU → `invoke` → Rust (no HTTP for commands) |
 | [docs/tauri-ipc-debugging.md](../../docs/tauri-ipc-debugging.md) | Trace `invoke` in dev (terminal + safe-invoke) |
-| [docs/x-tools.md](../../docs/x-tools.md) | Official X skill/llms for prompt context |
+| [docs/x-tools.md](../../docs/x-tools.md) | XMCP, xurl, discovery links |
+| [.agents/x-resources/README.md](../../.agents/x-resources/README.md) | Vendored skill.md / llms.txt + refresh |
 | [README.md](../../README.md) | Project overview and doc index |

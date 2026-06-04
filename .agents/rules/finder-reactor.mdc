@@ -6,7 +6,7 @@ globs: ["src-tauri/src/**/*.rs", "src/**/*.tsx", ".agents/skills/finder-reactor/
 
 - Every decision point MUST have explicit guard (cost, rate, fit, CV) + pause path + logging.
 - Use structured output for xAI "decide" (recommendation, confidence, guards, rationale).
-- All X calls respect x-agent-resources (skill.md context, MCP/xurl patterns).
+- All X calls: read .agents/x-resources/skill.md (see x-resources/README.md); x-agent-resources skill for MCP/xurl.
 - CV interactions ALWAYS via cv-promote-guard (sidecar-first, no direct mutation).
 - Surplus after every significant change or cycle.
 - MCP tools must be safe-by-default (read-heavy, writes guarded).

@@ -7,7 +7,7 @@ Living map of how autonomy, guards, and the desktop shell fit together. Skills w
 - **Autonomy with self-guards** — no silent high-stakes actions (CV promote, spend, post).
 - **Structured decisions** — xAI JSON with confidence, rationale, guards (target; partial stubs today).
 - **Composability** — Tauri commands today; MCP exposure planned for external agents.
-- **X official resources** — `skill.md` / `llms.txt` vendored under `.agents/x-resources/` for prompts.
+- **X official resources** — vendored under [.agents/x-resources/](../.agents/x-resources/README.md) (`skill.md`, `llms.txt`; refresh from upstream).
 - **CV promote** — sidecar, diff preview, explicit confirm (`cv-promote-guard` skill).
 
 ## System overview
@@ -174,6 +174,7 @@ stateDiagram-v2
 - [tauri-ipc-debugging.md](./tauri-ipc-debugging.md) — dev: trace and intercept `invoke`
 - [x-tools.md](./x-tools.md) — official X agent resources
 - [data/distillation/](../data/distillation/README.md) — qualified X queries, curation context, xAI analyze prompts
+- [.agents/x-resources/README.md](../.agents/x-resources/README.md) — official X skill/llms snapshots + agent read order
 - **Interactive canvas (Cursor only):** [collab-finder-architecture.canvas.tsx](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx) — open beside chat via the canvas link (not in-repo TSX)
 
 ## Exponential development

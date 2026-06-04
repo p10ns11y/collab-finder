@@ -20,6 +20,14 @@ description: Integration and usage of official X Developer Platform agent resour
 
 See docs/x-tools.md for full details and how-to (curl, npx skills add, etc.).
 
+## Agent read order (mandatory for X work)
+
+1. [.agents/x-resources/README.md](../../x-resources/README.md) — snapshot vs live, refresh policy.
+2. [.agents/x-resources/skill.md](../../x-resources/skill.md) — vendored capability spec (**read first**).
+3. This skill (`x-agent-resources`) — collab-finder integration patterns.
+4. [data/distillation/](../../../data/distillation/README.md) — app presets (must match operators + skill).
+5. Live `https://docs.x.com/...` page from `llms.txt` if API behavior disagrees with snapshot — then run `refresh.sh` and commit.
+
 ## Integration Principles
 
 1. **Ingest for Intelligence**: Every xAI call in the finder-reactor MUST include (or reference cached) relevant excerpts from X skill.md + llms context. This prevents hallucinated operators, wrong auth assumptions, rate limit ignorance.
@@ -31,7 +39,7 @@ See docs/x-tools.md for full details and how-to (curl, npx skills add, etc.).
 
 ## Implementation in collab-finder
 
-- **At startup / refresh**: Fetch or load cached llms/skill.md. Store in app data or embed versioned.
+- **At startup / refresh**: Load from `.agents/x-resources/` in dev; copy to app data in production. Refresh vendored files via [refresh.sh](../../x-resources/refresh.sh) when upstream changes.
 - **In Rust backend (x_client / xai_client)**: Use skill.md knowledge to validate/build queries. Structured prompts always prefix with "Current X capabilities from skill.md: ...".
 - **MCP Server**: Implement in Tauri (or sidecar) using MCP protocol. Tools like:
   - search_x_opportunities(query, cv_context)
@@ -75,4 +83,4 @@ Track updates in surplus-log or fusion-state.
 
 **These resources are the "easy connect" that makes the entire agentic vision possible.** Without them, we'd reinvent X integration poorly. With them, the finder is accurate, composable, and compounds with the broader X agent ecosystem (including this project's own contributions back via our SKILL/MCP).
 
-Always start X-related work by loading this skill.
+Always start X-related work with [x-resources/README.md](../../x-resources/README.md) + [skill.md](../../x-resources/skill.md), then this skill.

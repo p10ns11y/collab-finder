@@ -4,8 +4,9 @@ We use the official X API directly in the Rust backend for tight integration and
 
 High-leverage official agent resources (https://docs.x.com/tools/ai) are integrated:
 
-- **llms.txt** (vendored: `.agents/x-resources/llms.txt`): Ground truth for X API docs in future xAI prompts. Full `llms-full.txt` can be added when prompt budget requires it.
-- **skill.md**: The structured capability spec (agentskills.io). Used as prompt ground truth + template for our own SKILL.md so agents can discover/use collab-finder.
+- **Downstream hub:** [.agents/x-resources/README.md](../.agents/x-resources/README.md) — agent read order, refresh policy, `refresh.sh`.
+- **llms.txt** (vendored: `.agents/x-resources/llms.txt`): Doc index for targeted fetches. Optional `llms-full.txt` on demand.
+- **skill.md** (vendored: `.agents/x-resources/skill.md`): Capability spec — **read first** on X work; refresh from upstream when docs drift.
 - **MCP (XMCP + Docs MCP)**: XMCP turns X endpoints into MCP tools (search, create, users...). Docs MCP for live doc lookup. collab-finder will expose finder functions via MCP; **today** agents use Tauri `invoke` commands (see `docs/tauri-commands.md`).
 - **xurl**: Official CLI (Go, Bubble Tea TUI elements, built-in OAuth, `xurl search`, `xurl post`). Has its own SKILL.md. Recommended for ad-hoc + as UX model. App can shell to it.
 

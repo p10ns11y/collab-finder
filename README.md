@@ -41,6 +41,7 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 | [.agents/skills/tauri-ipc-debug/](.agents/skills/tauri-ipc-debug/SKILL.md) | Agent skill: layer-by-layer IPC triage |
 | [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
 | [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |
+| [.agents/x-resources/README.md](.agents/x-resources/README.md) | Official X skill.md / llms snapshots + refresh |
 
 Diagrams in-repo; interactive architecture canvas is Cursor-only — see [agentic-architecture.md](docs/agentic-architecture.md).
 

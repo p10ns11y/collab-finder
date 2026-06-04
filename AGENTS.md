@@ -6,6 +6,21 @@ User intervenes only when necessary. The system makes smart decisions with **sel
 
 This project uses a **connected agent skills system** (fission + fusion) + **official X Agent Resources** for exponential, high-value development.
 
+## Agent routing (canonical — read first)
+
+| If you are working on… | Read in order |
+|------------------------|---------------|
+| **X API, search queries, operators, xAI prompts** | [.agents/x-resources/README.md](.agents/x-resources/README.md) → [.agents/x-resources/skill.md](.agents/x-resources/skill.md) → [.agents/skills/x-agent-resources/SKILL.md](.agents/skills/x-agent-resources/SKILL.md) → [data/distillation/](data/distillation/README.md) |
+| **Finder reactor, guards, autonomous cycle** | [.agents/skills/finder-reactor/SKILL.md](.agents/skills/finder-reactor/SKILL.md) + x-resources row above when X is involved |
+| **Tauri shell, IPC, `invoke`, history DB** | [.agents/skills/tauri-agentic/SKILL.md](.agents/skills/tauri-agentic/SKILL.md) → [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) · [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
+| **CV promote / devprofile** | [.agents/skills/cv-promote-guard/SKILL.md](.agents/skills/cv-promote-guard/SKILL.md) |
+| **Architecture / milestones** | [docs/agentic-architecture.md](docs/agentic-architecture.md) |
+| **Setup / run / verify** | [docs/SETUP.md](docs/SETUP.md) |
+
+**X snapshots:** upstream changes frequently — vendored copies live under `.agents/x-resources/`; refresh with [.agents/x-resources/refresh.sh](.agents/x-resources/refresh.sh) (see README). Do not treat stale `skill.md` as law if the live API disagrees.
+
+**Cursor local wiring:** `.cursor/` is gitignored; recreate symlinks per [.agents/README.md](.agents/README.md). Canonical sources are always `.agents/`.
+
 ## Core Agent Skills System (Fission + Fusion)
 
 - **`ai-optimization`** (fission): Token-efficient pruning, context compression, relevance scoring. Use for fast impl, prompt engineering, large contexts (CV + X posts + X skill.md).
@@ -20,22 +35,22 @@ See `.agents/skills/fusion-sage/SKILL.md` and `.agents/skills/ai-optimization/SK
 
 ## X Agent Resources (First-Class, Official — High Leverage)
 
-Integrated from day 1 (https://docs.x.com/tools/ai):
-- **llms.txt / llms-full.txt**: Fetch and use as structured context for xAI (X API operators, auth, rate limits, endpoints, best practices).
-- **skill.md**: The canonical agentskills.io capability spec for X (actions, params, constraints, workflows, gotchas, checklists). Ingest into every xAI prompt. Template for *this project's own* SKILL.md.
-- **MCP (XMCP + Docs MCP)**: XMCP exposes 200+ X API endpoints as callable tools (with OAuth). Docs MCP for live doc search. The app itself will expose finder tools via MCP (search + prep + promote) so agents (Grok, Cursor, future) can drive it.
-- **xurl**: Official CLI with smooth auth, token storage, shortcuts (`xurl search`, `xurl post`). Has its own SKILL.md. App can shell to it for UX or fall back; use its patterns for our X layer.
+Integrated from day 1 ([docs.x.com/tools/ai](https://docs.x.com/tools/ai)). **On any X-related task, read [.agents/x-resources/skill.md](.agents/x-resources/skill.md) first** (downstream snapshot), then follow [.agents/x-resources/README.md](.agents/x-resources/README.md) for refresh vs live docs.
 
-**Philosophy alignment**: "Easy to connect X, read and writing smooth". The finder is not a silo — it is a composable agent skill in the X + xAI ecosystem.
+| Resource | Downstream | Upstream |
+|----------|------------|----------|
+| **skill.md** | `.agents/x-resources/skill.md` | https://docs.x.com/skill.md |
+| **llms.txt** (index) | `.agents/x-resources/llms.txt` | https://docs.x.com/llms.txt |
+| **Our presets / curation** | `data/distillation/` | App-specific (not X official) |
 
-See `docs/x-tools.md`, `docs/SETUP.md`, `docs/agentic-architecture.md`, and `.agents/skills/x-agent-resources/SKILL.md`.
+Also: **XMCP**, **Docs MCP**, **xurl** — see [docs/x-tools.md](docs/x-tools.md) and `x-agent-resources` skill. The finder will expose MCP tools; today use Tauri commands ([docs/tauri-commands.md](docs/tauri-commands.md)).
 
 ## Project-Specific Skills (collab-finder)
 
 | When the user (or agent) asks about… | Read |
 |-------------------------------------|------|
 | Overall finder architecture, self-guards, pauses, autonomous decisions, intervention points | `.agents/skills/finder-reactor/SKILL.md` (core — fusion style with fission pruning) |
-| X integration (search, MCP, xurl, official skill/llms ingestion) | `.agents/skills/x-agent-resources/SKILL.md` |
+| X integration (search, MCP, xurl, official skill/llms ingestion) | `.agents/x-resources/README.md` → `skill.md` → `.agents/skills/x-agent-resources/SKILL.md` |
 | Safe CV read/prune + promote insights with diff preview, backups, external devprofile guard | `.agents/skills/cv-promote-guard/SKILL.md` |
 | Tauri/Rust + React agentic UI (MCP server exposure, command palette as agent interface, minimal state with reactors) | `.agents/skills/tauri-agentic/SKILL.md` + `react-client-expert` |
 | Tauri `invoke` / IPC failures, search/cycle/history not working in dev, bearer or blank window | `.agents/skills/tauri-ipc-debug/SKILL.md` + [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
@@ -95,7 +110,7 @@ Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AG
 - **Lint/Format**: Biome planned (devprofile policy); not in `package.json` yet. Rust: `cargo fmt` + `cargo clippy`.
 - **React client**: follow `react-client-expert` (minimal state, deliberate effects; no RSC for UI logic — this is desktop webview).
 - **Agentic code**: Every decision point must have self-guard (threshold, pause hook, log + user intervention path). Use structured output (zod in TS, serde in Rust) for xAI "decide next".
-- **X layer**: Always respect official skill.md constraints. Prefer patterns from xurl/XMCP. Ingest llms/skill for prompts.
+- **X layer**: Read `.agents/x-resources/skill.md` (refresh when upstream drifts). Align `data/distillation/` queries with operators doc + `x_query.rs`. Prefer xurl/XMCP patterns per `x-agent-resources` skill.
 - **CV promote**: Strict guard — sidecar + preview + explicit confirm. Never mutate external repo without user in loop.
 - **MCP exposure**: Core finder functions (search, analyze, prep, promote) must be callable as tools (for this env + future agents).
 - After agent runs (execute-plan, subagents, concurrent): run `grok worktree gc` + cleanup scripts. Use worktrees for parallel reactor development.
@@ -128,4 +143,4 @@ Same strict rule as devprofile: clean factual commits. Ask before any LLM boiler
 
 Load the fusion rule. Say "ignite" for the reactor design. Let's make it unstoppable.
 
-See `.agents/README.md`, individual SKILL.md files, and the X resources docs.
+See [.agents/README.md](.agents/README.md), the [agent routing](#agent-routing-canonical--read-first) table above, and [.agents/x-resources/README.md](.agents/x-resources/README.md).

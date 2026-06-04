@@ -6,7 +6,8 @@ Portable instructions for coding agents (Grok Build, Cursor, Claude Code, etc.) 
 
 ```
 .agents/skills/<skill-name>/SKILL.md
-.agents/rules/          ← canonical; .cursor/rules → .agents/rules
+.agents/rules/          ← canonical; .cursor/rules → .agents/rules (local only, gitignored)
+.agents/x-resources/   ← vendored X skill.md + llms.txt (refresh from upstream)
 ```
 
 Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body, following agentskills.io + X patterns).
@@ -61,12 +62,13 @@ Example: `tauri-ipc-debug`, `finder-reactor`, `fusion-sage`.
 
 ## X Agent Resources Integration
 
-This project bakes in https://docs.x.com/tools/ai from the start:
-- Ingest `skill.md` + `llms-*.txt` for xAI prompts (accurate X behavior).
-- Use XMCP / xurl patterns for the X layer.
-- Publish matching `SKILL.md` + MCP server so the finder is agent-composable.
+Downstream snapshots: [.agents/x-resources/README.md](x-resources/README.md) (agent hub — read first on X work).
 
-See `docs/x-tools.md` and the `x-agent-resources` skill.
+```bash
+./.agents/x-resources/refresh.sh   # pull skill.md + llms.txt from docs.x.com
+```
+
+Then: `x-agent-resources` skill, `data/distillation/`, `docs/x-tools.md`. Upstream wins when snapshots are stale.
 
 ## Conventions (Agentic + Tauri + pnpm + Rust)
 

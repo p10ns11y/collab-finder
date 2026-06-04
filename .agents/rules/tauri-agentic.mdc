@@ -9,7 +9,7 @@ globs: ["src-tauri/**", "src/**/*.tsx", "tauri.conf.json"]
 - Capabilities: scope fs to app_data + approved devprofile_path only; dialog for exports/promotes.
 - Frontend: minimal state, deliberate tauri invoke, command palette for agent actions, visual guard indicators (cost, rate, fit).
 - MCP: expose search, analyze, prep, promote, get_state as tools; use pause responses for intervention.
-- Integrate X resources: load .agents/x-resources/skill.md at startup for context.
+- Integrate X resources: .agents/x-resources/README.md + skill.md (refresh via refresh.sh when upstream drifts).
 - Follow tauri-agentic/SKILL.md + react-client-expert.
 - Surplus for UI/UX improvements that make agent interaction cheaper.
 
