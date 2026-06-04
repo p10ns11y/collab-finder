@@ -16,8 +16,10 @@ Living map of how autonomy, guards, and the desktop shell fit together. Skills w
 flowchart TB
   subgraph ui [React shell]
     View[finder-app-view]
+    HistUI[HistoryDashboard]
     MVU[MVU program core/finder]
     View --> MVU
+    HistUI --> MVU
   end
 
   subgraph bridge [TypeScript ports]
@@ -29,12 +31,15 @@ flowchart TB
   subgraph tauri [Tauri Rust]
     Cmd[lib.rs commands]
     Sec[secrets keyring + file]
+    DB[db.rs SQLite WAL FTS5]
     React[finder_reactor]
     XAPI[X API v2 recent search]
     Adapters --> Cmd
     Cmd --> Sec
+    Cmd --> DB
     Cmd --> React
     Cmd --> XAPI
+    React --> XAPI
   end
 
   subgraph future [Planned]
@@ -59,6 +64,7 @@ flowchart TB
 | **Adapters** | `src/adapters/tauri/*` | `invoke` + `Result` error mapping |
 | **Runtime** | `src/runtime/finder-runtime.ts` | Wires program + ports for React |
 | **View** | `src/view/finder-app-view.tsx` | Composes finder panels |
+| **History domain** | `src/core/domain/history.ts` | SearchRun, Lead, DashboardStats |
 
 ```mermaid
 sequenceDiagram
@@ -80,13 +86,36 @@ sequenceDiagram
   M-->>V: re-render feed
 ```
 
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant H as HistoryDashboard
+  participant M as MVU
+  participant E as effects
+  participant A as Tauri adapter
+  participant D as db.rs
+
+  U->>H: Refresh / app start
+  H->>M: HistoryRefreshRequested
+  M->>E: historyRefreshCmd
+  E->>A: get_search_history / get_leads / get_dashboard_stats
+  A->>D: SQLite read
+  D-->>A: rows
+  A-->>E: Result
+  E->>M: HistoryRefreshed
+  M-->>H: stats + lists
+```
+
 ## Rust backend
 
 | Module | Role |
 |--------|------|
-| `src-tauri/src/lib.rs` | Tauri commands, live `search_x_recent` |
-| `src-tauri/src/secrets.rs` | Keyring + file_store for bearer |
-| `src-tauri/src/finder_reactor.rs` | Guards, lead state, stub cycle/xAI |
+| `src-tauri/src/lib.rs` | Tauri commands; wires search/cycle to persistence |
+| `src-tauri/src/db.rs` | SQLite history (searches, tweets, leads, pauses, events, FTS5) |
+| `src-tauri/src/secrets.rs` | Keyring + shared `app_data_dir` + file_store bearer |
+| `src-tauri/src/finder_reactor.rs` | Guards, live `guarded_search`; heuristic `analyze_lead` (xAI planned) |
+| `src-tauri/src/x_search.rs` | Shared recent-search HTTP for UI + reactor |
+| `src-tauri/src/x_query.rs` | Rejects invalid v2 query operators before API call |
 
 **Guard examples** (reactor; enforcement grows with real xAI/X):
 
@@ -107,12 +136,16 @@ stateDiagram-v2
   Idle --> CycleUI: Run autonomous cycle
   CycleUI --> Reactor: run_finder_cycle_cmd
   Reactor --> XLive: guarded_search (live X API)
-  XLive --> Heuristic: stub analyze_lead
+  XLive --> Persist: record search + hits + lead
+  Persist --> Heuristic: analyze_lead (heuristic)
   Heuristic --> Decision: Decision JSON to UI
-  Decision --> Idle
+  Decision --> HistoryUI: HistoryRefreshed
+  HistoryUI --> Idle
 ```
 
-`guarded_search` uses the same `x_search` module as `search_x_recent`. xAI analysis is still heuristic until the xAI milestone.
+`guarded_search` uses the same `x_search` module as `search_x_recent`. Search/cycle results are persisted best-effort to SQLite. xAI `analyze_lead` and CV promote remain heuristic/stub until their milestones.
+
+**Backend-ready, UI pending:** `search_past_tweets` (FTS), `get_search_run` (full replay) — commands exist; dashboard today shows stats, reuse query, and lists only.
 
 ## Pauses and intervention
 
@@ -128,7 +161,7 @@ stateDiagram-v2
 | Secure bearer | Yes (`secrets`) | OAuth / xurl alignment |
 | MVU UI shell | Yes | More guard-driven pauses |
 | Reactor live search in cycle | Yes (`x_search` + shared `AppReactor`) | xAI analyze; rate telemetry in UI |
-| Durable history (sqlite) + dashboard | Yes (db.rs + history MVU slice + HistoryDashboard) | Every search/event/lead/pause persisted; deduped leads with seen_count; FTS lookup; survives restart |
+| Durable history (sqlite) + dashboard | Yes (db.rs + history MVU slice + HistoryDashboard) | FTS search box + run replay in UI; export/prune |
 | xAI decisions | No | Pruned CV + skill.md prefix |
 | MCP agent API | No | stdio server over commands |
 | CV promote guard | No | devprofile path config + sidecar UI |
@@ -139,7 +172,7 @@ stateDiagram-v2
 - [tauri-commands.md](./tauri-commands.md) — invoke contract table
 - [x-tools.md](./x-tools.md) — official X agent resources
 - [data/distillation/](../data/distillation/README.md) — qualified X queries, curation context, xAI analyze prompts
-- **Interactive canvas (Cursor only):** not normal TSX — requires Cursor’s canvas renderer. Lives at `~/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx` (created via Agent chat; open from the canvas link in that session, not Quick Open in the repo)
+- **Interactive canvas (Cursor only):** [collab-finder-architecture.canvas.tsx](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx) — open beside chat via the canvas link (not in-repo TSX)
 
 ## Exponential development
 
