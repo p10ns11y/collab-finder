@@ -128,6 +128,7 @@ stateDiagram-v2
 | Secure bearer | Yes (`secrets`) | OAuth / xurl alignment |
 | MVU UI shell | Yes | More guard-driven pauses |
 | Reactor live search in cycle | Yes (`x_search` + shared `AppReactor`) | xAI analyze; rate telemetry in UI |
+| Durable history (sqlite) + dashboard | Yes (db.rs + history MVU slice + HistoryDashboard) | Every search/event/lead/pause persisted; deduped leads with seen_count; FTS lookup; survives restart |
 | xAI decisions | No | Pruned CV + skill.md prefix |
 | MCP agent API | No | stdio server over commands |
 | CV promote guard | No | devprofile path config + sidecar UI |
