@@ -1,5 +1,7 @@
 mod file_store;
 
+pub(crate) use file_store::app_data_dir;
+
 use keyring::Error as KeyringError;
 
 const SERVICE: &str = "collab-finder";
@@ -34,9 +36,23 @@ fn clear_keyring() -> Result<(), String> {
 }
 
 /// Missing credential is normal — not an error.
+/// Prefers keyring for security when available, but always falls back to the file store
+/// (which set_x_bearer treats as the reliable path under Tauri). Keyring read errors
+/// (common on Linux without a working secret service / dbus session) are logged but
+/// do not prevent reading a previously stored token from the file fallback.
 pub fn get_x_bearer_optional() -> Result<Option<String>, String> {
-    if let Some(token) = read_keyring()? {
-        return Ok(Some(token));
+    match read_keyring() {
+        Ok(Some(token)) => {
+            eprintln!("[secrets] bearer token loaded from keyring");
+            return Ok(Some(token));
+        }
+        Ok(None) => {
+            // No entry in keyring (or empty). Fall through to file store.
+        }
+        Err(e) => {
+            eprintln!("[secrets] keyring read failed (falling back to file store): {e}");
+            // Do not propagate — file store is the reliable fallback per set_x_bearer design.
+        }
     }
     file_store::read()
 }
