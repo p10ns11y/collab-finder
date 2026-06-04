@@ -14,7 +14,7 @@ Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body
 ## How agents discover skills
 
 - **Grok Build / this environment**: Read root `AGENTS.md`; load `SKILL.md` on match to `description`. Use `spawn_subagent`, subagent-delegation, fusion-sage for orchestration.
-- **Cursor**: Symlink/copy into `.cursor/skills/`, or reference via rules.
+- **Cursor**: Recreate local symlinks under `.cursor/` (see below). **Do not commit `.cursor/`** — Git rejects many symlink layouts (`pathspec … beyond a symbolic link`); canonical sources live here in `.agents/`.
 - **Other agents**: Explicit paths or project rules.
 - **The collab-finder app itself**: Exposes finder capabilities as MCP tools + publishes its own root `SKILL.md` (so external agents can call "search X opportunities with my profile + CV", "generate prep pack with guards", etc.).
 
@@ -26,15 +26,38 @@ When adding a skill, update the index in root `AGENTS.md` and this file.
 
 ## Agent rules (`.agents/rules/`)
 
-Cursor loads via symlink `.cursor/rules` → `../.agents/rules`.
+Cursor loads **`.cursor/rules` → `../.agents/rules`** (the `rules` entry must be the symlink itself, not a folder containing a nested `rules` link).
 
-Relevant rules (always or scoped):
+**Wrong (double `rules`):**
+
+```text
+.cursor/rules/          ← directory
+  rules → ../../.agents/rules   ← Cursor may not load *.mdc here
+```
+
+**Correct (from repo root):**
+
+```bash
+rm -rf .cursor/rules
+ln -sfn ../.agents/rules .cursor/rules
+ls .cursor/rules/*.mdc   # should list fusion-sage.mdc, agent-workflow.mdc, …
+```
+
+Relevant rules in `.agents/rules/` today:
 - `fusion-sage.mdc` (alwaysApply: true) — synthesis + surplus for the agentic reactor.
-- `agentic-reactor.mdc` — self-guards, pauses, intervention points, smart decisions.
-- `x-finder.mdc` — X resources (skill.md, llms, MCP, xurl) + query control.
-- `cv-promote-guard.mdc` — strict sidecar + preview + confirm for external portfolio edits.
+- `finder-reactor.mdc` — reactor, self-guards, pauses.
 - `tauri-agentic.mdc` — MCP exposure, Tauri command design for agents.
-- Others inherited: `agent-workflow.mdc`, `read-edit-lint.mdc`, `grep-before-edit.mdc`, `pre-commit-checks.mdc`, etc.
+- `agent-workflow.mdc`, `grep-before-edit.mdc`, `read-edit-lint.mdc` — dev process.
+
+## Agent skills (`.cursor/skills/`)
+
+Per-skill symlinks (not the whole `skills` folder):
+
+```bash
+ln -sfn ../../.agents/skills/<skill-name> .cursor/skills/<skill-name>
+```
+
+Example: `tauri-ipc-debug`, `finder-reactor`, `fusion-sage`.
 
 ## X Agent Resources Integration
 

@@ -4,6 +4,8 @@ How to observe and debug `invoke` traffic between the React shell and Rust in co
 
 See [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) for the mental model and Intent Engine. Command names: [tauri-commands.md](./tauri-commands.md).
 
+**Agent skill (systematic triage):** [.agents/skills/tauri-ipc-debug/SKILL.md](../.agents/skills/tauri-ipc-debug/SKILL.md)
+
 ## What you are debugging
 
 | Layer | What to log | Where |

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Cursor local IDE wiring (symlinks to .agents — recreate per machine)
+.cursor/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

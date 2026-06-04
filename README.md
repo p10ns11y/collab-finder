@@ -38,6 +38,7 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 | [docs/tauri-commands.md](docs/tauri-commands.md) | All 15 `invoke` handlers |
 | [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |
 | [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | Dev: intercept and debug `invoke` |
+| [.agents/skills/tauri-ipc-debug/](.agents/skills/tauri-ipc-debug/SKILL.md) | Agent skill: layer-by-layer IPC triage |
 | [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
 | [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |
 

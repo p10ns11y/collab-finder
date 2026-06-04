@@ -38,6 +38,7 @@ See `docs/x-tools.md`, `docs/SETUP.md`, `docs/agentic-architecture.md`, and `.ag
 | X integration (search, MCP, xurl, official skill/llms ingestion) | `.agents/skills/x-agent-resources/SKILL.md` |
 | Safe CV read/prune + promote insights with diff preview, backups, external devprofile guard | `.agents/skills/cv-promote-guard/SKILL.md` |
 | Tauri/Rust + React agentic UI (MCP server exposure, command palette as agent interface, minimal state with reactors) | `.agents/skills/tauri-agentic/SKILL.md` + `react-client-expert` |
+| Tauri `invoke` / IPC failures, search/cycle/history not working in dev, bearer or blank window | `.agents/skills/tauri-ipc-debug/SKILL.md` + [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
 | Token-efficient prompts for xAI (CV packet + X posts + X skill.md + opportunity context) | `ai-optimization` (with project reference) |
 | BDD/TDD for autonomous features (self-guards, decision logic, MCP contracts) | `bdd-strategizer` |
 | Orchestration (briefs for sub-features, verify-before-merge, iterative agent waves) | `agent-orchestrator` |
@@ -64,21 +65,25 @@ Use "pause", "guard", "intervention", "self-check" in prompts when building deci
 
 ## Cursor / IDE Setup (High Standard from Beginning)
 
-Rules live in `.agents/rules/` (canonical). Cursor loads via `.cursor/rules` → `.agents/rules`.
+Rules live in `.agents/rules/` (canonical). Cursor loads via **one** symlink:
 
-Enable:
-- `fusion-sage.mdc` (alwaysApply: true) — routes fission/fusion + agentic surplus.
-- Project-specific: `finder-reactor.mdc`, `tauri-agentic.mdc` (see `.agents/rules/` for the full list).
+```bash
+ln -sfn ../.agents/rules .cursor/rules   # .cursor/rules must NOT be a directory named rules/rules
+```
 
-Auto-load skills:
+Enable: `fusion-sage.mdc` (alwaysApply), `finder-reactor.mdc`, `tauri-agentic.mdc`, etc. — see `.agents/rules/`.
+
+Auto-load skills (one symlink per skill under `.cursor/skills/`):
+
 ```bash
 mkdir -p .cursor/skills
-# Symlink core + custom (run after creating skills)
-ln -sf ../.agents/skills/ai-optimization .cursor/skills/ai-optimization
-ln -sf ../.agents/skills/fusion-sage .cursor/skills/fusion-sage
-ln -sf ../.agents/skills/finder-reactor .cursor/skills/finder-reactor
-# ... etc for others
+ln -sfn ../../.agents/skills/fusion-sage .cursor/skills/fusion-sage
+ln -sfn ../../.agents/skills/finder-reactor .cursor/skills/finder-reactor
+ln -sfn ../../.agents/skills/tauri-ipc-debug .cursor/skills/tauri-ipc-debug
+# ... etc
 ```
+
+See [.agents/README.md](.agents/README.md) if `.cursor/rules/rules` appears (nested symlink mistake).
 
 Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AGENTS.md. Use subagent-delegation, spawn_subagent for complex finder features.
 
