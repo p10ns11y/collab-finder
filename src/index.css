@@ -1,12 +1,84 @@
-/* Tailwind will be added once build stabilized (postcss + vite 8 rolldown edge in this env).
-   For scaffold we use a few inline styles + system fonts. */
-:root {
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  color-scheme: dark;
+@import 'tailwindcss';
+@import '@fontsource-variable/dm-sans';
+
+@theme {
+  --font-sans: 'DM Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-surface-0: #070709;
+  --color-surface-1: #0e0e12;
+  --color-surface-2: #14141a;
+  --color-surface-3: #1c1c24;
+  --color-surface-elevated: #1a1a22;
+
+  --color-border-subtle: rgb(255 255 255 / 0.06);
+  --color-border-default: rgb(255 255 255 / 0.1);
+  --color-border-strong: rgb(255 255 255 / 0.16);
+
+  --color-ink: #f4f4f5;
+  --color-ink-muted: #a1a1aa;
+  --color-ink-faint: #71717a;
+
+  --color-accent: #f59e0b;
+  --color-accent-soft: rgb(245 158 11 / 0.14);
+  --color-accent-glow: rgb(245 158 11 / 0.35);
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-glow: 0 0 40px -12px var(--color-accent-glow);
 }
 
-body {
-  margin: 0;
-  background: #09090b;
-  color: #e4e4e7;
+@layer base {
+  :root {
+    color-scheme: dark;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--color-surface-0);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .mesh-bg {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(245 158 11 / 0.12), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(99 102 241 / 0.06), transparent),
+      var(--color-surface-0);
+  }
+
+  .glass-panel {
+    background: rgb(20 20 26 / 0.72);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--color-border-subtle);
+  }
 }

@@ -25,7 +25,11 @@
     "vite": "^5.4.19"
   },
   "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.2.8",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0"
   }
 }

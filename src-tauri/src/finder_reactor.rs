@@ -224,7 +224,6 @@ impl FinderReactor {
 
 // Example Tauri commands (MCP-compatible tools)
 // In real: wrap reactor methods, use tauri state for singleton reactor.
-#[tauri::command]
 pub async fn run_finder_cycle(query: String, bearer: String, cv_summary: String) -> Result<Decision, String> {
     let mut reactor = FinderReactor::new(Some("/path/to/devprofile".to_string())); // from config
     reactor.run_autonomous_cycle(query, bearer, cv_summary).await
