@@ -135,26 +135,28 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [{ ...model, cycle: { status: 'loading' }, banner: null }]
 
     case 'CycleSucceeded': {
+      const { decision, tweets } = msg.result
       const pauses =
-        msg.decision.guards_triggered.length > 0
+        decision.guards_triggered.length > 0
           ? [
               ...model.pauses,
-              `PAUSED on guards: ${JSON.stringify(msg.decision.guards_triggered)}`,
+              `PAUSED on guards: ${JSON.stringify(decision.guards_triggered)}`,
             ]
           : model.pauses
       const banner =
-        msg.decision.guards_triggered.length > 0
+        decision.guards_triggered.length > 0
           ? {
               code: 'reactor' as const,
               message: `Guards triggered — review before continuing.`,
-              cause: JSON.stringify(msg.decision.guards_triggered),
+              cause: JSON.stringify(decision.guards_triggered),
             }
           : model.banner
       return [
         {
           ...model,
-          cycle: { status: 'ready', data: msg.decision },
-          decision: msg.decision,
+          cycle: { status: 'ready', data: decision },
+          decision,
+          search: tweets.length > 0 ? { status: 'ready', data: tweets } : model.search,
           pauses,
           banner,
         },

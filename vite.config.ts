@@ -12,6 +12,7 @@ export default defineConfig({
       '@adapters': path.resolve(__dirname, 'src/adapters'),
       '@runtime': path.resolve(__dirname, 'src/runtime'),
       '@view': path.resolve(__dirname, 'src/view'),
+      '@data': path.resolve(__dirname, 'data'),
     },
   },
   // Tauri expects a fixed port in dev

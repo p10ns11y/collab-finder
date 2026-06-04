@@ -18,3 +18,9 @@ See the main plan for how this changes the X layer (less custom code, more corre
 - https://github.com/xdevplatform/xurl
 
 These make "easy to connect X, read and writing smooth" a reality for both the desktop UI and agent-driven use.
+
+## Search queries in collab-finder
+
+- **Operator reference (required):** https://docs.x.com/x-api/posts/search/integrate/operators
+- **App validation:** `src-tauri/src/x_query.rs` blocks legacy operators (`since:`, `min_faves:`, `filter:`, etc.)
+- **Distillation data (queries + xAI prompts):** [data/distillation/README.md](../data/distillation/README.md)

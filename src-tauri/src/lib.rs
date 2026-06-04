@@ -1,25 +1,14 @@
 mod finder_reactor;
 mod secrets;
+mod x_query;
+mod x_search;
 
-use anyhow::Result;
-use finder_reactor::{Decision, get_reactor_state, promote_lead, run_finder_cycle};
-use serde::{Deserialize, Serialize};
+use finder_reactor::{CycleResult, FinderReactor, ReactorState};
+use tauri::State;
+use tokio::sync::Mutex;
+use x_search::XTweet;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct XTweet {
-    pub id: String,
-    pub text: String,
-    #[serde(default)]
-    pub author_id: Option<String>,
-    #[serde(default)]
-    pub created_at: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct XSearchResponse {
-    data: Option<Vec<XTweet>>,
-    meta: Option<serde_json::Value>,
-}
+pub struct AppReactor(pub Mutex<FinderReactor>);
 
 fn x_bearer() -> Result<String, String> {
     secrets::get_x_bearer()
@@ -43,40 +32,45 @@ fn clear_x_bearer() -> Result<(), String> {
 #[tauri::command]
 async fn search_x_recent(query: String, max_results: Option<u32>) -> Result<Vec<XTweet>, String> {
     let bearer = x_bearer()?;
-    let max = max_results.unwrap_or(10).clamp(10, 20);
-    let url = format!(
-        "https://api.x.com/2/tweets/search/recent?query={}&max_results={}&tweet.fields=created_at,author_id&expansions=author_id&user.fields=username",
-        urlencoding::encode(&query),
-        max
-    );
+    let max = max_results.unwrap_or(10);
+    let (tweets, rate) = x_search::search_recent(&bearer, &query, max).await?;
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", bearer))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if !resp.status().is_success() {
-        let text = resp.text().await.unwrap_or_default();
-        return Err(format!("X API error: {}", text));
+    // Best-effort: log rate to stderr for dev; reactor cycle updates shared state.
+    if let Some(rem) = rate.remaining {
+        eprintln!("[x] rate remaining: {rem}");
     }
 
-    let body: XSearchResponse = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(body.data.unwrap_or_default())
+    Ok(tweets)
 }
 
 #[tauri::command]
-async fn run_finder_cycle_cmd(query: String, cv_summary: String) -> Result<Decision, String> {
+async fn run_finder_cycle_cmd(
+    reactor: State<'_, AppReactor>,
+    query: String,
+    cv_summary: String,
+) -> Result<CycleResult, String> {
     let bearer = x_bearer()?;
-    run_finder_cycle(query, bearer, cv_summary).await
+    let mut guard = reactor.0.lock().await;
+    guard.run_autonomous_cycle(query, bearer, cv_summary).await
+}
+
+#[tauri::command]
+async fn get_reactor_state(reactor: State<'_, AppReactor>) -> Result<ReactorState, String> {
+    let guard = reactor.0.lock().await;
+    Ok(guard.state.clone())
+}
+
+#[tauri::command]
+async fn promote_lead(reactor: State<'_, AppReactor>, lead_id: String) -> Result<String, String> {
+    let mut guard = reactor.0.lock().await;
+    guard.promote_insights(&lead_id)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(AppReactor(Mutex::new(FinderReactor::new(None))))
         .invoke_handler(tauri::generate_handler![
             search_x_recent,
             run_finder_cycle_cmd,

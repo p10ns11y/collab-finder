@@ -9,20 +9,13 @@
 // CV: Use cv_promote_guard for any promote.
 // Surplus: See end of file and calls.
 
+use crate::x_search::search_recent;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct XTweet {
-    pub id: String,
-    pub text: String,
-    #[serde(default)]
-    pub author_id: Option<String>,
-    #[serde(default)]
-    pub created_at: Option<String>,
-}
+pub use crate::x_search::XTweet;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum Guard {
@@ -30,6 +23,12 @@ pub enum Guard {
     XRate { remaining: u32, limit: u32 },
     FitThreshold { score: u8, threshold: u8 },
     CVPromote { field: String, risk: String },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CycleResult {
+    pub decision: Decision,
+    pub tweets: Vec<XTweet>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -50,7 +49,7 @@ pub struct Lead {
     pub status: String, // new, analyzed, prepped, paused, applied
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ReactorState {
     pub leads: Vec<Lead>,
     pub current_cost: u32,
@@ -124,16 +123,24 @@ impl FinderReactor {
         }
     }
 
+    fn fit_score(text: &str) -> u8 {
+        let t = text.to_lowercase();
+        let mut score: u8 = 40;
+        for kw in ["react", "typescript", "rust", "agent", "ai", "hiring", "collab"] {
+            if t.contains(kw) {
+                score = score.saturating_add(12);
+            }
+        }
+        score.min(95)
+    }
+
     // Core: Analyze with X context + CV prune (fission per skills)
     pub fn analyze_lead(&mut self, tweet: XTweet, cv_summary: &str) -> Decision {
         // Per finder-reactor + x-agent-resources: prefix with X skill + pruned CV.
-        let context = format!(
-            "X Context (from skill.md/llms): {}. Opportunity: {}. Your CV (pruned): {}. Decide: pursue? score 0-100? prep? pause?",
-            self.x_skill_context, tweet.text, cv_summary
-        );
-        // Stub "xAI structured decision" - in real: call xAI with context, parse to Decision.
-        // Smart/intelli: simulate based on keywords + guards.
-        let score = if tweet.text.to_lowercase().contains("react") || tweet.text.to_lowercase().contains("rust") { 85 } else { 45 };
+        // Stub "xAI structured decision" - in real: call xAI with skill + pruned CV context.
+        let score = Self::fit_score(&tweet.text);
+        let _cv = cv_summary;
+        let _skill = &self.x_skill_context;
         let mut guards = vec![];
         if let Some(g) = self.check_fit_guard(score) { guards.push(g); }
         if let Some(g) = self.check_xrate_guard() { guards.push(g); }
@@ -156,57 +163,101 @@ impl FinderReactor {
         }
     }
 
-    // Guarded search (uses x-agent-resources for query building)
-    pub async fn guarded_search(&mut self, query: String, _bearer: String) -> Result<Vec<XTweet>, String> {
-        // Per x-agent-resources: full control, respect rates, use skill for valid queries.
+    // Guarded search — same live X API path as `search_x_recent`.
+    pub async fn guarded_search(&mut self, query: String, bearer: String) -> Result<Vec<XTweet>, String> {
         if let Some(guard) = self.check_xrate_guard() {
             self.state.pauses.push(format!("XRate guard: {:?}", guard));
-            return Err(format!("Paused on guard: {:?}", guard)); // Pause for intervention
+            return Err(format!("Paused on guard: {:?}", guard));
         }
-        // Real call (existing) - placeholder for now, wire bearer to search_x_recent
-        // For demo, return empty; in full: self.search_x_recent_internal...
-        let tweets: Vec<XTweet> = vec![];
-        self.state.x_rate_remaining = self.state.x_rate_remaining.saturating_sub(1);
-        self.state.current_cost += 100; // stub
+
+        let (tweets, rate) = search_recent(&bearer, &query, 10).await?;
+        if let Some(remaining) = rate.remaining {
+            self.state.x_rate_remaining = remaining;
+        }
+        self.state.current_cost += 100;
         Ok(tweets)
     }
 
     // Full cycle with self-guards, pauses, decisions (per agentic-reactor loop)
-    pub async fn run_autonomous_cycle(&mut self, query: String, bearer: String, cv_summary: String) -> Result<Decision, String> {
+    pub async fn run_autonomous_cycle(
+        &mut self,
+        query: String,
+        bearer: String,
+        cv_summary: String,
+    ) -> Result<CycleResult, String> {
         let tweets = self.guarded_search(query, bearer).await?;
         if tweets.is_empty() {
-            return Ok(Decision { action: "ignore".into(), confidence: 0, rationale: "No results".into(), guards_triggered: vec![], next_steps: vec![] });
+            return Ok(CycleResult {
+                decision: Decision {
+                    action: "ignore".into(),
+                    confidence: 0,
+                    rationale: "No matching posts from X recent search.".into(),
+                    guards_triggered: vec![],
+                    next_steps: vec!["broaden_query".into()],
+                },
+                tweets: vec![],
+            });
         }
-        let tweet = tweets[0].clone(); // simple: first
-        let decision = self.analyze_lead(tweet.clone(), &cv_summary);
 
-        // Pause if guards
+        let mut best_tweet = tweets[0].clone();
+        let mut best_decision = self.analyze_lead(best_tweet.clone(), &cv_summary);
+        let mut best_score = Self::fit_score(&best_tweet.text);
+
+        for tweet in tweets.iter().skip(1).take(9) {
+            let score = Self::fit_score(&tweet.text);
+            if score > best_score {
+                best_score = score;
+                best_tweet = tweet.clone();
+                best_decision = self.analyze_lead(tweet.clone(), &cv_summary);
+            }
+        }
+
+        let decision = best_decision;
+
         if !decision.guards_triggered.is_empty() {
             self.state.pauses.push(format!("Cycle paused: {:?}", decision.guards_triggered));
-            // In UI/MCP: surface for user/agent intervention. Don't auto prep.
-            return Ok(decision);
+            self.state.leads.push(Lead {
+                tweet: best_tweet,
+                score: Some(best_score),
+                decision: Some(decision.clone()),
+                prep_artifacts: None,
+                status: "paused".to_string(),
+            });
+            return Ok(CycleResult {
+                decision,
+                tweets,
+            });
         }
 
-        // If cleared: "prep" (stub artifacts, real xAI per context)
-        let mut lead = Lead {
-            tweet,
-            score: Some(85),
-            decision: Some(decision.clone()),
-            prep_artifacts: Some(HashMap::from([
-                ("letter".to_string(), "Tailored cover letter using X skill + CV...".to_string()),
-                ("cv_delta".to_string(), "Sidecar delta per cv-promote-guard...".to_string()),
-            ])),
-            status: "prepped".to_string(),
-        };
-        self.state.leads.push(lead);
+        if decision.action == "prep" {
+            self.state.leads.push(Lead {
+                tweet: best_tweet,
+                score: Some(best_score),
+                decision: Some(decision.clone()),
+                prep_artifacts: Some(HashMap::from([
+                    (
+                        "letter".to_string(),
+                        "Tailored cover letter using X skill + CV...".to_string(),
+                    ),
+                    (
+                        "cv_delta".to_string(),
+                        "Sidecar delta per cv-promote-guard...".to_string(),
+                    ),
+                ])),
+                status: "prepped".to_string(),
+            });
+        }
 
-        // CV promote? Only via guard (stub)
         if decision.action == "promote" {
-            // Delegate to cv_promote_guard logic (see skill)
-            self.state.pauses.push("CV promote guard triggered - sidecar only, user confirm required".to_string());
+            self.state
+                .pauses
+                .push("CV promote guard triggered - sidecar only, user confirm required".to_string());
         }
 
-        Ok(decision)
+        Ok(CycleResult {
+            decision,
+            tweets,
+        })
     }
 
     // MCP tool stub: promote (per cv-promote-guard)
@@ -222,23 +273,4 @@ impl FinderReactor {
     }
 }
 
-// Example Tauri commands (MCP-compatible tools)
-// In real: wrap reactor methods, use tauri state for singleton reactor.
-pub async fn run_finder_cycle(query: String, bearer: String, cv_summary: String) -> Result<Decision, String> {
-    let mut reactor = FinderReactor::new(Some("/path/to/devprofile".to_string())); // from config
-    reactor.run_autonomous_cycle(query, bearer, cv_summary).await
-}
-
-#[tauri::command]
-pub fn get_reactor_state() -> ReactorState {
-    // Return current for UI/dashboard
-    FinderReactor::new(None).state // stub; use shared state
-}
-
-#[tauri::command]
-pub fn promote_lead(lead_id: String) -> Result<String, String> {
-    let mut reactor = FinderReactor::new(None);
-    reactor.promote_insights(&lead_id)
-}
-
-// Surplus per skill: This module makes future cycles cheaper by centralizing guards (no duplicate logic), MCP allows agent-driven (no UI tax), X context from fetched resources prevents bad queries (saves retries). Q≈1.7. Suggested: auto-apply low-risk surpluses in meta-loop.
+// Surplus: shared X search + singleton reactor state — cycle and manual search stay consistent; rate headers feed guards.

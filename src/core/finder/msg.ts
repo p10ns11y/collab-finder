@@ -1,4 +1,4 @@
-import type { Decision, ReactorState, Tweet } from '../domain/finder'
+import type { CycleResult, ReactorState, Tweet } from '../domain/finder'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -23,7 +23,7 @@ export type FinderMsg =
   | { type: 'SearchSucceeded'; tweets: Tweet[] }
   | { type: 'SearchFailed'; error: AppError }
   | { type: 'CycleRequested' }
-  | { type: 'CycleSucceeded'; decision: Decision }
+  | { type: 'CycleSucceeded'; result: CycleResult }
   | { type: 'CycleFailed'; error: AppError }
   | { type: 'ReactorRefreshRequested' }
   | { type: 'ReactorRefreshSucceeded'; state: ReactorState }
