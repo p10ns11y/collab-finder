@@ -1,9 +1,19 @@
+import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@core': path.resolve(__dirname, 'src/core'),
+      '@ports': path.resolve(__dirname, 'src/ports'),
+      '@adapters': path.resolve(__dirname, 'src/adapters'),
+      '@runtime': path.resolve(__dirname, 'src/runtime'),
+      '@view': path.resolve(__dirname, 'src/view'),
+    },
+  },
   // Tauri expects a fixed port in dev
   server: {
     port: 5173,

@@ -21,7 +21,15 @@
     "noFallthroughCasesInSwitch": true,
 
     "ignoreDeprecations": "6.0",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@ports/*": ["src/ports/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@runtime/*": ["src/runtime/*"],
+      "@view/*": ["src/view/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
