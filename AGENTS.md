@@ -13,6 +13,7 @@ This project uses a **connected agent skills system** (fission + fusion) + **off
 | **X API, search queries, operators, xAI prompts** | [.agents/x-resources/README.md](.agents/x-resources/README.md) → [.agents/x-resources/skill.md](.agents/x-resources/skill.md) → [.agents/skills/x-agent-resources/SKILL.md](.agents/skills/x-agent-resources/SKILL.md) → [data/distillation/](data/distillation/README.md) |
 | **Finder reactor, guards, autonomous cycle** | [.agents/skills/finder-reactor/SKILL.md](.agents/skills/finder-reactor/SKILL.md) + x-resources row above when X is involved |
 | **Tauri shell, IPC, `invoke`, history DB** | [.agents/skills/tauri-agentic/SKILL.md](.agents/skills/tauri-agentic/SKILL.md) → [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) · [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
+| **X bearer storage (keyring vs file)** | [docs/SETUP.md](docs/SETUP.md) (save/read/dual-write) · [docs/tauri-commands.md](docs/tauri-commands.md) (`get_x_bearer_storage`) |
 | **CV promote / devprofile** | [.agents/skills/cv-promote-guard/SKILL.md](.agents/skills/cv-promote-guard/SKILL.md) |
 | **Architecture / milestones** | [docs/agentic-architecture.md](docs/agentic-architecture.md) |
 | **Setup / run / verify** | [docs/SETUP.md](docs/SETUP.md) |

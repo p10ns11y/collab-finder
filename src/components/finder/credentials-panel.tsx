@@ -1,16 +1,21 @@
-import { KeyRound, Loader2, ShieldCheck, Trash2 } from 'lucide-react'
+import { KeyRound, Loader2, Trash2 } from 'lucide-react'
+import type { BearerStorageStatus } from '../../core/domain/credentials'
+import { activeSourceLabel } from '../../core/domain/credentials'
 import type { ConnectionFlow } from '../../core/finder/flows'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
+import { CredentialsStorageDetails } from './credentials-storage-details'
 
 type Props = {
   flow: ConnectionFlow
   draft: string
   notice: string | null
   busy: boolean
+  storage: BearerStorageStatus | null
+  checking: boolean
   onDraftChange: (draft: string) => void
   onSave: () => void
   onClear: () => void
@@ -21,12 +26,16 @@ export function CredentialsPanel({
   draft,
   notice,
   busy,
+  storage,
+  checking,
   onDraftChange,
   onSave,
   onClear,
 }: Props) {
   const connected = flow === 'connected' || flow === 'clearing'
-  const checking = flow === 'checking'
+  const isChecking = flow === 'checking' || checking
+
+  const activeLabel = storage ? activeSourceLabel(storage.active_source) : null
 
   return (
     <Card className="overflow-hidden">
@@ -37,15 +46,18 @@ export function CredentialsPanel({
             X connection
           </CardTitle>
           <CardDescription>
-            Bearer token lives in the OS keychain only — never in React memory after save.
+            Bearer token is stored in Rust (keyring + file fallback) — never kept in React state
+            after save.
           </CardDescription>
         </div>
-        <Badge tone={connected ? 'success' : checking ? 'neutral' : 'warning'}>
-          {checking ? 'Checking…' : connected ? 'Connected' : 'Required'}
+        <Badge tone={connected ? 'success' : isChecking ? 'neutral' : 'warning'}>
+          {isChecking ? 'Checking…' : connected ? 'Connected' : 'Required'}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!connected && !checking && (
+        <CredentialsStorageDetails storage={storage} checking={isChecking} />
+
+        {!connected && !isChecking && (
           <div className="space-y-2">
             <Label htmlFor="x-bearer">App-only bearer token</Label>
             <Input
@@ -60,14 +72,15 @@ export function CredentialsPanel({
             />
           </div>
         )}
-        {connected && (
-          <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/5 px-3 py-2 text-xs text-success">
-            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-            Keychain active — searches use Rust-side credentials.
-          </div>
+
+        {connected && activeLabel && (
+          <p className="text-xs text-success">
+            Connected — searches use <strong className="font-medium">{activeLabel}</strong>.
+          </p>
         )}
+
         <div className="flex flex-wrap gap-2">
-          {!connected && !checking && (
+          {!connected && !isChecking && (
             <Button
               variant="primary"
               size="sm"
@@ -75,7 +88,7 @@ export function CredentialsPanel({
               disabled={busy || !draft.trim()}
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-              Save to keychain
+              Save credentials
             </Button>
           )}
           {connected && (

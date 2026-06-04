@@ -33,22 +33,24 @@ pnpm tauri build    # full desktop bundle
 ```bash
 pnpm build
 cd src-tauri && cargo check
+cd src-tauri && cargo test
 ```
 
-`package.json` does not yet define `type-check`, `lint`, or `precommit` scripts.
+`cargo test` covers secrets, db, reactor, and query validation (no live X token required). `package.json` does not yet define `type-check`, `lint`, or `precommit` scripts.
 
 ## X Bearer credentials
 
 1. Create an app on the [X Developer Portal](https://developer.x.com/) and copy the **Bearer token** (app-only).
 2. In the app, open **X connection** (credentials panel).
-3. Paste the token and choose **Save to keychain**.
-4. The draft field is cleared after save; the token is **not** kept in React state.
+3. Paste the token and choose **Save credentials**.
+4. The draft field is cleared after save; the token is **not** kept in React state. The panel calls `get_x_bearer_storage` to show active source, file path, and keyring reachability.
 
 **Storage (Rust `src-tauri/src/secrets.rs`):**
 
-- Primary: OS keyring (`collab-finder` / `x-bearer`)
-- Reliable fallback: encrypted file under app data (used when keyring is unavailable in dev)
-- Search and reactor commands read the token from storage — you do not pass `bearer` on each search invoke
+- **On save:** always writes the file fallback; keyring write is best-effort (may log and skip if Secret Service is unavailable).
+- **On read:** keyring first when present, else plaintext file `~/.local/share/collab-finder/x-bearer` (mode `0600`).
+- Keyring entry: service `collab-finder`, user `x-bearer`. Linux needs `keyring` crate `sync-secret-service` (see `src-tauri/Cargo.toml`).
+- Search and reactor commands read the token from storage — you do not pass `bearer` on each search invoke.
 
 ## What works vs stubs
 

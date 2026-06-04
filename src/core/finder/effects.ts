@@ -8,7 +8,7 @@ import type { LeadFilter } from '../../adapters/tauri/finder-adapter'
 
 export type FinderPorts = {
   credentials: {
-    hasStored(): Promise<boolean>
+    getStorage(): Promise<import('../domain/credentials').BearerStorageStatus>
     save(token: string): Promise<void>
     clear(): Promise<void>
   }
@@ -30,11 +30,32 @@ export type FinderPorts = {
 
 export function credentialsCheckCmd(ports: FinderPorts): Cmd<FinderMsg> {
   return (dispatch) => {
-    void fromPromise(ports.credentials.hasStored(), toAppError).then((result) => {
-      dispatch({
-        type: 'CredentialsChecked',
-        connected: result.ok ? result.value : false,
-      })
+    void fromPromise(ports.credentials.getStorage(), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({
+          type: 'CredentialsChecked',
+          storage: {
+            connected: false,
+            active_source: 'none',
+            file: {
+              present: false,
+              path: '',
+              encrypted: false,
+              permissions: '0600',
+              why_not_encrypted: null,
+            },
+            keyring: {
+              present: false,
+              service: 'collab-finder',
+              user: 'x-bearer',
+              reachable: false,
+              error: result.error.message,
+            },
+          },
+        })
+        return
+      }
+      dispatch({ type: 'CredentialsChecked', storage: result.value })
     })
   }
 }
@@ -51,8 +72,17 @@ export function credentialsSaveCmd(ports: FinderPorts, model: FinderModel): Cmd<
         dispatch({ type: 'CredentialsSaveFailed', error: result.error })
         return
       }
-      const verified = await ports.credentials.hasStored()
-      if (!verified) {
+      let storage: import('../domain/credentials').BearerStorageStatus
+      try {
+        storage = await ports.credentials.getStorage()
+      } catch (e) {
+        dispatch({
+          type: 'CredentialsSaveFailed',
+          error: toAppError(e),
+        })
+        return
+      }
+      if (!storage.connected) {
         dispatch({
           type: 'CredentialsSaveFailed',
           error: {
@@ -63,19 +93,26 @@ export function credentialsSaveCmd(ports: FinderPorts, model: FinderModel): Cmd<
         })
         return
       }
-      dispatch({ type: 'CredentialsSaveSucceeded' })
+      dispatch({ type: 'CredentialsSaveSucceeded', storage })
     })
   }
 }
 
 export function credentialsClearCmd(ports: FinderPorts): Cmd<FinderMsg> {
   return (dispatch) => {
-    void fromPromise(ports.credentials.clear(), toAppError).then((result) => {
+    void fromPromise(ports.credentials.clear(), toAppError).then(async (result) => {
       if (!result.ok) {
         dispatch({ type: 'CredentialsClearFailed', error: result.error })
         return
       }
-      dispatch({ type: 'CredentialsClearSucceeded' })
+      let storage: import('../domain/credentials').BearerStorageStatus
+      try {
+        storage = await ports.credentials.getStorage()
+      } catch (e) {
+        dispatch({ type: 'CredentialsClearFailed', error: toAppError(e) })
+        return
+      }
+      dispatch({ type: 'CredentialsClearSucceeded', storage })
     })
   }
 }

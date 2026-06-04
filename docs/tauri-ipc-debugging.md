@@ -12,7 +12,7 @@ See [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) for the m
 |-------|-------------|--------|
 | **Intent** | `FinderMsg` type | `src/core/finder/effects.ts`, `update.ts` |
 | **IPC request** | command + JSON args | `src/adapters/tauri/safe-invoke.ts` |
-| **IPC handler** | Rust entry + side effects | `src-tauri/src/lib.rs`, `secrets.rs`, `db.rs` |
+| **IPC handler** | Rust entry + side effects | `src-tauri/src/lib.rs` (handlers), `commands.rs` (persist helpers), `secrets.rs`, `db.rs` |
 | **External HTTP** | X API, TLS | Rust terminal only — not browser Network tab |
 
 `invoke` uses [asynchronous message passing](https://v2.tauri.app/concept/inter-process-communication/) (JSON-serialized requests/responses), not HTTP to your app.

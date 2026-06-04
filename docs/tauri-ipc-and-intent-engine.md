@@ -163,7 +163,7 @@ Official docs use **asynchronous message passing** for IPC; **Commands** (`invok
 
 | After `invoke` | Arch / minimal desktop notes |
 |----------------|------------------------------|
-| **`set_x_bearer` / `has_x_bearer`** | Uses **Secret Service** via the `keyring` crate (`collab-finder` / `x-bearer`). Needs a running provider (e.g. **gnome-keyring** with dbus session, **KWallet** on KDE). Hyprland-only installs often have **no secret service** → keyring read fails; app **falls back to file store** (see `secrets.rs` logs). IPC still succeeds; storage path differs. |
+| **`set_x_bearer` / `has_x_bearer` / `get_x_bearer_storage`** | `set_x_bearer` dual-writes file (always) + keyring (best-effort). Reads prefer keyring when present, else file. `get_x_bearer_storage` returns `BearerStorageStatus` for the UI (no bearer on the wire). Secret Service via `keyring` crate (`sync-secret-service` on Linux). Hyprland-only installs often have **no secret service** → keyring read fails; file fallback still works (see `secrets.rs` logs). |
 | **Search / cycle / history commands** | Bearer read inside Rust (`x_bearer()`), not from the webview. If keyring is empty but file store has the token, commands work. |
 | **SQLite (`AppDb`)** | Same `app_data_dir` as secrets: typically `~/.local/share/collab-finder/collab-finder.db`. Directory created with `0o700` on Unix. |
 | **X API HTTP** | Normal **reqwest** TLS; ensure `ca-certificates` (Arch: `ca-certificates` package) is installed. Unrelated to Tauri IPC. |
@@ -217,4 +217,5 @@ sudo pacman -S --needed gnome-keyring   # or kwallet + secret service for your D
 | `src/adapters/tauri/finder-adapter.ts` | Command name + args mapping |
 | `src/core/finder/effects.ts` | Intent → port calls |
 | `src/core/finder/program.ts` | Wires update + effects into MVU program |
-| `src-tauri/src/lib.rs` | Command handlers + `generate_handler!` |
+| `src-tauri/src/lib.rs` | `#[tauri::command]` handlers + `generate_handler!` |
+| `src-tauri/src/commands.rs` | Testable persist helpers (search/cycle/lead/promote) |

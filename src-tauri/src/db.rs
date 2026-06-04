@@ -1,12 +1,4 @@
-// db.rs
-// Robust, resilient SQLite persistence for collab-finder.
-// Stores every search, TUI action/event, lead/opportunity, pause, rate snapshot.
-// Designed for huge data + fast lookup (WAL, FTS5, indexes, LIMITs).
-// Duplicate removal: tweets by PK, leads by tweet_id (with seen_count++ on re-surface).
-// Best-effort: never fails a search/cycle. Disabled mode on init failure.
-// Migrations: simple versioned, idempotent.
-// Follows patterns from secrets/file_store (app_data_dir) + finder-reactor audit needs.
-// Per AGENTS + skills: durable state (sqlite allowed), audit logs for surplus/self-improvement.
+//! SQLite audit store: searches, hits, leads (dedup), pauses, events. Best-effort; disabled on init failure.
 
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
@@ -119,38 +111,44 @@ pub struct SqliteStore {
 }
 
 impl SqliteStore {
-    /// Construct + init. Always succeeds (disabled mode on any failure).
-    /// Uses same app data dir as bearer secrets.
+    /// Production store under `app_data_dir()` / `collab-finder.db`. Never panics.
     pub fn new() -> Self {
-        match Self::open_and_init() {
-            Ok(conn) => Self {
-                conn: Mutex::new(conn),
-                enabled: true,
-            },
+        match app_data_dir()
+            .map(|dir| dir.join(DB_FILE))
+            .and_then(Self::open_at)
+        {
+            Ok(store) => store,
             Err(e) => {
                 eprintln!("[db] init failed (history disabled, searches unaffected): {e}");
-                // Create a dummy conn? But to keep simple, we use a in-mem that we never use,
-                // or just flag. For queries we early return. For safety, try a temp conn.
-                let fallback = Connection::open_in_memory().unwrap_or_else(|_| {
-                    // Last resort: this will only be hit if even mem fails (impossible).
-                    panic!("sqlite mem fallback impossible")
-                });
-                Self {
-                    conn: Mutex::new(fallback),
-                    enabled: false,
-                }
+                Self::disabled()
             }
         }
     }
 
-    fn open_and_init() -> Result<Connection, String> {
-        let dir = app_data_dir()?;
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    /// Open (or create) a database at an explicit path — used in tests.
+    pub fn open_at(db_path: PathBuf) -> Result<Self, String> {
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let conn = Self::open_connection(&db_path)?;
+        eprintln!("[db] opened {} (schema v{})", db_path.display(), SCHEMA_VERSION);
+        Ok(Self {
+            conn: Mutex::new(conn),
+            enabled: true,
+        })
+    }
 
-        let db_path: PathBuf = dir.join(DB_FILE);
-        let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    pub(crate) fn disabled() -> Self {
+        Self {
+            conn: Mutex::new(
+                Connection::open_in_memory().unwrap_or_else(|_| panic!("sqlite mem fallback")),
+            ),
+            enabled: false,
+        }
+    }
 
-        // Resilience + perf pragmas (WAL is key for readers + writers).
+    fn open_connection(db_path: &PathBuf) -> Result<Connection, String> {
+        let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
@@ -160,22 +158,15 @@ impl SqliteStore {
              PRAGMA temp_store = MEMORY;",
         )
         .map_err(|e| e.to_string())?;
-
         Self::migrate(&conn)?;
-
-        // Permissions (best effort, like secrets).
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            if let Err(e) = std::fs::set_permissions(&db_path, std::fs::Permissions::from_mode(0o600)) {
-                eprintln!("[db] chmod warning (non-fatal): {e}");
-            }
+            let _ = std::fs::set_permissions(db_path, std::fs::Permissions::from_mode(0o600));
             if let Some(parent) = db_path.parent() {
                 let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
             }
         }
-
-        eprintln!("[db] opened {} (schema v{})", db_path.display(), SCHEMA_VERSION);
         Ok(conn)
     }
 
@@ -322,6 +313,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
     }
 
     /// Best effort persist. Never errors the caller.
+    #[allow(clippy::too_many_arguments)]
     pub fn record_search_run(
         &self,
         query: &str,
@@ -468,7 +460,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         if !self.is_enabled() {
             return Ok(0);
         }
-        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
         guard
             .execute(
                 "INSERT INTO pauses (reason, guard_type, lead_id, search_run_id, details_json)
@@ -489,7 +481,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         if !self.is_enabled() {
             return Ok(0);
         }
-        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
         guard
             .execute(
                 "INSERT INTO events (event_type, payload_json, correlation_id, source)
@@ -505,7 +497,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
             return Ok(());
         }
         if let (Some(r), Some(l)) = (remaining, limit_val) {
-            let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+            let guard = self.conn.lock().map_err(|e| e.to_string())?;
             // ts as PK (second precision is fine).
             let ts = chrono_like_now(); // simple, avoid extra dep
             let _ = guard.execute(
@@ -615,39 +607,6 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         let lim = filter.limit.unwrap_or(100).clamp(1, 500) as i64;
 
-        // Build a safe parameterized query (simple dynamic and/or).
-        let mut sql = String::from(
-            "SELECT l.id, l.tweet_id, l.first_seen, l.seen_count, l.score, l.action, l.decision_json, l.status, l.prep_artifacts_json, l.last_updated, l.notes,
-                    t.text, t.created_at
-             FROM leads l LEFT JOIN tweets t ON l.tweet_id = t.id WHERE 1=1 ",
-        );
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![];
-
-        if let Some(min) = filter.min_score {
-            sql.push_str(" AND l.score >= ? ");
-            params_vec.push(Box::new(min));
-        }
-        if let Some(ref st) = filter.status {
-            sql.push_str(" AND l.status = ? ");
-            params_vec.push(Box::new(st.clone()));
-        }
-        if let Some(ref s) = filter.since {
-            sql.push_str(" AND l.first_seen >= ? ");
-            params_vec.push(Box::new(s.clone()));
-        }
-        if let Some(ref q) = filter.q {
-            // Simple fallback LIKE (FTS used via dedicated search fn).
-            sql.push_str(" AND (l.decision_json LIKE ? OR l.notes LIKE ? OR t.text LIKE ?) ");
-            let like = format!("%{}%", q);
-            params_vec.push(Box::new(like.clone()));
-            params_vec.push(Box::new(like.clone()));
-            params_vec.push(Box::new(like));
-        }
-
-        sql.push_str(" ORDER BY l.last_updated DESC, l.score DESC LIMIT ? ");
-        params_vec.push(Box::new(lim));
-
-        // Simple fixed query + post-filter (small result sets from LIMIT; keeps code robust & easy to read).
         let mut stmt = guard
             .prepare("SELECT l.id, l.tweet_id, l.first_seen, l.seen_count, l.score, l.action, l.decision_json, l.status, l.prep_artifacts_json, l.last_updated, l.notes, t.text, t.created_at
                       FROM leads l LEFT JOIN tweets t ON l.tweet_id = t.id
@@ -686,9 +645,9 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         if let Some(ref q) = filter.q {
             let ql = q.to_lowercase();
             out.retain(|l| {
-                l.tweet_text.as_ref().map_or(false, |t| t.to_lowercase().contains(&ql))
-                    || l.decision_json.as_ref().map_or(false, |d| d.to_lowercase().contains(&ql))
-                    || l.notes.as_ref().map_or(false, |n| n.to_lowercase().contains(&ql))
+                l.tweet_text.as_ref().is_some_and(|t| t.to_lowercase().contains(&ql))
+                    || l.decision_json.as_ref().is_some_and(|d| d.to_lowercase().contains(&ql))
+                    || l.notes.as_ref().is_some_and(|n| n.to_lowercase().contains(&ql))
             });
         }
 
@@ -756,7 +715,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         // Top queries (simple, last 50 runs).
         let mut top = vec![];
         {
-            let mut s = guard
+            let s = guard
                 .prepare("SELECT query FROM search_runs ORDER BY ts DESC LIMIT 50")
                 .ok();
             if let Some(mut stmt) = s {
@@ -835,16 +794,6 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         let lim = filter.limit.unwrap_or(50).clamp(1, 200) as i64;
 
-        let mut sql = "SELECT id, ts, event_type, payload_json, correlation_id, source FROM events WHERE 1=1".to_string();
-        // Simple: append type filter if present.
-        if filter.event_type.is_some() {
-            sql.push_str(" AND event_type = ? ");
-        }
-        sql.push_str(" ORDER BY ts DESC LIMIT ? ");
-
-        let mut stmt = guard.prepare(&sql).map_err(|e| e.to_string())?;
-
-        // For v1 keep simple (common call is recent without filter).
         let mut stmt = guard
             .prepare("SELECT id, ts, event_type, payload_json, correlation_id, source FROM events ORDER BY ts DESC LIMIT ?1")
             .map_err(|e| e.to_string())?;
@@ -880,17 +829,185 @@ fn chrono_like_now() -> String {
     format!("{}", now)
 }
 
-// For tests (run with cargo test in src-tauri).
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
+
+    fn sample_tweet(id: &str, text: &str) -> XTweet {
+        XTweet {
+            id: id.to_string(),
+            text: text.to_string(),
+            author_id: Some("u1".to_string()),
+            created_at: Some("2026-06-01T00:00:00Z".to_string()),
+        }
+    }
+
+    fn temp_store() -> (TempDir, SqliteStore) {
+        let dir = TempDir::new().expect("tempdir");
+        let path = dir.path().join("test.db");
+        let store = SqliteStore::open_at(path).expect("open_at");
+        (dir, store)
+    }
 
     #[test]
-    fn db_module_compiles_and_has_public_api() {
-        // Smoke: constructing the store (uses real app data dir or disabled) must not panic.
-        let _store = SqliteStore::new();
-        // Types are public and serializable (for Tauri).
-        let _f: LeadFilter = LeadFilter { limit: Some(10), ..Default::default() };
-        assert!(true);
+    fn disabled_store_is_noop() {
+        let store = SqliteStore::disabled();
+        assert_eq!(store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap(), 0);
+        assert!(store.get_recent_searches(10).unwrap().is_empty());
+        assert_eq!(store.get_dashboard_stats().unwrap().total_searches, 0);
+    }
+
+    #[test]
+    fn migrate_is_idempotent() {
+        let (_dir, store) = temp_store();
+        let guard = store.conn.lock().unwrap();
+        let v: i32 = guard
+            .query_row("SELECT MAX(version) FROM schema_migrations", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, SCHEMA_VERSION);
+        drop(guard);
+        let path = _dir.path().join("test.db");
+        SqliteStore::open_at(path).expect("re-open");
+    }
+
+    #[test]
+    fn search_run_hits_and_fetch() {
+        let (_dir, store) = temp_store();
+        let tweets = vec![
+            sample_tweet("1", "rust engineer hiring"),
+            sample_tweet("2", "typescript react collab"),
+        ];
+        let run_id = store
+            .record_search_run("rust lang:en", "manual", Some(10), Some(100), Some(450), 50, Some(12), None)
+            .unwrap();
+        assert!(run_id > 0);
+        store.record_search_hits(run_id, &tweets, 0).unwrap();
+
+        let history = store.get_recent_searches(5).unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].query, "rust lang:en");
+        assert_eq!(history[0].num_results, 2);
+
+        let detail = store.get_search_run(run_id).unwrap().expect("run");
+        assert_eq!(detail.tweets.len(), 2);
+        assert_eq!(detail.tweets[0].id, "1");
+    }
+
+    #[test]
+    fn upsert_lead_increments_seen_count() {
+        let (_dir, store) = temp_store();
+        let id1 = store.upsert_lead("tw_99", Some(80), Some("prep"), None, "new", None).unwrap();
+        let id2 = store.upsert_lead("tw_99", Some(85), Some("prep"), None, "prepped", None).unwrap();
+        assert_eq!(id1, id2);
+        let leads = store.get_leads(&LeadFilter { limit: Some(10), ..Default::default() }).unwrap();
+        assert_eq!(leads.len(), 1);
+        assert_eq!(leads[0].seen_count, 2);
+        assert_eq!(leads[0].status, "prepped");
+    }
+
+    #[test]
+    fn record_pause_event_and_stats() {
+        let (_dir, store) = temp_store();
+        let run_id = store.record_search_run("q", "cycle", None, None, None, 0, None, None).unwrap();
+        let pause_id = store
+            .record_pause("fit low", Some("FitThreshold"), None, Some(run_id), None)
+            .unwrap();
+        assert!(pause_id > 0);
+        store.record_event("CycleRequested", Some(r#"{"q":"x"}"#), Some("c1"), Some("ui")).unwrap();
+
+        let stats = store.get_dashboard_stats().unwrap();
+        assert_eq!(stats.total_searches, 1);
+        assert_eq!(stats.total_pauses, 1);
+
+        let pauses = store.get_recent_pauses(5).unwrap();
+        assert_eq!(pauses[0].reason, "fit low");
+
+        let events = store.get_events(&EventFilter { limit: Some(5), ..Default::default() }).unwrap();
+        assert_eq!(events[0].event_type, "CycleRequested");
+    }
+
+    #[test]
+    fn fts_finds_indexed_tweet_text() {
+        let (_dir, store) = temp_store();
+        let run_id = store.record_search_run("fts q", "manual", None, None, None, 0, None, None).unwrap();
+        store
+            .record_search_hits(run_id, &[sample_tweet("fts1", "unique zebra keyword collab")], 0)
+            .unwrap();
+        let hits = store.search_tweets_fts("zebra", 5).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "fts1");
+    }
+
+    #[test]
+    fn lead_filter_min_score_and_status() {
+        let (_dir, store) = temp_store();
+        store.upsert_lead("a", Some(50), None, None, "paused", None).unwrap();
+        store.upsert_lead("b", Some(90), None, None, "prepped", None).unwrap();
+        let filtered = store
+            .get_leads(&LeadFilter {
+                min_score: Some(70),
+                status: Some("prepped".to_string()),
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].tweet_id, "b");
+    }
+
+    #[test]
+    fn get_search_run_missing_returns_none() {
+        let (_dir, store) = temp_store();
+        assert!(store.get_search_run(9999).unwrap().is_none());
+    }
+
+    #[test]
+    fn record_hits_noop_when_run_id_zero() {
+        let (_dir, store) = temp_store();
+        store
+            .record_search_hits(0, &[sample_tweet("x", "text")], 0)
+            .unwrap();
+        assert_eq!(store.get_recent_searches(5).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn record_rate_snapshot_and_empty_fts() {
+        let (_dir, store) = temp_store();
+        store.record_rate_snapshot(Some(10), Some(450)).unwrap();
+        assert!(store.search_tweets_fts("", 5).unwrap().is_empty());
+        assert!(store.search_tweets_fts("   ", 5).unwrap().is_empty());
+    }
+
+    #[test]
+    fn lead_text_filter_via_q() {
+        let (_dir, store) = temp_store();
+        let run_id = store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap();
+        store
+            .record_search_hits(
+                run_id,
+                &[sample_tweet("z1", "zebra stripe pattern")],
+                0,
+            )
+            .unwrap();
+        store.upsert_lead("z1", Some(80), None, None, "new", None).unwrap();
+        let hits = store
+            .get_leads(&LeadFilter {
+                q: Some("zebra".to_string()),
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+    }
+
+    #[test]
+    fn search_run_with_error_field() {
+        let (_dir, store) = temp_store();
+        let id = store
+            .record_search_run("bad", "manual", None, None, None, 0, None, Some("401"))
+            .unwrap();
+        let run = store.get_search_run(id).unwrap().unwrap().run;
+        assert_eq!(run.error.as_deref(), Some("401"));
     }
 }

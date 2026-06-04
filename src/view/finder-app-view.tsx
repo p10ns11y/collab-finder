@@ -55,6 +55,8 @@ export function FinderAppView({ view, dispatch }: Props) {
               draft={model.credentials.draft}
               notice={model.credentials.notice}
               busy={model.credentials.busy}
+              storage={model.credentials.storage}
+              checking={model.credentials.checking}
               onDraftChange={(draft) =>
                 dispatch({ type: 'CredentialsDraftChanged', draft })
               }
