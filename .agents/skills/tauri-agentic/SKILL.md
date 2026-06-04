@@ -24,7 +24,7 @@ description: Patterns for building agentic, MCP-exposed, self-guarded desktop ap
 3. **Backend Guards in Rust**:
    - Central FinderReactor struct that wraps X client (using x-agent-resources), xAI calls (with pruning), state (leads, preps in app_data_dir JSON).
    - Every decision: structured output from xAI, then apply guards (e.g., if fit < threshold { return Pause(Reason::LowFit) }).
-   - Secure keys: tauri-plugin-keyring or store for X bearer, xAI key.
+   - Secure keys: `keyring` crate (OS Secret Service) + `0600` file fallback for X bearer; see [docs/SETUP.md](../../../docs/SETUP.md) and `get_x_bearer_storage`.
    - CV: use cv-promote-guard module for all reads/writes to devprofile path.
 
 4. **React Frontend (client-only, per react-client-expert)**:

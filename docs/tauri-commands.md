@@ -8,19 +8,21 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 
 | Command | Args | Returns | Adapter |
 |---------|------|---------|---------|
-| `has_x_bearer` | — | `boolean` | `credentials-adapter.ts` |
+| `has_x_bearer` | — | `boolean` | `credentials-adapter.ts` — legacy; prefer `get_x_bearer_storage` (`connected` = token present) |
 | `get_x_bearer_storage` | — | `BearerStorageStatus` | same — active source, file path, keyring reachability |
 | `set_x_bearer` | `{ token: string }` | `void` | same |
 | `clear_x_bearer` | — | `void` | same |
 
 Bearer is read inside Rust for search/cycle — never sent from the UI on each search.
 
+`BearerStorageStatus` (from `get_x_bearer_storage`) matches the credentials panel: `active_source` (`keyring` | `file` | `none`), file path, keyring reachability, and plaintext-fallback notes.
+
 ## Finder / reactor
 
 | Command | Args | Returns | Adapter | Notes |
 |---------|------|---------|---------|-------|
 | `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Persists run + hits + rate to sqlite (best-effort). |
-| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision` + `tweets`) | same | Live X search via `guarded_search`; shared reactor state. Also persists search + upserts lead (dedup + seen_count). |
+| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision`, `tweets`, `best_tweet`) | same | Live X search via `guarded_search`; persists lead from `best_tweet` (fit-scored pick), not `tweets[0]`. |
 | `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
 | `promote_lead` | `{ lead_id: string }` (TS adapter defaults `'latest'`) | `string` | same | Stub message until CV guard is wired. Logs event. |
 
