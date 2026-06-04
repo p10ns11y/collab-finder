@@ -28,7 +28,7 @@ struct XSearchResponse {
 
 #[tauri::command]
 async fn search_x_recent(query: String, bearer: String, max_results: Option<u32>) -> Result<Vec<XTweet>, String> {
-    let max = max_results.unwrap_or(10).clamp(5, 20);
+    let max = max_results.unwrap_or(10).clamp(10, 20);
     let url = format!(
         "https://api.x.com/2/tweets/search/recent?query={}&max_results={}&tweet.fields=created_at,author_id&expansions=author_id&user.fields=username",
         urlencoding::encode(&query),

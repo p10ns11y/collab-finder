@@ -6,7 +6,7 @@ type Decision = { action: string; confidence: number; rationale: string; guards_
 type ReactorState = { leads: any[]; current_cost: number; x_rate_remaining: number; pauses: string[] }
 
 function App() {
-  const [query, setQuery] = useState('(hiring OR "we are hiring" OR collab OR "build with me") (react OR typescript OR rust OR ai) min_faves:1 -is:retweet')
+  const [query, setQuery] = useState('(hiring OR "we are hiring" OR collab OR "build with me") (react OR typescript OR rust OR ai) -is:retweet lang:en')
   const [bearer, setBearer] = useState('')
   const [cvSummary, setCvSummary] = useState('Senior TS/React/Rust engineer, Oneflow leadership, energy-efficient systems, agentic tools, open to collabs in Stockholm or remote.')
   const [results, setResults] = useState<Tweet[]>([])
@@ -25,7 +25,7 @@ function App() {
     setLoading(true)
     setError(null)
     try {
-      const tweets = await invoke<Tweet[]>('search_x_recent', { query, bearer: bearer.trim(), maxResults: 8 })
+      const tweets = await invoke<Tweet[]>('search_x_recent', { query, bearer: bearer.trim(), maxResults: 10 })
       setResults(tweets)
     } catch (e: any) {
       setError(String(e))
@@ -131,8 +131,8 @@ function App() {
         </div>
 
         <div className="text-sm text-zinc-400">
-          Presets (X resources aware): <span className="underline cursor-pointer" onClick={() => setQuery('(hiring OR "open role") (senior OR staff) (react OR typescript) min_faves:2')}>Jobs</span> · <span className="underline cursor-pointer" onClick={() => setQuery('collab OR cofounder OR "build with me" (indie OR agent OR rust)')}>Collabs</span> · <span className="underline cursor-pointer" onClick={() => setQuery('"side project" OR "side hustle" (react OR ai OR rust)')}>Side Hustles</span> · <span className="underline cursor-pointer" onClick={() => setQuery('"build in public" OR "join me" community OR together')}>Community</span>
-          <span className="ml-2 text-orange-500">← Full query tuning (x-agent-resources principle)</span>
+          Presets (X resources aware): <span className="underline cursor-pointer" onClick={() => setQuery('(hiring OR "open role") (senior OR staff) (react OR typescript) -is:retweet lang:en')}>Jobs</span> · <span className="underline cursor-pointer" onClick={() => setQuery('(collab OR cofounder OR "build with me") (indie OR agent OR rust) -is:retweet lang:en')}>Collabs</span> · <span className="underline cursor-pointer" onClick={() => setQuery('("side project" OR "side hustle") (react OR ai OR rust) -is:retweet lang:en')}>Side Hustles</span> · <span className="underline cursor-pointer" onClick={() => setQuery('("build in public" OR "join me") (community OR together) -is:retweet lang:en')}>Community</span>
+          <span className="ml-2 text-orange-500">← Recent search: no min_faves/min_retweets on this tier</span>
         </div>
 
         {error && <div className="bg-red-950 border border-red-900 text-red-400 px-3 py-2 rounded text-xs">{error} <button onClick={() => setError(null)} className="ml-2 underline">Clear</button></div>}
