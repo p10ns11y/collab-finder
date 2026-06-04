@@ -106,13 +106,13 @@ stateDiagram-v2
 
   Idle --> CycleUI: Run autonomous cycle
   CycleUI --> Reactor: run_finder_cycle_cmd
-  Reactor --> StubSearch: guarded_search placeholder
-  StubSearch --> Heuristic: stub analyze_lead
+  Reactor --> XLive: guarded_search (live X API)
+  XLive --> Heuristic: stub analyze_lead
   Heuristic --> Decision: Decision JSON to UI
   Decision --> Idle
 ```
 
-Until `guarded_search` delegates to the same HTTP path as `search_x_recent`, the cycle can return decisions without live tweets.
+`guarded_search` uses the same `x_search` module as `search_x_recent`. xAI analysis is still heuristic until the xAI milestone.
 
 ## Pauses and intervention
 
@@ -127,7 +127,7 @@ Until `guarded_search` delegates to the same HTTP path as `search_x_recent`, the
 | X recent search | Yes (`lib.rs`) | Query presets, rate telemetry |
 | Secure bearer | Yes (`secrets`) | OAuth / xurl alignment |
 | MVU UI shell | Yes | More guard-driven pauses |
-| Reactor live search in cycle | No | Wire `guarded_search` → X API |
+| Reactor live search in cycle | Yes (`x_search` + shared `AppReactor`) | xAI analyze; rate telemetry in UI |
 | xAI decisions | No | Pruned CV + skill.md prefix |
 | MCP agent API | No | stdio server over commands |
 | CV promote guard | No | devprofile path config + sidecar UI |

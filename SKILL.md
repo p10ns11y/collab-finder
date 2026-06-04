@@ -80,7 +80,7 @@ See SETUP.md (future) and root README for first-run wizard.
 
 | Scenario | Choose / Do | Why |
 |----------|-------------|-----|
-| Need real-time high-signal X posts | Tunable `search_x` with operators + min_faves + since | Full control, matches your "tune whenever" requirement |
+| Need real-time high-signal X posts | Tunable `search_x` with [official v2 operators](https://docs.x.com/x-api/posts/search/integrate/operators) only (`lang:`, `-is:retweet`, `has:links`, `from:` — not `since:`/`min_faves:`) | Full control, matches your "tune whenever" requirement |
 | Deep fit analysis | `analyze_opportunity` with full X skill + pruned CV | xAI + official context = accurate, non-hallucinated reasoning |
 | Prepare to apply or reach out | `generate_prep_pack` + export | Letter + CV sidecar + research + outreach in one guarded flow |
 | Evolve public profile from real opportunities | `promote_insights` (with pause) | Sidecar-first + diff + confirm = safe compounding |

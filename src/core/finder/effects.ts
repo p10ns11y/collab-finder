@@ -13,7 +13,7 @@ export type FinderPorts = {
   }
   finder: {
     search(query: string): Promise<import('../domain/finder').Tweet[]>
-    runCycle(query: string, cvSummary: string): Promise<import('../domain/finder').Decision>
+    runCycle(query: string, cvSummary: string): Promise<import('../domain/finder').CycleResult>
     reactorState(): Promise<import('../domain/finder').ReactorState>
     promote(leadId?: string): Promise<string>
   }
@@ -100,7 +100,7 @@ export function cycleCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg>
         dispatch({ type: 'CycleFailed', error: result.error })
         return
       }
-      dispatch({ type: 'CycleSucceeded', decision: result.value })
+      dispatch({ type: 'CycleSucceeded', result: result.value })
       dispatch({ type: 'ReactorRefreshRequested' })
     })
   }

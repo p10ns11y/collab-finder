@@ -17,8 +17,8 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 | Command | Args | Returns | Adapter | Notes |
 |---------|------|---------|---------|-------|
 | `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20 |
-| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `Decision` | same | Uses stored bearer; reactor search path still stubbed |
-| `get_reactor_state` | — | `ReactorState` | same | In-memory reactor snapshot |
+| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision` + `tweets`) | same | Live X search via `guarded_search`; shared reactor state |
+| `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
 | `promote_lead` | `{ leadId? }` | `string` | same | Stub message until CV guard is wired |
 
 ## TypeScript bridge
