@@ -49,7 +49,7 @@ See `docs/x-tools.md` and the `x-agent-resources` skill.
 
 - Triage with `agent-orchestrator` before any non-trivial work.
 - Every autonomous decision in code (or prompts) must have self-guard + pause path.
-- After agentic changes: cargo check + pnpm type-check/lint/build + tauri check.
+- After agentic changes: `pnpm build`, `cd src-tauri && cargo check` (see docs/SETUP.md; lint/type-check scripts TBD).
 - Surplus after major tasks (cheaper future iterations of the finder).
 - Use worktrees + concurrent agents for parallel development of reactor parts.
 - Verify-before-done, especially for CV promote paths and X write side-effects.

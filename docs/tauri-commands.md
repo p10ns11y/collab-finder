@@ -19,7 +19,7 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 | `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Persists run + hits + rate to sqlite (best-effort). |
 | `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision` + `tweets`) | same | Live X search via `guarded_search`; shared reactor state. Also persists search + upserts lead (dedup + seen_count). |
 | `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
-| `promote_lead` | `{ leadId? }` | `string` | same | Stub message until CV guard is wired. Logs event. |
+| `promote_lead` | `{ lead_id: string }` (TS adapter defaults `'latest'`) | `string` | same | Stub message until CV guard is wired. Logs event. |
 
 ## History / audit (sqlite-backed, every action + deduped leads)
 

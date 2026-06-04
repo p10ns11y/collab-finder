@@ -48,7 +48,7 @@ See `docs/x-tools.md`, `docs/SETUP.md`, `docs/agentic-architecture.md`, and `.ag
 ## Agent Workflow (Triage + Self-Guards First)
 
 **Always triage first** (read `agent-orchestrator`):
-- Single-shot (≤2 files, obvious): direct + verify (cargo check, pnpm type-check/lint/build, tauri check).
+- Single-shot (≤2 files, obvious): direct + verify (`pnpm build`, `cd src-tauri && cargo check`; see [docs/SETUP.md](docs/SETUP.md) — `type-check`/`lint` scripts not in package.json yet).
 - Light: short bullets + implement.
 - Full: briefs, worktrees if multi-session, independent verification.
 

@@ -57,6 +57,7 @@ cd src-tauri && cargo check
 | Recent X search (`search_x_recent`) | Live HTTP to `api.x.com` |
 | Credential save/clear | Live |
 | Autonomous cycle (`run_finder_cycle_cmd`) | Live X search in cycle; heuristic analyze (xAI planned); populates tweet feed |
+| Durable history (SQLite) | Searches, leads, pauses, events; dashboard refresh on start; best-effort if DB init fails |
 | CV / devprofile grounding | Not wired (hardcoded path in reactor) |
 | MCP server for external agents | Planned (today: Tauri `invoke` only) |
 | xAI structured decisions | Planned (stub in `finder_reactor.rs`) |
