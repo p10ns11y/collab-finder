@@ -59,6 +59,9 @@ export function FinderAppView({ view, dispatch }: Props) {
               canSearch={view.canSearch}
               canRunCycle={view.canRunCycle}
               presets={view.presets}
+              operatorsDocUrl={view.operatorsDocUrl}
+              operatorsReference={view.operatorsReference}
+              strategyReference={view.strategyReference}
               onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
               onCvSummaryChange={(cvSummary) =>
                 dispatch({ type: 'CvSummaryChanged', cvSummary })

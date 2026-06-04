@@ -137,6 +137,7 @@ stateDiagram-v2
 - [SETUP.md](./SETUP.md) — install, credentials, verify commands
 - [tauri-commands.md](./tauri-commands.md) — invoke contract table
 - [x-tools.md](./x-tools.md) — official X agent resources
+- [data/distillation/](../data/distillation/README.md) — qualified X queries, curation context, xAI analyze prompts
 - **Interactive canvas (Cursor only):** not normal TSX — requires Cursor’s canvas renderer. Lives at `~/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx` (created via Agent chat; open from the canvas link in that session, not Quick Open in the repo)
 
 ## Exponential development

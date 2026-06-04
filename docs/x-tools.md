@@ -23,4 +23,4 @@ These make "easy to connect X, read and writing smooth" a reality for both the d
 
 - **Operator reference (required):** https://docs.x.com/x-api/posts/search/integrate/operators
 - **App validation:** `src-tauri/src/x_query.rs` blocks legacy operators (`since:`, `min_faves:`, `filter:`, etc.)
-- **Tuning notes:** [query-tuning.md](./query-tuning.md)
+- **Distillation data (queries + xAI prompts):** [data/distillation/README.md](../data/distillation/README.md)

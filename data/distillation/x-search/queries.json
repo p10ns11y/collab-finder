@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "operatorsDoc": "https://docs.x.com/x-api/posts/search/integrate/operators",
+  "defaultQuery": "(hiring OR \"we are hiring\" OR collab OR \"build with me\") (react OR typescript OR rust OR ai) lang:en -is:retweet",
+  "defaultCvSummary": "Senior TS/React/Rust engineer. Oneflow leadership, energy-efficient agentic systems, Rust OSS. Open to SpaceXAI-tier AI infra (xAI division of SpaceX), Stockholm/remote roles, and high-fit collabs. Ships arch-machine, premflow, Grok Dia, thepulimaangani in public.",
+  "presets": [
+    {
+      "id": "priority-spacexai-careers",
+      "label": "SpaceXAI careers",
+      "tier": "priority",
+      "intent": "main_role",
+      "geo": "us",
+      "query": "from:xaicareers (hiring OR engineer OR careers OR inference OR RL) lang:en -is:retweet has:links",
+      "rationale": "Official @xaicareers posts (SpaceXAI division; legacy xAI handle). Highest alignment target.",
+      "fitKeywords": ["spacexai", "xai", "grok", "inference", "engineer", "hiring"]
+    },
+    {
+      "id": "priority-spacexai-keywords",
+      "label": "SpaceXAI keywords",
+      "tier": "priority",
+      "intent": "main_role",
+      "geo": "global",
+      "query": "(SpaceXAI OR \"xAI\" OR Grok) (hiring OR engineer OR SpaceX) lang:en -is:retweet has:links",
+      "rationale": "SpaceXAI hiring posts on X; keep xAI/Grok terms — people still use legacy names in posts.",
+      "fitKeywords": ["spacexai", "xai", "grok", "spacex", "hiring"]
+    },
+    {
+      "id": "priority-stockholm-ai",
+      "label": "Stockholm AI",
+      "tier": "priority",
+      "intent": "main_role",
+      "geo": "se",
+      "query": "(\"AI Engineer\" OR \"Senior Software Engineer\" OR \"Rust Developer\") (Stockholm OR Sweden) (hiring OR jobb OR rekryterar) lang:en -is:retweet place_country:SE",
+      "rationale": "Sweden citizen; family anchor market for AI/Rust senior roles.",
+      "fitKeywords": ["stockholm", "sweden", "rust", "ai", "hiring"]
+    },
+    {
+      "id": "jobs-senior-react-rust",
+      "label": "Senior jobs",
+      "tier": "core",
+      "intent": "main_role",
+      "geo": "global",
+      "query": "(hiring OR \"open role\" OR \"we're hiring\") (senior OR staff OR lead) (react OR typescript OR rust) lang:en -is:retweet has:links",
+      "rationale": "Core stack + seniority + posts with links.",
+      "fitKeywords": ["hiring", "senior", "react", "typescript", "rust"]
+    },
+    {
+      "id": "jobs-remote-agent",
+      "label": "Remote AI/agent",
+      "tier": "core",
+      "intent": "main_role",
+      "geo": "remote",
+      "query": "(hiring OR careers) (remote OR distributed) (\"AI engineer\" OR \"agent\" OR LLM OR inference) lang:en -is:retweet has:links",
+      "rationale": "Remote-friendly AI/agent IC roles.",
+      "fitKeywords": ["remote", "agent", "ai", "hiring"]
+    },
+    {
+      "id": "collab-cofounder",
+      "label": "Cofounder collab",
+      "tier": "core",
+      "intent": "collab",
+      "geo": "global",
+      "query": "(collab OR cofounder OR \"co-founder\" OR \"build with me\") (rust OR typescript OR \"AI agent\") lang:en -is:retweet",
+      "rationale": "Convertible builder partnerships, not formal HR posts.",
+      "fitKeywords": ["collab", "cofounder", "rust", "agent"]
+    },
+    {
+      "id": "collab-bounty-freelance",
+      "label": "Bounty / freelance",
+      "tier": "core",
+      "intent": "side",
+      "geo": "global",
+      "query": "(\"looking for\" OR bounty OR freelance OR \"need help\") (\"Rust developer\" OR \"AI agent\" OR \"local LLM\") lang:en -is:retweet",
+      "rationale": "Side income and short engagements aligned with agent/Rust skills.",
+      "fitKeywords": ["bounty", "freelance", "rust", "agent"]
+    },
+    {
+      "id": "collab-agent-infra",
+      "label": "Agent infra",
+      "tier": "core",
+      "intent": "collab",
+      "geo": "global",
+      "query": "(\"AI agent\" OR agentic OR \"agent infrastructure\" OR MCP) (hiring OR builder OR ship OR collab) lang:en -is:retweet",
+      "rationale": "Agentic tooling ecosystem matches public projects and thesis.",
+      "fitKeywords": ["agent", "agentic", "mcp", "infra"]
+    },
+    {
+      "id": "niche-energy-local-first",
+      "label": "Energy / local-first",
+      "tier": "niche",
+      "intent": "main_role",
+      "geo": "global",
+      "query": "(\"energy efficient\" OR \"local-first\" OR on-device OR edge) (AI OR LLM OR agent) (hiring OR engineer OR collab) lang:en -is:retweet",
+      "rationale": "Thesis-aligned positioning (2016 orchestration → today's edge AI).",
+      "fitKeywords": ["energy", "local-first", "edge", "agent"]
+    },
+    {
+      "id": "niche-tesla-energy",
+      "label": "Tesla Energy",
+      "tier": "niche",
+      "intent": "main_role",
+      "geo": "us",
+      "query": "(Tesla OR @Tesla) (\"Energy Software\" OR \"Distributed Systems\" OR Megapack) (engineer OR hiring OR careers) lang:en -is:retweet has:links",
+      "rationale": "Energy + distributed systems fit thesis and systems background.",
+      "fitKeywords": ["tesla", "energy", "distributed", "engineer"]
+    },
+    {
+      "id": "niche-japan-english",
+      "label": "Japan (English)",
+      "tier": "niche",
+      "intent": "main_role",
+      "geo": "jp",
+      "query": "(\"AI Engineer\" OR \"Software Engineer\") (Tokyo OR Japan) (hiring OR job) (english OR remote OR visa) lang:en -is:retweet has:links",
+      "rationale": "English-friendly Japan tech hiring (supplement Japan-Dev off-X).",
+      "fitKeywords": ["tokyo", "japan", "ai", "english", "hiring"]
+    },
+    {
+      "id": "community-build-public",
+      "label": "Build in public",
+      "tier": "community",
+      "intent": "collab",
+      "geo": "global",
+      "query": "(\"build in public\" OR \"shipping\" OR \"join me\") (community OR together OR indie) lang:en -is:retweet",
+      "rationale": "Community and indie builder graph for inbound collabs.",
+      "fitKeywords": ["build", "public", "community", "indie"]
+    }
+  ]
+}

@@ -25,7 +25,7 @@ export function Header({ onOpenPalette }: Props) {
               <Badge tone="accent">v0.1</Badge>
             </div>
             <p className="truncate text-[11px] text-ink-faint">
-              X + xAI · self-guarded reactor · MCP-ready
+              X + SpaceXAI · self-guarded reactor · MCP-ready
             </p>
           </div>
         </div>
