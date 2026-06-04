@@ -40,7 +40,12 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [
         {
           ...model,
-          credentials: { ...model.credentials, connected: msg.connected, checking: false },
+          credentials: {
+            ...model.credentials,
+            connected: msg.storage.connected,
+            storage: msg.storage,
+            checking: false,
+          },
         },
       ]
 
@@ -66,11 +71,13 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         {
           ...model,
           credentials: {
+            ...model.credentials,
             connected: true,
             checking: false,
             draft: '',
             busy: false,
-            notice: 'Credentials stored securely (keychain + local fallback). Token not kept in UI state.',
+            notice: null,
+            storage: msg.storage,
           },
         },
       ]
@@ -101,7 +108,8 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             checking: false,
             draft: '',
             busy: false,
-            notice: 'Credentials removed from keychain.',
+            notice: null,
+            storage: msg.storage,
           },
           search: idle(),
         },

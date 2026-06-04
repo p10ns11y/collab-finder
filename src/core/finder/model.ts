@@ -13,6 +13,7 @@ import type {
   Pause,
   SearchRun,
 } from '../domain/history'
+import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
 
 export type CredentialsSlice = {
@@ -21,6 +22,7 @@ export type CredentialsSlice = {
   draft: string
   busy: boolean
   notice: string | null
+  storage: BearerStorageStatus | null
 }
 
 export type HistorySlice = {
@@ -55,6 +57,7 @@ export function initialFinderModel(): FinderModel {
       draft: '',
       busy: false,
       notice: null,
+      storage: null,
     },
     search: idle(),
     cycle: idle(),

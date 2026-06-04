@@ -1,10 +1,11 @@
+import type { BearerStorageStatus } from '../../core/domain/credentials'
 import type { CredentialsPort } from '../../ports/credentials-port'
 import { map } from '../../core/result'
 import { safeInvoke } from './safe-invoke'
 
 export function createTauriCredentialsPort(): CredentialsPort {
   return {
-    hasStored: () => safeInvoke<boolean>('has_x_bearer'),
+    getStorage: () => safeInvoke<BearerStorageStatus>('get_x_bearer_storage'),
     save: async (token) => {
       const result = await safeInvoke<void>('set_x_bearer', { token })
       return map(result, () => undefined)
@@ -16,8 +17,8 @@ export function createTauriCredentialsPort(): CredentialsPort {
 /** Bridge port (Result) → effect layer (throws via Promise rejection avoided). */
 export function credentialsPortForEffects(port: CredentialsPort) {
   return {
-    async hasStored() {
-      const result = await port.hasStored()
+    async getStorage() {
+      const result = await port.getStorage()
       if (!result.ok) throw result.error
       return result.value
     },

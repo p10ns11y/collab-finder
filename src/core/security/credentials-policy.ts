@@ -22,7 +22,7 @@ export function requireConnection(connected: boolean): Result<true, AppError> {
   return err(
     appError(
       'credentials_missing',
-      'Connect X first — save your bearer token to the OS keychain.',
+      'Connect X first — save your bearer token (OS keyring preferred; file fallback if keyring unavailable).',
     ),
   )
 }

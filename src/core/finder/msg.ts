@@ -1,3 +1,4 @@
+import type { BearerStorageStatus } from '../domain/credentials'
 import type { CycleResult, ReactorState, Tweet } from '../domain/finder'
 import type {
   DashboardStats,
@@ -18,13 +19,13 @@ export type FinderMsg =
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
   | { type: 'PresetSelected'; query: string }
-  | { type: 'CredentialsChecked'; connected: boolean }
+  | { type: 'CredentialsChecked'; storage: BearerStorageStatus }
   | { type: 'CredentialsDraftChanged'; draft: string }
   | { type: 'CredentialsSaveRequested' }
-  | { type: 'CredentialsSaveSucceeded' }
+  | { type: 'CredentialsSaveSucceeded'; storage: BearerStorageStatus }
   | { type: 'CredentialsSaveFailed'; error: AppError }
   | { type: 'CredentialsClearRequested' }
-  | { type: 'CredentialsClearSucceeded' }
+  | { type: 'CredentialsClearSucceeded'; storage: BearerStorageStatus }
   | { type: 'CredentialsClearFailed'; error: AppError }
   | { type: 'SearchRequested' }
   | { type: 'SearchSucceeded'; tweets: Tweet[] }
