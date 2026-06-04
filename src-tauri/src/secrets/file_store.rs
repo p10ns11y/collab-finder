@@ -4,9 +4,14 @@ use std::path::PathBuf;
 
 const FILE_NAME: &str = "x-bearer";
 
-fn store_path() -> Result<PathBuf, String> {
+/// Shared app data dir for collab-finder (used by secrets + db for consistency).
+pub(crate) fn app_data_dir() -> Result<PathBuf, String> {
     let base = dirs::data_local_dir().ok_or("Could not resolve app data directory")?;
-    Ok(base.join("collab-finder").join(FILE_NAME))
+    Ok(base.join("collab-finder"))
+}
+
+fn store_path() -> Result<PathBuf, String> {
+    Ok(app_data_dir()?.join(FILE_NAME))
 }
 
 fn ensure_parent(path: &PathBuf) -> Result<(), String> {
@@ -32,6 +37,7 @@ pub fn read() -> Result<Option<String>, String> {
     if trimmed.is_empty() {
         Ok(None)
     } else {
+        eprintln!("[secrets] bearer token loaded from file store: {}", path.display());
         Ok(Some(trimmed))
     }
 }
@@ -51,6 +57,7 @@ pub fn write(token: &str) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?;
     }
+    eprintln!("[secrets] bearer token saved to file store: {}", path.display());
     Ok(())
 }
 

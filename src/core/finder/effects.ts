@@ -4,6 +4,7 @@ import { requireConnection, validateBearerDraft } from '../security/credentials-
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel } from './model'
+import type { LeadFilter } from '../../adapters/tauri/finder-adapter'
 
 export type FinderPorts = {
   credentials: {
@@ -16,6 +17,14 @@ export type FinderPorts = {
     runCycle(query: string, cvSummary: string): Promise<import('../domain/finder').CycleResult>
     reactorState(): Promise<import('../domain/finder').ReactorState>
     promote(leadId?: string): Promise<string>
+    // History (durable)
+    getSearchHistory(limit?: number): Promise<import('../domain/history').SearchRun[]>
+    getLeads(filter?: LeadFilter): Promise<import('../domain/history').Lead[]>
+    getDashboardStats(): Promise<import('../domain/history').DashboardStats>
+    getRecentPauses(limit?: number): Promise<import('../domain/history').Pause[]>
+    getEvents(filter?: import('../domain/history').EventFilter): Promise<import('../domain/history').Event[]>
+    searchPastTweets(ftsQuery: string, limit?: number): Promise<import('../domain/finder').Tweet[]>
+    logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
   }
 }
 
@@ -130,6 +139,47 @@ export function promoteCmd(ports: FinderPorts): Cmd<FinderMsg> {
   }
 }
 
+export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
+  return (dispatch) => {
+    // Parallel-ish loads for the dashboard slices.
+    void fromPromise(ports.finder.getSearchHistory(60), toAppError).then((res) => {
+      if (!res.ok) {
+        dispatch({ type: 'HistoryFailed', error: res.error })
+        return
+      }
+      // Chain the rest; on success dispatch partial refresh.
+      dispatch({ type: 'HistoryRefreshed', searches: res.value })
+
+      void fromPromise(ports.finder.getLeads({ limit: 80 }), toAppError).then((r) => {
+        if (r.ok) dispatch({ type: 'HistoryRefreshed', leads: r.value })
+      })
+      void fromPromise(ports.finder.getDashboardStats(), toAppError).then((r) => {
+        if (r.ok) dispatch({ type: 'HistoryRefreshed', stats: r.value })
+      })
+      void fromPromise(ports.finder.getRecentPauses(20), toAppError).then((r) => {
+        if (r.ok) dispatch({ type: 'HistoryRefreshed', pauses: r.value })
+      })
+    })
+  }
+}
+
+export function logUiEventCmd(
+  ports: FinderPorts,
+  eventType: string,
+  payload?: string,
+  correlationId?: string,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.logEvent(eventType, payload, correlationId), toAppError).then(
+      (res) => {
+        if (res.ok) {
+          dispatch({ type: 'UiEventLogged', eventType, payload })
+        }
+      },
+    )
+  }
+}
+
 /** Maps messages that need I/O to commands. Pure update runs first in program layer. */
 export function effectForMsg(
   ports: FinderPorts,
@@ -138,7 +188,8 @@ export function effectForMsg(
 ): Cmd<FinderMsg> | Cmd<FinderMsg>[] | undefined {
   switch (msg.type) {
     case 'AppStarted':
-      return credentialsCheckCmd(ports)
+      // Load creds + initial history for the dashboard.
+      return [credentialsCheckCmd(ports), historyRefreshCmd(ports)]
     case 'CredentialsSaveRequested':
       return credentialsSaveCmd(ports, model)
     case 'CredentialsClearRequested':
@@ -151,6 +202,23 @@ export function effectForMsg(
       return reactorRefreshCmd(ports)
     case 'PromoteRequested':
       return promoteCmd(ports)
+
+    // Auto refresh history after successful ops (data now in DB).
+    case 'SearchSucceeded':
+      return historyRefreshCmd(ports)
+    case 'CycleSucceeded':
+      // Also log the cycle decision as event for audit.
+      return [
+        historyRefreshCmd(ports),
+        logUiEventCmd(ports, 'CycleSucceeded', JSON.stringify({ action: model.cycle.status === 'ready' ? 'done' : '' })),
+      ]
+
+    // Log meaningful UI actions (not every keystroke).
+    case 'PresetSelected':
+      return logUiEventCmd(ports, 'PresetSelected', JSON.stringify({ query: msg.query }))
+    case 'PromoteSucceeded':
+      return logUiEventCmd(ports, 'PromoteSucceeded', msg.message)
+
     default:
       return undefined
   }

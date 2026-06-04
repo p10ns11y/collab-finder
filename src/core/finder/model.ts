@@ -6,6 +6,13 @@ import {
   type ReactorState,
   type Tweet,
 } from '../domain/finder'
+import type {
+  DashboardStats,
+  Event,
+  Lead,
+  Pause,
+  SearchRun,
+} from '../domain/history'
 import type { AppError } from '../error'
 
 export type CredentialsSlice = {
@@ -14,6 +21,14 @@ export type CredentialsSlice = {
   draft: string
   busy: boolean
   notice: string | null
+}
+
+export type HistorySlice = {
+  searches: AsyncState<SearchRun[]>
+  leads: AsyncState<Lead[]>
+  pauses: AsyncState<Pause[]>
+  events: AsyncState<Event[]>
+  stats: AsyncState<DashboardStats | null>
 }
 
 export type FinderModel = {
@@ -27,6 +42,7 @@ export type FinderModel = {
   pauses: string[]
   paletteOpen: boolean
   banner: AppError | null
+  history: HistorySlice
 }
 
 export function initialFinderModel(): FinderModel {
@@ -47,5 +63,12 @@ export function initialFinderModel(): FinderModel {
     pauses: [],
     paletteOpen: false,
     banner: null,
+    history: {
+      searches: idle(),
+      leads: idle(),
+      pauses: idle(),
+      events: idle(),
+      stats: idle(),
+    },
   }
 }

@@ -16,10 +16,23 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 
 | Command | Args | Returns | Adapter | Notes |
 |---------|------|---------|---------|-------|
-| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20 |
-| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision` + `tweets`) | same | Live X search via `guarded_search`; shared reactor state |
+| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Persists run + hits + rate to sqlite (best-effort). |
+| `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision` + `tweets`) | same | Live X search via `guarded_search`; shared reactor state. Also persists search + upserts lead (dedup + seen_count). |
 | `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
-| `promote_lead` | `{ leadId? }` | `string` | same | Stub message until CV guard is wired |
+| `promote_lead` | `{ leadId? }` | `string` | same | Stub message until CV guard is wired. Logs event. |
+
+## History / audit (sqlite-backed, every action + deduped leads)
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `get_search_history` | `{ limit? }` | `SearchRun[]` | Past queries, counts, rates, sources. |
+| `get_search_run` | `{ id }` | `SearchRunWithTweets \| null` | Full tweets for one historical run (replayable). |
+| `get_leads` | `{ minScore?, status?, q?, limit? }` | `Lead[]` | Unique opportunities (dedup by tweet_id + seen_count). Enriched with tweet text. |
+| `get_dashboard_stats` | — | `DashboardStats` | totals, avg, top queries, most-reseen (for neat cards). |
+| `get_recent_pauses` | `{ limit? }` | `Pause[]` | Guard triggers with context. |
+| `get_events` | `{ limit? }` | `Event[]` | Broad TUI + reactor action log. |
+| `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 full-text lookup on stored tweet bodies. |
+| `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
 
 ## TypeScript bridge
 

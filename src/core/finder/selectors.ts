@@ -30,9 +30,14 @@ export type FinderViewState = {
   operatorsReference: string
   strategyReference: string
   paletteItems: PaletteItem[]
+  // History projections (for dashboard; full slices also in model.history)
+  historySearches: import('../domain/history').SearchRun[]
+  historyLeads: import('../domain/history').Lead[]
+  historyStats: import('../domain/history').DashboardStats | null
 }
 
 export function selectFinderView(model: FinderModel): FinderViewState {
+  const h = model.history
   return {
     model,
     connectionFlow: deriveConnectionFlow(model),
@@ -60,6 +65,10 @@ export function selectFinderView(model: FinderModel): FinderViewState {
         label: 'Refresh reactor state',
         msg: { type: 'ReactorRefreshRequested' },
       },
+      { id: 'history-refresh', label: 'Refresh history dashboard', msg: { type: 'HistoryRefreshRequested' } },
     ],
+    historySearches: h.searches.status === 'ready' ? h.searches.data : [],
+    historyLeads: h.leads.status === 'ready' ? h.leads.data : [],
+    historyStats: h.stats.status === 'ready' ? h.stats.data : null,
   }
 }

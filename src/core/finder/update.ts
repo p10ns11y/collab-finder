@@ -192,6 +192,47 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'PromoteFailed':
       return [{ ...model, banner: msg.error }]
 
+    case 'HistoryRefreshRequested':
+      return [
+        {
+          ...model,
+          history: {
+            ...model.history,
+            searches: { status: 'loading' },
+            leads: { status: 'loading' },
+            stats: { status: 'loading' },
+          },
+          banner: null,
+        },
+      ]
+
+    case 'HistoryRefreshed': {
+      const h = { ...model.history }
+      if (msg.searches) h.searches = { status: 'ready', data: msg.searches }
+      if (msg.leads) h.leads = { status: 'ready', data: msg.leads }
+      if (msg.pauses) h.pauses = { status: 'ready', data: msg.pauses }
+      if (msg.events) h.events = { status: 'ready', data: msg.events }
+      if (msg.stats) h.stats = { status: 'ready', data: msg.stats }
+      return [{ ...model, history: h }]
+    }
+
+    case 'HistoryFailed':
+      return [
+        {
+          ...model,
+          history: {
+            ...model.history,
+            searches: { status: 'failed', error: msg.error },
+            leads: { status: 'failed', error: msg.error },
+          },
+          banner: msg.error,
+        },
+      ]
+
+    case 'UiEventLogged':
+      // Pure UI intent logged via backend (no model change needed).
+      return [model]
+
     default:
       return [model]
   }
