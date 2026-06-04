@@ -27,7 +27,7 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 
 **Tauri commands today** (MCP server planned): `search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`, `has_x_bearer`, `set_x_bearer`, `clear_x_bearer`.
 
-Diagrams and milestone matrix: **[docs/agentic-architecture.md](docs/agentic-architecture.md)** · **[docs/tauri-commands.md](docs/tauri-commands.md)** · interactive **[architecture canvas](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx)**
+Diagrams and milestone matrix: **[docs/agentic-architecture.md](docs/agentic-architecture.md)** · **[docs/tauri-commands.md](docs/tauri-commands.md)** (mermaid in-repo; interactive canvas is Cursor-only — see that doc)
 
 ## Agent / dev resources
 

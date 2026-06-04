@@ -137,7 +137,7 @@ Until `guarded_search` delegates to the same HTTP path as `search_x_recent`, the
 - [SETUP.md](./SETUP.md) — install, credentials, verify commands
 - [tauri-commands.md](./tauri-commands.md) — invoke contract table
 - [x-tools.md](./x-tools.md) — official X agent resources
-- Interactive walkthrough: [architecture canvas](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx) (open beside chat in Cursor)
+- **Interactive canvas (Cursor only):** not normal TSX — requires Cursor’s canvas renderer. Lives at `~/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx` (created via Agent chat; open from the canvas link in that session, not Quick Open in the repo)
 
 ## Exponential development
 
