@@ -5,6 +5,7 @@ import { CredentialsPanel } from '../components/finder/credentials-panel'
 import { DecisionPanel } from '../components/finder/decision-panel'
 import { ErrorBanner } from '../components/finder/error-banner'
 import { GuardDashboard } from '../components/finder/guard-dashboard'
+import { HistoryDashboard } from '../components/finder/history-dashboard'
 import { PauseLog } from '../components/finder/pause-log'
 import { SearchWorkspace } from '../components/finder/search-workspace'
 import { TweetFeed } from '../components/finder/tweet-feed'
@@ -38,6 +39,14 @@ export function FinderAppView({ view, dispatch }: Props) {
           <GuardDashboard
             reactorState={model.reactorState}
             pauseCount={model.pauses.length}
+          />
+
+          <HistoryDashboard
+            searches={view.historySearches}
+            leads={view.historyLeads}
+            stats={view.historyStats}
+            onRefresh={() => dispatch({ type: 'HistoryRefreshRequested' })}
+            onReuseQuery={(q) => dispatch({ type: 'PresetSelected', query: q })}
           />
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
