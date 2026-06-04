@@ -29,7 +29,19 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 
 **Tauri commands today** (15 handlers; MCP server planned): credentials (`has_x_bearer`, `set_x_bearer`, `clear_x_bearer`), finder/reactor (`search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`), history/audit (`get_search_history`, `get_search_run`, `get_leads`, `get_dashboard_stats`, `get_recent_pauses`, `get_events`, `search_past_tweets`, `log_event`). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
 
-Diagrams and milestone matrix: **[docs/agentic-architecture.md](docs/agentic-architecture.md)** · **[docs/tauri-commands.md](docs/tauri-commands.md)** (mermaid in-repo; interactive canvas is Cursor-only — see that doc)
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify, Arch notes |
+| [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map, mermaid, milestone matrix |
+| [docs/tauri-commands.md](docs/tauri-commands.md) | All 15 `invoke` handlers |
+| [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |
+| [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | Dev: intercept and debug `invoke` |
+| [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
+| [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |
+
+Diagrams in-repo; interactive architecture canvas is Cursor-only — see [agentic-architecture.md](docs/agentic-architecture.md).
 
 ## Agent / dev resources
 

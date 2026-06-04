@@ -13,3 +13,15 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 Official X operator reference: https://docs.x.com/x-api/posts/search/integrate/operators
 
 Rust validates queries via `src-tauri/src/x_query.rs` before any API call.
+
+## Related docs (repo root)
+
+| Doc | Why it matters for distillation |
+|-----|--------------------------------|
+| [docs/SETUP.md](../../docs/SETUP.md) | Run the app, bearer storage, verify |
+| [docs/agentic-architecture.md](../../docs/agentic-architecture.md) | How presets/cycle/history fit the reactor |
+| [docs/tauri-commands.md](../../docs/tauri-commands.md) | Commands that consume queries + CV packet |
+| [docs/tauri-ipc-and-intent-engine.md](../../docs/tauri-ipc-and-intent-engine.md) | MVU → `invoke` → Rust (no HTTP for commands) |
+| [docs/tauri-ipc-debugging.md](../../docs/tauri-ipc-debugging.md) | Trace `invoke` in dev (terminal + safe-invoke) |
+| [docs/x-tools.md](../../docs/x-tools.md) | Official X skill/llms for prompt context |
+| [README.md](../../README.md) | Project overview and doc index |

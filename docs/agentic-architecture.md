@@ -170,6 +170,8 @@ stateDiagram-v2
 
 - [SETUP.md](./SETUP.md) — install, credentials, verify commands
 - [tauri-commands.md](./tauri-commands.md) — invoke contract table
+- [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) — mental model (IPC) + Intent Engine (MVU → invoke)
+- [tauri-ipc-debugging.md](./tauri-ipc-debugging.md) — dev: trace and intercept `invoke`
 - [x-tools.md](./x-tools.md) — official X agent resources
 - [data/distillation/](../data/distillation/README.md) — qualified X queries, curation context, xAI analyze prompts
 - **Interactive canvas (Cursor only):** [collab-finder-architecture.canvas.tsx](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx) — open beside chat via the canvas link (not in-repo TSX)

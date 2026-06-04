@@ -68,8 +68,12 @@ See [tauri-commands.md](./tauri-commands.md) and [agentic-architecture.md](./age
 
 Symlink project skills into Cursor (see root `AGENTS.md`). Load `finder-reactor`, `tauri-agentic`, and `x-agent-resources` when changing reactor, UI, or X integration.
 
+## Arch Linux
+
+Install system deps from [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (Arch section). Bearer and sqlite paths, keyring vs file fallback, and how that relates to `invoke`: **[tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md#arch-linux-and-minimal-desktops)**. Debug IPC in dev: **[tauri-ipc-debugging.md](./tauri-ipc-debugging.md)**.
+
 ## Troubleshooting
 
 - **"X bearer not configured"** — Save token in credentials panel; restart app if read-back failed.
 - **X API 401/403** — Regenerate bearer; check app permissions and query syntax (see `docs/x-tools.md`).
-- **Keyring warnings in terminal** — Expected in some dev environments; file store still holds the token.
+- **Keyring warnings in terminal** — Common on Arch without Secret Service; file store under `~/.local/share/collab-finder/` still holds the token (see IPC doc).
