@@ -90,10 +90,14 @@ That gives **command name, args, ok/err, latency** for every Intent Engine port 
 
 ## 3. WebView devtools
 
-With `devUrl: http://localhost:5173` in `tauri.conf.json`, the UI is an embedded browser:
+With `devUrl: http://localhost:5173` in `tauri.conf.json`, the UI is an embedded browser.
+
+**Full guide:** [tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md) — why Linux WebView looks like Safari (WebKitGTK), opening the inspector, and console `invoke` recipes (including `hydrate_tweet` manual QA).
+
+Quick notes:
 
 - Open **WebView inspector** (right-click → Inspect where enabled, or your desktop’s Tauri dev shortcut).
-- **Console:** `[ipc →]` / `[ipc ←]` from §2.
+- **Console:** `[ipc →]` / `[ipc ←]` from §2; ad-hoc `window.__TAURI__.core.invoke(...)` when a command has no UI yet.
 - **Network tab:** Vite HMR and any **webview** fetches only.
 
 **Not in Network tab:** `invoke` calls. X API traffic runs in **Rust** (`reqwest` in `x_search.rs`) and appears in the **terminal**, not as browser requests to `api.x.com`.

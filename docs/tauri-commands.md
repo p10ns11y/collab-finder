@@ -44,7 +44,7 @@ See also the agent instructions in root AGENTS.md (bearer row + conventions) and
 | `get_recent_pauses` | `{ limit? }` | `Pause[]` | Guard triggers with context. |
 | `get_events` | `{ limit? }` | `Event[]` | Broad TUI + reactor action log. |
 | `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 lookup on stored snippets (not full post bodies). |
-| `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Use when opening a lead or replay needs current text. |
+| `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Manual QA: [tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md#example-hydrate_tweet-full-post-on-demand). |
 | `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
 
 ## TypeScript bridge

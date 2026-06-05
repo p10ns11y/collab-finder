@@ -35,9 +35,10 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 |-----|---------|
 | [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify, Arch notes |
 | [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map, mermaid, milestone matrix |
-| [docs/tauri-commands.md](docs/tauri-commands.md) | All 16 `invoke` handlers |
+| [docs/tauri-commands.md](docs/tauri-commands.md) | All 17 `invoke` handlers |
 | [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |
 | [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | Dev: intercept and debug `invoke` |
+| [docs/tauri-webview-and-devtools.md](docs/tauri-webview-and-devtools.md) | Linux WebKit WebView, Safari-like inspector, console `invoke` QA |
 | [.agents/skills/tauri-ipc-debug/](.agents/skills/tauri-ipc-debug/SKILL.md) | Agent skill: layer-by-layer IPC triage |
 | [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
 | [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |

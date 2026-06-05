@@ -74,13 +74,14 @@ Symlink project skills into Cursor (see root `AGENTS.md`). Load `finder-reactor`
 
 ## Arch Linux
 
-Install system deps from [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (Arch section). Bearer and sqlite paths, keyring vs file fallback, and how that relates to `invoke`: **[tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md#arch-linux-and-minimal-desktops)**. Debug IPC in dev: **[tauri-ipc-debugging.md](./tauri-ipc-debugging.md)**.
+Install system deps from [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (Arch section). Bearer and sqlite paths, keyring vs file fallback, and how that relates to `invoke`: **[tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md#arch-linux-and-minimal-desktops)**. Debug IPC in dev: **[tauri-ipc-debugging.md](./tauri-ipc-debugging.md)**. WebView engine (why DevTools look like Safari on Linux) and console `invoke` testing: **[tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md)**.
 
 ## Troubleshooting
 
 - **"X bearer not configured"** — Save token in credentials panel; restart app if read-back failed.
 - **X API 401/403** — Regenerate bearer; check app permissions and query syntax (see `docs/x-tools.md`).
 - **Keyring warnings in terminal** — Common on Arch without Secret Service; file store under `~/.local/share/collab-finder/` still holds the token (see IPC doc).
+- **Gdk-WARNING "Error writing selection data: Broken pipe"** (or similar) — Harmless GTK/WebKitGTK noise, very common on Hyprland/wlroots. Triggered when the webview claims selection ownership (e.g. tweet text becomes selectable after search results render 9+ items) and the compositor/paste client closes the transfer FD early. The app and DB recording continue normally. Filter in dev with `pnpm tauri dev 2>&1 | grep -v Gdk-WARNING` or set `G_MESSAGES_DEBUG=`. See Arch section in the IPC intent engine doc for more desktop quirks.
 
 ### Keyring reachable but not active (most common "it used to work" case on Linux)
 
