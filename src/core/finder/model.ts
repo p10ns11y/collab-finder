@@ -12,9 +12,18 @@ import type {
   Lead,
   Pause,
   SearchRun,
+  SearchRunWithTweets,
 } from '../domain/history'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
+
+export type FinderScreen =
+  | 'discover'
+  | 'stats'
+  | 'history'
+  | 'data'
+  | 'lookup'
+  | 'settings'
 
 export type CredentialsSlice = {
   connected: boolean
@@ -45,6 +54,14 @@ export type FinderModel = {
   paletteOpen: boolean
   banner: AppError | null
   history: HistorySlice
+  // Multi-screen shell
+  activeScreen: FinderScreen
+  // Lookup (FTS + run replay + hydrate)
+  lookup: AsyncState<Tweet[]>
+  lookupQuery: string
+  selectedRunId: number | null
+  selectedRun: AsyncState<SearchRunWithTweets | null>
+  hydrate: AsyncState<Tweet | null>
 }
 
 export function initialFinderModel(): FinderModel {
@@ -73,5 +90,11 @@ export function initialFinderModel(): FinderModel {
       events: idle(),
       stats: idle(),
     },
+    activeScreen: 'discover',
+    lookup: idle(),
+    lookupQuery: '',
+    selectedRunId: null,
+    selectedRun: idle(),
+    hydrate: idle(),
   }
 }

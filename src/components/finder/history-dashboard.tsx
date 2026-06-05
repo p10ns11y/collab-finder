@@ -116,7 +116,7 @@ export function HistoryDashboard({ searches, leads, stats, onRefresh, onReuseQue
 
         <details className="text-[10px] text-ink-faint">
           <summary className="cursor-pointer">About persistence &amp; dedup</summary>
-          <p className="mt-1">Every search, cycle, lead, pause and key TUI action is written to SQLite (WAL). Same X post across runs → 1 lead row with seen_count++. Full provenance (every hit) kept in search_runs/hits. Stored post bodies are 280-char snippets only; use `hydrate_tweet` for full text from X. FTS replay (`search_past_tweets`, `get_search_run`) is available via Tauri commands; UI search box not wired yet.</p>
+          <p className="mt-1">Every search, cycle, lead, pause and key TUI action is written to SQLite (WAL). Same X post across runs → 1 lead row with seen_count++. Full provenance (every hit) kept in search_runs/hits. Stored post bodies are 280-char snippets only; use Lookup screen for FTS (`search_past_tweets`) + run detail + `hydrate_tweet` (full text on demand).</p>
         </details>
       </CardContent>
     </Card>

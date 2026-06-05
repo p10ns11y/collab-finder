@@ -91,6 +91,16 @@ export function finderPortForEffects(port: FinderPort) {
       if (!result.ok) throw result.error
       return result.value
     },
+    async getSearchRun(id: number) {
+      const result = await port.getSearchRun(id)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async hydrateTweet(id: string) {
+      const result = await port.hydrateTweet(id)
+      if (!result.ok) throw result.error
+      return result.value
+    },
     async logEvent(eventType: string, payload?: string, correlationId?: string) {
       const result = await port.logEvent(eventType, payload, correlationId)
       if (!result.ok) throw result.error

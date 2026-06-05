@@ -6,7 +6,7 @@ import {
   X_OPERATORS_MD,
 } from '../domain/finder'
 import { canRunCycle, canSearch, deriveConnectionFlow, deriveSearchFlow } from './flows'
-import type { FinderModel } from './model'
+import type { FinderModel, FinderScreen } from './model'
 import { bannerText, searchResults } from './update'
 
 export type PaletteItem = {
@@ -34,10 +34,26 @@ export type FinderViewState = {
   historySearches: import('../domain/history').SearchRun[]
   historyLeads: import('../domain/history').Lead[]
   historyStats: import('../domain/history').DashboardStats | null
+  historyEvents: import('../domain/history').Event[]
+  // Screen + lookup projections
+  activeScreen: FinderScreen
+  lookupResults: import('../domain/finder').Tweet[]
+  lookupBusy: boolean
+  selectedRunId: number | null
+  selectedRun: import('../domain/history').SearchRunWithTweets | null
+  hydrateTweet: import('../domain/finder').Tweet | null
 }
 
 export function selectFinderView(model: FinderModel): FinderViewState {
   const h = model.history
+  const screenNavItems: PaletteItem[] = [
+    { id: 'nav-discover', label: 'Go to Discover', msg: { type: 'ScreenChanged', screen: 'discover' } },
+    { id: 'nav-stats', label: 'Go to Statistics', msg: { type: 'ScreenChanged', screen: 'stats' } },
+    { id: 'nav-history', label: 'Go to History', msg: { type: 'ScreenChanged', screen: 'history' } },
+    { id: 'nav-data', label: 'Go to Data', msg: { type: 'ScreenChanged', screen: 'data' } },
+    { id: 'nav-lookup', label: 'Go to Lookup (FTS)', msg: { type: 'ScreenChanged', screen: 'lookup' } },
+    { id: 'nav-settings', label: 'Go to Settings', msg: { type: 'ScreenChanged', screen: 'settings' } },
+  ]
   return {
     model,
     connectionFlow: deriveConnectionFlow(model),
@@ -52,6 +68,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     operatorsReference: X_OPERATORS_MD,
     strategyReference: PROFILE_STRATEGY_MD,
     paletteItems: [
+      ...screenNavItems,
       { id: 'search', label: 'Search X (live)', msg: { type: 'SearchRequested' } },
       { id: 'cycle', label: 'Run autonomous cycle (guarded)', msg: { type: 'CycleRequested' } },
       ...SEARCH_PRESETS.filter((p) => p.tier === 'priority').map((p) => ({
@@ -66,9 +83,17 @@ export function selectFinderView(model: FinderModel): FinderViewState {
         msg: { type: 'ReactorRefreshRequested' },
       },
       { id: 'history-refresh', label: 'Refresh history dashboard', msg: { type: 'HistoryRefreshRequested' } },
+      { id: 'lookup-clear', label: 'Clear lookup results', msg: { type: 'LookupCleared' } },
     ],
     historySearches: h.searches.status === 'ready' ? h.searches.data : [],
     historyLeads: h.leads.status === 'ready' ? h.leads.data : [],
     historyStats: h.stats.status === 'ready' ? h.stats.data : null,
+    historyEvents: h.events.status === 'ready' ? h.events.data : [],
+    activeScreen: model.activeScreen,
+    lookupResults: model.lookup.status === 'ready' ? model.lookup.data : [],
+    lookupBusy: model.lookup.status === 'loading',
+    selectedRunId: model.selectedRunId,
+    selectedRun: model.selectedRun.status === 'ready' ? model.selectedRun.data : null,
+    hydrateTweet: model.hydrate.status === 'ready' ? model.hydrate.data : null,
   }
 }

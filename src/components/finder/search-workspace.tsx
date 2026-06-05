@@ -13,9 +13,6 @@ type Props = {
   canSearch: boolean
   canRunCycle: boolean
   presets: SearchPreset[]
-  operatorsDocUrl: string
-  operatorsReference: string
-  strategyReference: string
   onQueryChange: (q: string) => void
   onCvSummaryChange: (s: string) => void
   onPresetSelect: (query: string) => void
@@ -30,9 +27,6 @@ export function SearchWorkspace({
   canSearch,
   canRunCycle,
   presets,
-  operatorsDocUrl,
-  operatorsReference,
-  strategyReference,
   onQueryChange,
   onCvSummaryChange,
   onPresetSelect,
@@ -42,7 +36,7 @@ export function SearchWorkspace({
   return (
     <Card className="shadow-glow">
       <CardHeader>
-        <CardTitle>Discover on X</CardTitle>
+        <CardTitle>Search workspace</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -51,48 +45,44 @@ export function SearchWorkspace({
             id="cv-summary"
             value={cvSummary}
             onChange={(e) => onCvSummaryChange(e.target.value)}
-            rows={2}
+            rows={3}
           />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="search-query">Search query</Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              id="search-query"
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              className="flex-1 font-mono text-xs"
-              placeholder="X search operators — fully editable"
-            />
-            <div className="flex shrink-0 gap-2">
-              <Button
-                variant="secondary"
-                onClick={onSearch}
-                disabled={busy || !canSearch}
-                className="min-w-[7.5rem]"
-              >
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Search className="h-4 w-4" aria-hidden />
-                )}
-                Search
-              </Button>
-              <Button
-                variant="primary"
-                onClick={onAutonomousCycle}
-                disabled={busy || !canRunCycle}
-                className="min-w-[9rem]"
-              >
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                )}
-                Run cycle
-              </Button>
-            </div>
+          <Input
+            id="search-query"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            className="w-full font-mono text-xs"
+            placeholder="X search operators — fully editable"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={onSearch}
+              disabled={busy || !canSearch}
+            >
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Search className="h-4 w-4" aria-hidden />
+              )}
+              Search
+            </Button>
+            <Button
+              variant="primary"
+              onClick={onAutonomousCycle}
+              disabled={busy || !canRunCycle}
+            >
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="h-4 w-4" aria-hidden />
+              )}
+              Run cycle
+            </Button>
           </div>
         </div>
 
@@ -115,35 +105,6 @@ export function SearchWorkspace({
             </button>
           ))}
         </div>
-
-        <div className="space-y-1 text-[11px] text-ink-faint">
-          <p>
-            Operators:{' '}
-            <a
-              href={operatorsDocUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-accent underline-offset-2 hover:underline"
-            >
-              X API v2 docs
-            </a>
-          </p>
-          <details>
-            <summary className="cursor-pointer hover:text-ink-muted">In-app operator rules</summary>
-            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-2 text-[10px] leading-relaxed">
-              {operatorsReference}
-            </pre>
-          </details>
-        </div>
-
-        <details className="rounded-lg border border-border-subtle bg-surface-2/50 px-3 py-2">
-          <summary className="cursor-pointer text-xs font-medium text-ink-muted">
-            Strategy & direct apply (distillation)
-          </summary>
-          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[10px] leading-relaxed text-ink-faint">
-            {strategyReference}
-          </pre>
-        </details>
       </CardContent>
     </Card>
   )

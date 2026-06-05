@@ -241,6 +241,70 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       // Pure UI intent logged via backend (no model change needed).
       return [model]
 
+    case 'ScreenChanged':
+      return [{ ...model, activeScreen: msg.screen }]
+
+    case 'LookupQueryChanged':
+      return [{ ...model, lookupQuery: msg.query }]
+
+    case 'LookupRequested':
+      return [{ ...model, lookup: { status: 'loading' }, banner: null }]
+
+    case 'LookupSucceeded':
+      return [{ ...model, lookup: { status: 'ready', data: msg.tweets } }]
+
+    case 'LookupFailed':
+      return [
+        {
+          ...model,
+          lookup: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+
+    case 'SearchRunSelected':
+      return [
+        {
+          ...model,
+          selectedRunId: msg.id,
+          selectedRun: { status: 'loading' },
+          hydrate: idle(),
+        },
+      ]
+
+    case 'SearchRunLoaded':
+      return [{ ...model, selectedRun: { status: 'ready', data: msg.run } }]
+
+    case 'SearchRunLoadFailed':
+      return [
+        {
+          ...model,
+          selectedRun: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+
+    case 'HydrateRequested':
+      return [{ ...model, hydrate: { status: 'loading' } }]
+
+    case 'HydrateSucceeded':
+      return [{ ...model, hydrate: { status: 'ready', data: msg.tweet } }]
+
+    case 'HydrateFailed':
+      return [
+        {
+          ...model,
+          hydrate: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+
+    case 'LookupCleared':
+      return [{ ...model, lookup: idle(), lookupQuery: '', selectedRunId: null, selectedRun: idle(), hydrate: idle() }]
+
+    case 'HydrateCleared':
+      return [{ ...model, hydrate: idle() }]
+
     default:
       return [model]
   }
