@@ -208,6 +208,13 @@ async fn search_past_tweets(
         .map_err(|e| e.to_string())?
 }
 
+/// Re-fetch full post content from X on demand (not persisted; handles deletions via 404).
+#[tauri::command]
+async fn hydrate_tweet(id: String) -> Result<XTweet, String> {
+    let bearer = x_bearer()?;
+    x_search::lookup_tweet(&bearer, &id).await
+}
+
 #[tauri::command]
 fn log_event(
     db: State<'_, AppDb>,
@@ -243,6 +250,7 @@ pub fn run() {
             get_recent_pauses,
             get_events,
             search_past_tweets,
+            hydrate_tweet,
             log_event,
         ])
         .run(tauri::generate_context!())

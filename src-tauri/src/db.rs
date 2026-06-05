@@ -6,10 +6,10 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::secrets::app_data_dir;
-use crate::x_search::XTweet; // reuse for consistency with reactor / commands
+use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -185,12 +185,31 @@ impl SqliteStore {
             .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_migrations", [], |r| r.get(0))
             .map_err(|e| e.to_string())?;
 
-        if current >= SCHEMA_VERSION {
-            return Ok(());
+        if current < 1 {
+            Self::migrate_v1(conn)?;
+            Self::record_migration(conn, 1)?;
         }
 
-        // v1 full schema (embedded, one migration for simplicity).
-        // NOTE: FTS5 + triggers + seen_count for dedup strategy.
+        if current < 2 {
+            Self::migrate_v2(conn)?;
+            Self::record_migration(conn, 2)?;
+        }
+
+        Ok(())
+    }
+
+    fn record_migration(conn: &Connection, version: i32) -> Result<(), String> {
+        conn.execute(
+            "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?1, datetime('now'))",
+            params![version],
+        )
+        .map_err(|e| e.to_string())?;
+        eprintln!("[db] migrated to schema v{version}");
+        Ok(())
+    }
+
+    /// v1 full schema. FTS5 indexes `text` (snippet-only after v2 migration).
+    fn migrate_v1(conn: &Connection) -> Result<(), String> {
         let sql_v1 = r#"
 PRAGMA foreign_keys=ON;
 
@@ -297,14 +316,19 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         "#;
 
         conn.execute_batch(sql_v1).map_err(|e| e.to_string())?;
+        Ok(())
+    }
 
+    /// v2: truncate any legacy full post bodies to snippet length; rebuild FTS.
+    fn migrate_v2(conn: &Connection) -> Result<(), String> {
+        let max = crate::x_search::TWEET_SNIPPET_MAX_LEN as i32;
         conn.execute(
-            "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?1, datetime('now'))",
-            params![SCHEMA_VERSION],
+            "UPDATE tweets SET text = substr(text, 1, ?1) WHERE length(text) > ?1",
+            params![max],
         )
         .map_err(|e| e.to_string())?;
-
-        eprintln!("[db] migrated to schema v{}", SCHEMA_VERSION);
+        conn.execute_batch("INSERT INTO tweets_fts(tweets_fts) VALUES('rebuild');")
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -362,10 +386,11 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
 
         let mut num = 0i64;
         for (i, t) in tweets.iter().enumerate() {
-            // Dedup tweets by PK (X id).
+            // Dedup tweets by PK (X id). Persist snippet only — full text via hydrate_tweet.
+            let snippet = tweet_snippet(&t.text);
             tx.execute(
                 "INSERT OR IGNORE INTO tweets (id, text, author_id, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params![t.id, t.text, t.author_id, t.created_at],
+                params![t.id, snippet, t.author_id, t.created_at],
             )
             .map_err(|e| e.to_string())?;
 
@@ -925,6 +950,18 @@ mod tests {
 
         let events = store.get_events(&EventFilter { limit: Some(5), ..Default::default() }).unwrap();
         assert_eq!(events[0].event_type, "CycleRequested");
+    }
+
+    #[test]
+    fn record_search_hits_stores_snippet_not_full_text() {
+        let (_dir, store) = temp_store();
+        let run_id = store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap();
+        let long = "x".repeat(crate::x_search::TWEET_SNIPPET_MAX_LEN + 40);
+        store
+            .record_search_hits(run_id, &[sample_tweet("long1", &long)], 0)
+            .unwrap();
+        let detail = store.get_search_run(run_id).unwrap().unwrap();
+        assert_eq!(detail.tweets[0].text.len(), crate::x_search::TWEET_SNIPPET_MAX_LEN);
     }
 
     #[test]

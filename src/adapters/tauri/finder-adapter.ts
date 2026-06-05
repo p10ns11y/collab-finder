@@ -32,6 +32,7 @@ export function createTauriFinderPort(): FinderPort {
     getEvents: (filter?: EventFilter) => safeInvoke<Event[]>('get_events', filter ?? {}),
     searchPastTweets: (ftsQuery, limit = 20) =>
       safeInvoke('search_past_tweets', { ftsQuery, limit }),
+    hydrateTweet: (id) => safeInvoke('hydrate_tweet', { id }),
     logEvent: (eventType, payload, correlationId) =>
       safeInvoke('log_event', { eventType, payload, correlationId }),
   }

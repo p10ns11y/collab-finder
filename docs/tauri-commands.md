@@ -21,7 +21,7 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 
 | Command | Args | Returns | Adapter | Notes |
 |---------|------|---------|---------|-------|
-| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Persists run + hits + rate to sqlite (best-effort). |
+| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Returns full text; sqlite stores snippets only (best-effort). |
 | `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision`, `tweets`, `best_tweet`) | same | Live X search via `guarded_search`; persists lead from `best_tweet` (fit-scored pick), not `tweets[0]`. |
 | `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
 | `promote_lead` | `{ lead_id: string }` (TS adapter defaults `'latest'`) | `string` | same | Stub message until CV guard is wired. Logs event. |
@@ -31,12 +31,13 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
 | `get_search_history` | `{ limit? }` | `SearchRun[]` | Past queries, counts, rates, sources. |
-| `get_search_run` | `{ id }` | `SearchRunWithTweets \| null` | Full tweets for one historical run (replayable). |
-| `get_leads` | `{ minScore?, status?, q?, limit? }` | `Lead[]` | Unique opportunities (dedup by tweet_id + seen_count). Enriched with tweet text. |
+| `get_search_run` | `{ id }` | `SearchRunWithTweets \| null` | Snippet tweets for one historical run (replayable). |
+| `get_leads` | `{ minScore?, status?, q?, limit? }` | `Lead[]` | Unique opportunities (dedup by tweet_id + seen_count). Enriched with tweet snippet. |
 | `get_dashboard_stats` | — | `DashboardStats` | totals, avg, top queries, most-reseen (for neat cards). |
 | `get_recent_pauses` | `{ limit? }` | `Pause[]` | Guard triggers with context. |
 | `get_events` | `{ limit? }` | `Event[]` | Broad TUI + reactor action log. |
-| `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 full-text lookup on stored tweet bodies. |
+| `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 lookup on stored snippets (not full post bodies). |
+| `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Use when opening a lead or replay needs current text. |
 | `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
 
 ## TypeScript bridge

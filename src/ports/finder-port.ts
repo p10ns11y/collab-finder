@@ -26,5 +26,6 @@ export type FinderPort = {
   getRecentPauses(limit?: number): Promise<Result<Pause[], AppError>>
   getEvents(filter?: EventFilter): Promise<Result<Event[], AppError>>
   searchPastTweets(ftsQuery: string, limit?: number): Promise<Result<Tweet[], AppError>>
+  hydrateTweet(id: string): Promise<Result<Tweet, AppError>>
   logEvent(eventType: string, payload?: string, correlationId?: string): Promise<Result<void, AppError>>
 }
