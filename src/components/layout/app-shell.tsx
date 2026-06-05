@@ -2,18 +2,24 @@ import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 
 type Props = {
+  /** Left sidebar nav (full height) */
+  sidebar?: ReactNode
   header: ReactNode
+  /** Viewport content (screens provide their own internal scroll containers) */
   children: ReactNode
   footer?: ReactNode
   className?: string
 }
 
-export function AppShell({ header, children, footer, className }: Props) {
+export function AppShell({ sidebar, header, children, footer, className }: Props) {
   return (
-    <div className={cn('mesh-bg flex min-h-screen flex-col', className)}>
-      {header}
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">{children}</main>
-      {footer}
+    <div className={cn('mesh-bg flex h-screen overflow-hidden', className)}>
+      {sidebar}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {header}
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+        {footer}
+      </div>
     </div>
   )
 }

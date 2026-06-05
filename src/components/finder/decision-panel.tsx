@@ -31,7 +31,7 @@ export function DecisionPanel({ decision, onRerun, onPromote }: Props) {
             {JSON.stringify(decision.guards_triggered, null, 2)}
           </pre>
         )}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={onRerun}>
             Re-run with tweak
           </Button>

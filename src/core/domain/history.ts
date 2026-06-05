@@ -1,5 +1,5 @@
 /** Durable history types (mirror of Rust db.rs serializable structs + filters).
- * Used for MVU history slice + HistoryDashboard.
+ * Used for MVU history slice + History/Data screens.
  * All lookups go through Tauri commands (persisted in sqlite).
  */
 

@@ -6,6 +6,7 @@ import type {
   Lead,
   Pause,
   SearchRun,
+  SearchRunWithTweets,
 } from '../domain/history'
 import type { AppError } from '../error'
 
@@ -52,3 +53,20 @@ export type FinderMsg =
     }
   | { type: 'HistoryFailed'; error: AppError }
   | { type: 'UiEventLogged'; eventType: string; payload?: string }
+
+  // Screen navigation (MVU, keyboard + sidebar + palette)
+  | { type: 'ScreenChanged'; screen: import('./model').FinderScreen }
+
+  // Lookup FTS + detail + hydrate (wired to existing backend ports)
+  | { type: 'LookupQueryChanged'; query: string }
+  | { type: 'LookupRequested' }
+  | { type: 'LookupSucceeded'; tweets: Tweet[] }
+  | { type: 'LookupFailed'; error: AppError }
+  | { type: 'SearchRunSelected'; id: number }
+  | { type: 'SearchRunLoaded'; run: SearchRunWithTweets }
+  | { type: 'SearchRunLoadFailed'; error: AppError }
+  | { type: 'HydrateRequested'; tweetId: string }
+  | { type: 'HydrateSucceeded'; tweet: Tweet }
+  | { type: 'HydrateFailed'; error: AppError }
+  | { type: 'LookupCleared' }
+  | { type: 'HydrateCleared' }

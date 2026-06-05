@@ -24,6 +24,8 @@ export type FinderPorts = {
     getRecentPauses(limit?: number): Promise<import('../domain/history').Pause[]>
     getEvents(filter?: import('../domain/history').EventFilter): Promise<import('../domain/history').Event[]>
     searchPastTweets(ftsQuery: string, limit?: number): Promise<import('../domain/finder').Tweet[]>
+    getSearchRun(id: number): Promise<import('../domain/history').SearchRunWithTweets | null>
+    hydrateTweet(id: string): Promise<import('../domain/finder').Tweet>
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
   }
 }
@@ -196,6 +198,58 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       void fromPromise(ports.finder.getRecentPauses(20), toAppError).then((r) => {
         if (r.ok) dispatch({ type: 'HistoryRefreshed', pauses: r.value })
       })
+      // Events for Data screen (was declared but never loaded before)
+      void fromPromise(ports.finder.getEvents({ limit: 100 }), toAppError).then((r) => {
+        if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
+      })
+    })
+  }
+}
+
+export function lookupCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const q = (model.lookupQuery || '').trim()
+    if (!q) {
+      dispatch({ type: 'LookupSucceeded', tweets: [] })
+      return
+    }
+    void fromPromise(ports.finder.searchPastTweets(q, 30), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'LookupFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'LookupSucceeded', tweets: result.value })
+    })
+  }
+}
+
+export function loadSearchRunCmd(ports: FinderPorts, id: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.getSearchRun(id), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'SearchRunLoadFailed', error: result.error })
+        return
+      }
+      if (result.value) {
+        dispatch({ type: 'SearchRunLoaded', run: result.value })
+      } else {
+        dispatch({
+          type: 'SearchRunLoadFailed',
+          error: toAppError(new Error(`Search run ${id} not found`)),
+        })
+      }
+    })
+  }
+}
+
+export function hydrateCmd(ports: FinderPorts, tweetId: string): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.hydrateTweet(tweetId), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'HydrateFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'HydrateSucceeded', tweet: result.value })
     })
   }
 }
@@ -255,6 +309,23 @@ export function effectForMsg(
       return logUiEventCmd(ports, 'PresetSelected', JSON.stringify({ query: msg.query }))
     case 'PromoteSucceeded':
       return logUiEventCmd(ports, 'PromoteSucceeded', msg.message)
+
+    // Lookup effects
+    case 'LookupRequested':
+      return lookupCmd(ports, model)
+    case 'SearchRunSelected':
+      return loadSearchRunCmd(ports, msg.id)
+    case 'HydrateRequested':
+      return hydrateCmd(ports, msg.tweetId)
+
+    // Re-probe bearer storage (and trigger keyring promotion/heal if only file is present)
+    // when the user actually visits the Settings screen. This makes the credentials panel
+    // reflect an up-to-date (possibly promoted) active_source without manual refresh.
+    case 'ScreenChanged':
+      if (msg.screen === 'settings') {
+        return credentialsCheckCmd(ports)
+      }
+      return undefined
 
     default:
       return undefined

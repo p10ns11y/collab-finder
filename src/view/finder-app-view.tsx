@@ -1,105 +1,90 @@
 import { AppShell } from '../components/layout/app-shell'
 import { Header } from '../components/layout/header'
+import { SidebarNav } from '../components/layout/sidebar-nav'
 import { CommandPalette } from '../components/finder/command-palette'
-import { CredentialsPanel } from '../components/finder/credentials-panel'
-import { DecisionPanel } from '../components/finder/decision-panel'
 import { ErrorBanner } from '../components/finder/error-banner'
-import { GuardDashboard } from '../components/finder/guard-dashboard'
-import { HistoryDashboard } from '../components/finder/history-dashboard'
-import { PauseLog } from '../components/finder/pause-log'
-import { SearchWorkspace } from '../components/finder/search-workspace'
-import { TweetFeed } from '../components/finder/tweet-feed'
 import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
+import { DiscoverScreen } from './screens/discover-screen'
+import { StatsScreen } from './screens/stats-screen'
+import { HistoryScreen } from './screens/history-screen'
+import { DataScreen } from './screens/data-screen'
+import { LookupScreen } from './screens/lookup-screen'
+import { SettingsScreen } from './screens/settings-screen'
+import type { FinderScreen } from '../core/finder/model'
 
 type Props = {
   view: FinderViewState
   dispatch: Dispatch<FinderMsg>
 }
 
+const SCREEN_LABEL: Record<FinderScreen, string> = {
+  discover: 'Discover',
+  stats: 'Statistics',
+  history: 'History',
+  data: 'Data',
+  lookup: 'Lookup',
+  settings: 'Settings',
+}
+
 /** Presentational shell — props in, events out as Msg. No hooks, no invoke. */
 export function FinderAppView({ view, dispatch }: Props) {
-  const { model } = view
+  const { model, activeScreen, banner } = view
+
+  const screenTitle = SCREEN_LABEL[activeScreen]
+
+  function navigate(screen: FinderScreen) {
+    dispatch({ type: 'ScreenChanged', screen })
+  }
+
+  const viewportContent = (() => {
+    switch (activeScreen) {
+      case 'discover':
+        return <DiscoverScreen view={view} dispatch={dispatch} />
+      case 'stats':
+        return <StatsScreen view={view} />
+      case 'history':
+        return <HistoryScreen view={view} dispatch={dispatch} />
+      case 'data':
+        return <DataScreen view={view} dispatch={dispatch} />
+      case 'lookup':
+        return <LookupScreen view={view} dispatch={dispatch} />
+      case 'settings':
+        return <SettingsScreen view={view} dispatch={dispatch} />
+      default:
+        return <div className="p-6 text-ink-faint">Unknown screen: {activeScreen}</div>
+    }
+  })()
 
   return (
     <>
       <AppShell
+        sidebar={
+          <SidebarNav active={activeScreen} onNavigate={navigate} />
+        }
         header={
-          <Header onOpenPalette={() => dispatch({ type: 'PaletteToggled' })} />
+          <Header
+            onOpenPalette={() => dispatch({ type: 'PaletteToggled' })}
+            screenTitle={screenTitle}
+          />
         }
         footer={
-          <footer className="border-t border-border-subtle px-6 py-4 text-[11px] text-ink-faint">
-            Separate from devprofile · CV via cv-promote-guard · X via official agent
-            resources · self-guards on every path
+          <footer className="border-t border-border-subtle px-3 py-1.5 text-[10px] text-ink-faint bg-surface-1/60">
+            Separate from devprofile · CV via cv-promote-guard · X via official agent resources · self-guards on every path
           </footer>
         }
       >
-        <div className="space-y-5">
-          <GuardDashboard
-            reactorState={model.reactorState}
-            pauseCount={model.pauses.length}
-          />
-
-          <HistoryDashboard
-            searches={view.historySearches}
-            leads={view.historyLeads}
-            stats={view.historyStats}
-            onRefresh={() => dispatch({ type: 'HistoryRefreshRequested' })}
-            onReuseQuery={(q) => dispatch({ type: 'PresetSelected', query: q })}
-          />
-
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-            <CredentialsPanel
-              flow={view.connectionFlow}
-              draft={model.credentials.draft}
-              notice={model.credentials.notice}
-              busy={model.credentials.busy}
-              storage={model.credentials.storage}
-              checking={model.credentials.checking}
-              onDraftChange={(draft) =>
-                dispatch({ type: 'CredentialsDraftChanged', draft })
-              }
-              onSave={() => dispatch({ type: 'CredentialsSaveRequested' })}
-              onClear={() => dispatch({ type: 'CredentialsClearRequested' })}
-            />
-            <SearchWorkspace
-              query={model.query}
-              cvSummary={model.cvSummary}
-              busy={view.busy}
-              canSearch={view.canSearch}
-              canRunCycle={view.canRunCycle}
-              presets={view.presets}
-              operatorsDocUrl={view.operatorsDocUrl}
-              operatorsReference={view.operatorsReference}
-              strategyReference={view.strategyReference}
-              onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
-              onCvSummaryChange={(cvSummary) =>
-                dispatch({ type: 'CvSummaryChanged', cvSummary })
-              }
-              onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
-              onSearch={() => dispatch({ type: 'SearchRequested' })}
-              onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
-            />
+        {/* Global banner + active screen viewport */}
+        <div className="h-full flex flex-col overflow-hidden">
+          {banner && (
+            <div className="px-4 pt-2">
+              <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />
+            </div>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
+            {viewportContent}
           </div>
-
-          {view.banner && (
-            <ErrorBanner
-              message={view.banner}
-              onDismiss={() => dispatch({ type: 'BannerDismissed' })}
-            />
-          )}
-
-          {model.decision && (
-            <DecisionPanel
-              decision={model.decision}
-              onRerun={() => dispatch({ type: 'CycleRequested' })}
-              onPromote={() => dispatch({ type: 'PromoteRequested' })}
-            />
-          )}
-
-          <PauseLog pauses={model.pauses} />
-          <TweetFeed tweets={view.tweets} />
         </div>
       </AppShell>
 
