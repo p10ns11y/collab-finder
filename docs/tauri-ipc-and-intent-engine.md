@@ -200,6 +200,7 @@ sudo pacman -S --needed gnome-keyring   # or kwallet + secret service for your D
 |---------------|----------------|
 | `[secrets] keyring read failed (falling back to file store)` | Arch has no Secret Service; **invoke still works** — token read from file on next command. |
 | `[secrets] bearer token loaded from file store: …` | Expected fallback path. |
+| `(collab-finder:PID): Gdk-WARNING **: ... Error writing selection data: Error writing to file descriptor: Broken pipe` | Harmless GTK/WebKitGTK selection transfer noise (very common on Hyprland). Happens when tweet text / UI content claims primary selection owner after results render and the FD is closed early by the compositor. Does **not** affect searches, DB recording, or functionality. Filter logs or live with it. |
 | Blank window / instant crash on `tauri dev` | Missing **WebKit/GTK** system libs, not broken `invoke`. |
 | `X bearer not configured` | Neither keyring nor file has a token — save again in UI. |
 

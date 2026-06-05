@@ -27,7 +27,7 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 | Durable history (SQLite) | `src-tauri/src/db.rs`, `HistoryDashboard` |
 | Reactor + guards (Rust) | `src-tauri/src/finder_reactor.rs` |
 
-**Tauri commands today** (16 handlers; MCP server planned): credentials (`has_x_bearer`, `get_x_bearer_storage`, `set_x_bearer`, `clear_x_bearer`), finder/reactor (`search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`), history/audit (`get_search_history`, `get_search_run`, `get_leads`, `get_dashboard_stats`, `get_recent_pauses`, `get_events`, `search_past_tweets`, `log_event`). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
+**Tauri commands today** (17 handlers; MCP server planned): credentials (`has_x_bearer`, `get_x_bearer_storage`, `set_x_bearer`, `clear_x_bearer`), finder/reactor (`search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`), history/audit (`get_search_history`, `get_search_run`, `get_leads`, `get_dashboard_stats`, `get_recent_pauses`, `get_events`, `search_past_tweets`, `hydrate_tweet`, `log_event`). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
 
 ## Documentation
 
@@ -35,9 +35,10 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 |-----|---------|
 | [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify, Arch notes |
 | [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map, mermaid, milestone matrix |
-| [docs/tauri-commands.md](docs/tauri-commands.md) | All 16 `invoke` handlers |
+| [docs/tauri-commands.md](docs/tauri-commands.md) | All 17 `invoke` handlers |
 | [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |
 | [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | Dev: intercept and debug `invoke` |
+| [docs/tauri-webview-and-devtools.md](docs/tauri-webview-and-devtools.md) | Linux WebKit WebView, Safari-like inspector, console `invoke` QA |
 | [.agents/skills/tauri-ipc-debug/](.agents/skills/tauri-ipc-debug/SKILL.md) | Agent skill: layer-by-layer IPC triage |
 | [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
 | [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |
@@ -50,5 +51,14 @@ Diagrams in-repo; interactive architecture canvas is Cursor-only — see [agenti
 - **AGENTS.md** — skills index, triage, conventions
 - **docs/x-tools.md** — official X llms.txt, skill.md, XMCP, xurl
 - **.agents/skills/** — finder-reactor, tauri-agentic, cv-promote-guard, x-agent-resources, fusion-sage
+
+## Data handling (X content)
+
+- Post data is fetched via the **official X API** for personal productivity use only.
+- SQLite stores **post IDs**, links (`https://x.com/i/web/status/{id}`), and **280-character snippets** for local preview and FTS — not full post bodies.
+- Full text is available on demand via `hydrate_tweet` (lookup API; fresh data, 404 if deleted). Live search/cycle responses return full text from the API but only snippets are persisted.
+- The local database (`collab-finder.db`) is never committed to the repo.
+
+See [docs/x-content-storage-distributin-policy.md](docs/x-content-storage-distributin-policy.md) for rationale.
 
 Private tool for p10ns11y.

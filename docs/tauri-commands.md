@@ -4,7 +4,7 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
-## Credentials
+## Credentials (STABILITY CONTRACT — do not change lightly)
 
 | Command | Args | Returns | Adapter |
 |---------|------|---------|---------|
@@ -13,15 +13,22 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 | `set_x_bearer` | `{ token: string }` | `void` | same |
 | `clear_x_bearer` | — | `void` | same |
 
-Bearer is read inside Rust for search/cycle — never sent from the UI on each search.
+**This set of 4 commands + the exact `BearerStorageStatus` / `Bearer*Info` shapes (snake_case) + the error string returned by internal `get_x_bearer` ("X bearer not configured...") form a stability boundary.**
+
+- They have been repeatedly broken during refactors of unrelated features (DB storage policy for tweet content, "clean up lib.rs", broad "storage" modules, etc.).
+- The Rust implementation lives behind loud STABILITY CONTRACT headers in `src-tauri/src/secrets.rs`, `src-tauri/src/app_dirs.rs`, and the credential section of `src-tauri/src/lib.rs`.
+- `BearerStorageStatus` is the diagnostic surface for "is keyring working on this machine or are we on file fallback?" — the credentials panel depends on the exact fields.
+- Bearer is read inside Rust for search/cycle/hydrate (`x_bearer()` helper) — never sent from the UI on each search.
 
 `BearerStorageStatus` (from `get_x_bearer_storage`) matches the credentials panel: `active_source` (`keyring` | `file` | `none`), file path, keyring reachability, and plaintext-fallback notes.
+
+See also the agent instructions in root AGENTS.md (bearer row + conventions) and the giant headers in the Rust sources before editing anything here or in the credential path.
 
 ## Finder / reactor
 
 | Command | Args | Returns | Adapter | Notes |
 |---------|------|---------|---------|-------|
-| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Persists run + hits + rate to sqlite (best-effort). |
+| `search_x_recent` | `{ query, maxResults? }` | `XTweet[]` | `finder-adapter.ts` | Live X API; `maxResults` clamped 10–20. Returns full text; sqlite stores snippets only (best-effort). |
 | `run_finder_cycle_cmd` | `{ query, cvSummary }` | `CycleResult` (`decision`, `tweets`, `best_tweet`) | same | Live X search via `guarded_search`; persists lead from `best_tweet` (fit-scored pick), not `tweets[0]`. |
 | `get_reactor_state` | — | `ReactorState` | same | Shared `AppReactor` — leads/pauses persist across cycles |
 | `promote_lead` | `{ lead_id: string }` (TS adapter defaults `'latest'`) | `string` | same | Stub message until CV guard is wired. Logs event. |
@@ -31,12 +38,13 @@ Bearer is read inside Rust for search/cycle — never sent from the UI on each s
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
 | `get_search_history` | `{ limit? }` | `SearchRun[]` | Past queries, counts, rates, sources. |
-| `get_search_run` | `{ id }` | `SearchRunWithTweets \| null` | Full tweets for one historical run (replayable). |
-| `get_leads` | `{ minScore?, status?, q?, limit? }` | `Lead[]` | Unique opportunities (dedup by tweet_id + seen_count). Enriched with tweet text. |
+| `get_search_run` | `{ id }` | `SearchRunWithTweets \| null` | Snippet tweets for one historical run (replayable). |
+| `get_leads` | `{ minScore?, status?, q?, limit? }` | `Lead[]` | Unique opportunities (dedup by tweet_id + seen_count). Enriched with tweet snippet. |
 | `get_dashboard_stats` | — | `DashboardStats` | totals, avg, top queries, most-reseen (for neat cards). |
 | `get_recent_pauses` | `{ limit? }` | `Pause[]` | Guard triggers with context. |
 | `get_events` | `{ limit? }` | `Event[]` | Broad TUI + reactor action log. |
-| `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 full-text lookup on stored tweet bodies. |
+| `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 lookup on stored snippets (not full post bodies). |
+| `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Manual QA: [tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md#example-hydrate_tweet-full-post-on-demand). |
 | `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
 
 ## TypeScript bridge

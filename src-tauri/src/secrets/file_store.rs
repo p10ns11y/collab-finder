@@ -2,41 +2,17 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::app_dirs;
+
+// See the big STABILITY CONTRACT header in secrets.rs (and app_dirs.rs).
+// This file only implements the *bearer-specific* plaintext fallback file (0600, x-bearer name).
+// The directory root is owned by app_dirs so that "content storage" or "db" refactors
+// do not need to (and should not) edit bearer file logic.
+
 const FILE_NAME: &str = "x-bearer";
 
-#[cfg(test)]
-pub(crate) mod test_harness {
-    use std::path::PathBuf;
-    use std::sync::Mutex;
-
-    static ROOT: Mutex<Option<PathBuf>> = Mutex::new(None);
-    pub static LOCK: Mutex<()> = Mutex::new(());
-
-    pub fn set(root: PathBuf) {
-        *ROOT.lock().expect("test lock") = Some(root);
-    }
-
-    pub fn clear() {
-        *ROOT.lock().expect("test lock") = None;
-    }
-
-    pub fn get() -> Option<PathBuf> {
-        ROOT.lock().expect("test lock").clone()
-    }
-}
-
-/// Shared app data dir for collab-finder (used by secrets + db for consistency).
-pub(crate) fn app_data_dir() -> Result<PathBuf, String> {
-    #[cfg(test)]
-    if let Some(root) = test_harness::get() {
-        return Ok(root);
-    }
-    let base = dirs::data_local_dir().ok_or("Could not resolve app data directory")?;
-    Ok(base.join("collab-finder"))
-}
-
 pub(crate) fn store_path() -> Result<PathBuf, String> {
-    Ok(app_data_dir()?.join(FILE_NAME))
+    Ok(app_dirs::app_data_dir()?.join(FILE_NAME))
 }
 
 pub(crate) fn path_display() -> Result<String, String> {
@@ -105,6 +81,7 @@ pub fn clear() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_dirs::test_harness;
     use std::os::unix::fs::PermissionsExt;
     use tempfile::TempDir;
 

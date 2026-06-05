@@ -2,6 +2,14 @@ use crate::x_query::validate_recent_search_query;
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 
+/// Max chars persisted locally (X Developer Policy: minimize offline post content).
+pub const TWEET_SNIPPET_MAX_LEN: usize = 280;
+
+/// Truncate post text for sqlite storage / FTS (preview only; full text via lookup API).
+pub fn tweet_snippet(text: &str) -> String {
+    text.chars().take(TWEET_SNIPPET_MAX_LEN).collect()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct XTweet {
     pub id: String,
@@ -15,6 +23,11 @@ pub struct XTweet {
 #[derive(Debug, Deserialize)]
 struct XSearchResponse {
     data: Option<Vec<XTweet>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct XLookupResponse {
+    data: Option<XTweet>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -61,6 +74,24 @@ pub(crate) fn parse_search_response_body(body: &str) -> Result<Vec<XTweet>, Stri
     Ok(parsed.data.unwrap_or_default())
 }
 
+pub(crate) fn lookup_tweet_url(id: &str) -> Result<String, String> {
+    let id = id.trim();
+    if id.is_empty() {
+        return Err("tweet id required".into());
+    }
+    Ok(format!(
+        "https://api.x.com/2/tweets/{}?tweet.fields=created_at,author_id",
+        urlencoding::encode(id)
+    ))
+}
+
+pub(crate) fn parse_lookup_response_body(body: &str) -> Result<XTweet, String> {
+    let parsed: XLookupResponse = serde_json::from_str(body).map_err(|e| e.to_string())?;
+    parsed
+        .data
+        .ok_or_else(|| "Post not found on X (may have been deleted)".to_string())
+}
+
 pub(crate) fn api_error_message(status: u16, body: &str) -> String {
     if body.is_empty() {
         format!("X API error: HTTP {status}")
@@ -96,6 +127,31 @@ pub async fn search_recent(
     let body = resp.text().await.map_err(|e| e.to_string())?;
     let tweets = parse_search_response_body(&body)?;
     Ok((tweets, rate))
+}
+
+/// Fetch authoritative post content from X (rehydrate on demand; not persisted).
+pub async fn lookup_tweet(bearer: &str, id: &str) -> Result<XTweet, String> {
+    let url = lookup_tweet_url(id)?;
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .header("Authorization", bearer_authorization_header(bearer))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    if status.as_u16() == 404 {
+        return Err("Post not found on X (may have been deleted)".into());
+    }
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(api_error_message(status.as_u16(), &text));
+    }
+
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    parse_lookup_response_body(&body)
 }
 
 #[cfg(test)]
@@ -162,5 +218,42 @@ mod tests {
     fn api_error_message_formats_status() {
         assert_eq!(api_error_message(401, ""), "X API error: HTTP 401");
         assert!(api_error_message(403, r#"{"title":"Forbidden"}"#).contains("Forbidden"));
+    }
+
+    #[test]
+    fn tweet_snippet_truncates_long_text() {
+        let long = "a".repeat(TWEET_SNIPPET_MAX_LEN + 50);
+        let snippet = tweet_snippet(&long);
+        assert_eq!(snippet.len(), TWEET_SNIPPET_MAX_LEN);
+        assert_eq!(snippet.chars().count(), TWEET_SNIPPET_MAX_LEN);
+    }
+
+    #[test]
+    fn tweet_snippet_preserves_short_text() {
+        assert_eq!(tweet_snippet("hello"), "hello");
+    }
+
+    #[test]
+    fn lookup_tweet_url_encodes_id() {
+        let url = lookup_tweet_url("99").unwrap();
+        assert!(url.contains("/2/tweets/99"));
+    }
+
+    #[test]
+    fn lookup_tweet_url_rejects_empty() {
+        assert!(lookup_tweet_url("").is_err());
+    }
+
+    #[test]
+    fn parse_lookup_json_single_tweet() {
+        let body = r#"{"data":{"id":"9","text":"full post","author_id":"1","created_at":"t"}}"#;
+        let tweet = parse_lookup_response_body(body).unwrap();
+        assert_eq!(tweet.id, "9");
+        assert_eq!(tweet.text, "full post");
+    }
+
+    #[test]
+    fn parse_lookup_json_missing_data() {
+        assert!(parse_lookup_response_body(r#"{}"#).is_err());
     }
 }

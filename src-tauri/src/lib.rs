@@ -1,3 +1,4 @@
+mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
@@ -17,6 +18,22 @@ use x_search::XTweet;
 
 pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
+
+// ============================================================================
+// CREDENTIALS / X BEARER ACCESS (STABILITY BOUNDARY)
+// ============================================================================
+// These are the ONLY ways the rest of the app (and the React UI via invoke) touches
+// the bearer secret. See the huge warning header in src/secrets.rs.
+//
+// x_bearer() is the internal helper used by search/cycle/hydrate commands.
+// The four * _x_bearer commands are registered by exact name below.
+//
+// DO NOT:
+// - Rename the command strings without updating docs/tauri-commands.md + all adapters.
+// - Remove any of them from generate_handler![] during "list cleanup".
+// - Change the return shape of get_x_bearer_storage (TS type must match).
+// - Add extra params or make them async unless you update the whole chain.
+// ============================================================================
 
 fn x_bearer() -> Result<String, String> {
     secrets::get_x_bearer()
@@ -208,6 +225,13 @@ async fn search_past_tweets(
         .map_err(|e| e.to_string())?
 }
 
+/// Re-fetch full post content from X on demand (not persisted; handles deletions via 404).
+#[tauri::command]
+async fn hydrate_tweet(id: String) -> Result<XTweet, String> {
+    let bearer = x_bearer()?;
+    x_search::lookup_tweet(&bearer, &id).await
+}
+
 #[tauri::command]
 fn log_event(
     db: State<'_, AppDb>,
@@ -228,14 +252,15 @@ pub fn run() {
         .manage(AppReactor(Mutex::new(FinderReactor::new(None))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
         .invoke_handler(tauri::generate_handler![
-            search_x_recent,
-            run_finder_cycle_cmd,
-            get_reactor_state,
-            promote_lead,
+            // Credential commands (stability boundary — see above). Keep the four together.
             has_x_bearer,
             get_x_bearer_storage,
             set_x_bearer,
             clear_x_bearer,
+            search_x_recent,
+            run_finder_cycle_cmd,
+            get_reactor_state,
+            promote_lead,
             get_search_history,
             get_search_run,
             get_leads,
@@ -243,6 +268,7 @@ pub fn run() {
             get_recent_pauses,
             get_events,
             search_past_tweets,
+            hydrate_tweet,
             log_event,
         ])
         .run(tauri::generate_context!())
