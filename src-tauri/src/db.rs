@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use crate::secrets::app_data_dir;
+use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";

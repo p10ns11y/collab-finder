@@ -138,6 +138,7 @@ Current `Cargo.toml` plugins: `tauri-plugin-opener` only.
 | No `[db]` / `[secrets]` after UI action | Handler not reached — check `[ipc ←]` in console for early JS error |
 | `invoke` hangs | Rust blocked (X HTTP, sqlite lock) — watch terminal; try `RUST_BACKTRACE=1` |
 | `[secrets] keyring read failed (falling back…)` | Not IPC failure; token may still load from `~/.local/share/collab-finder/x-bearer` |
+| `[secrets] bearer storage status: active_source=File, keyring_reachable=true, keyring_present=false...` | Service works but no entry yet (common after daemon hiccups or refactors). See [SETUP.md troubleshooting](./SETUP.md#keyring-reachable-but-not-active-most-common-it-used-to-work-case-on-linux) — usually just Disconnect + Save again. |
 | Blank window on `tauri dev` | Missing WebKit/GTK — fix [prerequisites](https://v2.tauri.app/start/prerequisites/) before debugging IPC |
 
 Details: [tauri-ipc-and-intent-engine.md — Arch Linux](./tauri-ipc-and-intent-engine.md#arch-linux-and-minimal-desktops).
@@ -145,9 +146,12 @@ Details: [tauri-ipc-and-intent-engine.md — Arch Linux](./tauri-ipc-and-intent-
 ## Practical workflow (collab-finder)
 
 1. **Terminal:** `pnpm tauri dev` — watch `[secrets]`, `[db]`, `[x]`.
+   - The new `[secrets] bearer storage status: active_source=..., keyring_reachable=..., keyring_present=..., keyring_error=...` line (emitted on every credentials panel load/refresh) is the primary diagnostic for "why is keyring not active?".
 2. **WebView console:** dev logs in `safe-invoke.ts` (§2).
 3. **Optional:** `[intent]` in `effects.ts` for `FinderMsg` types.
 4. **Failing search:** confirm `SearchRequested` → `search_x_recent` in console, then `[x]` / `[db]` in terminal.
+
+For the full "reachable but no entry" keyring case (very common on Arch after daemon or refactor issues), see the detailed case + commands in [SETUP.md](./SETUP.md#keyring-reachable-but-not-active-most-common-it-used-to-work-case-on-linux).
 
 ## Related code
 

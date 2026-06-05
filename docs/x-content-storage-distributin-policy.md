@@ -59,6 +59,7 @@ This pattern (store IDs + rehydrate on demand) is the approach X implicitly enco
 - **Rate limits**: Your recent search usage looks reasonable for personal/autonomous reactor use. Lookup (for rehydration) is cheap and has its own limits.
 - **Never commit** the `.db` file or any real tweet data to the repo.
 - The secure keychain handling for the Bearer token and the overall architecture (reactor, guards, etc.) are already solid.
+  **Important for future work:** "X content storage" (tweet text/snippets in the DB) and "X bearer/credential storage" (keyring + x-bearer file) are separate concerns. Edits for content policy (snippets, hydrate, FTS, db schema) must not touch `secrets.rs`, `app_dirs.rs`, the credential commands in `lib.rs`, or the bearer file logic. These have been accidentally broken multiple times by broad "storage" refactors. The Rust files have prominent stability headers; AGENTS.md calls this out explicitly.
 - Using xAI for processing the opportunities is fine (the policy carves out exceptions around Grok/xAI in some contexts).
 
 **Bottom line**: Your current full-text storage is *practically* low-risk for a personal tool, but switching to a Post-ID + link + partial-text (or snippet) model is cleaner, more future-proof, and closer to X's intent. It also gives you fresher data when users interact with leads.

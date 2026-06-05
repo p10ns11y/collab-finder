@@ -1,6 +1,56 @@
+// ============================================================================
+// STABILITY CONTRACT — X BEARER / KEYRING + FILE FALLBACK (CREDENTIALS)
+// ============================================================================
+//
+// THIS IS THE #1 AREA THAT KEEPS GETTING BROKEN BY UNRELATED REFACTORS.
+//
+// What it is:
+// - Dual store for the X app-only Bearer token: prefer OS keyring (keyring crate +
+//   sync-secret-service on Linux), always write plaintext 0600 fallback file under
+//   app data dir, best-effort keyring with explicit "clear on keyring-fail so file wins".
+// - Rich status for the UI credentials panel: `get_x_bearer_storage` returns
+//   BearerStorageStatus (active_source, keyring.reachable + error, file info).
+// - Internal `get_x_bearer()` / `x_bearer()` used by search/cycle/hydrate — the token
+//   is NEVER passed over IPC from the frontend on each call.
+//
+// Why agents (Cursor composer, etc.) repeatedly break it on unrelated work:
+// - The 4 thin credential commands live in the big list in lib.rs:generate_handler!.
+// - `x_bearer()` helper is called from multiple command fns in the same file.
+// - Shared app_data_dir used to be owned by file_store (imported by db.rs) → "storage"
+//   refactors (e.g. implementing the x-content-storage-distributin-policy recommendation
+//   for tweet snippets vs full text) touch lib.rs + data layout + "storage" modules.
+// - Subtle invariants: dual-write + shadowing prevention, NoEntry special case,
+//   probe vs read vs resolve_active_source, unix 0600/0700 perms, global test harness mutex,
+//   exact serde shape matching the TS BearerStorageStatus type.
+// - keyring behavior is platform + DE dependent (works great on macOS/Windows full DEs,
+//   intentionally falls back on minimal Arch/Hyprland — agents on nice desktops delete
+//   the "complex" fallback).
+// - Verification often stops at `cargo check`; the real contract (status panel +
+//   Linux keyring roundtrip test + "save then search works") lives in `cargo test` + manual run.
+//
+// RULES (non-negotiable for any agent or human):
+// 1. Treat the credential commands + Bearer* types + error string from get_x_bearer as
+//    a public contract. See docs/tauri-commands.md.
+// 2. Before touching lib.rs command registration, secrets.rs, file_store.rs, or app_dirs.rs:
+//    - Grep for all call sites of get_x_bearer*, set/clear, x_bearer, app_data_dir.
+//    - Read the header in app_dirs.rs and this header.
+// 3. Any edit that could affect registration, signatures, or the read/write paths:
+//    MUST be followed by `cd src-tauri && cargo test` (exercises the harness + keyring probes).
+// 4. After change, run the app and verify the X Connection panel shows correct
+//    active_source + keyring.reachable (and that search/cycle still succeed).
+// 5. Never remove the file fallback "because keyring is better now".
+// 6. Never bypass x_bearer() or put bearer on the wire.
+//
+// If the task is "implement X content storage policy / tweet snippets / hydrate":
+//   Do NOT refactor secrets, bearer storage, or the dir logic "while you're in the area".
+//   The two "storage" things are deliberately separated now (app_dirs + secrets vs db/tweets).
+//
+// ============================================================================
+
 mod file_store;
 
-pub(crate) use file_store::app_data_dir;
+// Note: app_data_dir now lives in the sibling `app_dirs` module (decoupled on purpose).
+// file_store (bearer file) and db both consume it. See app_dirs.rs for rationale + its own stability header.
 
 use keyring::Error as KeyringError;
 use serde::Serialize;
@@ -149,6 +199,11 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
     let file_path = file_store::path_display().unwrap_or_default();
     let active_source = resolve_active_source();
 
+    eprintln!(
+        "[secrets] bearer storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}",
+        active_source, keyring.reachable, keyring.present, keyring.error, file_present
+    );
+
     let why_not_encrypted = if file_present {
         Some(
             "Fallback file is plaintext UTF-8 with mode 0600 (user-only). It is not encrypted by design so Tauri/dev and minimal desktops can always read the token; prefer keyring when reachable.".to_string(),
@@ -179,10 +234,13 @@ pub fn set_x_bearer(token: &str) -> Result<(), String> {
 
     file_store::write(trimmed)?;
 
-    if let Err(e) = write_keyring(trimmed) {
-        eprintln!("[secrets] keyring save skipped (using file store): {e}");
-        // Drop stale keyring entry so reads do not shadow the file we just wrote.
-        let _ = clear_keyring();
+    match write_keyring(trimmed) {
+        Ok(()) => eprintln!("[secrets] bearer token also written to keyring"),
+        Err(e) => {
+            eprintln!("[secrets] keyring save skipped (using file store): {e}");
+            // Drop stale keyring entry so reads do not shadow the file we just wrote.
+            let _ = clear_keyring();
+        }
     }
 
     match file_store::read()? {
@@ -203,7 +261,7 @@ pub fn clear_x_bearer() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secrets::file_store::test_harness;
+    use crate::app_dirs::test_harness;
     use tempfile::TempDir;
 
     struct TestDir {

@@ -4,7 +4,7 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
-## Credentials
+## Credentials (STABILITY CONTRACT — do not change lightly)
 
 | Command | Args | Returns | Adapter |
 |---------|------|---------|---------|
@@ -13,9 +13,16 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 | `set_x_bearer` | `{ token: string }` | `void` | same |
 | `clear_x_bearer` | — | `void` | same |
 
-Bearer is read inside Rust for search/cycle — never sent from the UI on each search.
+**This set of 4 commands + the exact `BearerStorageStatus` / `Bearer*Info` shapes (snake_case) + the error string returned by internal `get_x_bearer` ("X bearer not configured...") form a stability boundary.**
+
+- They have been repeatedly broken during refactors of unrelated features (DB storage policy for tweet content, "clean up lib.rs", broad "storage" modules, etc.).
+- The Rust implementation lives behind loud STABILITY CONTRACT headers in `src-tauri/src/secrets.rs`, `src-tauri/src/app_dirs.rs`, and the credential section of `src-tauri/src/lib.rs`.
+- `BearerStorageStatus` is the diagnostic surface for "is keyring working on this machine or are we on file fallback?" — the credentials panel depends on the exact fields.
+- Bearer is read inside Rust for search/cycle/hydrate (`x_bearer()` helper) — never sent from the UI on each search.
 
 `BearerStorageStatus` (from `get_x_bearer_storage`) matches the credentials panel: `active_source` (`keyring` | `file` | `none`), file path, keyring reachability, and plaintext-fallback notes.
+
+See also the agent instructions in root AGENTS.md (bearer row + conventions) and the giant headers in the Rust sources before editing anything here or in the credential path.
 
 ## Finder / reactor
 

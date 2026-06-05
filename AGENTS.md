@@ -13,7 +13,7 @@ This project uses a **connected agent skills system** (fission + fusion) + **off
 | **X API, search queries, operators, xAI prompts** | [.agents/x-resources/README.md](.agents/x-resources/README.md) → [.agents/x-resources/skill.md](.agents/x-resources/skill.md) → [.agents/skills/x-agent-resources/SKILL.md](.agents/skills/x-agent-resources/SKILL.md) → [data/distillation/](data/distillation/README.md) |
 | **Finder reactor, guards, autonomous cycle** | [.agents/skills/finder-reactor/SKILL.md](.agents/skills/finder-reactor/SKILL.md) + x-resources row above when X is involved |
 | **Tauri shell, IPC, `invoke`, history DB** | [.agents/skills/tauri-agentic/SKILL.md](.agents/skills/tauri-agentic/SKILL.md) → [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) · [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
-| **X bearer storage (keyring vs file)** | [docs/SETUP.md](docs/SETUP.md) (save/read/dual-write) · [docs/tauri-commands.md](docs/tauri-commands.md) (`get_x_bearer_storage`) |
+| **X bearer storage (keyring vs file)** | [docs/SETUP.md](docs/SETUP.md) (save/read/dual-write) · [docs/tauri-commands.md](docs/tauri-commands.md) (`get_x_bearer_storage`) **+ src-tauri/src/secrets.rs (STABILITY CONTRACT header) + src-tauri/src/app_dirs.rs** — this area has been repeatedly broken by unrelated "storage" or lib.rs refactors (see the giant headers in those files) |
 | **CV promote / devprofile** | [.agents/skills/cv-promote-guard/SKILL.md](.agents/skills/cv-promote-guard/SKILL.md) |
 | **Architecture / milestones** | [docs/agentic-architecture.md](docs/agentic-architecture.md) |
 | **Setup / run / verify** | [docs/SETUP.md](docs/SETUP.md) |
@@ -65,7 +65,7 @@ Also: **XMCP**, **Docs MCP**, **xurl** — see [docs/x-tools.md](docs/x-tools.md
 ## Agent Workflow (Triage + Self-Guards First)
 
 **Always triage first** (read `agent-orchestrator`):
-- Single-shot (≤2 files, obvious): direct + verify (`pnpm build`, `cd src-tauri && cargo check`; see [docs/SETUP.md](docs/SETUP.md) — `type-check`/`lint` scripts not in package.json yet).
+- Single-shot (≤2 files, obvious): direct + verify (`pnpm build`, `cd src-tauri && cargo check && cargo test`; see [docs/SETUP.md](docs/SETUP.md) — `type-check`/`lint` scripts not in package.json yet). For anything touching Tauri commands, lib.rs, or data/secret paths, treat as "not single-shot" and run the full test + (ideally) manual credentials panel check.
 - Light: short bullets + implement.
 - Full: briefs, worktrees if multi-session, independent verification.
 
@@ -107,7 +107,8 @@ Grok Build / agents: Prefix with `/fusion-sage`, `/fission`, or just load via AG
 
 - Repo root for commands.
 - Prefer `pnpm` (lockfile present).
-- After changes: `pnpm install`, audit if deps changed, `pnpm build`, `cd src-tauri && cargo check` (add `cargo clippy` when tightening Rust).
+- After changes: `pnpm install`, audit if deps changed, `pnpm build`, `cd src-tauri && cargo check`. For **any edit under `src-tauri/src/`** you must also run `cd src-tauri && cargo test` (this exercises the secrets/keyring harness, DB, and the dual-write invariants that have repeatedly regressed).
+  - Special rule for stability hotspots (bearer/keyring, app_dirs, credential commands in lib.rs, the 4 invoke names): see the giant "STABILITY CONTRACT" headers in `src-tauri/src/secrets.rs` and `src-tauri/src/app_dirs.rs`. These have been broken by "unrelated" work (tweet content storage policy, db schema, "clean up lib.rs", broad storage refactors) more than any other area. Always grep + read the headers first. Verify by running the app and inspecting the X Connection panel's keyring status after the change.
 - **Lint/Format**: Biome planned (devprofile policy); not in `package.json` yet. Rust: `cargo fmt` + `cargo clippy`.
 - **React client**: follow `react-client-expert` (minimal state, deliberate effects; no RSC for UI logic — this is desktop webview).
 - **Agentic code**: Every decision point must have self-guard (threshold, pause hook, log + user intervention path). Use structured output (zod in TS, serde in Rust) for xAI "decide next".
