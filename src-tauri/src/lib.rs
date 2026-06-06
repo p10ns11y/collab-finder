@@ -5,12 +5,15 @@ mod finder_reactor;
 mod secrets;
 mod x_query;
 mod x_search;
+mod xai;
 
 use commands::{
     persist_cycle_lead, persist_cycle_search, persist_manual_search, persist_promote_event,
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, ReactorState};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -20,19 +23,21 @@ pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
 
 // ============================================================================
-// CREDENTIALS / X BEARER ACCESS (STABILITY BOUNDARY)
+// CREDENTIALS / X BEARER + xAI KEY ACCESS (STABILITY BOUNDARY)
 // ============================================================================
 // These are the ONLY ways the rest of the app (and the React UI via invoke) touches
-// the bearer secret. See the huge warning header in src/secrets.rs.
+// secrets. See the huge warning header in src/secrets.rs (covers BOTH bearer and xai-key).
 //
-// x_bearer() is the internal helper used by search/cycle/hydrate commands.
-// The four * _x_bearer commands are registered by exact name below.
+// x_bearer() is the internal helper used by search/cycle/hydrate.
+// get_xai_key() (added below) is the internal helper used by analyze/prep commands.
+//
+// The EIGHT credential commands (4 bearer + 4 xai) are registered together below.
 //
 // DO NOT:
-// - Rename the command strings without updating docs/tauri-commands.md + all adapters.
-// - Remove any of them from generate_handler![] during "list cleanup".
-// - Change the return shape of get_x_bearer_storage (TS type must match).
-// - Add extra params or make them async unless you update the whole chain.
+// - Rename any of the 8 command strings without updating docs/tauri-commands.md + adapters.
+// - Remove any from generate_handler![].
+// - Change return shapes of get_*_storage (TS types must match the duplicated structs).
+// - Add extra params or make them async unless you update docs + all call sites.
 // ============================================================================
 
 fn x_bearer() -> Result<String, String> {
@@ -57,6 +62,174 @@ fn set_x_bearer(token: String) -> Result<(), String> {
 #[tauri::command]
 fn clear_x_bearer() -> Result<(), String> {
     secrets::clear_x_bearer()
+}
+
+// xAI key commands (exact parallel to the 4 bearer commands above — stability boundary)
+#[tauri::command]
+fn has_xai_key() -> bool {
+    secrets::has_xai_key()
+}
+
+#[tauri::command]
+fn get_xai_key_storage() -> secrets::XaiKeyStorageStatus {
+    secrets::get_xai_key_storage()
+}
+
+#[tauri::command]
+fn set_xai_key(key: String) -> Result<(), String> {
+    secrets::set_xai_key(key.trim())
+}
+
+#[tauri::command]
+fn clear_xai_key() -> Result<(), String> {
+    secrets::clear_xai_key()
+}
+
+// New job target commands (web/paste focus for this slice)
+#[tauri::command]
+async fn fetch_job_page(url: String) -> Result<JobPageResult, String> {
+    // Basic fetch + naive clean (no extra crates in v1)
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent("Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/sustainableabundance/collab-finder)")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+
+    // Very naive strip of tags/scripts for v1. Real readability can come later.
+    let cleaned = strip_html_basic(&text);
+    let truncated = if cleaned.len() > 8000 { &cleaned[..8000] } else { &cleaned };
+
+    Ok(JobPageResult {
+        title: None, // can be enhanced by xAI extract later
+        company: None,
+        cleaned_text: truncated.to_string(),
+        original_len: cleaned.len() as u32,
+        truncated: cleaned.len() > 8000,
+    })
+}
+
+#[tauri::command]
+async fn analyze_job_target(
+    db: State<'_, AppDb>,
+    url: Option<String>,
+    pasted_jd: Option<String>,
+    title: Option<String>,
+    company: Option<String>,
+    cv_summary: Option<String>, // fallback; real prune from devprofile path wired in follow-up
+) -> Result<JobAnalysisResult, String> {
+    let jd = match (url.clone(), pasted_jd) {
+        (_, Some(p)) if !p.trim().is_empty() => p,
+        (Some(u), _) => {
+            let fetched = fetch_job_page(u.clone()).await?;
+            fetched.cleaned_text
+        }
+        _ => return Err("Provide either url or pasted_jd".into()),
+    };
+
+    // For v1: use provided cv or a sensible default (real devprofile ~/Work/personal/devprofile load + prune comes next slice)
+    let cv = cv_summary.unwrap_or_else(|| "Senior engineer with Rust, TypeScript, React, Tauri, agentic tooling experience. Open to high-impact roles.".to_string());
+
+    // Build a minimal system + user for structured fit
+    let system = "You are an expert career fit analyst. Output ONLY valid JSON matching the provided schema. Be precise and cite phrases from the JD.";
+    let user = format!(
+        "CV PACKET (pruned):\n{}\n\nJOB DESCRIPTION:\n{}\n\nReturn fit analysis.",
+        cv, jd
+    );
+
+    // Minimal strict schema for JobFitReport (v1)
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "overall": {"type": "integer", "minimum": 0, "maximum": 100},
+            "rationale": {"type": "string"},
+            "gaps_must": {"type": "array", "items": {"type": "string"}},
+            "gaps_nice": {"type": "array", "items": {"type": "string"}},
+            "recommended_action": {"type": "string"}
+        },
+        "required": ["overall", "rationale", "gaps_must", "recommended_action"],
+        "additionalProperties": false
+    });
+
+    let (fit_json, usage) = crate::xai::structured_chat(system, &user, "job_fit_v1", schema).await?;
+
+    let fit_score = fit_json.get("overall").and_then(|v| v.as_i64()).map(|i| i as i32);
+
+    // Persist as opportunity (best effort)
+    let run_id = if let Ok(guard) = db.0.lock() {
+        guard.upsert_opportunity(
+            "web",
+            url.as_deref(),
+            None,
+            title.as_deref(),
+            company.as_deref(),
+            &jd,
+            "analyzed",
+            fit_score,
+            Some(&fit_json.to_string()),
+            None,
+            None,
+        ).unwrap_or(0)
+    } else {
+        0
+    };
+
+    let cost = crate::xai::cost_from_usage(&usage);
+
+    Ok(JobAnalysisResult {
+        opportunity_id: run_id,
+        fit: fit_json,
+        packet_preview: cv.chars().take(600).collect(),
+        est_cost_usd: cost,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JobPageResult {
+    pub title: Option<String>,
+    pub company: Option<String>,
+    pub cleaned_text: String,
+    pub original_len: u32,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JobAnalysisResult {
+    pub opportunity_id: i64,
+    pub fit: Value,
+    pub packet_preview: String,
+    pub est_cost_usd: f64,
+}
+
+fn strip_html_basic(html: &str) -> String {
+    // Extremely basic tag stripper for v1. Good enough to get text for LLM.
+    let mut out = String::new();
+    let mut in_tag = false;
+    let mut in_script = false;
+    for c in html.chars() {
+        if c == '<' {
+            in_tag = true;
+            continue;
+        }
+        if in_tag && c == '>' {
+            in_tag = false;
+            continue;
+        }
+        if in_tag {
+            // crude script skip
+            let lower = html.to_lowercase();
+            if lower.contains("<script") { in_script = true; }
+            if lower.contains("</script>") { in_script = false; }
+            continue;
+        }
+        if !in_script {
+            out.push(c);
+        }
+    }
+    // Collapse whitespace
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[tauri::command]
@@ -252,11 +425,17 @@ pub fn run() {
         .manage(AppReactor(Mutex::new(FinderReactor::new(None))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
         .invoke_handler(tauri::generate_handler![
-            // Credential commands (stability boundary — see above). Keep the four together.
+            // Credential commands (stability boundary — see above). Keep bearer + xai together.
             has_x_bearer,
             get_x_bearer_storage,
             set_x_bearer,
             clear_x_bearer,
+            has_xai_key,
+            get_xai_key_storage,
+            set_xai_key,
+            clear_xai_key,
+            fetch_job_page,
+            analyze_job_target,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,

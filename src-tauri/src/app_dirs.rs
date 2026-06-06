@@ -1,19 +1,20 @@
 // ============================================================================
-// STABILITY CONTRACT — APP DIRS (shared data root for bearer + DB)
+// STABILITY CONTRACT — APP DIRS (shared data root for bearer + xai-key + DB)
 // ============================================================================
 //
 // THIS MODULE IS A STABILITY HOTSPOT.
 //
 // - It defines the single source of truth for where collab-finder keeps its local data.
-// - Bearer credentials (keyring + `x-bearer` file) AND the SQLite history DB both depend on it.
+// - Bearer credentials (keyring + `x-bearer` file) + xAI key (keyring + `xai-key` file)
+//   AND the SQLite history DB both depend on it.
 // - Unrelated refactors that touch "storage", "data layout", "app dirs", "paths", "x-content policy",
-//   db init, or secrets have historically broken keyring access or the credentials panel.
+//   db init, or secrets have historically broken keyring access or the credentials panels.
 //
 // RULES FOR AGENTS (Cursor, Grok, etc.):
 // - If your task mentions "storage policy", "snippets", "hydrate", "db", "tweets table", or
 //   "reorganize data" — READ THIS FILE and src-tauri/src/secrets.rs HEADER FIRST.
 // - Prefer editing here only for genuine path changes. Never inline or duplicate app_data_dir.
-// - After any edit: run `cd src-tauri && cargo test` (the harness tests exercise override for both bearer and DB).
+// - After any edit: run `cd src-tauri && cargo test` (the harness tests exercise override for bearer, xai-key, and DB).
 //
 // Do not "clean up", "modernize", or "extract config" this without explicit approval and full verification.
 // ============================================================================

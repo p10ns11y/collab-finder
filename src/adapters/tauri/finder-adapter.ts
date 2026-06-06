@@ -35,6 +35,10 @@ export function createTauriFinderPort(): FinderPort {
     hydrateTweet: (id) => safeInvoke('hydrate_tweet', { id }),
     logEvent: (eventType, payload, correlationId) =>
       safeInvoke('log_event', { eventType, payload, correlationId }),
+
+    // Job targets (web/paste focus)
+    fetchJobPage: (url) => safeInvoke('fetch_job_page', { url }),
+    analyzeJobTarget: (payload) => safeInvoke('analyze_job_target', payload),
   }
 }
 
