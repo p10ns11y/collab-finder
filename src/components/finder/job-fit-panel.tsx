@@ -20,9 +20,11 @@ type Props = {
   result: JobResult | null
   error: string | null
   busy: boolean
+  sourceUrl?: string
+  onClear?: () => void
 }
 
-export function JobFitPanel({ result, error, busy }: Props) {
+export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
@@ -67,6 +69,7 @@ export function JobFitPanel({ result, error, busy }: Props) {
         </div>
         <div className="text-[10px] text-ink-faint">
           opportunity #{result.opportunity_id} · ~${result.est_cost_usd?.toFixed(4) ?? '—'}
+          {score >= 75 ? ' — Strong fit' : score >= 55 ? ' — Moderate fit — review gaps' : ' — Low fit — significant gaps'}
         </div>
       </CardHeader>
 
@@ -108,6 +111,38 @@ export function JobFitPanel({ result, error, busy }: Props) {
             <p className="text-accent font-medium text-sm">{fit.recommended_action}</p>
           </div>
         )}
+
+        {/* Polish actions per feedback (Slice B) */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {sourceUrl && (
+            <button
+              onClick={() => { try { window.open(sourceUrl, '_blank', 'noopener,noreferrer') } catch {} }}
+              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
+            >
+              Open job URL
+            </button>
+          )}
+          {fit.recommended_action && (
+            <button
+              onClick={() => {
+                const text = fit.recommended_action || ''
+                if (text) navigator.clipboard?.writeText(text).catch(() => {})
+              }}
+              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
+            >
+              Copy recommended action
+            </button>
+          )}
+          {onClear && (
+            <button
+              onClick={onClear}
+              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent ml-auto"
+              title="Dismiss this result so X results or empty state can show again"
+            >
+              Clear / analyze another
+            </button>
+          )}
+        </div>
 
         {result.packet_preview && (
           <details className="text-[10px] text-ink-faint">

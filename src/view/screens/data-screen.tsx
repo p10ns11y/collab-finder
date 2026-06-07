@@ -4,23 +4,29 @@ import { Button } from '../../components/ui/button'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
-import type { Event, Lead, SearchRun } from '../../core/domain/history'
+import type { Event, Lead, Opportunity, SearchRun } from '../../core/domain/history'
 
 type Props = {
   view: FinderViewState
   dispatch: Dispatch<FinderMsg>
 }
 
-type TableKey = 'searches' | 'leads' | 'events'
+type TableKey = 'searches' | 'leads' | 'events' | 'opportunities'
 
 export function DataScreen({ view, dispatch }: Props) {
   const [active, setActive] = useState<TableKey>('searches')
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'id', dir: 'desc' })
 
-  const { historySearches, historyLeads, historyEvents } = view
+  const { historySearches, historyLeads, historyEvents, historyOpportunities = [] } = view
 
-  const rows = active === 'searches' ? historySearches : active === 'leads' ? historyLeads : historyEvents
+  const rows = active === 'searches'
+    ? historySearches
+    : active === 'leads'
+    ? historyLeads
+    : active === 'events'
+    ? historyEvents
+    : historyOpportunities
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -59,14 +65,19 @@ export function DataScreen({ view, dispatch }: Props) {
   return (
     <div className="h-full flex flex-col overflow-hidden p-3 lg:p-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {(['searches', 'leads', 'events'] as const).map((k) => (
+        {(['searches', 'leads', 'events', 'opportunities'] as const).map((k) => (
           <button
             key={k}
             onClick={() => { setActive(k); setFilter('') }}
             className={`px-3 py-1 text-xs rounded border ${active === k ? 'bg-surface-2 border-accent text-accent' : 'border-border-subtle text-ink-muted hover:text-ink'}`}
           >
-            {k === 'searches' ? 'Search Runs' : k === 'leads' ? 'Leads' : 'Events'}
-            <span className="ml-1 text-ink-faint">({k === 'searches' ? historySearches.length : k === 'leads' ? historyLeads.length : historyEvents.length})</span>
+            {k === 'searches' ? 'Search Runs' : k === 'leads' ? 'Leads' : k === 'events' ? 'Events' : 'Opportunities'}
+            <span className="ml-1 text-ink-faint">({
+              k === 'searches' ? historySearches.length :
+              k === 'leads' ? historyLeads.length :
+              k === 'events' ? historyEvents.length :
+              historyOpportunities.length
+            })</span>
           </button>
         ))}
         <div className="flex-1 min-w-[12rem] ml-auto flex items-center gap-2">
@@ -105,6 +116,15 @@ export function DataScreen({ view, dispatch }: Props) {
             {active === 'events' && (
               <tr>
                 {['id', 'ts', 'event_type', 'correlation_id'].map((k) => (
+                  <th key={k} className="text-left px-3 py-2 font-normal cursor-pointer select-none hover:text-ink hover:underline underline-offset-2" onClick={() => toggleSort(k)}>
+                    {k} {sort.key === k ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                ))}
+              </tr>
+            )}
+            {active === 'opportunities' && (
+              <tr>
+                {['id', 'title', 'company', 'fit_score', 'status', 'source_url', 'last_updated'].map((k) => (
                   <th key={k} className="text-left px-3 py-2 font-normal cursor-pointer select-none hover:text-ink hover:underline underline-offset-2" onClick={() => toggleSort(k)}>
                     {k} {sort.key === k ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
                   </th>
@@ -150,6 +170,17 @@ export function DataScreen({ view, dispatch }: Props) {
                 <td className="px-3 py-1.5 text-ink-muted">{new Date(e.ts).toLocaleString()}</td>
                 <td className="px-3 py-1.5">{e.event_type}</td>
                 <td className="px-3 py-1.5 text-ink-faint truncate">{e.correlation_id ?? ''}</td>
+              </tr>
+            ))}
+            {active === 'opportunities' && (sorted as Opportunity[]).map((o) => (
+              <tr key={o.id} className="hover:bg-surface-2/50">
+                <td className="px-3 py-1.5 font-mono text-accent/80">{o.id}</td>
+                <td className="px-3 py-1.5 truncate max-w-[28ch]">{o.title || '—'}</td>
+                <td className="px-3 py-1.5 truncate max-w-[20ch]">{o.company || '—'}</td>
+                <td className="px-3 py-1.5">{o.fit_score ?? '—'}</td>
+                <td className="px-3 py-1.5"><Badge tone="neutral" className="text-[10px]">{o.status}</Badge></td>
+                <td className="px-3 py-1.5 font-mono text-[10px] text-ink-faint truncate max-w-[30ch]" title={o.source_url || ''}>{o.source_url ? o.source_url.replace(/^https?:\/\//, '').slice(0, 50) : '—'}</td>
+                <td className="px-3 py-1.5 text-ink-muted">{new Date(o.last_updated).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>

@@ -4,7 +4,6 @@ import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { TweetFeed } from '../../components/finder/tweet-feed'
 import { JobFitPanel } from '../../components/finder/job-fit-panel'
-import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -19,25 +18,24 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
 
-  // Lifted job target state (minimal for this iteration — right panel can react)
-  const [jobResult, setJobResult] = React.useState<any>(null)
-  const [jobError, setJobError] = React.useState<string | null>(null)
-  const [jobBusy, setJobBusy] = React.useState(false)
-
-  const showJobFit = !!jobResult || jobBusy || !!jobError
+  // Job target state is now in MVU model (jobTarget + jobTargetUrl); right panel priority per feedback.
+  const jt = model.jobTarget || { status: 'idle' as const }
+  const jobBusy = jt.status === 'loading'
+  const jobResult = jt.status === 'ready' ? jt.data : null
+  const jobError = jt.status === 'failed' ? (jt.error?.message || String(jt.error)) : null
+  const showJobFit = jobBusy || !!jobResult || !!jobError
 
   return (
     <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
       {/* Left: controls (scrollable) */}
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
-        {/* Quick Job Target (input only — results move to right panel) */}
+        {/* Quick Job Target (input only — results move to right panel via MVU) */}
         <QuickJobTarget
-          cvSummary={model.cvSummary}
           busy={jobBusy}
-          onBusyChange={setJobBusy}
-          onResult={(r) => { setJobResult(r); setJobError(null) }}
-          onError={(e) => { setJobError(e); setJobResult(null) }}
+          onAnalyzeRequested={(url, pasted_jd) =>
+            dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
+          }
         />
 
         <SearchWorkspace
@@ -70,7 +68,13 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       {/* Right: contextual results (job fit takes priority over X feed) */}
       <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
         {showJobFit ? (
-          <JobFitPanel result={jobResult} error={jobError} busy={jobBusy} />
+          <JobFitPanel
+            result={jobResult}
+            error={jobError}
+            busy={jobBusy}
+            sourceUrl={model.jobTargetUrl}
+            onClear={() => dispatch({ type: 'JobTargetCleared' })}
+          />
         ) : (
           <>
             <TweetFeed tweets={view.tweets} />
@@ -88,48 +92,24 @@ export function DiscoverScreen({ view, dispatch }: Props) {
 }
 
 type QuickJobTargetProps = {
-  cvSummary: string
   busy: boolean
-  onBusyChange: (b: boolean) => void
-  onResult: (r: any) => void
-  onError: (e: string) => void
+  onAnalyzeRequested: (url?: string, pasted_jd?: string) => void
 }
 
 /** Quick Job Target input form.
- *  Results are lifted to parent so they render in the contextual right panel (per feedback).
- *  Uses the CV summary from the textarea below for grounding.
+ *  Dispatches MVU message; results render in right panel (JobFitPanel) via model.jobTarget.
+ *  CV summary is read from model inside the effect (no need to thread through input form).
+ *  No direct invoke — all I/O goes through effects/ports (per architecture).
  */
-function QuickJobTarget({ cvSummary, busy, onBusyChange, onResult, onError }: QuickJobTargetProps) {
+function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
   const [url, setUrl] = React.useState('')
   const [pasted, setPasted] = React.useState('')
 
-  const runAnalyze = async (_wantPrep: boolean) => {
-    onBusyChange(true)
-    onError('')
-    try {
-      const hasKey = await safeInvoke<boolean>('has_xai_key', {})
-      if (!hasKey.ok || !hasKey.value) {
-        onError('Please save your xAI API key first in Settings → xAI Intelligence panel.')
-        return
-      }
+  const canAnalyze = !busy && (url.trim() || pasted.trim())
 
-      const payload: any = {
-        url: url.trim() || undefined,
-        pasted_jd: pasted.trim() || undefined,
-        cv_summary: cvSummary || undefined,
-      }
-
-      const res = await safeInvoke<any>('analyze_job_target', payload)
-      if (res.ok) {
-        onResult(res.value)
-      } else {
-        onError(res.error?.message || String(res.error))
-      }
-    } catch (e: any) {
-      onError(e?.message || String(e))
-    } finally {
-      onBusyChange(false)
-    }
+  const run = (wantPrep: boolean) => {
+    if (wantPrep) return // disabled until Slice C prep path
+    onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)
   }
 
   return (
@@ -153,14 +133,14 @@ function QuickJobTarget({ cvSummary, busy, onBusyChange, onResult, onError }: Qu
       />
       <div className="flex gap-2">
         <button
-          onClick={() => runAnalyze(false)}
-          disabled={busy || (!url.trim() && !pasted.trim())}
+          onClick={() => run(false)}
+          disabled={!canAnalyze}
           className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
         >
           {busy ? 'Analyzing…' : 'Analyze fit'}
         </button>
         <button
-          onClick={() => runAnalyze(true)}
+          onClick={() => run(true)}
           disabled
           title="Full prep (CV tweaks + cover letter) ships in the next slice"
           className="px-3 py-1.5 text-sm rounded border border-border-default opacity-60 cursor-not-allowed"
