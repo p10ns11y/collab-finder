@@ -387,6 +387,24 @@ async fn get_events(db: State<'_, AppDb>, limit: Option<u32>) -> Result<Vec<db::
 }
 
 #[tauri::command]
+async fn get_opportunities(
+    db: State<'_, AppDb>,
+    q: Option<String>,
+    status: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<db::Opportunity>, String> {
+    let filter = db::OpportunityFilter {
+        q,
+        status,
+        min_fit: None,
+        limit,
+    };
+    db.0.lock()
+        .map(|s| s.get_opportunities(&filter))
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn search_past_tweets(
     db: State<'_, AppDb>,
     fts_query: String,
@@ -436,6 +454,7 @@ pub fn run() {
             clear_xai_key,
             fetch_job_page,
             analyze_job_target,
+            get_opportunities,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,
