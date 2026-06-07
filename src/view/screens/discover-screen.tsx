@@ -3,6 +3,7 @@ import { DecisionPanel } from '../../components/finder/decision-panel'
 import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { TweetFeed } from '../../components/finder/tweet-feed'
+import { JobFitPanel } from '../../components/finder/job-fit-panel'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -16,15 +17,28 @@ type Props = {
 /** Primary workspace: query + CV + presets left; live results feed right (split on lg+). */
 export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
-  const hasResults = view.tweets.length > 0
+  const hasXResults = view.tweets.length > 0
+
+  // Lifted job target state (minimal for this iteration — right panel can react)
+  const [jobResult, setJobResult] = React.useState<any>(null)
+  const [jobError, setJobError] = React.useState<string | null>(null)
+  const [jobBusy, setJobBusy] = React.useState(false)
+
+  const showJobFit = !!jobResult || jobBusy || !!jobError
 
   return (
     <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
       {/* Left: controls (scrollable) */}
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
-        {/* NEW: Quick Job Target (web URL or paste JD) — primary useful flow */}
-        <QuickJobTarget />
+        {/* Quick Job Target (input only — results move to right panel) */}
+        <QuickJobTarget
+          cvSummary={model.cvSummary}
+          busy={jobBusy}
+          onBusyChange={setJobBusy}
+          onResult={(r) => { setJobResult(r); setJobError(null) }}
+          onError={(e) => { setJobError(e); setJobResult(null) }}
+        />
 
         <SearchWorkspace
           query={model.query}
@@ -53,58 +67,68 @@ export function DiscoverScreen({ view, dispatch }: Props) {
         <PauseLog pauses={model.pauses} />
       </div>
 
-      {/* Right: results (fills, scrollable) */}
+      {/* Right: contextual results (job fit takes priority over X feed) */}
       <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
-        <TweetFeed tweets={view.tweets} />
-
-        {!hasResults && (
-          <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
-            No live results yet.<br />
-            Use the form on the left to search or run a guarded autonomous cycle.
-          </div>
+        {showJobFit ? (
+          <JobFitPanel result={jobResult} error={jobError} busy={jobBusy} />
+        ) : (
+          <>
+            <TweetFeed tweets={view.tweets} />
+            {!hasXResults && (
+              <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
+                No live results yet.<br />
+                Paste a job URL or JD on the left, or run an X search / cycle below.
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   )
 }
 
-/** Quick usable job target analyzer (direct invoke for fast dogfood).
- *  Full MVU integration + rich review panel comes in the next polish slice.
+type QuickJobTargetProps = {
+  cvSummary: string
+  busy: boolean
+  onBusyChange: (b: boolean) => void
+  onResult: (r: any) => void
+  onError: (e: string) => void
+}
+
+/** Quick Job Target input form.
+ *  Results are lifted to parent so they render in the contextual right panel (per feedback).
+ *  Uses the CV summary from the textarea below for grounding.
  */
-function QuickJobTarget() {
+function QuickJobTarget({ cvSummary, busy, onBusyChange, onResult, onError }: QuickJobTargetProps) {
   const [url, setUrl] = React.useState('')
   const [pasted, setPasted] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
-  const [result, setResult] = React.useState<any>(null)
-  const [error, setError] = React.useState<string | null>(null)
 
-  const runAnalyze = async (_fullPrep: boolean) => {
-    setBusy(true)
-    setError(null)
-    setResult(null)
+  const runAnalyze = async (_wantPrep: boolean) => {
+    onBusyChange(true)
+    onError('')
     try {
-      // First make sure we have xAI key (user provides it)
       const hasKey = await safeInvoke<boolean>('has_xai_key', {})
       if (!hasKey.ok || !hasKey.value) {
-        setError('Please save your xAI API key first in Settings → xAI Intelligence panel.')
-        setBusy(false)
+        onError('Please save your xAI API key first in Settings → xAI Intelligence panel.')
         return
       }
 
       const payload: any = {
         url: url.trim() || undefined,
         pasted_jd: pasted.trim() || undefined,
+        cv_summary: cvSummary || undefined,
       }
+
       const res = await safeInvoke<any>('analyze_job_target', payload)
       if (res.ok) {
-        setResult(res.value)
+        onResult(res.value)
       } else {
-        setError(res.error?.message || String(res.error))
+        onError(res.error?.message || String(res.error))
       }
     } catch (e: any) {
-      setError(e?.message || String(e))
+      onError(e?.message || String(e))
     } finally {
-      setBusy(false)
+      onBusyChange(false)
     }
   }
 
@@ -133,29 +157,20 @@ function QuickJobTarget() {
           disabled={busy || (!url.trim() && !pasted.trim())}
           className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
         >
-          {busy ? 'Analyzing…' : 'Analyze for fit'}
+          {busy ? 'Analyzing…' : 'Analyze fit'}
         </button>
         <button
           onClick={() => runAnalyze(true)}
-          disabled={busy || (!url.trim() && !pasted.trim())}
-          className="px-3 py-1.5 text-sm rounded bg-accent text-white disabled:opacity-50"
+          disabled
+          title="Full prep (CV tweaks + cover letter) ships in the next slice"
+          className="px-3 py-1.5 text-sm rounded border border-border-default opacity-60 cursor-not-allowed"
         >
-          {busy ? 'Working…' : 'Analyze + Full Prep'}
+          Analyze + Full Prep
         </button>
       </div>
 
-      {error && <div className="mt-2 text-xs text-danger">{error}</div>}
-
-      {result && (
-        <div className="mt-3 text-xs border border-border-subtle rounded p-2 bg-surface-0">
-          <div className="font-mono text-accent">opportunity #{result.opportunity_id}</div>
-          <div>Est cost: ${result.est_cost_usd?.toFixed(4) ?? '—'}</div>
-          <pre className="mt-1 max-h-48 overflow-auto text-[10px]">{JSON.stringify(result.fit, null, 2)}</pre>
-          <div className="mt-1 text-ink-faint">Packet preview (what was sent): {result.packet_preview?.slice(0, 200)}…</div>
-        </div>
-      )}
       <div className="mt-2 text-[10px] text-ink-faint">
-        Saves to local history. Full editable review + CV tweaks + letters in the next slice.
+        Uses the CV summary from the box below. Results appear on the right. Full prep coming soon.
       </div>
     </div>
   )
