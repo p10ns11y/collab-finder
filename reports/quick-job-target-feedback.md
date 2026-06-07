@@ -194,18 +194,20 @@ Until then: **disable or relabel** orange button.
 
 ### Slice A — Honest fit analysis (ship first)
 
-- [ ] Both buttons differentiated OR single button until prep exists
-- [ ] `cv_summary` from Discover CV textarea passed to `analyze_job_target`
-- [ ] Right panel shows structured fit (not JSON `<pre>`)
-- [ ] Loading/error states on right panel
-- [ ] Empty right state mentions job target OR X search
-- [ ] `pnpm build` + manual Greenhouse URL test
+- [x] Both buttons differentiated OR single button until prep exists (disabled orange + "Analyze fit" label)
+- [x] `cv_summary` from Discover CV textarea passed to `analyze_job_target`
+- [x] Right panel shows structured fit (not JSON `<pre>`) — JobFitPanel
+- [x] Loading/error states on right panel
+- [x] Empty right state mentions job target OR X search
+- [x] `pnpm build` + manual Greenhouse URL test (prior commit)
 
 ### Slice B — Visibility & architecture
 
-- [ ] MVU messages + effects for job target analyze
-- [ ] `get_opportunities` Tauri command + Data/History tab
-- [ ] Event log: `JobTargetAnalyzed` with opportunity_id, score, cost
+- [x] MVU messages + effects for job target analyze
+- [x] `get_opportunities` Tauri command + Data/History tab (opportunities tab in Data screen)
+- [x] Event log: `JobTargetAnalyzed` with opportunity_id, score, cost (plus History auto-refresh)
+
+**JobFitPanel polish shipped alongside Slice B:** "Open job URL", "Copy recommended action", "Clear / analyze another", score subtitle in header (55 → "Moderate fit — review gaps"). Source URL passed from discover (for open); clear resets model.jobTarget so X feed regains priority.
 
 ### Slice C — Full prep (follow-on)
 
