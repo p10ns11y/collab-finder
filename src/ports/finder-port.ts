@@ -5,6 +5,8 @@ import type {
   EventFilter,
   Lead,
   LeadFilter,
+  Opportunity,
+  OpportunityFilter,
   Pause,
   SearchRun,
   SearchRunWithTweets,
@@ -32,4 +34,5 @@ export type FinderPort = {
   // Job target (web/paste) — new primary flow
   fetchJobPage(url: string): Promise<Result<any, AppError>>
   analyzeJobTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<any, AppError>>
+  getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
 }

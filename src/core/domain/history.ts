@@ -86,3 +86,28 @@ export type EventFilter = {
   correlation_id?: string;
   limit?: number;
 };
+
+/// Web / pasted job targets persisted via analyze_job_target (Slice B+).
+/// Mirrors Rust db::Opportunity (v3 table).
+export type Opportunity = {
+  id: number;
+  kind: string; // 'web' | 'paste' | 'x-post'
+  source_url?: string;
+  source_ref?: string;
+  title?: string;
+  company?: string;
+  jd_text: string;
+  status: string;
+  fit_score?: number;
+  analysis_json?: string;
+  prep_artifacts_json?: string;
+  last_updated: string;
+  notes?: string;
+};
+
+export type OpportunityFilter = {
+  status?: string;
+  min_fit?: number;
+  q?: string;
+  limit?: number;
+};

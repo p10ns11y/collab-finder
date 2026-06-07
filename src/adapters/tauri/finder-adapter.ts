@@ -5,6 +5,8 @@ import type {
   EventFilter,
   Lead,
   LeadFilter,
+  Opportunity,
+  OpportunityFilter,
   Pause,
   SearchRun,
   SearchRunWithTweets,
@@ -12,7 +14,7 @@ import type {
 import { safeInvoke } from './safe-invoke'
 
 // Re-export filter types for the effects wrapper sig (used by history MVU)
-export type { LeadFilter, EventFilter } from '../../core/domain/history'
+export type { LeadFilter, EventFilter, OpportunityFilter } from '../../core/domain/history'
 
 export function createTauriFinderPort(): FinderPort {
   return {
@@ -39,6 +41,7 @@ export function createTauriFinderPort(): FinderPort {
     // Job targets (web/paste focus)
     fetchJobPage: (url) => safeInvoke('fetch_job_page', { url }),
     analyzeJobTarget: (payload) => safeInvoke('analyze_job_target', payload),
+    getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
   }
 }
 
@@ -107,6 +110,16 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async logEvent(eventType: string, payload?: string, correlationId?: string) {
       const result = await port.logEvent(eventType, payload, correlationId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async analyzeJobTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }) {
+      const result = await port.analyzeJobTarget(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async getOpportunities(filter?: OpportunityFilter) {
+      const result = await port.getOpportunities(filter)
       if (!result.ok) throw result.error
       return result.value
     },
