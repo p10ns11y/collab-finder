@@ -4,7 +4,7 @@ import { requireConnection, validateBearerDraft } from '../security/credentials-
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel } from './model'
-import type { LeadFilter } from '../../adapters/tauri/finder-adapter'
+import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 
 export type FinderPorts = {
   credentials: {
@@ -27,6 +27,9 @@ export type FinderPorts = {
     getSearchRun(id: number): Promise<import('../domain/history').SearchRunWithTweets | null>
     hydrateTweet(id: string): Promise<import('../domain/finder').Tweet>
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
+    // Job target analyze + visibility (MVU wired in Slice B)
+    analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<any>
+    getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
   }
 }
 
@@ -178,6 +181,44 @@ export function promoteCmd(ports: FinderPorts): Cmd<FinderMsg> {
   }
 }
 
+export function jobTargetAnalyzeCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  payload: { url?: string; pasted_jd?: string },
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const p = {
+      url: payload.url,
+      pasted_jd: payload.pasted_jd,
+      cv_summary: model.cvSummary || undefined,
+    }
+    void fromPromise(ports.finder.analyzeJobTarget(p), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'JobTargetAnalyzeFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'JobTargetAnalyzeSucceeded', result: result.value })
+
+      // Audit: JobTargetAnalyzed with opportunity_id, score, cost (per feedback spec)
+      const r: any = result.value
+      const fit: any = r?.fit || {}
+      const audit = JSON.stringify({
+        opportunity_id: r?.opportunity_id,
+        overall: fit.overall,
+        est_cost_usd: r?.est_cost_usd,
+      })
+      void fromPromise(ports.finder.logEvent('JobTargetAnalyzed', audit), toAppError).then((logRes) => {
+        if (logRes.ok) {
+          dispatch({ type: 'UiEventLogged', eventType: 'JobTargetAnalyzed', payload: audit })
+        }
+      })
+
+      // Refresh history so the new opportunity row appears in Data tab immediately (consistent with Search/Cycle)
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
 export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
   return (dispatch) => {
     // Parallel-ish loads for the dashboard slices.
@@ -201,6 +242,10 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       // Events for Data screen (was declared but never loaded before)
       void fromPromise(ports.finder.getEvents({ limit: 100 }), toAppError).then((r) => {
         if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
+      })
+      // Opportunities (job targets) for Data tab
+      void fromPromise(ports.finder.getOpportunities({ limit: 100 }), toAppError).then((r) => {
+        if (r.ok) dispatch({ type: 'HistoryRefreshed', opportunities: r.value })
       })
     })
   }
@@ -293,6 +338,8 @@ export function effectForMsg(
       return reactorRefreshCmd(ports)
     case 'PromoteRequested':
       return promoteCmd(ports)
+    case 'JobTargetAnalyzeRequested':
+      return jobTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
 
     // Auto refresh history after successful ops (data now in DB).
     case 'SearchSucceeded':

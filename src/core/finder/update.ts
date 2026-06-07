@@ -209,6 +209,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             searches: { status: 'loading' },
             leads: { status: 'loading' },
             stats: { status: 'loading' },
+            opportunities: { status: 'loading' },
           },
           banner: null,
         },
@@ -221,6 +222,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       if (msg.pauses) h.pauses = { status: 'ready', data: msg.pauses }
       if (msg.events) h.events = { status: 'ready', data: msg.events }
       if (msg.stats) h.stats = { status: 'ready', data: msg.stats }
+      if (msg.opportunities) h.opportunities = { status: 'ready', data: msg.opportunities }
       return [{ ...model, history: h }]
     }
 
@@ -232,6 +234,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             ...model.history,
             searches: { status: 'failed', error: msg.error },
             leads: { status: 'failed', error: msg.error },
+            opportunities: { status: 'failed', error: msg.error },
           },
           banner: msg.error,
         },
@@ -304,6 +307,40 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
 
     case 'HydrateCleared':
       return [{ ...model, hydrate: idle() }]
+
+    // Job target MVU (no raw invoke in views)
+    case 'JobTargetAnalyzeRequested':
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'loading' },
+          jobTargetUrl: msg.url,
+          banner: null,
+        },
+      ]
+    case 'JobTargetAnalyzeSucceeded':
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'ready', data: msg.result },
+        },
+      ]
+    case 'JobTargetAnalyzeFailed':
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+    case 'JobTargetCleared':
+      return [
+        {
+          ...model,
+          jobTarget: idle(),
+          jobTargetUrl: undefined,
+        },
+      ]
 
     default:
       return [model]

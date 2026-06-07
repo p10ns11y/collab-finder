@@ -4,6 +4,7 @@ import type {
   DashboardStats,
   Event,
   Lead,
+  Opportunity,
   Pause,
   SearchRun,
   SearchRunWithTweets,
@@ -50,6 +51,7 @@ export type FinderMsg =
       pauses?: Pause[]
       events?: Event[]
       stats?: DashboardStats
+      opportunities?: Opportunity[]
     }
   | { type: 'HistoryFailed'; error: AppError }
   | { type: 'UiEventLogged'; eventType: string; payload?: string }
@@ -70,3 +72,9 @@ export type FinderMsg =
   | { type: 'HydrateFailed'; error: AppError }
   | { type: 'LookupCleared' }
   | { type: 'HydrateCleared' }
+
+  // Job target analyze (MVU integration for Quick Job Target — Slice B)
+  | { type: 'JobTargetAnalyzeRequested'; url?: string; pasted_jd?: string }
+  | { type: 'JobTargetAnalyzeSucceeded'; result: any }
+  | { type: 'JobTargetAnalyzeFailed'; error: AppError }
+  | { type: 'JobTargetCleared' }
