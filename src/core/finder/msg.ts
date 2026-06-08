@@ -78,3 +78,8 @@ export type FinderMsg =
   | { type: 'JobTargetAnalyzeSucceeded'; result: any }
   | { type: 'JobTargetAnalyzeFailed'; error: AppError }
   | { type: 'JobTargetCleared' }
+
+  // Job target prep (Slice C — Full Prep artifacts after fit evaluation)
+  | { type: 'JobTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
+  | { type: 'JobTargetPrepSucceeded'; result: any }
+  | { type: 'JobTargetPrepFailed'; error: AppError }

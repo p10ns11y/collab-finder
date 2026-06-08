@@ -22,14 +22,15 @@ type Props = {
   busy: boolean
   sourceUrl?: string
   onClear?: () => void
+  onPrepRequested?: (opportunityId?: number) => void
 }
 
-export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) {
+export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
         <CardHeader>
-          <CardTitle className="text-sm">Evaluating fit with grok-4.3…</CardTitle>
+          <CardTitle className="text-sm">Working with grok-4.3…</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-4 w-2/3 animate-pulse bg-surface-2 rounded" />
@@ -43,18 +44,18 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
     return (
       <Card className="border-danger/30 bg-danger/5">
         <CardHeader>
-          <CardTitle className="text-sm text-danger">Analysis failed</CardTitle>
+          <CardTitle className="text-sm text-danger">Job target failed</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-ink-muted">{error}</CardContent>
       </Card>
     )
   }
 
-  if (!result || !result.fit) {
+  if (!result || (!result.fit && !(result as any)?.prep)) {
     return null
   }
 
-  const fit = result.fit
+  const fit: any = result.fit || {}
   const score = fit.overall ?? 0
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
 
@@ -86,7 +87,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
             <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Must address</div>
             {fit.gaps_must && fit.gaps_must.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_must.map((g, i) => <li key={i}>{g}</li>)}
+                {fit.gaps_must.map((g: string, i: number) => <li key={i}>{g}</li>)}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>
@@ -97,7 +98,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
             <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Nice to have</div>
             {fit.gaps_nice && fit.gaps_nice.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_nice.map((g, i) => <li key={i}>{g}</li>)}
+                {fit.gaps_nice.map((g: string, i: number) => <li key={i}>{g}</li>)}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>
@@ -112,7 +113,44 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
           </div>
         )}
 
-        {/* Polish actions per feedback (Slice B) */}
+        {/* Slice C: Prep artifacts (letter, CV suggestions, research) */}
+        { (result as any)?.prep && (
+          <div className="space-y-3 border-t border-border-subtle pt-3 mt-1">
+            <div className="text-[10px] uppercase tracking-wide text-ink-faint">Prep pack (grok-4.3)</div>
+
+            {(result as any).prep.cover_letter && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Cover letter</div>
+                <pre className="text-xs whitespace-pre-wrap bg-surface-2 p-2 rounded max-h-48 overflow-auto text-ink-muted">{(result as any).prep.cover_letter}</pre>
+              </div>
+            )}
+
+            {(result as any).prep.cv_suggestions && (result as any).prep.cv_suggestions.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">CV suggestions</div>
+                <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
+                  {((result as any).prep.cv_suggestions as string[]).map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {(result as any).prep.research_notes && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Research notes</div>
+                <p className="text-xs text-ink-muted whitespace-pre-wrap">{(result as any).prep.research_notes}</p>
+              </div>
+            )}
+
+            {(result as any).prep.exceptional_work_example && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Exceptional work example</div>
+                <p className="text-xs text-ink-muted whitespace-pre-wrap">{(result as any).prep.exceptional_work_example}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Polish actions per feedback (Slice B) + Slice C prep trigger */}
         <div className="flex flex-wrap gap-2 pt-1">
           {sourceUrl && (
             <button
@@ -131,6 +169,15 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
               className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
             >
               Copy recommended action
+            </button>
+          )}
+          {onPrepRequested && result && ((result as any)?.fit?.overall ?? 0) >= 45 && (
+            <button
+              onClick={() => onPrepRequested((result as any).opportunity_id)}
+              className="px-2 py-1 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent"
+              title="Generate (or regenerate) cover letter + CV suggestions + research using the current CV summary. Skipped for very low fit scores."
+            >
+              {(result as any)?.prep ? 'Regenerate prep' : 'Generate prep pack'}
             </button>
           )}
           {onClear && (

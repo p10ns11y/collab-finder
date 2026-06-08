@@ -106,6 +106,7 @@ export type Opportunity = {
 };
 
 export type OpportunityFilter = {
+  id?: number;
   status?: string;
   min_fit?: number;
   q?: string;

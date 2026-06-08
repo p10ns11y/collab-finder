@@ -342,6 +342,43 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    // Job target prep (Slice C)
+    case 'JobTargetPrepRequested':
+      // Preserve previous ready data (the fit analysis) on the loading state.
+      // The AsyncState<'loading'> type doesn't declare .data, but we carry it
+      // here so the Succeeded reducer below can merge the prep artifacts
+      // without losing the original fit/score (the root cause of the 0/100 low fit
+      // bug after clicking the prep CTA in the panel).
+      const prevForPrep = (model.jobTarget && model.jobTarget.status === 'ready')
+        ? model.jobTarget.data
+        : undefined
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'loading', data: prevForPrep } as any,
+          banner: null,
+        },
+      ]
+    case 'JobTargetPrepSucceeded':
+      // Merge prep artifacts into the previous data (carried through the loading
+      // state) so the original fit analysis remains visible alongside the prep pack.
+      const prevData = (model.jobTarget as any)?.data || {}
+      const merged = { ...prevData, ...msg.result }
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'ready', data: merged },
+        },
+      ]
+    case 'JobTargetPrepFailed':
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+
     default:
       return [model]
   }

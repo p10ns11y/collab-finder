@@ -33,6 +33,7 @@ pub struct EventFilter {
 /// Simple filter for opportunities (web/paste targets).
 #[derive(Debug, Default, Clone)]
 pub struct OpportunityFilter {
+    pub id: Option<i64>,
     pub status: Option<String>,
     pub min_fit: Option<i32>,
     pub q: Option<String>,
@@ -937,6 +938,9 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
 
         let mut out: Vec<Opportunity> = rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())?;
 
+        if let Some(id) = filter.id {
+            out.retain(|o| o.id == id);
+        }
         if let Some(min) = filter.min_fit {
             out.retain(|o| o.fit_score.unwrap_or(0) >= min);
         }
@@ -1022,6 +1026,21 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             .execute(
                 "UPDATE opportunities SET status = ?1, notes = COALESCE(?2, notes), last_updated = datetime('now') WHERE id = ?3",
                 params![status, notes, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Set prep artifacts on an existing opportunity (used by prep_job_target to avoid creating duplicate rows).
+    pub fn set_prep_artifacts(&self, id: i64, prep_artifacts_json: &str, status: &str) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "UPDATE opportunities SET prep_artifacts_json = ?1, status = ?2, last_updated = datetime('now') WHERE id = ?3",
+                params![prep_artifacts_json, status, id],
             )
             .map_err(|e| e.to_string())?;
         Ok(())
