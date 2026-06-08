@@ -35,7 +35,7 @@ export function SidebarNav({ active, onNavigate, className }: Props) {
   return (
     <nav
       className={cn(
-        'w-14 md:w-16 border-r border-border-subtle bg-surface-1/60 flex flex-col py-2 shrink-0',
+        'w-14 md:w-28 border-r border-border-subtle bg-surface-1/60 flex flex-col py-2 shrink-0',
         className,
       )}
       aria-label="Screen navigation"
@@ -49,7 +49,7 @@ export function SidebarNav({ active, onNavigate, className }: Props) {
               type="button"
               onClick={() => onNavigate(id)}
               className={cn(
-                'group relative flex h-9 w-full items-center justify-center rounded-md transition-colors',
+                'group relative flex h-9 w-full items-center justify-center rounded-md transition-colors md:justify-start md:pl-2',
                 'hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
                 isActive
                   ? 'bg-surface-2 text-accent'
@@ -61,7 +61,8 @@ export function SidebarNav({ active, onNavigate, className }: Props) {
               {/* Active indicator rail */}
               {isActive && <span className="absolute left-0 top-1/2 -mt-2 h-4 w-0.5 rounded bg-accent" aria-hidden />}
               <Icon className={cn('h-4 w-4', isActive && 'text-accent')} aria-hidden />
-              <span className="sr-only">{label}</span>
+              <span className="ml-2 text-xs hidden md:inline truncate">{label}</span>
+              <span className="sr-only md:hidden">{label}</span>
             </button>
           )
         })}

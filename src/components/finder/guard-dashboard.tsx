@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Gauge, PauseCircle, Wallet } from 'lucide-react'
-import type { ReactorState } from '../../lib/types'
+import type { ReactorState } from '../../core/domain/finder'
 import { Badge } from '../ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 

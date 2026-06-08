@@ -24,7 +24,7 @@ Full prerequisites, credential flow, and verify commands: **[docs/SETUP.md](docs
 | MVU UI + guards | `src/core/finder/`, `src/view/`, `src/components/finder/` |
 | Tauri bridge | `src/adapters/tauri/`, `src/ports/` |
 | Live X search + secrets | `src-tauri/src/lib.rs`, `commands.rs`, `secrets.rs` |
-| Durable history (SQLite) | `src-tauri/src/db.rs`, `HistoryDashboard` |
+| Durable history (SQLite) | `src-tauri/src/db.rs`, history MVU + history-screen |
 | Reactor + guards (Rust) | `src-tauri/src/finder_reactor.rs` |
 
 **Tauri commands today** (17 handlers; MCP server planned): credentials (`has_x_bearer`, `get_x_bearer_storage`, `set_x_bearer`, `clear_x_bearer`), finder/reactor (`search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead`), history/audit (`get_search_history`, `get_search_run`, `get_leads`, `get_dashboard_stats`, `get_recent_pauses`, `get_events`, `search_past_tweets`, `hydrate_tweet`, `log_event`). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
