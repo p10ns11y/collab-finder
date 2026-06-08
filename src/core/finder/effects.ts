@@ -234,6 +234,7 @@ export function jobTargetPrepCmd(
     const jt = model.jobTarget
     // Note: may be 'loading' + carried data (the cheap preserve-for-merge pattern); use guard not status check only.
     if (jt && (jt.status === 'ready' || jt.status === 'loading') && 'data' in jt && jt.data) {
+      // SAFETY: cast only to consume the preserved carry data on loading arm (see update.ts SAFETY comments + design PR2 carry hack); 'in' narrowing used immediately after.
       const d = jt.data as JobTargetResult
       if ('fit' in d && d.fit) {
         previous_fit = JSON.stringify({

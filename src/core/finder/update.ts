@@ -351,12 +351,14 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       // without losing the original fit/score (the root cause of the 0/100 low fit
       // bug after clicking the prep CTA in the panel).
       // (Cheap carry hack preserved per design; no new state machinery or model fields added.)
+      // Only pull from 'ready' here (a 'loading' carry from a concurrent/prior prep request would be stale anyway; the effects previous_fit path handles the transient loading+data case).
       const prevForPrep: JobTargetResult | undefined = (model.jobTarget && model.jobTarget.status === 'ready')
         ? model.jobTarget.data
         : undefined
       return [
         {
           ...model,
+          // SAFETY: intentional structural escape to carry .data on the loading arm (AsyncState<loading> has no data per async.ts:6-8); see design PR2 "cheap carry hack preserved (no new state machinery)", TD-006 + prior 0/100 prep bug. NOT `as any`; downstream uses 'in' guards + union.
           jobTarget: { status: 'loading', data: prevForPrep } as AsyncState<JobTargetResult>,
           banner: null,
         },
@@ -370,6 +372,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         'data' in model.jobTarget
           ? (model.jobTarget as { data?: JobTargetResult }).data
           : undefined
+      // SAFETY: the two `as` below are narrow escapes only for the preserved carry hack (see Requested case SAFETY + design); no `as any`, no behavior change.
       const merged: JobTargetResult = { ...(prevData ?? ({} as JobTargetResult)), ...msg.result } as JobTargetResult
       return [
         {

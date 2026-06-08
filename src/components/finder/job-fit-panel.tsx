@@ -60,7 +60,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
           <CardTitle className="text-sm flex items-center gap-2">
             { prep ? 'Fit analysis + Prep' : 'Fit analysis' } <span className="text-[10px] text-accent">grok-4.3</span>
           </CardTitle>
-          <Badge tone={tone as any}>{score}/100</Badge>
+          <Badge tone={tone}>{score}/100</Badge>
         </div>
         <div className="text-[10px] text-ink-faint">
           opportunity #{opportunityId ?? '—'} · ~${estCost?.toFixed(4) ?? '—'}
@@ -82,7 +82,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
             <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Must address</div>
             {fit?.gaps_must && fit.gaps_must.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_must.map((g: string, i: number) => <li key={i}>{g}</li>)}
+                {fit.gaps_must.map((g, i) => <li key={i}>{g}</li>)}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>
@@ -93,7 +93,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
             <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Nice to have</div>
             {fit?.gaps_nice && fit.gaps_nice.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_nice.map((g: string, i: number) => <li key={i}>{g}</li>)}
+                {fit.gaps_nice.map((g, i) => <li key={i}>{g}</li>)}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>

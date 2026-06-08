@@ -45,6 +45,7 @@ export type JobPrepResult = {
  * - After JobTargetAnalyzeSucceeded: JobAnalysisResult
  * - After JobTargetPrepSucceeded (merged in update): JobAnalysisResult & { prep: JobPrep } (fit preserved + prep added)
  * - JobPrepResult alone is possible in fallback flows
+ * Uses structural/property-presence narrowing (e.g. 'fit' in r) rather than a runtime 'type' tag (intentional: no new state, mirrors separate Rust results + client merge exactly; see PR2 design + update.ts).
  */
 export type JobTargetResult =
   | JobAnalysisResult
