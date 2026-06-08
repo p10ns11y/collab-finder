@@ -34,6 +34,9 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'CvSummaryChanged':
       return [{ ...model, cvSummary: msg.cvSummary }]
 
+    case 'CvSummaryLoaded':
+      return [{ ...model, cvSummary: msg.cvSummary }]
+
     case 'PresetSelected':
       return [{ ...model, query: msg.query }]
 
@@ -386,6 +389,17 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           jobTarget: { status: 'failed', error: msg.error },
           banner: msg.error,
+        },
+      ]
+
+    case 'OpportunitySelected':
+      // Set loading for feedback (reuse JobTarget loading UI); effect will get by id + dispatch *Succeeded to hydrate exact stored fit/prep.
+      // No new model fields; screen nav + jobTarget set by the Succeeded handlers + effect.
+      return [
+        {
+          ...model,
+          jobTarget: { status: 'loading' } as AsyncState<JobTargetResult>,
+          banner: null,
         },
       ]
 

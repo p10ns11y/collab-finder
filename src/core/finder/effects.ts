@@ -218,6 +218,11 @@ export function jobTargetAnalyzeCmd(
 
       // Refresh history so the new opportunity row appears in Data tab immediately (consistent with Search/Cycle)
       dispatch({ type: 'HistoryRefreshRequested' })
+
+      // Persist as last for resume/continuity (power-off mid job; explicit Resume last + auto on next start).
+      try {
+        localStorage.setItem('cf.lastOppId', String(r.opportunity_id))
+      } catch {}
     })
   }
 }
@@ -275,6 +280,14 @@ export function jobTargetPrepCmd(
       })
 
       dispatch({ type: 'HistoryRefreshRequested' })
+
+      // Persist as last (in case prep created/updated the opp row).
+      const lastIdForPrep = r.opportunity_id ?? payload.opportunity_id
+      if (lastIdForPrep != null) {
+        try {
+          localStorage.setItem('cf.lastOppId', String(lastIdForPrep))
+        } catch {}
+      }
     })
   }
 }
@@ -376,6 +389,115 @@ export function logUiEventCmd(
   }
 }
 
+/** CV persist via localStorage (FE-owned for fast edits; loaded on AppStarted; per continuity design + user confirm).
+ *  Key chosen as `cf.cvSummary` for namespacing. No Rust change.
+ */
+export function persistCvSummaryCmd(cvSummary: string): Cmd<FinderMsg> {
+  return () => {
+    try {
+      localStorage.setItem('cf.cvSummary', cvSummary)
+    } catch {
+      // best-effort; non-fatal for continuity
+    }
+  }
+}
+
+export function loadCvSummaryCmd(): Cmd<FinderMsg> {
+  return (dispatch) => {
+    try {
+      const v = localStorage.getItem('cf.cvSummary')
+      if (v != null) {
+        dispatch({ type: 'CvSummaryLoaded', cvSummary: v })
+      }
+    } catch {
+      // ignore; will use DEFAULT from initial model
+    }
+  }
+}
+
+/** Load specific opportunity by id (via existing getOpportunities + OpportunityFilter.id support).
+ *  Reconstructs typed results from the stored JSON blobs (analysis_json / prep_artifacts_json) and
+ *  dispatches the existing *Succeeded messages so update + JobFitPanel reuse all carry/merge/typed paths exactly (no new state).
+ *  Also navigates to discover. Persists the id as last for resume.
+ */
+export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.getOpportunities({ id }), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'JobTargetAnalyzeFailed', error: result.error })
+        return
+      }
+      const opps = result.value || []
+      const o = opps.find((x) => x.id === id) || opps[0]
+      if (!o) {
+        dispatch({
+          type: 'JobTargetAnalyzeFailed',
+          error: toAppError(new Error(`Opportunity ${id} not found`)),
+        })
+        return
+      }
+
+      // Navigate + set context for the job flow (reuses ScreenChanged + jobTargetUrl patterns).
+      dispatch({ type: 'ScreenChanged', screen: 'discover' })
+      // Note: jobTargetUrl is only set on AnalyzeRequested today; for hydrate we rely on the result.opportunity_id in panel + source_url display in Data.
+      // If we want, we could extend but per "smallest + reuse *Succeeded" we skip (no behavior change to active paths).
+
+      // Reconstruct analysis (fit) if present — dispatch the exact Succeeded used by live analyze path.
+      if (o.analysis_json) {
+        try {
+          const parsed = JSON.parse(o.analysis_json) as JobAnalysisResult
+          const analysis: JobAnalysisResult = {
+            opportunity_id: parsed.opportunity_id ?? o.id,
+            fit: parsed.fit,
+            packet_preview: parsed.packet_preview ?? '',
+            est_cost_usd: parsed.est_cost_usd ?? 0,
+          }
+          dispatch({ type: 'JobTargetAnalyzeSucceeded', result: analysis })
+        } catch {
+          // ignore malformed; user can re-eval
+        }
+      }
+
+      // Reconstruct prep if present — dispatch PrepSucceeded (update will merge with prior fit via the carry pattern).
+      if (o.prep_artifacts_json) {
+        try {
+          const parsed = JSON.parse(o.prep_artifacts_json) as Partial<JobPrepResult> & { prep?: any }
+          const prepResult: JobPrepResult = {
+            opportunity_id: parsed.opportunity_id ?? o.id,
+            prep: (parsed.prep || parsed) as any, // shape tolerant: stored may be inner prep or full result
+            est_cost_usd: parsed.est_cost_usd ?? 0,
+          }
+          dispatch({ type: 'JobTargetPrepSucceeded', result: prepResult })
+        } catch {
+          // ignore malformed
+        }
+      }
+
+      // Persist as last for explicit "Resume last" affordance + next start (best effort).
+      try {
+        localStorage.setItem('cf.lastOppId', String(o.id))
+      } catch {}
+    })
+  }
+}
+
+/** Best-effort load of last active opp on start (for full restart continuity + laptop-off resume).
+ *  Dispatches OpportunitySelected so the single load/hydrate path + nav is used (reuses everything).
+ */
+export function loadLastOpportunityCmd(): Cmd<FinderMsg> {
+  return (dispatch) => {
+    try {
+      const raw = localStorage.getItem('cf.lastOppId')
+      if (raw) {
+        const id = parseInt(raw, 10)
+        if (Number.isFinite(id) && id > 0) {
+          dispatch({ type: 'OpportunitySelected', id })
+        }
+      }
+    } catch {}
+  }
+}
+
 /** Maps messages that need I/O to commands. Pure update runs first in program layer. */
 export function effectForMsg(
   ports: FinderPorts,
@@ -385,7 +507,8 @@ export function effectForMsg(
   switch (msg.type) {
     case 'AppStarted':
       // Load creds + initial history for the dashboard.
-      return [credentialsCheckCmd(ports), historyRefreshCmd(ports)]
+      // + CV from LS (persist) + conditional last opp hydrate for continuity (reuses OpportunitySelected path).
+      return [credentialsCheckCmd(ports), historyRefreshCmd(ports), loadCvSummaryCmd(), loadLastOpportunityCmd()]
     case 'CredentialsSaveRequested':
       return credentialsSaveCmd(ports, model)
     case 'CredentialsClearRequested':
@@ -435,6 +558,13 @@ export function effectForMsg(
         return credentialsCheckCmd(ports)
       }
       return undefined
+
+    // CV persist side-effect (on every edit; load is only on AppStarted).
+    case 'CvSummaryChanged':
+      return persistCvSummaryCmd(msg.cvSummary)
+
+    case 'OpportunitySelected':
+      return loadOpportunityCmd(ports, msg.id)
 
     default:
       return undefined

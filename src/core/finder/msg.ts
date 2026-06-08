@@ -21,6 +21,7 @@ export type FinderMsg =
   | { type: 'PaletteClosed' }
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
+  | { type: 'CvSummaryLoaded'; cvSummary: string }
   | { type: 'PresetSelected'; query: string }
   | { type: 'CredentialsChecked'; storage: BearerStorageStatus }
   | { type: 'CredentialsDraftChanged'; draft: string }
@@ -84,3 +85,6 @@ export type FinderMsg =
   | { type: 'JobTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
   | { type: 'JobTargetPrepSucceeded'; result: JobPrepResult }
   | { type: 'JobTargetPrepFailed'; error: AppError }
+
+  // Opportunity load for continuity (Data row click / Resume last / AppStarted hydrate; reuses getOpps + *Succeeded)
+  | { type: 'OpportunitySelected'; id: number }
