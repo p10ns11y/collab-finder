@@ -124,6 +124,39 @@ export function credentialsClearCmd(ports: FinderPorts): Cmd<FinderMsg> {
   }
 }
 
+/**
+ * Persist CV summary to localStorage on change.
+ * Key choice: 'cf.cvSummary.v1' — app-specific ('cf.'), simple, versioned for future
+ * (no DB/sidecar here; CV is user packet for dogfood, survives restart without re-paste).
+ * localStorage is sync and available in Tauri webview; best-effort (ignore errors).
+ */
+export function cvPersistCmd(cvSummary: string): Cmd<FinderMsg> {
+  return (_dispatch) => {
+    try {
+      localStorage.setItem('cf.cvSummary.v1', cvSummary)
+    } catch {
+      // Self-guard: persistence failure must never surface or break UX (e.g. private mode, quota).
+      // User simply re-enters on this run; default used on next if missing.
+    }
+  }
+}
+
+/** Load persisted CV (if any) into model via existing CvSummaryChanged (reuses handlers, no new msg). */
+export function cvLoadCmd(): Cmd<FinderMsg> {
+  return (dispatch) => {
+    try {
+      const stored = localStorage.getItem('cf.cvSummary.v1')
+      if (stored !== null) {
+        // Dispatch set; this will also trigger cvPersistCmd (harmless re-set of same value).
+        dispatch({ type: 'CvSummaryChanged', cvSummary: stored })
+      }
+      // Missing/empty: gracefully keep DEFAULT_CV_SUMMARY from initialFinderModel.
+    } catch {
+      // Storage unavailable: use default. No banner (non-critical UX continuity).
+    }
+  }
+}
+
 export function searchCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
   return (dispatch) => {
     const gate = requireConnection(model.credentials.connected)
@@ -382,7 +415,11 @@ export function effectForMsg(
   switch (msg.type) {
     case 'AppStarted':
       // Load creds + initial history for the dashboard.
-      return [credentialsCheckCmd(ports), historyRefreshCmd(ports)]
+      // Also load persisted CV summary (if present) via cvLoadCmd so it is in model before first use.
+      return [credentialsCheckCmd(ports), historyRefreshCmd(ports), cvLoadCmd()]
+    case 'CvSummaryChanged':
+      // Persist on every explicit change (user edit/paste/preset). Reuses CvSummaryChanged msg.
+      return cvPersistCmd(model.cvSummary)
     case 'CredentialsSaveRequested':
       return credentialsSaveCmd(ports, model)
     case 'CredentialsClearRequested':

@@ -12,6 +12,11 @@ export function createFinderProgram(ports: FinderPorts): Program<FinderModel, Fi
   }
 
   return createProgram({
+    // Init hook: the AppStarted msg (dispatched here) triggers effects including cvLoadCmd
+    // (see effects.ts) which reads localStorage and dispatches CvSummaryChanged if present.
+    // Because init[1] cmds run synchronously before createProgram returns, the model
+    // observed on first getModel()/use has the persisted CV (or default). Persists via
+    // effect on CvSummaryChanged.
     init: [initialFinderModel(), (dispatch) => dispatch({ type: 'AppStarted' })],
     update,
   })
