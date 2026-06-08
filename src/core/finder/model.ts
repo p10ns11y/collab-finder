@@ -30,7 +30,7 @@ export type PersistedSession = {
   jobTargetUrl?: string
 }
 
-const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings']
+const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'hunt']
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
   return typeof s === 'string' && VALID_SCREENS.includes(s as FinderScreen)
@@ -43,6 +43,7 @@ export type FinderScreen =
   | 'data'
   | 'lookup'
   | 'settings'
+  | 'hunt'
 
 export type CredentialsSlice = {
   connected: boolean

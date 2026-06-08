@@ -50,9 +50,31 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           }
         />
 
-        {/* Resume last work (explicit affordance per design + user decision for restore).
-           Reuses historyOpportunities (populated by HistoryRefreshed + selectors + getOpps) + OpportunitySelected dispatch.
-           Loads exact stored analysis/prep into jobTarget without re-pay. Shows only when no active job. */}
+        {/* Your Jobs rail (always visible list from opportunities - the "list is memory" per plan).
+           Click loads into panel (reuse OpportunitySelected + load from DB blobs, no new xAI).
+           Optimistic updates via refresh after analyze/prep. This is the primary "intuitive" surface. */}
+        <div className="border border-border-subtle rounded p-2">
+          <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS (rail - always visible)</div>
+          {historyOpportunities.length === 0 ? (
+            <div className="text-xs text-ink-faint">No jobs yet. Paste URL below to evaluate.</div>
+          ) : (
+            <div className="space-y-1 max-h-40 overflow-auto text-xs">
+              {historyOpportunities.slice(0, 8).map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
+                  className="w-full text-left px-2 py-1 rounded hover:bg-surface-2 border border-border-subtle/50 flex justify-between"
+                  title={`Load job #${o.id} fit+prep (from DB, no xAI call)`}
+                >
+                  <span>#{o.id} {o.title || o.source_url?.slice(0,40) || 'job'}</span>
+                  <span className="text-ink-faint">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Resume last (kept for compatibility, but rail above is the main) */}
         {!showJobFit && historyOpportunities.length > 0 && (
           <button
             onClick={() => {
@@ -60,9 +82,9 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               if (last) dispatch({ type: 'OpportunitySelected', id: last.id })
             }}
             className="w-full text-left px-3 py-1.5 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent flex items-center gap-2"
-            title="Load the most recent opportunity (by last_updated) from Data/History back into Discover jobTarget + fit/prep view. Reuses stored analysis without calling xAI again."
+            title="Load the most recent opportunity from the rail (reuses stored analysis/prep without xAI)."
           >
-            ↩ Resume last work <span className="text-ink-faint">(opp #{historyOpportunities[0].id})</span>
+            ↩ Resume last <span className="text-ink-faint">(#{historyOpportunities[0].id})</span>
           </button>
         )}
 
