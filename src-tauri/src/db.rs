@@ -9,14 +9,14 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
 pub struct LeadFilter {
     pub min_score: Option<i32>,
     pub status: Option<String>,
-    pub q: Option<String>, // simple LIKE on decision or notes; FTS separate
+    pub q: Option<String>,     // simple LIKE on decision or notes; FTS separate
     pub since: Option<String>, // ISO ts
     pub limit: Option<u32>,
 }
@@ -160,7 +160,11 @@ impl SqliteStore {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let conn = Self::open_connection(&db_path)?;
-        eprintln!("[db] opened {} (schema v{})", db_path.display(), SCHEMA_VERSION);
+        eprintln!(
+            "[db] opened {} (schema v{})",
+            db_path.display(),
+            SCHEMA_VERSION
+        );
         Ok(Self {
             conn: Mutex::new(conn),
             enabled: true,
@@ -211,7 +215,11 @@ impl SqliteStore {
         .map_err(|e| e.to_string())?;
 
         let current: i32 = conn
-            .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_migrations", [], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+                [],
+                |r| r.get(0),
+            )
             .map_err(|e| e.to_string())?;
 
         if current < 1 {
@@ -227,6 +235,11 @@ impl SqliteStore {
         if current < 3 {
             Self::migrate_v3(conn)?;
             Self::record_migration(conn, 3)?;
+        }
+
+        if current < 4 {
+            Self::migrate_v4(conn)?;
+            Self::record_migration(conn, 4)?;
         }
 
         Ok(())
@@ -394,6 +407,31 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         Ok(())
     }
 
+    /// v4 (data integrity foundation, TD-001): adds partial UNIQUE *index* on source_url (nullable via WHERE)
+    /// (for enforcement + query speed) + dedup step; upsert_opportunity uses explicit tx lookup+UPDATE/INSERT
+    /// (index alone does not enable ON CONFLICT(target) syntax in INSERT per SQLite rules; design allowed explicit form).
+    /// Deduplicates any pre-existing duplicate rows (from repeated Greenhouse etc before this fix)
+    /// by keeping the latest (max id) per source_url. Additive: optional content_hash column.
+    /// See tech-debt-deep-dive TD-001 + Phase 0 acceptance.
+    fn migrate_v4(conn: &Connection) -> Result<(), String> {
+        // Dedup before adding unique index (otherwise CREATE UNIQUE fails on pre-existing dups).
+        // Keep newest per url; null urls (pastes) untouched (multiple pastes intended).
+        conn.execute(
+            "DELETE FROM opportunities WHERE source_url IS NOT NULL AND id NOT IN (SELECT MAX(id) FROM opportunities WHERE source_url IS NOT NULL GROUP BY source_url)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+        // ALTER ADD COLUMN is idempotent via ignore; IF NOT EXISTS on index is safe.
+        let _ = conn.execute("ALTER TABLE opportunities ADD COLUMN content_hash TEXT", []);
+        let sql = r#"
+CREATE UNIQUE INDEX IF NOT EXISTS idx_opp_source_url ON opportunities(source_url) WHERE source_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
+        "#;
+        conn.execute_batch(sql).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn is_enabled(&self) -> bool {
         self.enabled
     }
@@ -439,7 +477,12 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
     }
 
     /// Record (or ignore dups) tweets + hits for a run. Idempotent on tweet id.
-    pub fn record_search_hits(&self, run_id: i64, tweets: &[XTweet], rank_start: i32) -> Result<(), String> {
+    pub fn record_search_hits(
+        &self,
+        run_id: i64,
+        tweets: &[XTweet],
+        rank_start: i32,
+    ) -> Result<(), String> {
         if !self.is_enabled() || run_id == 0 {
             return Ok(());
         }
@@ -536,6 +579,8 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         Ok(lead_id)
     }
 
+    /// Record a guard pause/intervention (wired from finder_reactor guard triggers for TD-003).
+    /// get_recent_pauses + stats.total_pauses now real (no more empty in prod use).
     pub fn record_pause(
         &self,
         reason: &str,
@@ -573,13 +618,22 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             .execute(
                 "INSERT INTO events (event_type, payload_json, correlation_id, source)
                  VALUES (?1, ?2, ?3, ?4)",
-                params![event_type, payload_json, correlation_id, source.unwrap_or("ui")],
+                params![
+                    event_type,
+                    payload_json,
+                    correlation_id,
+                    source.unwrap_or("ui")
+                ],
             )
             .map_err(|e| e.to_string())?;
         Ok(guard.last_insert_rowid())
     }
 
-    pub fn record_rate_snapshot(&self, remaining: Option<i32>, limit_val: Option<i32>) -> Result<(), String> {
+    pub fn record_rate_snapshot(
+        &self,
+        remaining: Option<i32>,
+        limit_val: Option<i32>,
+    ) -> Result<(), String> {
         if !self.is_enabled() {
             return Ok(());
         }
@@ -628,7 +682,8 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             })
             .map_err(|e| e.to_string())?;
 
-        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn get_search_run(&self, id: i64) -> Result<Option<SearchRunWithTweets>, String> {
@@ -661,7 +716,9 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             .optional()
             .map_err(|e| e.to_string())?;
 
-        let Some(run) = run else { return Ok(None); };
+        let Some(run) = run else {
+            return Ok(None);
+        };
 
         let mut stmt = guard
             .prepare(
@@ -720,7 +777,9 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             })
             .map_err(|e| e.to_string())?;
 
-        let mut out = rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())?;
+        let mut out = rows
+            .collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
 
         // Post-filter for min_score etc (small data, fine; keeps SQL simple & correct).
         if let Some(min) = filter.min_score {
@@ -732,9 +791,15 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         if let Some(ref q) = filter.q {
             let ql = q.to_lowercase();
             out.retain(|l| {
-                l.tweet_text.as_ref().is_some_and(|t| t.to_lowercase().contains(&ql))
-                    || l.decision_json.as_ref().is_some_and(|d| d.to_lowercase().contains(&ql))
-                    || l.notes.as_ref().is_some_and(|n| n.to_lowercase().contains(&ql))
+                l.tweet_text
+                    .as_ref()
+                    .is_some_and(|t| t.to_lowercase().contains(&ql))
+                    || l.decision_json
+                        .as_ref()
+                        .is_some_and(|d| d.to_lowercase().contains(&ql))
+                    || l.notes
+                        .as_ref()
+                        .is_some_and(|n| n.to_lowercase().contains(&ql))
             });
         }
 
@@ -770,7 +835,8 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             })
             .map_err(|e| e.to_string())?;
 
-        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn get_dashboard_stats(&self) -> Result<DashboardStats, String> {
@@ -781,22 +847,46 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
 
         let total_searches: i64 = guard
             .query_row("SELECT COUNT(*) FROM search_runs", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_searches query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let total_unique_leads: i64 = guard
             .query_row("SELECT COUNT(*) FROM leads", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!(
+                    "[db] stats total_unique_leads query failed (pre-existing; TD trust): {e}"
+                );
+                0
+            });
 
         let total_surfaces: i64 = guard
-            .query_row("SELECT COALESCE(SUM(seen_count), 0) FROM leads", [], |r| r.get(0))
-            .unwrap_or(0);
+            .query_row("SELECT COALESCE(SUM(seen_count), 0) FROM leads", [], |r| {
+                r.get(0)
+            })
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_surfaces query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let total_pauses: i64 = guard
             .query_row("SELECT COUNT(*) FROM pauses", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_pauses query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let avg_score: Option<f64> = guard
-            .query_row("SELECT AVG(score) FROM leads WHERE score IS NOT NULL", [], |r| r.get(0))
+            .query_row(
+                "SELECT AVG(score) FROM leads WHERE score IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| {
+                eprintln!("[db] stats avg_score query failed (pre-existing; TD trust): {e}");
+                e
+            })
             .ok();
 
         // Top queries (simple, last 50 runs).
@@ -826,6 +916,10 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
                 [],
                 |r| Ok((r.get::<_, String>(0)?, r.get(1)?)),
             )
+            .map_err(|e| {
+                eprintln!("[db] stats most_reseen query failed (pre-existing; TD trust): {e}");
+                e
+            })
             .ok();
 
         Ok(DashboardStats {
@@ -870,7 +964,8 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             })
             .map_err(|e| e.to_string())?;
 
-        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     /// Events for audit / timeline.
@@ -898,45 +993,86 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
             })
             .map_err(|e| e.to_string())?;
 
-        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     // --- Opportunities (web/paste job targets) ---
 
-    pub fn get_opportunities(&self, filter: &OpportunityFilter) -> Result<Vec<Opportunity>, String> {
+    pub fn get_opportunities(
+        &self,
+        filter: &OpportunityFilter,
+    ) -> Result<Vec<Opportunity>, String> {
         if !self.is_enabled() {
             return Ok(vec![]);
         }
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         let lim = filter.limit.unwrap_or(100).clamp(1, 500) as i64;
 
-        let mut stmt = guard
-            .prepare("SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
+        // TD-002 fix: when filter.id is set, push WHERE id=? into SQL so that prep_job_target(opportunity_id: old)
+        // and get by id work even when 50+ newer rows exist (N>50 newer per tech-debt-deep-dive:570-571).
+        // Previously: always LIMIT recency then in-mem retain, which dropped old ids.
+        let mut out: Vec<Opportunity> = if filter.id.is_some() {
+            let idv = filter.id.unwrap();
+            let mut stmt = guard
+                .prepare(
+                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
                       FROM opportunities
-                      ORDER BY last_updated DESC, fit_score DESC LIMIT ?1")
-            .map_err(|e| e.to_string())?;
-
-        let rows = stmt
-            .query_map(params![lim], |r| {
-                Ok(Opportunity {
-                    id: r.get(0)?,
-                    kind: r.get(1)?,
-                    source_url: r.get(2)?,
-                    source_ref: r.get(3)?,
-                    title: r.get(4)?,
-                    company: r.get(5)?,
-                    jd_text: r.get(6)?,
-                    status: r.get(7)?,
-                    fit_score: r.get(8)?,
-                    analysis_json: r.get(9)?,
-                    prep_artifacts_json: r.get(10)?,
-                    last_updated: r.get(11)?,
-                    notes: r.get(12)?,
+                      WHERE id = ?1
+                      ORDER BY last_updated DESC, fit_score DESC LIMIT ?2",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![idv, lim], |r| {
+                    Ok(Opportunity {
+                        id: r.get(0)?,
+                        kind: r.get(1)?,
+                        source_url: r.get(2)?,
+                        source_ref: r.get(3)?,
+                        title: r.get(4)?,
+                        company: r.get(5)?,
+                        jd_text: r.get(6)?,
+                        status: r.get(7)?,
+                        fit_score: r.get(8)?,
+                        analysis_json: r.get(9)?,
+                        prep_artifacts_json: r.get(10)?,
+                        last_updated: r.get(11)?,
+                        notes: r.get(12)?,
+                    })
                 })
-            })
-            .map_err(|e| e.to_string())?;
-
-        let mut out: Vec<Opportunity> = rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string())?;
+            rows.collect::<SqliteResult<Vec<_>>>()
+                .map_err(|e| e.to_string())?
+        } else {
+            let mut stmt = guard
+                .prepare(
+                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
+                      FROM opportunities
+                      ORDER BY last_updated DESC, fit_score DESC LIMIT ?1",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![lim], |r| {
+                    Ok(Opportunity {
+                        id: r.get(0)?,
+                        kind: r.get(1)?,
+                        source_url: r.get(2)?,
+                        source_ref: r.get(3)?,
+                        title: r.get(4)?,
+                        company: r.get(5)?,
+                        jd_text: r.get(6)?,
+                        status: r.get(7)?,
+                        fit_score: r.get(8)?,
+                        analysis_json: r.get(9)?,
+                        prep_artifacts_json: r.get(10)?,
+                        last_updated: r.get(11)?,
+                        notes: r.get(12)?,
+                    })
+                })
+                .map_err(|e| e.to_string())?;
+            rows.collect::<SqliteResult<Vec<_>>>()
+                .map_err(|e| e.to_string())?
+        };
 
         if let Some(id) = filter.id {
             out.retain(|o| o.id == id);
@@ -950,10 +1086,16 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         if let Some(ref qq) = filter.q {
             let ql: String = qq.to_lowercase();
             out.retain(|o| {
-                o.title.as_ref().is_some_and(|t| t.to_lowercase().contains(&ql))
-                    || o.company.as_ref().is_some_and(|c| c.to_lowercase().contains(&ql))
+                o.title
+                    .as_ref()
+                    .is_some_and(|t| t.to_lowercase().contains(&ql))
+                    || o.company
+                        .as_ref()
+                        .is_some_and(|c| c.to_lowercase().contains(&ql))
                     || o.jd_text.to_lowercase().contains(&ql)
-                    || o.analysis_json.as_ref().is_some_and(|a| a.to_lowercase().contains(&ql))
+                    || o.analysis_json
+                        .as_ref()
+                        .is_some_and(|a| a.to_lowercase().contains(&ql))
             });
         }
 
@@ -961,6 +1103,11 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
     }
 
     /// Insert or update an opportunity. Returns the id.
+    /// TD-001 fix: uses explicit lookup+UPDATE or INSERT (with tx) + the v4 partial UNIQUE index on source_url.
+    /// This makes re-analyze of same URL UPDATE the 1 existing row (ON CONFLICT(target) syntax not usable with index-only).
+    /// Replaces previous heuristic post-select. For source_url=NULL always inserts (no dedup intended).
+    /// The index still enforces no dups + was created after deduping legacy data.
+    /// Per tech-debt-deep-dive TD-001 + Phase 0 acceptance + design "or explicit UPDATE ... WHERE source_url = ?".
     pub fn upsert_opportunity(
         &self,
         kind: &str,
@@ -978,46 +1125,58 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         if !self.is_enabled() {
             return Ok(0);
         }
-        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
 
-        guard.execute(
-            "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-             ON CONFLICT DO UPDATE SET
-               last_updated = datetime('now'),
-               status = excluded.status,
-               fit_score = COALESCE(excluded.fit_score, opportunities.fit_score),
-               analysis_json = COALESCE(excluded.analysis_json, opportunities.analysis_json),
-               prep_artifacts_json = COALESCE(excluded.prep_artifacts_json, opportunities.prep_artifacts_json),
-               notes = COALESCE(excluded.notes, opportunities.notes)",
-            params![
-                kind,
-                source_url,
-                source_ref,
-                title,
-                company,
-                jd_text,
-                status,
-                fit_score,
-                analysis_json,
-                prep_artifacts_json,
-                notes
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-
-        let id: i64 = guard
-            .query_row(
-                "SELECT id FROM opportunities WHERE (source_url = ?1 AND ?1 IS NOT NULL) OR (jd_text = ?2) ORDER BY id DESC LIMIT 1",
-                params![source_url, jd_text],
-                |r| r.get(0),
+        let id: i64 = if let Some(u) = source_url {
+            if let Some(existing) = tx
+                .query_row(
+                    "SELECT id FROM opportunities WHERE source_url = ?1",
+                    params![u],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+            {
+                // update in place (keep original jd/source as "source of truth"; update status/fit/analysis etc)
+                tx.execute(
+                    "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
+                    params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
+                )
+                .map_err(|e| e.to_string())?;
+                existing
+            } else {
+                tx.execute(
+                    "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                    params![
+                        kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+                tx.last_insert_rowid()
+            }
+        } else {
+            // no url (paste etc): always new row
+            tx.execute(
+                "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
+                ],
             )
             .map_err(|e| e.to_string())?;
+            tx.last_insert_rowid()
+        };
 
+        tx.commit().map_err(|e| e.to_string())?;
         Ok(id)
     }
 
-    pub fn update_opportunity_status(&self, id: i64, status: &str, notes: Option<&str>) -> Result<(), String> {
+    pub fn update_opportunity_status(
+        &self,
+        id: i64,
+        status: &str,
+        notes: Option<&str>,
+    ) -> Result<(), String> {
         if !self.is_enabled() {
             return Ok(());
         }
@@ -1032,7 +1191,12 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
     }
 
     /// Set prep artifacts on an existing opportunity (used by prep_job_target to avoid creating duplicate rows).
-    pub fn set_prep_artifacts(&self, id: i64, prep_artifacts_json: &str, status: &str) -> Result<(), String> {
+    pub fn set_prep_artifacts(
+        &self,
+        id: i64,
+        prep_artifacts_json: &str,
+        status: &str,
+    ) -> Result<(), String> {
         if !self.is_enabled() {
             return Ok(());
         }
@@ -1085,7 +1249,12 @@ mod tests {
     #[test]
     fn disabled_store_is_noop() {
         let store = SqliteStore::disabled();
-        assert_eq!(store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap(), 0);
+        assert_eq!(
+            store
+                .record_search_run("q", "manual", None, None, None, 0, None, None)
+                .unwrap(),
+            0
+        );
         assert!(store.get_recent_searches(10).unwrap().is_empty());
         assert_eq!(store.get_dashboard_stats().unwrap().total_searches, 0);
     }
@@ -1095,7 +1264,9 @@ mod tests {
         let (_dir, store) = temp_store();
         let guard = store.conn.lock().unwrap();
         let v: i32 = guard
-            .query_row("SELECT MAX(version) FROM schema_migrations", [], |r| r.get(0))
+            .query_row("SELECT MAX(version) FROM schema_migrations", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(v, SCHEMA_VERSION);
         drop(guard);
@@ -1111,7 +1282,16 @@ mod tests {
             sample_tweet("2", "typescript react collab"),
         ];
         let run_id = store
-            .record_search_run("rust lang:en", "manual", Some(10), Some(100), Some(450), 50, Some(12), None)
+            .record_search_run(
+                "rust lang:en",
+                "manual",
+                Some(10),
+                Some(100),
+                Some(450),
+                50,
+                Some(12),
+                None,
+            )
             .unwrap();
         assert!(run_id > 0);
         store.record_search_hits(run_id, &tweets, 0).unwrap();
@@ -1129,10 +1309,19 @@ mod tests {
     #[test]
     fn upsert_lead_increments_seen_count() {
         let (_dir, store) = temp_store();
-        let id1 = store.upsert_lead("tw_99", Some(80), Some("prep"), None, "new", None).unwrap();
-        let id2 = store.upsert_lead("tw_99", Some(85), Some("prep"), None, "prepped", None).unwrap();
+        let id1 = store
+            .upsert_lead("tw_99", Some(80), Some("prep"), None, "new", None)
+            .unwrap();
+        let id2 = store
+            .upsert_lead("tw_99", Some(85), Some("prep"), None, "prepped", None)
+            .unwrap();
         assert_eq!(id1, id2);
-        let leads = store.get_leads(&LeadFilter { limit: Some(10), ..Default::default() }).unwrap();
+        let leads = store
+            .get_leads(&LeadFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(leads.len(), 1);
         assert_eq!(leads[0].seen_count, 2);
         assert_eq!(leads[0].status, "prepped");
@@ -1141,12 +1330,21 @@ mod tests {
     #[test]
     fn record_pause_event_and_stats() {
         let (_dir, store) = temp_store();
-        let run_id = store.record_search_run("q", "cycle", None, None, None, 0, None, None).unwrap();
+        let run_id = store
+            .record_search_run("q", "cycle", None, None, None, 0, None, None)
+            .unwrap();
         let pause_id = store
             .record_pause("fit low", Some("FitThreshold"), None, Some(run_id), None)
             .unwrap();
         assert!(pause_id > 0);
-        store.record_event("CycleRequested", Some(r#"{"q":"x"}"#), Some("c1"), Some("ui")).unwrap();
+        store
+            .record_event(
+                "CycleRequested",
+                Some(r#"{"q":"x"}"#),
+                Some("c1"),
+                Some("ui"),
+            )
+            .unwrap();
 
         let stats = store.get_dashboard_stats().unwrap();
         assert_eq!(stats.total_searches, 1);
@@ -1155,28 +1353,44 @@ mod tests {
         let pauses = store.get_recent_pauses(5).unwrap();
         assert_eq!(pauses[0].reason, "fit low");
 
-        let events = store.get_events(&EventFilter { limit: Some(5), ..Default::default() }).unwrap();
+        let events = store
+            .get_events(&EventFilter {
+                limit: Some(5),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(events[0].event_type, "CycleRequested");
     }
 
     #[test]
     fn record_search_hits_stores_snippet_not_full_text() {
         let (_dir, store) = temp_store();
-        let run_id = store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap();
+        let run_id = store
+            .record_search_run("q", "manual", None, None, None, 0, None, None)
+            .unwrap();
         let long = "x".repeat(crate::x_search::TWEET_SNIPPET_MAX_LEN + 40);
         store
             .record_search_hits(run_id, &[sample_tweet("long1", &long)], 0)
             .unwrap();
         let detail = store.get_search_run(run_id).unwrap().unwrap();
-        assert_eq!(detail.tweets[0].text.len(), crate::x_search::TWEET_SNIPPET_MAX_LEN);
+        assert_eq!(
+            detail.tweets[0].text.len(),
+            crate::x_search::TWEET_SNIPPET_MAX_LEN
+        );
     }
 
     #[test]
     fn fts_finds_indexed_tweet_text() {
         let (_dir, store) = temp_store();
-        let run_id = store.record_search_run("fts q", "manual", None, None, None, 0, None, None).unwrap();
+        let run_id = store
+            .record_search_run("fts q", "manual", None, None, None, 0, None, None)
+            .unwrap();
         store
-            .record_search_hits(run_id, &[sample_tweet("fts1", "unique zebra keyword collab")], 0)
+            .record_search_hits(
+                run_id,
+                &[sample_tweet("fts1", "unique zebra keyword collab")],
+                0,
+            )
             .unwrap();
         let hits = store.search_tweets_fts("zebra", 5).unwrap();
         assert_eq!(hits.len(), 1);
@@ -1186,8 +1400,12 @@ mod tests {
     #[test]
     fn lead_filter_min_score_and_status() {
         let (_dir, store) = temp_store();
-        store.upsert_lead("a", Some(50), None, None, "paused", None).unwrap();
-        store.upsert_lead("b", Some(90), None, None, "prepped", None).unwrap();
+        store
+            .upsert_lead("a", Some(50), None, None, "paused", None)
+            .unwrap();
+        store
+            .upsert_lead("b", Some(90), None, None, "prepped", None)
+            .unwrap();
         let filtered = store
             .get_leads(&LeadFilter {
                 min_score: Some(70),
@@ -1226,15 +1444,15 @@ mod tests {
     #[test]
     fn lead_text_filter_via_q() {
         let (_dir, store) = temp_store();
-        let run_id = store.record_search_run("q", "manual", None, None, None, 0, None, None).unwrap();
-        store
-            .record_search_hits(
-                run_id,
-                &[sample_tweet("z1", "zebra stripe pattern")],
-                0,
-            )
+        let run_id = store
+            .record_search_run("q", "manual", None, None, None, 0, None, None)
             .unwrap();
-        store.upsert_lead("z1", Some(80), None, None, "new", None).unwrap();
+        store
+            .record_search_hits(run_id, &[sample_tweet("z1", "zebra stripe pattern")], 0)
+            .unwrap();
+        store
+            .upsert_lead("z1", Some(80), None, None, "new", None)
+            .unwrap();
         let hits = store
             .get_leads(&LeadFilter {
                 q: Some("zebra".to_string()),
@@ -1253,5 +1471,285 @@ mod tests {
             .unwrap();
         let run = store.get_search_run(id).unwrap().unwrap().run;
         assert_eq!(run.error.as_deref(), Some("401"));
+    }
+
+    // --- Opportunity data integrity tests (TD-001 + TD-002) ---
+    // Per design PR1 + tech-debt-deep-dive Phase 0 acceptance:
+    // - re-analyze same URL updates 1 row (count stable)
+    // - prep-by-old-id (get by id) works when 50+ newer opps exist
+    // - id filter correctness
+
+    #[test]
+    fn upsert_opportunity_same_url_updates_one_row() {
+        let (_dir, store) = temp_store();
+        let url = Some("https://boards.greenhouse.io/example/jobs/123");
+        let id1 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("Software Engineer"),
+                Some("Example Co"),
+                "original jd text here",
+                "analyzed",
+                Some(75),
+                Some(r#"{"overall":75}"#),
+                None,
+                None,
+            )
+            .unwrap();
+        // Re-analyze same URL (e.g. re-fetch may have minor diff or same)
+        let id2 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("Software Engineer"),
+                Some("Example Co"),
+                "updated jd text here", // passed but per upsert logic, jd kept from first (source content)
+                "analyzed",
+                Some(82),
+                Some(r#"{"overall":82,"rationale":"improved"}"#),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(id1, id2, "same url must return same id and not create dup");
+
+        let all = store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            all.len(),
+            1,
+            "re-analyze same URL must keep count stable at 1"
+        );
+        let opp = &all[0];
+        assert_eq!(opp.id, id1);
+        assert_eq!(opp.fit_score, Some(82)); // updated
+        assert_eq!(opp.jd_text, "original jd text here"); // source jd not overwritten on conflict (existing behavior)
+        assert!(opp.analysis_json.as_ref().unwrap().contains("82"));
+    }
+
+    #[test]
+    fn get_opportunity_by_old_id_with_many_newer_rows() {
+        let (_dir, store) = temp_store();
+        // Simulate old opportunity (e.g. from prior session)
+        let old_id = store
+            .upsert_opportunity(
+                "web",
+                Some("https://old.example.com/job"),
+                None,
+                Some("Old Role"),
+                None,
+                "old jd for prep target",
+                "analyzed",
+                Some(65),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        // Insert 60 newer opportunities (N>50 as cited in reports)
+        for i in 0..60 {
+            let _ = store
+                .upsert_opportunity(
+                    "web",
+                    Some(&format!("https://new{}.example.com/job", i)),
+                    None,
+                    None,
+                    None,
+                    &format!("newer jd {}", i),
+                    "analyzed",
+                    Some(50),
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap();
+        }
+
+        // Now simulate what prep_job_target does: load by old opportunity_id (with limit=1)
+        let mut filter = OpportunityFilter::default();
+        filter.id = Some(old_id);
+        filter.limit = Some(1);
+        let opps = store.get_opportunities(&filter).unwrap();
+        assert_eq!(
+            opps.len(),
+            1,
+            "id filter must return old row even with 60 newer"
+        );
+        assert_eq!(opps[0].id, old_id);
+        assert_eq!(opps[0].jd_text, "old jd for prep target");
+
+        // Also without explicit limit (still must work)
+        let mut filter2 = OpportunityFilter::default();
+        filter2.id = Some(old_id);
+        let opps2 = store.get_opportunities(&filter2).unwrap();
+        assert_eq!(opps2.len(), 1);
+        assert_eq!(opps2[0].id, old_id);
+    }
+
+    #[test]
+    fn get_opportunities_id_filter_correctness() {
+        let (_dir, store) = temp_store();
+        let id_a = store
+            .upsert_opportunity(
+                "web",
+                Some("u/a"),
+                None,
+                Some("RoleA"),
+                None,
+                "jdA",
+                "new",
+                Some(90),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        let _id_b = store
+            .upsert_opportunity(
+                "web",
+                Some("u/b"),
+                None,
+                Some("RoleB"),
+                None,
+                "jdB",
+                "new",
+                Some(60),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        let all = store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(all.len(), 2);
+
+        let just_a = store
+            .get_opportunities(&OpportunityFilter {
+                id: Some(id_a),
+                limit: Some(5),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(just_a.len(), 1);
+        assert_eq!(just_a[0].title.as_deref(), Some("RoleA"));
+        assert_eq!(just_a[0].fit_score, Some(90));
+
+        let missing = store
+            .get_opportunities(&OpportunityFilter {
+                id: Some(999999),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn upsert_opportunity_null_url_creates_separate_rows() {
+        // Pastes (no source_url) should not dedup; each is distinct.
+        let (_dir, store) = temp_store();
+        let id1 = store
+            .upsert_opportunity(
+                "paste",
+                None,
+                None,
+                None,
+                None,
+                "paste one",
+                "analyzed",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        let id2 = store
+            .upsert_opportunity(
+                "paste",
+                None,
+                None,
+                None,
+                None,
+                "paste two",
+                "analyzed",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert_ne!(id1, id2);
+        let all = store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn upsert_opportunity_coalesce_preserves_values_on_none_reupsert() {
+        // Addresses review feedback (Issue 3): exercise COALESCE in re-upsert when passing None for fit_score/analysis_json/prep_artifacts/notes
+        // (only status + last_updated should change; priors preserved via COALESCE). Follows exact test patterns from sibling tests (e.g. same_url_updates_one_row).
+        let (_dir, store) = temp_store();
+        let url = Some("https://example.com/coalesce-test");
+        let id1 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("T"),
+                None,
+                "jd",
+                "analyzed",
+                Some(70),
+                Some(r#"{"a":1}"#),
+                Some("prep1"),
+                Some("note1"),
+            )
+            .unwrap();
+        // Re-upsert same url, Nones for coalesced fields, different status
+        let id2 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("T"),
+                None,
+                "jd",
+                "prepped",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(id1, id2);
+        let opps = store
+            .get_opportunities(&OpportunityFilter {
+                id: Some(id1),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(opps.len(), 1);
+        let o = &opps[0];
+        assert_eq!(o.status, "prepped");
+        assert_eq!(o.fit_score, Some(70)); // COALESCE preserved
+        assert!(o.analysis_json.as_ref().unwrap().contains("a\":1"));
+        assert_eq!(o.prep_artifacts_json.as_deref(), Some("prep1"));
+        assert_eq!(o.notes.as_deref(), Some("note1"));
     }
 }
