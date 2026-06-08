@@ -11,6 +11,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../../core/domain/history'
+import type { JobAnalysisResult, JobPageResult, JobPrepResult } from '../../core/domain/job-target'
 import { safeInvoke } from './safe-invoke'
 
 // Re-export filter types for the effects wrapper sig (used by history MVU)
@@ -39,9 +40,9 @@ export function createTauriFinderPort(): FinderPort {
       safeInvoke('log_event', { eventType, payload, correlationId }),
 
     // Job targets (web/paste focus)
-    fetchJobPage: (url) => safeInvoke('fetch_job_page', { url }),
-    analyzeJobTarget: (payload) => safeInvoke('analyze_job_target', payload),
-    prepJobTarget: (payload) => safeInvoke('prep_job_target', payload),
+    fetchJobPage: (url) => safeInvoke<JobPageResult>('fetch_job_page', { url }),
+    analyzeJobTarget: (payload) => safeInvoke<JobAnalysisResult>('analyze_job_target', payload),
+    prepJobTarget: (payload) => safeInvoke<JobPrepResult>('prep_job_target', payload),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
   }
 }
