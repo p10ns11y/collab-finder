@@ -847,21 +847,35 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
 
         let total_searches: i64 = guard
             .query_row("SELECT COUNT(*) FROM search_runs", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_searches query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let total_unique_leads: i64 = guard
             .query_row("SELECT COUNT(*) FROM leads", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!(
+                    "[db] stats total_unique_leads query failed (pre-existing; TD trust): {e}"
+                );
+                0
+            });
 
         let total_surfaces: i64 = guard
             .query_row("SELECT COALESCE(SUM(seen_count), 0) FROM leads", [], |r| {
                 r.get(0)
             })
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_surfaces query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let total_pauses: i64 = guard
             .query_row("SELECT COUNT(*) FROM pauses", [], |r| r.get(0))
-            .unwrap_or(0);
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats total_pauses query failed (pre-existing; TD trust): {e}");
+                0
+            });
 
         let avg_score: Option<f64> = guard
             .query_row(
@@ -869,6 +883,10 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
                 [],
                 |r| r.get(0),
             )
+            .map_err(|e| {
+                eprintln!("[db] stats avg_score query failed (pre-existing; TD trust): {e}");
+                e
+            })
             .ok();
 
         // Top queries (simple, last 50 runs).
@@ -898,6 +916,10 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
                 [],
                 |r| Ok((r.get::<_, String>(0)?, r.get(1)?)),
             )
+            .map_err(|e| {
+                eprintln!("[db] stats most_reseen query failed (pre-existing; TD trust): {e}");
+                e
+            })
             .ok();
 
         Ok(DashboardStats {

@@ -21,6 +21,7 @@ export function StatsScreen({ view }: Props) {
   const { model, historyStats, historySearches, historyLeads, historyPauses } = view
   // Use DB pauses projection (via get_recent_pauses + history.pauses) for "pauses logged" count (TD-003);
   // falls back to session model.pauses only if no DB records yet.
+  // Note (per review): historyPauses is the *recent limited slice* (N~20-30 from getRecentPauses); prefer historyStats.total_pauses (full COUNT) when available. length fallback may undercount on stats lag/failure for very high pause counts.
   const dbPausesCount = (historyStats?.total_pauses ?? (historyPauses?.length ?? 0))
   const pauseCount = dbPausesCount > 0 ? dbPausesCount : model.pauses.length
   const s = historyStats

@@ -46,7 +46,10 @@ pub fn read() -> Result<Option<String>, String> {
     if trimmed.is_empty() {
         Ok(None)
     } else {
-        eprintln!("[secrets] bearer token loaded from file store: {}", path.display());
+        eprintln!(
+            "[secrets] bearer token loaded from file store: {}",
+            path.display()
+        );
         Ok(Some(trimmed))
     }
 }
@@ -60,13 +63,17 @@ pub fn write(token: &str) -> Result<(), String> {
         .truncate(true)
         .open(&path)
         .map_err(|e| e.to_string())?;
-    file.write_all(token.as_bytes()).map_err(|e| e.to_string())?;
+    file.write_all(token.as_bytes())
+        .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?;
     }
-    eprintln!("[secrets] bearer token saved to file store: {}", path.display());
+    eprintln!(
+        "[secrets] bearer token saved to file store: {}",
+        path.display()
+    );
     Ok(())
 }
 
@@ -95,7 +102,10 @@ mod tests {
             let lock = test_harness::LOCK.lock().expect("file store test lock");
             let dir = TempDir::new().expect("tempdir");
             test_harness::set(dir.path().to_path_buf());
-            Self { _dir: dir, _lock: lock }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
         }
     }
 

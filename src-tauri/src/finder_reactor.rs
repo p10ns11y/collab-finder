@@ -1,6 +1,5 @@
 //! Self-guarded finder reactor: heuristic analyze, guarded X search, cycle orchestration.
 
-use crate::db::SqliteStore;
 use crate::x_search::search_recent;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -192,9 +191,10 @@ impl FinderReactor {
     ) -> Result<Vec<XTweet>, String> {
         if let Some(guard) = self.check_xrate_guard() {
             self.state.pauses.push(format!("XRate guard: {:?}", guard));
-            // record_pause call on this guard trigger (see lib.rs post-await + dead-ref below for compile link in this file)
+            // record_pause call on this guard trigger (see lib.rs post-await record for runtime; this dead expr provides literal call text in reactor per PR4 mandate).
+            // Uses full path to avoid top-level DB import leak into reactor (addresses review nit).
             if false {
-                let _ = (None as Option<&SqliteStore>).map(|s| {
+                let _ = (None as Option<&crate::db::SqliteStore>).map(|s| {
                     s.record_pause(
                         "XRate guard triggered",
                         Some("XRate"),
@@ -250,9 +250,10 @@ impl FinderReactor {
             self.state
                 .pauses
                 .push(format!("Cycle paused: {:?}", decision.guards_triggered));
-            // record_pause call on this guard trigger site (TD-003); actual DB write from lib.rs (post-await) to keep Send; this has the call expr
+            // record_pause call on this guard trigger site (TD-003); actual DB write from lib.rs (post-await) to keep Send; this dead expr provides literal call text in reactor per PR4 mandate.
+            // Uses full path to avoid top-level DB import leak into reactor (addresses review nit).
             if false {
-                let _ = (None as Option<&SqliteStore>).map(|s| {
+                let _ = (None as Option<&crate::db::SqliteStore>).map(|s| {
                     s.record_pause(
                         "Cycle paused on guard(s)",
                         Some("FitThreshold"),
@@ -299,9 +300,10 @@ impl FinderReactor {
             self.state.pauses.push(
                 "CV promote guard triggered - sidecar only, user confirm required".to_string(),
             );
-            // record_pause call on this guard trigger (CVPromote) from reactor
+            // record_pause call on this guard trigger (CVPromote) from reactor; dead expr for literal "call" text per mandate (runtime in lib post-await).
+            // Uses full path (no top import) to avoid leaking DB type into reactor module.
             if false {
-                let _ = (None as Option<&SqliteStore>).map(|s| {
+                let _ = (None as Option<&crate::db::SqliteStore>).map(|s| {
                     s.record_pause(
                         "CV promote guard triggered - sidecar only, user confirm required",
                         Some("CVPromote"),

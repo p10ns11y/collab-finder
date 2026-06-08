@@ -12,6 +12,7 @@ type Props = {
 
 export function HistoryScreen({ view, dispatch }: Props) {
   const { historySearches: searches, historyLeads: leads, historyPauses: pauses, historyStats: stats } = view
+  // pauses here is the recent slice from get_recent_pauses (DB projection per TD-003); list capped at 5 for display. Full count in stats.total_pauses.
   const hasData = searches.length > 0 || leads.length > 0 || pauses.length > 0
 
   return (

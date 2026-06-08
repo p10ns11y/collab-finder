@@ -1,5 +1,5 @@
 import { idle } from '../async'
-import { errorMessage } from '../error'
+import { appError, errorMessage } from '../error'
 import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
@@ -238,6 +238,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             leads: { status: 'failed', error: msg.error },
             pauses: { status: 'failed', error: msg.error },
             events: { status: 'failed', error: msg.error },
+            stats: { status: 'failed', error: msg.error },
             opportunities: { status: 'failed', error: msg.error },
           },
           banner: msg.error,
@@ -248,7 +249,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [
         {
           ...model,
-          banner: { code: 'persist', message: msg.message } as any,
+          banner: appError('persist', msg.message),
         },
       ]
 

@@ -215,7 +215,8 @@ export function jobTargetAnalyzeCmd(
         }
       })
 
-      // Surface persist status (TD-011): if analyze returned id=0, user sees issue (no silent 0s in Data/History)
+      // Surface persist status (TD-011): if analyze returned id=0, user sees issue (no silent 0s in Data/History).
+      // Note: X search/cycle paths (search_x_recent / run_finder_cycle_cmd) use only server-side eprintln logs for persist fails (pre-existing best-effort pattern; id not returned in their result shapes to keep contracts minimal). Job analyze/prep are the primary flows getting explicit PersistFailed banner per PR scope.
       if ((r?.opportunity_id ?? 0) === 0) {
         dispatch({ type: 'PersistFailed', message: 'Opportunity persist returned id=0 (DB write issue or disabled). Check Data later.' })
       }
@@ -276,8 +277,10 @@ export function jobTargetPrepCmd(
         }
       })
 
-      // Surface persist status (TD-011) for prep path too (id may be prior oid or 0 on fresh fail)
-      if ((r?.opportunity_id ?? 0) === 0 && !payload.opportunity_id) {
+      // Surface persist status (TD-011) for prep path too (id may be prior oid or 0 on fresh fail).
+      // When opportunity_id provided (in-place set_prep_artifacts after prior analyze), we return the prior oid even if set fails (eprint in Rust); user already has live fit+prep in panel so no PersistFailed dispatch (avoids false "missing" alarm). Relaxed condition here for any future 0 case on prep.
+      // (See also note in analyze effect re: X paths asymmetry.)
+      if ((r?.opportunity_id ?? 0) === 0) {
         dispatch({ type: 'PersistFailed', message: 'Prep persist returned id=0 (DB write issue or disabled). Check Data later.' })
       }
 

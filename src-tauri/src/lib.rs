@@ -11,7 +11,7 @@ use commands::{
     persist_cycle_lead, persist_cycle_search, persist_manual_search, persist_promote_event,
     promote_message,
 };
-use finder_reactor::{CycleResult, FinderReactor, ReactorState};
+use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Mutex as StdMutex;
@@ -449,34 +449,68 @@ async fn run_finder_cycle_cmd(
     let bearer = x_bearer()?;
     let start = std::time::Instant::now();
     let mut rguard = reactor.0.lock().await;
-    let result = rguard
+    let run_res = rguard
         .run_autonomous_cycle(query.clone(), bearer, cv_summary)
-        .await?;
+        .await;
     let dur = start.elapsed().as_millis() as i64;
+    let result = match run_res {
+        Ok(r) => r,
+        Err(e) => {
+            // Record XRate (and other early guards from guarded_search) to DB even on Err path (addresses review: XRate pauses now in get_recent_pauses / total_pauses).
+            // Rate guard returns Err before complete_cycle, so post-success block wouldn't catch it.
+            if e.contains("XRate") || e.contains("Paused on guard") {
+                if let Ok(s) = db.0.lock() {
+                    if let Err(pe) =
+                        s.record_pause("XRate guard triggered", Some("XRate"), None, None, Some(&e))
+                    {
+                        eprintln!("[db] pause persist skipped (non-fatal, TD-003): {pe}");
+                    }
+                }
+            }
+            drop(rguard);
+            return Err(e);
+        }
+    };
     drop(rguard);
 
     // Wire record_pause from reactor guard triggers (TD-003). Done here post-await (avoids !Send guard across .await in cmd).
     // Matches pushes in finder_reactor.rs complete_cycle / guarded (fit/xrate/promote/cycle pause).
     if !result.decision.guards_triggered.is_empty() {
         if let Ok(s) = db.0.lock() {
-            let _ = s.record_pause(
+            // Dynamic guard_type from first triggered guard (instead of always "FitThreshold"); falls back for mixed.
+            let guard_type = result
+                .decision
+                .guards_triggered
+                .first()
+                .map(|g| match g {
+                    Guard::XRate { .. } => "XRate",
+                    Guard::FitThreshold { .. } => "FitThreshold",
+                    Guard::Cost { .. } => "Cost",
+                    Guard::CVPromote { .. } => "CVPromote",
+                })
+                .unwrap_or("Guard");
+            if let Err(e) = s.record_pause(
                 "Cycle paused on guard(s)",
-                Some("FitThreshold"),
+                Some(guard_type),
                 None,
                 None,
                 Some(&format!("{:?}", result.decision.guards_triggered)),
-            );
+            ) {
+                eprintln!("[db] pause persist skipped (non-fatal, TD-003): {e}");
+            }
         }
     }
     if result.decision.action == "promote" {
         if let Ok(s) = db.0.lock() {
-            let _ = s.record_pause(
+            if let Err(e) = s.record_pause(
                 "CV promote guard triggered - sidecar only, user confirm required",
                 Some("CVPromote"),
                 None,
                 None,
                 None,
-            );
+            ) {
+                eprintln!("[db] pause persist skipped (non-fatal, TD-003): {e}");
+            }
         }
     }
 
@@ -524,12 +558,11 @@ async fn promote_lead(
     let msg = promote_message(&mut guard, &lead_id)?;
     drop(guard);
 
-    let _ = db.0.lock().map_err(|e| e.to_string()).and_then(|s| {
-        persist_promote_event(&s, &lead_id, &msg).map_err(|e| {
+    if let Ok(s) = db.0.lock() {
+        if let Err(e) = persist_promote_event(&s, &lead_id, &msg) {
             eprintln!("[db] promote persist skipped (non-fatal, TD-011): {e}");
-            e
-        })
-    });
+        }
+    }
 
     Ok(msg)
 }

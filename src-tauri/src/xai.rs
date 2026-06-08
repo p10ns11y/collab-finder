@@ -42,7 +42,8 @@ struct ChatMessage {
 }
 
 pub fn estimate_cost_usd(input_tokens: u32, output_tokens: u32) -> f64 {
-    (input_tokens as f64 * PRICE_INPUT_PER_M + output_tokens as f64 * PRICE_OUTPUT_PER_M) / 1_000_000.0
+    (input_tokens as f64 * PRICE_INPUT_PER_M + output_tokens as f64 * PRICE_OUTPUT_PER_M)
+        / 1_000_000.0
 }
 
 /// Perform a chat completion that requests strict JSON schema output.
