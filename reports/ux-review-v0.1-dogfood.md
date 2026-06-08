@@ -58,31 +58,31 @@ Same session, contradictory totals → user stops trusting Statistics.
 
 ```mermaid
 flowchart TB
-  subgraph Shell["App shell (finder-app-view)"]
-    SB[SidebarNav<br/>icon-only 6 screens]
-    HDR[Header<br/>collab-finder / Screen]
-    PAL[Command palette ⌘K]
+  subgraph Shell["App shell - finder-app-view"]
+    SB[SidebarNav - 6 screens]
+    HDR[Header - screen title]
+    PAL["Command palette Cmd+K"]
   end
 
   subgraph Screens
-    DISC[Discover<br/>Job + CV + X search]
-    STATS[Statistics<br/>Guards + aggregates]
-    HIST[History<br/>X runs + X leads]
-    DATA[Data<br/>4 SQL tables]
-    LOOK[Lookup<br/>FTS + hydrate]
-    SET[Settings<br/>Keys + docs]
+    DISC["Discover - job CV X search"]
+    STATS["Statistics - guards aggregates"]
+    HIST["History - X runs leads"]
+    DATA["Data - 4 SQL tables"]
+    LOOK["Lookup - FTS hydrate"]
+    SET["Settings - keys docs"]
   end
 
-  subgraph SQLite["SQLite (durable)"]
+  subgraph SQLite["SQLite durable"]
     SR[search_runs]
     LD[leads]
     EV[events]
     OP[opportunities]
   end
 
-  SB --> Screens
+  SB --> DISC
   DISC -->|analyze_job_target| OP
-  DISC -->|search / cycle| SR
+  DISC -->|search cycle| SR
   DISC -->|cycle| LD
   HIST --> SR
   HIST --> LD
@@ -94,8 +94,8 @@ flowchart TB
   STATS --> SR
   STATS --> LD
 
-  style OP fill:#f59e0b22,stroke:#f59e0b
-  style DISC fill:#34d39922,stroke:#34d399
+  style OP fill:#f59e0b,stroke:#f59e0b,color:#000
+  style DISC fill:#34d399,stroke:#34d399,color:#000
 ```
 
 **Observation:** Job opportunities (`opportunities`) are **second-class** in navigation — visible in Data tab #4, absent from History’s mental model (“Timeline of runs and captured leads”). X-centric History vs job-centric Discover split the user’s pipeline.
@@ -111,32 +111,32 @@ sequenceDiagram
   actor User
   participant Left as Discover left column
   participant MVU as MVU effects
-  participant Rust as Tauri / xAI
+  participant Rust as Tauri xAI
   participant DB as SQLite opportunities
   participant Right as JobFitPanel
 
   User->>Left: Paste Greenhouse URL
-  Note over Left: CV summary BELOW job form<br/>helper text says "above" (bug)
-  User->>Left: Click "Evaluate fit"
+  Note over Left: CV below job form - helper says above
+  User->>Left: Click Evaluate fit
   Left->>MVU: JobTargetAnalyzeRequested
-  MVU->>Rust: analyze_job_target(cv_summary from model)
+  MVU->>Rust: analyze_job_target with cv_summary
   Rust->>DB: upsert opportunity
-  Rust-->>MVU: fit JSON + opportunity_id
+  Rust-->>MVU: fit JSON and opportunity_id
   MVU->>MVU: log JobTargetAnalyzed
   MVU->>MVU: HistoryRefreshRequested
   MVU-->>Right: JobTargetAnalyzeSucceeded
-  Right-->>User: Score, rationale, gaps, actions
+  Right-->>User: Score rationale gaps actions
 
   alt User wants prep
-    User->>Right: "Generate prep pack"
-    Note over Left: "Full Prep (coming soon)" still visible<br/>contradicts right panel
+    User->>Right: Generate prep pack
+    Note over Left: Full Prep coming soon still visible
     Right->>MVU: JobTargetPrepRequested
     MVU->>Rust: prep_job_target
-    Rust-->>Right: letter, cv_suggestions, research
+    Rust-->>Right: letter cv_suggestions research
   end
 
   alt User wants X feed again
-    User->>Right: Clear / evaluate another
+    User->>Right: Clear evaluate another
     Right->>MVU: JobTargetCleared
     Right-->>User: TweetFeed or empty state
   end
@@ -154,21 +154,19 @@ sequenceDiagram
 ### Target flow — low cognitive load, high usefulness
 
 ```mermaid
-flowchart LR
-  subgraph Mode["Discover: explicit mode toggle"]
-    JM[Job mode]
-    XM[X hunt mode]
-  end
+flowchart TB
+  JM[Job mode]
+  XM[X hunt mode]
 
-  subgraph JobPath["Job path (default for URL paste)"]
-    A1[CV context chip<br/>sticky / always visible]
+  subgraph JobPath["Job path - default for URL paste"]
+    A1["CV context chip - sticky"]
     A2[Paste URL or JD]
     A3[Evaluate fit]
-    A4[Fit panel<br/>score + gaps + next step]
+    A4["Fit panel - score gaps next step"]
     A5{Worth pursuing?}
     A6[Generate prep pack]
-    A7[Review / edit artifacts]
-    A8[Mark applied / archive]
+    A7["Review edit artifacts"]
+    A8["Mark applied archive"]
   end
 
   subgraph Pipeline["Single pipeline view"]
@@ -177,18 +175,20 @@ flowchart LR
     P3[Applied]
   end
 
-  JM --> JobPath
+  B1[X search cycle]
+  B2[Tweet feed]
+
+  JM --> A1
   A1 --> A2 --> A3 --> A4 --> A5
   A5 -->|yes| A6 --> A7 --> A8
   A5 -->|no| A8
-  A8 --> Pipeline
+  A8 --> P1
+  P1 --> P2 --> P3
 
-  XM --> B1[X search / cycle]
-  B1 --> B2[Tweet feed]
-  B2 --> Pipeline
+  XM --> B1 --> B2 --> P1
 
-  style A4 fill:#34d39933
-  style Pipeline fill:#f59e0b22
+  style A4 fill:#34d399,stroke:#34d399,color:#000
+  style P1 fill:#f59e0b,stroke:#f59e0b,color:#000
 ```
 
 **Design principles for target flow:**
@@ -207,43 +207,52 @@ flowchart LR
 ### User mental model — current vs ideal
 
 ```mermaid
-mindmap
-  root((collab-finder today))
-    Discover
-      Job URL
-      CV packet
-      X search
-      Right panel switches
-    History
-      X runs only
-      X leads
-    Data
-      4 admin tables
-      Opportunities buried
-    Lookup
-      Power user FTS
-    Statistics
-      Maybe wrong?
+flowchart TB
+  root_today[collab-finder today]
+
+  root_today --> D[Discover]
+  D --> D1[Job URL]
+  D --> D2[CV packet]
+  D --> D3[X search]
+  D --> D4[Right panel switches]
+
+  root_today --> H[History]
+  H --> H1[X runs only]
+  H --> H2[X leads]
+
+  root_today --> DT[Data]
+  DT --> DT1[4 admin tables]
+  DT --> DT2[Opportunities buried]
+
+  root_today --> L[Lookup]
+  L --> L1[Power user FTS]
+
+  root_today --> S[Statistics]
+  S --> S1[Stats may disagree with History]
 ```
 
 ```mermaid
-mindmap
-  root((collab-finder target))
-    Pipeline
-      All opportunities
-      X leads + job targets
-      Status filters
-    Work
-      Job mode
-      Hunt mode
-    Trust
-      Guards dashboard
-      Cost rollup
-      CV sidecar
-    Replay
-      Lookup FTS
-      Hydrate X
-      Reopen job fit
+flowchart TB
+  root_target[collab-finder target]
+
+  root_target --> P[Pipeline]
+  P --> P1[All opportunities]
+  P --> P2[X leads and job targets]
+  P --> P3[Status filters]
+
+  root_target --> W[Work]
+  W --> W1[Job mode]
+  W --> W2[Hunt mode]
+
+  root_target --> T[Trust]
+  T --> T1[Guards dashboard]
+  T --> T2[Cost rollup]
+  T --> T3[CV sidecar]
+
+  root_target --> R[Replay]
+  R --> R1[Lookup FTS]
+  R --> R2[Hydrate X]
+  R --> R3[Reopen job fit]
 ```
 
 ---
@@ -371,28 +380,26 @@ Statistics ──aggregates► search_runs, leads (jobs invisible)
 
 ```mermaid
 flowchart TB
-  subgraph Work["Discover (work modes)"]
-    J[Job mode]
-    X[X hunt mode]
-  end
+  J[Job mode]
+  Xmode[X hunt mode]
 
   subgraph Store["SQLite"]
     OP[opportunities]
     LD[leads]
   end
 
-  subgraph Pipeline["Pipeline screen OR History tab"]
+  subgraph Pipeline["Pipeline screen or History tab"]
     ALL[All opportunities]
-    F1[filter: jobs]
-    F2[filter: X leads]
-    F3[filter: prepped]
+    F1["filter jobs"]
+    F2["filter X leads"]
+    F3["filter prepped"]
   end
 
   J --> OP
-  X --> LD
+  Xmode --> LD
   OP --> ALL
   LD --> ALL
-  ALL -->|click row| Work
+  ALL -->|click row| J
 ```
 
 **Minimal v1.1:** Add **“Job targets”** section to History (last N opportunities with score + link to Discover).  
