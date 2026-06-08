@@ -118,7 +118,7 @@ async fn analyze_job_target(
     pasted_jd: Option<String>,
     title: Option<String>,
     company: Option<String>,
-    cv_summary: Option<String>, // fallback; real prune from devprofile path wired in follow-up
+    cv_summary: Option<String>, // from UI model (populated from data/distillation defaultCvSummary / cv-packet-pruned); real devprofile + cv-promote-guard prune still pending
 ) -> Result<JobAnalysisResult, String> {
     let jd = match (url.clone(), pasted_jd) {
         (_, Some(p)) if !p.trim().is_empty() => p,
@@ -129,8 +129,12 @@ async fn analyze_job_target(
         _ => return Err("Provide either url or pasted_jd".into()),
     };
 
-    // For v1: use provided cv or a sensible default (real devprofile ~/Work/personal/devprofile load + prune comes next slice)
-    let cv = cv_summary.unwrap_or_else(|| "Senior engineer with Rust, TypeScript, React, Tauri, agentic tooling experience. Open to high-impact roles.".to_string());
+    // Use the CV summary packet passed from the UI (the distilled one shown in CvSummaryInput).
+    // This is the "CV summary packet (from distillation)" that is now properly exposed in the Discover left column.
+    // Fallback is only for safety if nothing was passed.
+    let cv = cv_summary.unwrap_or_else(|| {
+        "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.".to_string()
+    });
 
     // Build a minimal system + user for structured fit
     let system = "You are an expert career fit analyst. Output ONLY valid JSON matching the provided schema. Be precise and cite phrases from the JD.";
@@ -186,6 +190,130 @@ async fn analyze_job_target(
     })
 }
 
+#[tauri::command]
+async fn prep_job_target(
+    db: State<'_, AppDb>,
+    opportunity_id: Option<i64>,
+    url: Option<String>,
+    pasted_jd: Option<String>,
+    title: Option<String>,
+    company: Option<String>,
+    cv_summary: Option<String>,
+    // Optional context from prior Evaluate Fit (analysis). Allows prep to be informed by the just-computed fit/gaps/rationale.
+    // This is part of making the full "evaluate then prep" flow in Slice C use the CV packet + fit context.
+    previous_fit: Option<String>,
+) -> Result<JobPrepResult, String> {
+    // Resolve JD text.
+    // Prefer pasted_jd or url (for fresh calls from the form).
+    // If only opportunity_id (e.g. "Generate prep pack" CTA from JobFitPanel after prior analyze),
+    // load the persisted jd_text (and source_url) from the opportunities table.
+    let mut jd = String::new();
+    let mut effective_url = url.clone();
+    if let Some(p) = &pasted_jd {
+        if !p.trim().is_empty() {
+            jd = p.clone();
+        }
+    }
+    if jd.is_empty() {
+        if let Some(u) = &url {
+            let fetched = fetch_job_page(u.clone()).await?;
+            jd = fetched.cleaned_text;
+        }
+    }
+    if jd.is_empty() {
+        if let Some(oid) = opportunity_id {
+            if let Ok(guard) = db.0.lock() {
+                let mut filter = db::OpportunityFilter::default();
+                filter.id = Some(oid);
+                filter.limit = Some(1);
+                if let Ok(opps) = guard.get_opportunities(&filter) {
+                    if let Some(opp) = opps.first() {
+                        jd = opp.jd_text.clone();
+                        if effective_url.is_none() {
+                            effective_url = opp.source_url.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if jd.is_empty() {
+        return Err("Provide url, pasted_jd or ensure prior analyze created the opportunity".into());
+    }
+
+    // Use the CV summary packet passed from the UI (the distilled one shown/edited in the prominent CvSummaryInput after the recent UI refactor).
+    // This ensures the "CV summary packet (from distillation)" is actually used in the Evaluate Fit + Prep (Slice C) flow.
+    let cv = cv_summary.unwrap_or_else(|| {
+        "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.".to_string()
+    });
+
+    // Slice C: incorporate previous fit analysis (gaps, rationale, recommended_action) when provided
+    // by the frontend from the current jobTarget result after "Evaluate Fit".
+    let mut user = format!(
+        "CANDIDATE CV PACKET:\n{}\n\nJOB DESCRIPTION:\n{}\n\n",
+        cv, jd
+    );
+    if let Some(fit) = previous_fit {
+        if !fit.trim().is_empty() {
+            user.push_str(&format!("PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n", fit));
+        }
+    }
+    user.push_str("Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and (if the JD asks for it) a strong 80-120 word 'exceptional work' example.\nReturn JSON only.");
+
+    let system = "You are an expert application preparation assistant. Output ONLY valid JSON matching the schema. Produce concise, high-signal artifacts the candidate can use immediately. CV suggestions are proposals for sidecars only.";
+
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "cover_letter": {"type": "string"},
+            "cv_suggestions": {"type": "array", "items": {"type": "string"}},
+            "research_notes": {"type": "string"},
+            "exceptional_work_example": {"type": "string"}
+        },
+        "required": ["cover_letter", "cv_suggestions", "research_notes"],
+        "additionalProperties": false
+    });
+
+    let (prep_json, usage) = crate::xai::structured_chat(system, &user, "job_prep_v1", schema).await?;
+
+    let cost = crate::xai::cost_from_usage(&usage);
+
+    // Persist the prep artifacts.
+    // Prefer updating the specific opportunity_id in place (so the same opportunity keeps its id and fit analysis).
+    // This prevents duplicate rows for the same job post when doing "evaluate -> prep" from the panel.
+    let run_id = if let Some(oid) = opportunity_id {
+        if let Ok(guard) = db.0.lock() {
+            let _ = guard.set_prep_artifacts(oid, &prep_json.to_string(), "prepped");
+            oid
+        } else {
+            oid
+        }
+    } else if let Ok(guard) = db.0.lock() {
+        // Fallback for calls without prior id (should be rare)
+        guard.upsert_opportunity(
+            "web",
+            effective_url.as_deref(),
+            None,
+            title.as_deref(),
+            company.as_deref(),
+            &jd,
+            "prepped",
+            None,
+            None,
+            Some(&prep_json.to_string()),
+            None,
+        ).unwrap_or(0)
+    } else {
+        0
+    };
+
+    Ok(JobPrepResult {
+        opportunity_id: run_id,
+        prep: prep_json,
+        est_cost_usd: cost,
+    })
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobPageResult {
     pub title: Option<String>,
@@ -200,6 +328,13 @@ pub struct JobAnalysisResult {
     pub opportunity_id: i64,
     pub fit: Value,
     pub packet_preview: String,
+    pub est_cost_usd: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JobPrepResult {
+    pub opportunity_id: i64,
+    pub prep: Value,
     pub est_cost_usd: f64,
 }
 
@@ -392,8 +527,10 @@ async fn get_opportunities(
     q: Option<String>,
     status: Option<String>,
     limit: Option<u32>,
+    id: Option<i64>,
 ) -> Result<Vec<db::Opportunity>, String> {
     let filter = db::OpportunityFilter {
+        id,
         q,
         status,
         min_fit: None,
@@ -454,6 +591,7 @@ pub fn run() {
             clear_xai_key,
             fetch_job_page,
             analyze_job_target,
+            prep_job_target,
             get_opportunities,
             search_x_recent,
             run_finder_cycle_cmd,

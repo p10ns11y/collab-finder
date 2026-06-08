@@ -29,6 +29,8 @@ export type FinderPorts = {
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
     // Job target analyze + visibility (MVU wired in Slice B)
     analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<any>
+    // Job target prep (Slice C)
+    prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<any>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
   }
 }
@@ -219,6 +221,61 @@ export function jobTargetAnalyzeCmd(
   }
 }
 
+export function jobTargetPrepCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  payload: { opportunity_id?: number; url?: string; pasted_jd?: string },
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    // Slice C: if we have a prior jobTarget result with fit analysis, pass a compact version of it
+    // so the prep prompt can be context-aware (gaps, rationale, recommended_action from the Evaluate Fit step).
+    let previous_fit: string | undefined
+    const jt = model.jobTarget
+    if (jt && jt.status === 'ready' && jt.data) {
+      const d: any = jt.data
+      if (d.fit) {
+        previous_fit = JSON.stringify({
+          overall: d.fit.overall,
+          rationale: d.fit.rationale,
+          gaps_must: d.fit.gaps_must,
+          gaps_nice: d.fit.gaps_nice,
+          recommended_action: d.fit.recommended_action,
+        })
+      }
+    }
+
+    const p = {
+      opportunity_id: payload.opportunity_id,
+      url: payload.url,
+      pasted_jd: payload.pasted_jd,
+      cv_summary: model.cvSummary || undefined,
+      previous_fit,
+    }
+    void fromPromise(ports.finder.prepJobTarget(p), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'JobTargetPrepFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'JobTargetPrepSucceeded', result: result.value })
+
+      // Audit
+      const r: any = result.value
+      const audit = JSON.stringify({
+        opportunity_id: r?.opportunity_id ?? payload.opportunity_id,
+        has_prep: !!r?.prep,
+        est_cost_usd: r?.est_cost_usd,
+      })
+      void fromPromise(ports.finder.logEvent('JobTargetPrepped', audit), toAppError).then((logRes) => {
+        if (logRes.ok) {
+          dispatch({ type: 'UiEventLogged', eventType: 'JobTargetPrepped', payload: audit })
+        }
+      })
+
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
 export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
   return (dispatch) => {
     // Parallel-ish loads for the dashboard slices.
@@ -340,6 +397,8 @@ export function effectForMsg(
       return promoteCmd(ports)
     case 'JobTargetAnalyzeRequested':
       return jobTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
+    case 'JobTargetPrepRequested':
+      return jobTargetPrepCmd(ports, model, { opportunity_id: msg.opportunity_id, url: msg.url, pasted_jd: msg.pasted_jd })
 
     // Auto refresh history after successful ops (data now in DB).
     case 'SearchSucceeded':

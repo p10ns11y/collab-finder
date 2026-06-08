@@ -211,9 +211,12 @@ Until then: **disable or relabel** orange button.
 
 ### Slice C — Full prep (follow-on)
 
-- [ ] `prep_job_target` command with guards
-- [ ] Artifacts persisted + review UI
-- [ ] devprofile CV load + prune (cv-promote-guard)
+- [x] `prep_job_target` command (structured generation + persist as status=prepped + prep_artifacts_json)
+- [x] Artifacts rendered in JobFitPanel + "Generate prep pack" / "Regenerate prep" action (gated on reasonable fit)
+- [x] CV summary packet (from distillation / cv-packet-pruned) now properly exposed in UI (CvSummaryInput as independent sibling, not buried in SearchWorkspace) **and actually used** in Evaluate Fit (analyze_job_target) + prep flows. The rich packet is the default in queries.json and passed through model -> effects -> Rust (no more generic fallback for normal path).
+- [x] Prep prompt now receives + uses previous fit analysis (rationale, gaps, recommended_action) from the Evaluate Fit step for better context-aware artifacts.
+- [ ] Full devprofile CV load + prune via cv-promote-guard (currently uses the distilled packet from UI; real external devprofile + sidecar deltas for promote still pending)
+- [ ] Stronger guards + cost visibility (basic fit >=45 gate on prep button exists; could surface est cost pre-call)
 
 ---
 

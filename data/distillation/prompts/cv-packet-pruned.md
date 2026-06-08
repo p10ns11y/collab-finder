@@ -7,7 +7,7 @@ Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwr
 Rust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient
 orchestration — relevant to on-device/local-first/agent infra today.
 
-Public work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.
+Public work: arch-machine (AI-ready workstations), premflow, elomaxz, thepulimaangani, collab-finder.
 Open to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen);
 remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).
 

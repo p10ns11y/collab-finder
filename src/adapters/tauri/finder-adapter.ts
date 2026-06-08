@@ -41,6 +41,7 @@ export function createTauriFinderPort(): FinderPort {
     // Job targets (web/paste focus)
     fetchJobPage: (url) => safeInvoke('fetch_job_page', { url }),
     analyzeJobTarget: (payload) => safeInvoke('analyze_job_target', payload),
+    prepJobTarget: (payload) => safeInvoke('prep_job_target', payload),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
   }
 }
@@ -115,6 +116,11 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async analyzeJobTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }) {
       const result = await port.analyzeJobTarget(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }) {
+      const result = await port.prepJobTarget(payload)
       if (!result.ok) throw result.error
       return result.value
     },
