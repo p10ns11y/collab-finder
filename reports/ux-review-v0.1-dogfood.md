@@ -31,16 +31,16 @@
 
 | # | File | Screen | What it shows |
 |---|------|--------|---------------|
-| 1 | [01-discover](./assets/ux-review-2026-06/image-78b8fbe7-1b88-45ff-9590-a0e0ec3fcf37.png) | Discover | Greenhouse URL → **78/100** fit, gaps, recommended action, prep button |
-| 2 | [02-statistics](./assets/ux-review-2026-06/image-98a1f58e-500c-41c6-944e-7243ee8c753e.png) | Statistics | Reactor guards + aggregates (**0 searches** shown) |
-| 3 | [03-history](./assets/ux-review-2026-06/image-7a8e9e00-2887-4410-8eb5-4c9d69147d0a.png) | History | **10 search runs** timeline (contradicts Statistics) |
-| 4 | [04-data](./assets/ux-review-2026-06/image-7e6d3674-c184-4816-ae34-d3be79257168.png) | Data | Search Runs tab; Opportunities **(17)** tab exists |
-| 5 | [05-lookup](./assets/ux-review-2026-06/image-338aaa2e-746e-4ae8-a9ab-f16be259430e.png) | Lookup | FTS + run detail (empty states) |
-| 6 | [06-settings](./assets/ux-review-2026-06/image-db42b979-e940-405e-8725-fc9df8df286e.png) | Settings | X bearer + xAI key connected |
+| 1 | [01-discover](./assets/ux-review-2026-06/01-discover-job-fit-greenhouse.png) | Discover | Greenhouse URL → **78/100** fit, gaps, recommended action, prep button |
+| 2 | [02-statistics](./assets/ux-review-2026-06/02-statistics.png) | Statistics | Reactor guards + aggregates (**0 searches** shown) |
+| 3 | [03-history](./assets/ux-review-2026-06/03-history.png) | History | **10 search runs** timeline (contradicts Statistics) |
+| 4 | [04-data](./assets/ux-review-2026-06/04-data-search-runs.png) | Data | Search Runs tab; Opportunities **(17)** tab exists |
+| 5 | [05-lookup](./assets/ux-review-2026-06/05-lookup.png) | Lookup | FTS + run detail (empty states) |
+| 6 | [06-settings](./assets/ux-review-2026-06/06-settings.png) | Settings | X bearer + xAI key connected |
 
 ### Discover — fit analysis (hero flow)
 
-![Discover: Greenhouse job fit 78/100](./assets/ux-review-2026-06/image-78b8fbe7-1b88-45ff-9590-a0e0ec3fcf37.png)
+![Discover: Greenhouse job fit 78/100](./assets/ux-review-2026-06/01-discover-job-fit-greenhouse.png)
 
 *Greenhouse URL `job-boards.greenhouse.io/xai/jobs/49560…` → structured fit on right. Mission/location gaps surfaced. This is the product’s strongest moment.*
 
@@ -48,7 +48,7 @@
 
 | Statistics | History |
 |------------|---------|
-| ![Stats: 0 searches](./assets/ux-review-2026-06/image-98a1f58e-500c-41c6-944e-7243ee8c753e.png) | ![History: 10 runs](./assets/ux-review-2026-06/image-7a8e9e00-2887-4410-8eb5-4c9d69147d0a.png) |
+| ![Stats: 0 searches](./assets/ux-review-2026-06/02-statistics.png) | ![History: 10 runs](./assets/ux-review-2026-06/03-history.png) |
 
 Same session, contradictory totals → user stops trusting Statistics.
 
@@ -470,7 +470,7 @@ Dogfood with same Greenhouse URL after Wave 1:
 - [ ] Exactly **one** prep entry point (result panel only until left button removed)
 - [ ] Statistics **Total searches** equals History run count (±0) after Refresh
 - [ ] Copy recommended action shows brief confirmation
-- [ ] `pnpm build` + manual screenshot parity with [01-discover](./assets/ux-review-2026-06/image-78b8fbe7-1b88-45ff-9590-a0e0ec3fcf37.png)
+- [ ] `pnpm build` + manual screenshot parity with [01-discover](./assets/ux-review-2026-06/01-discover-job-fit-greenhouse.png)
 
 ---
 
