@@ -18,7 +18,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: '
 }
 
 export function StatsScreen({ view }: Props) {
-  const { model, historyStats, historySearches, historyLeads } = view
+  const { model, historyStats, historySearches, historyLeads, historyOpportunities = [] } = view
   const pauseCount = model.pauses.length
   const s = historyStats
 
@@ -35,6 +35,7 @@ export function StatsScreen({ view }: Props) {
       <div className="mt-1 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Total searches" value={String(s?.total_searches ?? historySearches.length)} />
         <Metric label="Unique leads" value={String(s?.total_unique_leads ?? historyLeads.length)} tone="accent" />
+        <Metric label="Job targets" value={String(historyOpportunities.length)} />
         <Metric label="Total surfaces" value={String(s?.total_surfaces ?? 0)} />
         <Metric
           label="Pauses logged"

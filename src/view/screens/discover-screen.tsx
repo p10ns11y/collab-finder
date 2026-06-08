@@ -146,11 +146,6 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
 
   const canAnalyze = !busy && (url.trim() || pasted.trim())
 
-  const run = (wantPrep: boolean) => {
-    if (wantPrep) return // Use the "Generate prep pack" button in the result panel after evaluation (Slice C)
-    onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)
-  }
-
   return (
     <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
       <div className="font-medium text-sm mb-2 flex items-center gap-2">
@@ -170,21 +165,13 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
         rows={4}
         className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1.5 text-sm focus:outline-none focus:border-accent/60"
       />
-      <div className="flex gap-2">
+      <div>
         <button
-          onClick={() => run(false)}
+          onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
           disabled={!canAnalyze}
           className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
         >
           {busy ? 'Evaluating…' : 'Evaluate fit'}
-        </button>
-        <button
-          onClick={() => run(true)}
-          disabled
-          title="Full prep (CV tweaks + cover letter) coming in a future update"
-          className="px-3 py-1.5 text-sm rounded border border-border-default opacity-60 cursor-not-allowed"
-        >
-          Full Prep (coming soon)
         </button>
       </div>
 

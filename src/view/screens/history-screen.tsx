@@ -11,8 +11,8 @@ type Props = {
 }
 
 export function HistoryScreen({ view, dispatch }: Props) {
-  const { historySearches: searches, historyLeads: leads, historyStats: stats } = view
-  const hasData = searches.length > 0 || leads.length > 0
+  const { historySearches: searches, historyLeads: leads, historyStats: stats, historyOpportunities: opportunities = [] } = view
+  const hasData = searches.length > 0 || leads.length > 0 || opportunities.length > 0
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -71,11 +71,53 @@ export function HistoryScreen({ view, dispatch }: Props) {
         </div>
       )}
 
+      {opportunities.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            <span>Job targets</span>
+            <span>{opportunities.length} opportunities</span>
+          </div>
+          <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
+            {opportunities.slice(0, 8).map((o) => (
+              <li key={o.id} className="flex items-start justify-between gap-2 px-3 py-2.5 hover:bg-surface-2/60">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {o.fit_score != null && (
+                      <Badge tone={o.fit_score >= 80 ? 'success' : o.fit_score >= 60 ? 'accent' : 'neutral'} className="text-[10px]">
+                        {o.fit_score}
+                      </Badge>
+                    )}
+                    <span className="font-mono text-accent/80">#{o.id}</span>
+                    <span className="truncate text-ink-muted">{o.company || o.title || '—'}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
+                    <span>{o.status || '—'}</span>
+                    {o.prep_artifacts_json && <span className="text-success">prepped</span>}
+                    <span className="ml-auto">{new Date(o.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    dispatch({ type: 'OpportunitySelected', id: o.id })
+                    dispatch({ type: 'ScreenChanged', screen: 'discover' })
+                  }}
+                  className="shrink-0 rounded border border-border-default px-2 py-1 text-[10px] hover:border-accent/50 hover:text-accent"
+                  title="Open in Discover (loads stored fit + prep without re-analyzing)"
+                >
+                  Open
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {leads.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
             <span>Captured leads (unique)</span>
-            <span>{leads.length} opportunities</span>
+            <span>{leads.length} leads</span>
           </div>
           <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
             {leads.map((l) => (

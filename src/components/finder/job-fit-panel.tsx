@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import type { JobTargetResult, JobFit, JobPrep } from '../../core/domain/job-target'
@@ -45,6 +46,8 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
   if (!fit && !prep) {
     return null
   }
+
+  const [actionCopied, setActionCopied] = React.useState(false)
 
   const score = fit?.overall ?? 0
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
@@ -159,11 +162,16 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
             <button
               onClick={() => {
                 const text = fit.recommended_action || ''
-                if (text) navigator.clipboard?.writeText(text).catch(() => {})
+                if (text) {
+                  navigator.clipboard?.writeText(text).then(() => {
+                    setActionCopied(true)
+                    window.setTimeout(() => setActionCopied(false), 1200)
+                  }).catch(() => {})
+                }
               }}
               className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
             >
-              Copy recommended action
+              {actionCopied ? 'Copied!' : 'Copy recommended action'}
             </button>
           )}
           {onPrepRequested && result && (fit?.overall ?? 0) >= 45 && (
