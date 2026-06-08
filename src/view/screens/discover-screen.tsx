@@ -189,7 +189,7 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
       </div>
 
       <div className="mt-2 text-[10px] text-ink-faint">
-        Uses the CV summary packet above (global context for this job target; also shared with X search &amp; prep if used). Results appear on the right.
+        Uses the CV summary packet above (global context for this job target; also shared with X search &amp; prep if used). Results appear on the right. (Reopened jobs from Data/Resume restore fit/prep + Open URL to right panel; this form is for new evaluations.)
       </div>
     </div>
   )

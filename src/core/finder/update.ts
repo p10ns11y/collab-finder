@@ -346,6 +346,11 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    case 'JobTargetUrlSet':
+      // Lightweight set for hydrate/restore (OpportunitySelected load path) without triggering analyze effect or loading.
+      // Reuses existing optional jobTargetUrl field (originally only from AnalyzeRequested).
+      return [{ ...model, jobTargetUrl: msg.url }]
+
     // Job target prep (Slice C)
     case 'JobTargetPrepRequested':
       // Preserve previous ready data (the fit analysis) on the loading state.

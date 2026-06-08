@@ -5,7 +5,7 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
-import type { JobAnalysisResult, JobPrepResult, JobTargetResult } from '../domain/job-target'
+import type { JobAnalysisResult, JobPrep, JobPrepResult, JobTargetResult } from '../domain/job-target'
 
 export type FinderPorts = {
   credentials: {
@@ -424,23 +424,25 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
   return (dispatch) => {
     void fromPromise(ports.finder.getOpportunities({ id }), toAppError).then((result) => {
       if (!result.ok) {
-        dispatch({ type: 'JobTargetAnalyzeFailed', error: result.error })
+        // Use GlobalError + Cleared (instead of AnalyzeFailed) so banner is generic "load" not "analyze", and loading state from OppSelected update is cleared. Addresses review Issue 4 (terminology for Data/Resume paths).
+        dispatch({ type: 'GlobalError', error: result.error })
+        dispatch({ type: 'JobTargetCleared' })
         return
       }
       const opps = result.value || []
       const o = opps.find((x) => x.id === id) || opps[0]
       if (!o) {
-        dispatch({
-          type: 'JobTargetAnalyzeFailed',
-          error: toAppError(new Error(`Opportunity ${id} not found`)),
-        })
+        const err = toAppError(new Error(`Opportunity ${id} not found`))
+        dispatch({ type: 'GlobalError', error: err })
+        dispatch({ type: 'JobTargetCleared' })
         return
       }
 
-      // Navigate + set context for the job flow (reuses ScreenChanged + jobTargetUrl patterns).
+      // Navigate + restore exact prior state (url for Open button + prep payload in panel; source_url from opp row).
       dispatch({ type: 'ScreenChanged', screen: 'discover' })
-      // Note: jobTargetUrl is only set on AnalyzeRequested today; for hydrate we rely on the result.opportunity_id in panel + source_url display in Data.
-      // If we want, we could extend but per "smallest + reuse *Succeeded" we skip (no behavior change to active paths).
+      if (o.source_url) {
+        dispatch({ type: 'JobTargetUrlSet', url: o.source_url })
+      }
 
       // Reconstruct analysis (fit) if present — dispatch the exact Succeeded used by live analyze path.
       if (o.analysis_json) {
@@ -461,16 +463,23 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       // Reconstruct prep if present — dispatch PrepSucceeded (update will merge with prior fit via the carry pattern).
       if (o.prep_artifacts_json) {
         try {
-          const parsed = JSON.parse(o.prep_artifacts_json) as Partial<JobPrepResult> & { prep?: any }
+          const parsed = JSON.parse(o.prep_artifacts_json) as Partial<JobPrepResult> & { prep?: unknown }
+          // Narrow shape tolerant handling (no broad `as any`); supports stored as inner {prep: ...} or full result (pre/post PR2 rows). See review Issue 3.
+          const prepData = (parsed && typeof parsed === 'object' && 'prep' in parsed && (parsed as { prep?: unknown }).prep) ? (parsed as { prep?: unknown }).prep : parsed
           const prepResult: JobPrepResult = {
-            opportunity_id: parsed.opportunity_id ?? o.id,
-            prep: (parsed.prep || parsed) as any, // shape tolerant: stored may be inner prep or full result
-            est_cost_usd: parsed.est_cost_usd ?? 0,
+            opportunity_id: (parsed as { opportunity_id?: number }).opportunity_id ?? o.id,
+            prep: prepData as JobPrep,
+            est_cost_usd: (parsed as { est_cost_usd?: number }).est_cost_usd ?? 0,
           }
           dispatch({ type: 'JobTargetPrepSucceeded', result: prepResult })
         } catch {
           // ignore malformed
         }
+      }
+
+      // If row had no analysis/prep blobs (edge: partial/pre-stabilization), clear the loading set by OpportunitySelected handler so UI doesn't stick in spinner. (Addresses review Issue 1; still nav to discover.)
+      if (!o.analysis_json && !o.prep_artifacts_json) {
+        dispatch({ type: 'JobTargetCleared' })
       }
 
       // Persist as last for explicit "Resume last" affordance + next start (best effort).
@@ -564,6 +573,10 @@ export function effectForMsg(
       return persistCvSummaryCmd(msg.cvSummary)
 
     case 'OpportunitySelected':
+      // Self-guard (per AGENTS self-guards/pauses on decision paths): skip if already loading a hydrate (prevents rapid double-click Data rows or resume from stacking dispatches while prior load in flight). Cheap read path; update already set loading idempotently.
+      if (model.jobTarget && model.jobTarget.status === 'loading') {
+        return undefined
+      }
       return loadOpportunityCmd(ports, msg.id)
 
     default:
