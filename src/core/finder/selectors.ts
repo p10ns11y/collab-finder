@@ -33,6 +33,7 @@ export type FinderViewState = {
   // History projections (for dashboard; full slices also in model.history)
   historySearches: import('../domain/history').SearchRun[]
   historyLeads: import('../domain/history').Lead[]
+  historyPauses: import('../domain/history').Pause[]
   historyStats: import('../domain/history').DashboardStats | null
   historyEvents: import('../domain/history').Event[]
   historyOpportunities: import('../domain/history').Opportunity[]
@@ -88,6 +89,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     ],
     historySearches: h.searches.status === 'ready' ? h.searches.data : [],
     historyLeads: h.leads.status === 'ready' ? h.leads.data : [],
+    historyPauses: h.pauses.status === 'ready' ? h.pauses.data : [],
     historyStats: h.stats.status === 'ready' ? h.stats.data : null,
     historyEvents: h.events.status === 'ready' ? h.events.data : [],
     historyOpportunities: h.opportunities.status === 'ready' ? h.opportunities.data : [],

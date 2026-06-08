@@ -3,8 +3,11 @@ import { fromPromise } from '../result'
 import { requireConnection, validateBearerDraft } from '../security/credentials-policy'
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
-import type { FinderModel } from './model'
+import type { FinderModel, PersistedSession } from './model'
+import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
+import type { Opportunity } from '../domain/history'
+import type { JobAnalysisResult, JobPrep, JobPrepResult, JobTargetResult } from '../domain/job-target'
 
 export type FinderPorts = {
   credentials: {
@@ -28,9 +31,9 @@ export type FinderPorts = {
     hydrateTweet(id: string): Promise<import('../domain/finder').Tweet>
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
     // Job target analyze + visibility (MVU wired in Slice B)
-    analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<any>
+    analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<JobAnalysisResult>
     // Job target prep (Slice C)
-    prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<any>
+    prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<JobPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
   }
 }
@@ -202,18 +205,24 @@ export function jobTargetAnalyzeCmd(
       dispatch({ type: 'JobTargetAnalyzeSucceeded', result: result.value })
 
       // Audit: JobTargetAnalyzed with opportunity_id, score, cost (per feedback spec)
-      const r: any = result.value
-      const fit: any = r?.fit || {}
+      const r: JobAnalysisResult = result.value
+      const fit = r.fit
       const audit = JSON.stringify({
-        opportunity_id: r?.opportunity_id,
+        opportunity_id: r.opportunity_id,
         overall: fit.overall,
-        est_cost_usd: r?.est_cost_usd,
+        est_cost_usd: r.est_cost_usd,
       })
       void fromPromise(ports.finder.logEvent('JobTargetAnalyzed', audit), toAppError).then((logRes) => {
         if (logRes.ok) {
           dispatch({ type: 'UiEventLogged', eventType: 'JobTargetAnalyzed', payload: audit })
         }
       })
+
+      // Surface persist status (TD-011): if analyze returned id=0, user sees issue (no silent 0s in Data/History).
+      // Note: X search/cycle paths (search_x_recent / run_finder_cycle_cmd) use only server-side eprintln logs for persist fails (pre-existing best-effort pattern; id not returned in their result shapes to keep contracts minimal). Job analyze/prep are the primary flows getting explicit PersistFailed banner per PR scope.
+      if ((r?.opportunity_id ?? 0) === 0) {
+        dispatch({ type: 'PersistFailed', message: 'Opportunity persist returned id=0 (DB write issue or disabled). Check Data later.' })
+      }
 
       // Refresh history so the new opportunity row appears in Data tab immediately (consistent with Search/Cycle)
       dispatch({ type: 'HistoryRefreshRequested' })
@@ -231,9 +240,11 @@ export function jobTargetPrepCmd(
     // so the prep prompt can be context-aware (gaps, rationale, recommended_action from the Evaluate Fit step).
     let previous_fit: string | undefined
     const jt = model.jobTarget
-    if (jt && jt.status === 'ready' && jt.data) {
-      const d: any = jt.data
-      if (d.fit) {
+    // Note: may be 'loading' + carried data (the cheap preserve-for-merge pattern); use guard not status check only.
+    if (jt && (jt.status === 'ready' || jt.status === 'loading') && 'data' in jt && jt.data) {
+      // SAFETY: cast only to consume the preserved carry data on loading arm (see update.ts SAFETY comments + design PR2 carry hack); 'in' narrowing used immediately after.
+      const d = jt.data as JobTargetResult
+      if ('fit' in d && d.fit) {
         previous_fit = JSON.stringify({
           overall: d.fit.overall,
           rationale: d.fit.rationale,
@@ -259,17 +270,24 @@ export function jobTargetPrepCmd(
       dispatch({ type: 'JobTargetPrepSucceeded', result: result.value })
 
       // Audit
-      const r: any = result.value
+      const r: JobPrepResult = result.value
       const audit = JSON.stringify({
-        opportunity_id: r?.opportunity_id ?? payload.opportunity_id,
-        has_prep: !!r?.prep,
-        est_cost_usd: r?.est_cost_usd,
+        opportunity_id: r.opportunity_id ?? payload.opportunity_id,
+        has_prep: !!r.prep,
+        est_cost_usd: r.est_cost_usd,
       })
       void fromPromise(ports.finder.logEvent('JobTargetPrepped', audit), toAppError).then((logRes) => {
         if (logRes.ok) {
           dispatch({ type: 'UiEventLogged', eventType: 'JobTargetPrepped', payload: audit })
         }
       })
+
+      // Surface persist status (TD-011) for prep path too (id may be prior oid or 0 on fresh fail).
+      // When opportunity_id provided (in-place set_prep_artifacts after prior analyze), we return the prior oid even if set fails (eprint in Rust); user already has live fit+prep in panel so no PersistFailed dispatch (avoids false "missing" alarm). Relaxed condition here for any future 0 case on prep.
+      // (See also note in analyze effect re: X paths asymmetry.)
+      if ((r?.opportunity_id ?? 0) === 0) {
+        dispatch({ type: 'PersistFailed', message: 'Prep persist returned id=0 (DB write issue or disabled). Check Data later.' })
+      }
 
       dispatch({ type: 'HistoryRefreshRequested' })
     })
@@ -373,6 +391,153 @@ export function logUiEventCmd(
   }
 }
 
+// --- Minimal localStorage session utils (CV + last opp/screen/url for restore on AppStarted / Opportunity load).
+// Keys + PersistedSession type imported from model.ts (single source; avoids literal drift).
+// Per design: localStorage = fast FE-owned cache for cvSummary + tiny session ids (no Rust changes);
+// DB (via getOpportunities) remains canonical truth for Opportunity rows (analysis/prep json).
+// Migration note for future cv-promote-guard: treat LS as cache; on load prefer sidecar if present + reconcile;
+// on promote: sidecar-first + diff + explicit user confirm (never auto-mutate external).
+
+function readPersistedCv(): string | null {
+  try {
+    return localStorage.getItem(CV_LS_KEY)
+  } catch {
+    return null
+  }
+}
+
+function persistCvToLocal(cv: string) {
+  try {
+    localStorage.setItem(CV_LS_KEY, cv)
+  } catch {
+    console.warn('[finder] persistCvToLocal failed (quota/private mode?)')
+    /* ignore for best-effort */
+  }
+}
+
+function readPersistedSession(): PersistedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_LS_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function persistSessionToLocal(partial: Partial<PersistedSession>) {
+  try {
+    const prev = readPersistedSession() || {}
+    const next: PersistedSession = { ...prev, ...partial }
+    localStorage.setItem(SESSION_LS_KEY, JSON.stringify(next))
+  } catch {
+    console.warn('[finder] persistSessionToLocal failed')
+    /* ignore */
+  }
+}
+
+export function loadCvFromLocalCmd(): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const v = readPersistedCv()
+    if (v != null) {
+      dispatch({ type: 'CvSummaryLoaded', cvSummary: v })
+    }
+  }
+}
+
+export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.getOpportunities({ id }), toAppError).then((res) => {
+      if (!res.ok) {
+        dispatch({ type: 'GlobalError', error: res.error })
+        dispatch({ type: 'JobTargetCleared' })
+        return
+      }
+      const opps = (res.value || []) as Opportunity[]
+      const o = opps.find((x) => x.id === id) || opps[0]
+      if (!o) {
+        dispatch({ type: 'GlobalError', error: toAppError(new Error(`Opportunity ${id} not found`)) })
+        dispatch({ type: 'JobTargetCleared' })
+        return
+      }
+      // Persist what we now know for next restart (url for open button etc).
+      persistSessionToLocal({ lastActiveOppId: o.id, jobTargetUrl: o.source_url })
+      // Switch to discover and hydrate jobTarget from stored DB truth (no xAI cost).
+      dispatch({ type: 'ScreenChanged', screen: 'discover' })
+      // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
+      dispatch({ type: 'JobTargetUrlSet', url: o.source_url })
+
+      // Robust reconstruct for "exact prior state" (addresses partial rows, prep-only, parse fail, missing analysis_json).
+      // Use opp.fit_score for minimal fit stub when needed (so panel always shows score + rationale/gaps if available).
+      // Always try to ensure a fit precedes prep for the merge logic.
+      let fitDispatched = false
+      if (o.analysis_json) {
+        try {
+          const fit = JSON.parse(o.analysis_json)
+          // Minimal shape guard (Issue 6) before dispatch; required fields per JobFit in domain/job-target.ts
+          if (fit && typeof fit.overall === 'number' && typeof fit.rationale === 'string' && Array.isArray(fit.gaps_must)) {
+            const analysis: JobAnalysisResult = {
+              opportunity_id: o.id,
+              fit,
+              // Note (Issue 8): for restores we populate packet_preview from JD excerpt (original CV distillation packet not stored in opp row per design; real analyze paths use the CV packet).
+              packet_preview: (o.jd_text || '').slice(0, 200),
+              est_cost_usd: 0,
+            }
+            dispatch({ type: 'JobTargetAnalyzeSucceeded', result: analysis })
+            fitDispatched = true
+          } else {
+            console.warn('[finder] hydrate: analysis_json present but invalid shape for id', id)
+          }
+        } catch {
+          console.warn('[finder] hydrate: malformed analysis_json for id', id)
+          /* fall through to stub if possible */
+        }
+      }
+      // Synthesize minimal fit stub from fit_score if no valid analysis_json (or parse failed) but we have a score.
+      // This ensures prep-only or partial rows still show a usable "Fit analysis" section with score on restore.
+      if (!fitDispatched && typeof o.fit_score === 'number') {
+        const stubFit = {
+          overall: o.fit_score,
+          rationale: 'Restored from prior opportunity record (no full analysis_json available).',
+          gaps_must: [],
+          recommended_action: 'Review prep artifacts or re-evaluate fit.',
+        }
+        const analysis: JobAnalysisResult = {
+          opportunity_id: o.id,
+          fit: stubFit,
+          packet_preview: '(restored; original CV packet not stored)',
+          est_cost_usd: 0,
+        }
+        dispatch({ type: 'JobTargetAnalyzeSucceeded', result: analysis })
+        fitDispatched = true
+      }
+
+      if (o.prep_artifacts_json) {
+        try {
+          const parsed = JSON.parse(o.prep_artifacts_json) as Partial<JobPrepResult> & { prep?: unknown }
+          const prepData =
+            parsed && typeof parsed === 'object' && 'prep' in parsed && (parsed as { prep?: unknown }).prep
+              ? (parsed as { prep?: unknown }).prep
+              : parsed
+          const prepRes: JobPrepResult = {
+            opportunity_id: (parsed as { opportunity_id?: number }).opportunity_id ?? o.id,
+            prep: prepData as JobPrep,
+            est_cost_usd: (parsed as { est_cost_usd?: number }).est_cost_usd ?? 0,
+          }
+          dispatch({ type: 'JobTargetPrepSucceeded', result: prepRes })
+        } catch {
+          console.warn('[finder] hydrate: malformed prep_artifacts_json for id', id)
+          /* skip */
+        }
+      }
+
+      if (!o.analysis_json && !o.prep_artifacts_json) {
+        dispatch({ type: 'JobTargetCleared' })
+      }
+    })
+  }
+}
+
 /** Maps messages that need I/O to commands. Pure update runs first in program layer. */
 export function effectForMsg(
   ports: FinderPorts,
@@ -382,7 +547,20 @@ export function effectForMsg(
   switch (msg.type) {
     case 'AppStarted':
       // Load creds + initial history for the dashboard.
-      return [credentialsCheckCmd(ports), historyRefreshCmd(ports)]
+      // + CV from localStorage (CvSummaryLoaded) + conditional last opp hydrate via OpportunitySelected path
+      // (uses model.lastActiveOppId which initialFinderModel may have populated from LS for restore).
+      const appCmds: (Cmd<FinderMsg> | undefined)[] = [
+        credentialsCheckCmd(ports),
+        historyRefreshCmd(ports),
+        loadCvFromLocalCmd(),
+      ]
+      const lastId = model.lastActiveOppId
+      if (typeof lastId === 'number') {
+        // Trigger the normal OpportunitySelected path (sets last, loads from DB via loadCmd which also does JobTargetUrlSet for live model url, hydrates jobTarget + screen).
+        // (url for this auto path comes from the fetched opp or prior LS via initial model.)
+        appCmds.push((d) => d({ type: 'OpportunitySelected', id: lastId }))
+      }
+      return appCmds.filter(Boolean) as Cmd<FinderMsg>[]
     case 'CredentialsSaveRequested':
       return credentialsSaveCmd(ports, model)
     case 'CredentialsClearRequested':
@@ -399,6 +577,39 @@ export function effectForMsg(
       return jobTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'JobTargetPrepRequested':
       return jobTargetPrepCmd(ports, model, { opportunity_id: msg.opportunity_id, url: msg.url, pasted_jd: msg.pasted_jd })
+
+    // CV persist side-effect (localStorage cache). Triggered on every edit.
+    case 'CvSummaryChanged':
+      return (/*dispatch*/) => {
+        persistCvToLocal(model.cvSummary)
+      }
+
+    // Session id/screen persist (for resume). Also creds probe for settings already handled.
+    case 'ScreenChanged':
+      // existing creds check for settings
+      const credsCmd = msg.screen === 'settings' ? credentialsCheckCmd(ports) : undefined
+      const sessCmd = (/*dispatch*/) => {
+        persistSessionToLocal({ activeScreen: msg.screen })
+      }
+      return credsCmd ? [credsCmd, sessCmd] : sessCmd
+
+    // Opportunity load + hydrate jobTarget from DB (no xAI). Also sets screen.
+    // Note: url (if passed in msg from Data row) is applied in update *before* this effect runs; loadCmd ensures via JobTargetUrlSet for AppStarted path.
+    case 'OpportunitySelected':
+      if (model.jobTarget && model.jobTarget.status === 'loading') {
+        return undefined
+      }
+      return loadOpportunityCmd(ports, msg.id)
+
+    // Persist last active opp (and url if known) so restart can resume exact jobTarget.
+    case 'JobTargetAnalyzeSucceeded':
+      return (/*dispatch*/) => {
+        persistSessionToLocal({ lastActiveOppId: msg.result.opportunity_id, jobTargetUrl: model.jobTargetUrl })
+      }
+    case 'JobTargetPrepSucceeded':
+      return (/*dispatch*/) => {
+        persistSessionToLocal({ lastActiveOppId: msg.result.opportunity_id })
+      }
 
     // Auto refresh history after successful ops (data now in DB).
     case 'SearchSucceeded':
@@ -423,15 +634,6 @@ export function effectForMsg(
       return loadSearchRunCmd(ports, msg.id)
     case 'HydrateRequested':
       return hydrateCmd(ports, msg.tweetId)
-
-    // Re-probe bearer storage (and trigger keyring promotion/heal if only file is present)
-    // when the user actually visits the Settings screen. This makes the credentials panel
-    // reflect an up-to-date (possibly promoted) active_source without manual refresh.
-    case 'ScreenChanged':
-      if (msg.screen === 'settings') {
-        return credentialsCheckCmd(ports)
-      }
-      return undefined
 
     default:
       return undefined

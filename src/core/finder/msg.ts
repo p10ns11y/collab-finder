@@ -9,6 +9,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
+import type { JobAnalysisResult, JobPrepResult } from '../domain/job-target'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -20,6 +21,9 @@ export type FinderMsg =
   | { type: 'PaletteClosed' }
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
+  | { type: 'CvSummaryLoaded'; cvSummary: string }
+  | { type: 'OpportunitySelected'; id: number; url?: string }
+  | { type: 'JobTargetUrlSet'; url?: string }
   | { type: 'PresetSelected'; query: string }
   | { type: 'CredentialsChecked'; storage: BearerStorageStatus }
   | { type: 'CredentialsDraftChanged'; draft: string }
@@ -56,6 +60,9 @@ export type FinderMsg =
   | { type: 'HistoryFailed'; error: AppError }
   | { type: 'UiEventLogged'; eventType: string; payload?: string }
 
+  // Persist status surface (TD-011): basic banner for DB write fails (e.g. analyze/prep id=0)
+  | { type: 'PersistFailed'; message: string }
+
   // Screen navigation (MVU, keyboard + sidebar + palette)
   | { type: 'ScreenChanged'; screen: import('./model').FinderScreen }
 
@@ -75,11 +82,11 @@ export type FinderMsg =
 
   // Job target analyze (MVU integration for Quick Job Target — Slice B)
   | { type: 'JobTargetAnalyzeRequested'; url?: string; pasted_jd?: string }
-  | { type: 'JobTargetAnalyzeSucceeded'; result: any }
+  | { type: 'JobTargetAnalyzeSucceeded'; result: JobAnalysisResult }
   | { type: 'JobTargetAnalyzeFailed'; error: AppError }
   | { type: 'JobTargetCleared' }
 
   // Job target prep (Slice C — Full Prep artifacts after fit evaluation)
   | { type: 'JobTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
-  | { type: 'JobTargetPrepSucceeded'; result: any }
+  | { type: 'JobTargetPrepSucceeded'; result: JobPrepResult }
   | { type: 'JobTargetPrepFailed'; error: AppError }

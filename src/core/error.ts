@@ -8,6 +8,7 @@ export type AppErrorCode =
   | 'x_api'
   | 'reactor'
   | 'global_fatal'
+  | 'persist'
 
 export type AppError = {
   code: AppErrorCode
