@@ -19,6 +19,10 @@ const SCREEN_LABEL: Record<FinderScreen, string> = {
   discover: 'Jobs',
   hunt: 'Hunt',
   settings: 'Settings',
+  stats: 'Statistics',
+  history: 'History',
+  data: 'Data',
+  lookup: 'Lookup',
 }
 
 /** Presentational shell — props in, events out as Msg. No hooks, no invoke. */

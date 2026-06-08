@@ -600,10 +600,10 @@ export function effectForMsg(
 
     // Opportunity load + hydrate jobTarget from DB (no xAI). Also sets screen.
     // Note: url (if passed in msg from Data row) is applied in update *before* this effect runs; loadCmd ensures via JobTargetUrlSet for AppStarted path.
+    // Always run the load for explicit user intent (rail click, resume, data row) or startup restore.
+    // The previous guard prevented loadCmd from ever running (because update sets 'loading' before effect sees the 'next' model).
+    // loadCmd itself handles not-found / errors by clearing and GlobalError.
     case 'OpportunitySelected':
-      if (model.jobTarget && model.jobTarget.status === 'loading') {
-        return undefined
-      }
       return loadOpportunityCmd(ports, msg.id)
 
     // Persist last active opp (and url if known) so restart can resume exact jobTarget.

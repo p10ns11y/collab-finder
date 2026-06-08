@@ -54,7 +54,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
            Click loads into panel (reuse OpportunitySelected + load from DB blobs, no new xAI).
            Optimistic updates via refresh after analyze/prep. This is the primary "intuitive" surface. */}
         <div className="border border-border-subtle rounded p-2">
-          <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS (rail - always visible)</div>
+          <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS</div>
           {historyOpportunities.length === 0 ? (
             <div className="text-xs text-ink-faint">No jobs yet. Paste URL below to evaluate.</div>
           ) : (
