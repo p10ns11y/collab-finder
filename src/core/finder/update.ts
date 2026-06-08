@@ -208,6 +208,8 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             ...model.history,
             searches: { status: 'loading' },
             leads: { status: 'loading' },
+            pauses: { status: 'loading' },
+            events: { status: 'loading' },
             stats: { status: 'loading' },
             opportunities: { status: 'loading' },
           },
@@ -234,9 +236,19 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             ...model.history,
             searches: { status: 'failed', error: msg.error },
             leads: { status: 'failed', error: msg.error },
+            pauses: { status: 'failed', error: msg.error },
+            events: { status: 'failed', error: msg.error },
             opportunities: { status: 'failed', error: msg.error },
           },
           banner: msg.error,
+        },
+      ]
+
+    case 'PersistFailed':
+      return [
+        {
+          ...model,
+          banner: { code: 'persist', message: msg.message } as any,
         },
       ]
 

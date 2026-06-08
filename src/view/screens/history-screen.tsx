@@ -11,8 +11,8 @@ type Props = {
 }
 
 export function HistoryScreen({ view, dispatch }: Props) {
-  const { historySearches: searches, historyLeads: leads, historyStats: stats } = view
-  const hasData = searches.length > 0 || leads.length > 0
+  const { historySearches: searches, historyLeads: leads, historyPauses: pauses, historyStats: stats } = view
+  const hasData = searches.length > 0 || leads.length > 0 || pauses.length > 0
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -104,6 +104,23 @@ export function HistoryScreen({ view, dispatch }: Props) {
           {stats?.most_reseen && (
             <p className="mt-1 text-[10px] text-ink-faint">Most re-surfaced: {stats.most_reseen[0]} ×{stats.most_reseen[1]}</p>
           )}
+        </div>
+      )}
+
+      {pauses.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            <span>Pauses (from DB)</span>
+            <span>{pauses.length} logged</span>
+          </div>
+          <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
+            {pauses.slice(0, 5).map((p) => (
+              <li key={p.id} className="px-3 py-2 text-ink-muted">
+                <span className="font-mono text-accent/80">{p.id}</span> {p.reason}
+                {p.guard_type && <span className="ml-1 text-ink-faint">({p.guard_type})</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

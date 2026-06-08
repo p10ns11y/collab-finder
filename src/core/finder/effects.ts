@@ -215,6 +215,11 @@ export function jobTargetAnalyzeCmd(
         }
       })
 
+      // Surface persist status (TD-011): if analyze returned id=0, user sees issue (no silent 0s in Data/History)
+      if ((r?.opportunity_id ?? 0) === 0) {
+        dispatch({ type: 'PersistFailed', message: 'Opportunity persist returned id=0 (DB write issue or disabled). Check Data later.' })
+      }
+
       // Refresh history so the new opportunity row appears in Data tab immediately (consistent with Search/Cycle)
       dispatch({ type: 'HistoryRefreshRequested' })
     })
@@ -270,6 +275,11 @@ export function jobTargetPrepCmd(
           dispatch({ type: 'UiEventLogged', eventType: 'JobTargetPrepped', payload: audit })
         }
       })
+
+      // Surface persist status (TD-011) for prep path too (id may be prior oid or 0 on fresh fail)
+      if ((r?.opportunity_id ?? 0) === 0 && !payload.opportunity_id) {
+        dispatch({ type: 'PersistFailed', message: 'Prep persist returned id=0 (DB write issue or disabled). Check Data later.' })
+      }
 
       dispatch({ type: 'HistoryRefreshRequested' })
     })

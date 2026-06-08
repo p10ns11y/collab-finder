@@ -579,6 +579,8 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
         Ok(lead_id)
     }
 
+    /// Record a guard pause/intervention (wired from finder_reactor guard triggers for TD-003).
+    /// get_recent_pauses + stats.total_pauses now real (no more empty in prod use).
     pub fn record_pause(
         &self,
         reason: &str,

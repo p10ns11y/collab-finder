@@ -18,8 +18,11 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: '
 }
 
 export function StatsScreen({ view }: Props) {
-  const { model, historyStats, historySearches, historyLeads } = view
-  const pauseCount = model.pauses.length
+  const { model, historyStats, historySearches, historyLeads, historyPauses } = view
+  // Use DB pauses projection (via get_recent_pauses + history.pauses) for "pauses logged" count (TD-003);
+  // falls back to session model.pauses only if no DB records yet.
+  const dbPausesCount = (historyStats?.total_pauses ?? (historyPauses?.length ?? 0))
+  const pauseCount = dbPausesCount > 0 ? dbPausesCount : model.pauses.length
   const s = historyStats
 
   return (
@@ -38,7 +41,7 @@ export function StatsScreen({ view }: Props) {
         <Metric label="Total surfaces" value={String(s?.total_surfaces ?? 0)} />
         <Metric
           label="Pauses logged"
-          value={String(s?.total_pauses ?? 0)}
+          value={String(s?.total_pauses ?? (historyPauses?.length ?? 0))}
           tone={s && s.total_pauses > 0 ? 'warning' : 'neutral'}
         />
       </div>

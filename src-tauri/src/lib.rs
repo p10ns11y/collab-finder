@@ -170,22 +170,27 @@ async fn analyze_job_target(
         .map(|i| i as i32);
 
     // Persist as opportunity (best effort). Now uses reliable upsert (TD-001) that updates 1 row for same source_url.
+    // Returns 0 on disabled or write failure (TD-011: surface via caller banner if id==0).
     let run_id = if let Ok(guard) = db.0.lock() {
-        guard
-            .upsert_opportunity(
-                "web",
-                url.as_deref(),
-                None,
-                title.as_deref(),
-                company.as_deref(),
-                &jd,
-                "analyzed",
-                fit_score,
-                Some(&fit_json.to_string()),
-                None,
-                None,
-            )
-            .unwrap_or(0)
+        match guard.upsert_opportunity(
+            "web",
+            url.as_deref(),
+            None,
+            title.as_deref(),
+            company.as_deref(),
+            &jd,
+            "analyzed",
+            fit_score,
+            Some(&fit_json.to_string()),
+            None,
+            None,
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("[db] analyze upsert failed (TD-011): {e}");
+                0
+            }
+        }
     } else {
         0
     };
@@ -302,28 +307,34 @@ async fn prep_job_target(
     // (upsert now reliably dedups by source_url per TD-001; id load reliable per TD-002)
     let run_id = if let Some(oid) = opportunity_id {
         if let Ok(guard) = db.0.lock() {
-            let _ = guard.set_prep_artifacts(oid, &prep_json.to_string(), "prepped");
+            if let Err(e) = guard.set_prep_artifacts(oid, &prep_json.to_string(), "prepped") {
+                eprintln!("[db] prep set_artifacts failed for id {oid} (TD-011): {e}");
+            }
             oid
         } else {
             oid
         }
     } else if let Ok(guard) = db.0.lock() {
         // Fallback for calls without prior id (should be rare)
-        guard
-            .upsert_opportunity(
-                "web",
-                effective_url.as_deref(),
-                None,
-                title.as_deref(),
-                company.as_deref(),
-                &jd,
-                "prepped",
-                None,
-                None,
-                Some(&prep_json.to_string()),
-                None,
-            )
-            .unwrap_or(0)
+        match guard.upsert_opportunity(
+            "web",
+            effective_url.as_deref(),
+            None,
+            title.as_deref(),
+            company.as_deref(),
+            &jd,
+            "prepped",
+            None,
+            None,
+            Some(&prep_json.to_string()),
+            None,
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("[db] prep fallback upsert failed (TD-011): {e}");
+                0
+            }
+        }
     } else {
         0
     };
@@ -410,9 +421,10 @@ async fn search_x_recent(
 
     let run_id =
         db.0.lock()
-            .map(|s| persist_manual_search(&s, &query, max, &tweets, &rate, dur))
+            .map_err(|e| e.to_string())
+            .and_then(|s| persist_manual_search(&s, &query, max, &tweets, &rate, dur))
             .unwrap_or_else(|e| {
-                eprintln!("[db] search persist skipped (non-fatal): {e}");
+                eprintln!("[db] search persist skipped (non-fatal, TD-011): {e}");
                 0
             });
 
@@ -436,22 +448,55 @@ async fn run_finder_cycle_cmd(
 ) -> Result<CycleResult, String> {
     let bearer = x_bearer()?;
     let start = std::time::Instant::now();
-    let mut guard = reactor.0.lock().await;
-    let result = guard
+    let mut rguard = reactor.0.lock().await;
+    let result = rguard
         .run_autonomous_cycle(query.clone(), bearer, cv_summary)
         .await?;
     let dur = start.elapsed().as_millis() as i64;
-    drop(guard);
+    drop(rguard);
+
+    // Wire record_pause from reactor guard triggers (TD-003). Done here post-await (avoids !Send guard across .await in cmd).
+    // Matches pushes in finder_reactor.rs complete_cycle / guarded (fit/xrate/promote/cycle pause).
+    if !result.decision.guards_triggered.is_empty() {
+        if let Ok(s) = db.0.lock() {
+            let _ = s.record_pause(
+                "Cycle paused on guard(s)",
+                Some("FitThreshold"),
+                None,
+                None,
+                Some(&format!("{:?}", result.decision.guards_triggered)),
+            );
+        }
+    }
+    if result.decision.action == "promote" {
+        if let Ok(s) = db.0.lock() {
+            let _ = s.record_pause(
+                "CV promote guard triggered - sidecar only, user confirm required",
+                Some("CVPromote"),
+                None,
+                None,
+                None,
+            );
+        }
+    }
 
     let run_id =
         db.0.lock()
-            .map(|s| persist_cycle_search(&s, &query, &result.tweets, dur))
-            .unwrap_or(0);
+            .map_err(|e| e.to_string())
+            .and_then(|s| persist_cycle_search(&s, &query, &result.tweets, dur))
+            .unwrap_or_else(|e| {
+                eprintln!("[db] cycle search persist skipped (non-fatal, TD-011): {e}");
+                0
+            });
 
     let _lead_id =
         db.0.lock()
-            .map(|s| persist_cycle_lead(&s, &result))
-            .unwrap_or(0);
+            .map_err(|e| e.to_string())
+            .and_then(|s| persist_cycle_lead(&s, &result))
+            .unwrap_or_else(|e| {
+                eprintln!("[db] cycle lead persist skipped (non-fatal, TD-011): {e}");
+                0
+            });
 
     if run_id > 0 {
         eprintln!("[db] recorded cycle search_run {}", run_id);
@@ -479,8 +524,11 @@ async fn promote_lead(
     let msg = promote_message(&mut guard, &lead_id)?;
     drop(guard);
 
-    let _ = db.0.lock().map(|s| {
-        persist_promote_event(&s, &lead_id, &msg);
+    let _ = db.0.lock().map_err(|e| e.to_string()).and_then(|s| {
+        persist_promote_event(&s, &lead_id, &msg).map_err(|e| {
+            eprintln!("[db] promote persist skipped (non-fatal, TD-011): {e}");
+            e
+        })
     });
 
     Ok(msg)

@@ -56,6 +56,9 @@ export type FinderMsg =
   | { type: 'HistoryFailed'; error: AppError }
   | { type: 'UiEventLogged'; eventType: string; payload?: string }
 
+  // Persist status surface (TD-011): basic banner for DB write fails (e.g. analyze/prep id=0)
+  | { type: 'PersistFailed'; message: string }
+
   // Screen navigation (MVU, keyboard + sidebar + palette)
   | { type: 'ScreenChanged'; screen: import('./model').FinderScreen }
 
