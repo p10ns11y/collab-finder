@@ -100,7 +100,11 @@ async fn fetch_job_page(url: String) -> Result<JobPageResult, String> {
 
     // Very naive strip of tags/scripts for v1. Real readability can come later.
     let cleaned = strip_html_basic(&text);
-    let truncated = if cleaned.len() > 8000 { &cleaned[..8000] } else { &cleaned };
+    let truncated = if cleaned.len() > 8000 {
+        &cleaned[..8000]
+    } else {
+        &cleaned
+    };
 
     Ok(JobPageResult {
         title: None, // can be enhanced by xAI extract later
@@ -157,25 +161,31 @@ async fn analyze_job_target(
         "additionalProperties": false
     });
 
-    let (fit_json, usage) = crate::xai::structured_chat(system, &user, "job_fit_v1", schema).await?;
+    let (fit_json, usage) =
+        crate::xai::structured_chat(system, &user, "job_fit_v1", schema).await?;
 
-    let fit_score = fit_json.get("overall").and_then(|v| v.as_i64()).map(|i| i as i32);
+    let fit_score = fit_json
+        .get("overall")
+        .and_then(|v| v.as_i64())
+        .map(|i| i as i32);
 
-    // Persist as opportunity (best effort)
+    // Persist as opportunity (best effort). Now uses reliable upsert (TD-001) that updates 1 row for same source_url.
     let run_id = if let Ok(guard) = db.0.lock() {
-        guard.upsert_opportunity(
-            "web",
-            url.as_deref(),
-            None,
-            title.as_deref(),
-            company.as_deref(),
-            &jd,
-            "analyzed",
-            fit_score,
-            Some(&fit_json.to_string()),
-            None,
-            None,
-        ).unwrap_or(0)
+        guard
+            .upsert_opportunity(
+                "web",
+                url.as_deref(),
+                None,
+                title.as_deref(),
+                company.as_deref(),
+                &jd,
+                "analyzed",
+                fit_score,
+                Some(&fit_json.to_string()),
+                None,
+                None,
+            )
+            .unwrap_or(0)
     } else {
         0
     };
@@ -226,6 +236,8 @@ async fn prep_job_target(
                 let mut filter = db::OpportunityFilter::default();
                 filter.id = Some(oid);
                 filter.limit = Some(1);
+                // TD-002: id filter now pushed to SQL in get_opportunities; this succeeds for old opportunity_id
+                // even when 50+ newer opportunities exist (see Phase 0 acceptance in tech-debt-deep-dive).
                 if let Ok(opps) = guard.get_opportunities(&filter) {
                     if let Some(opp) = opps.first() {
                         jd = opp.jd_text.clone();
@@ -238,7 +250,9 @@ async fn prep_job_target(
         }
     }
     if jd.is_empty() {
-        return Err("Provide url, pasted_jd or ensure prior analyze created the opportunity".into());
+        return Err(
+            "Provide url, pasted_jd or ensure prior analyze created the opportunity".into(),
+        );
     }
 
     // Use the CV summary packet passed from the UI (the distilled one shown/edited in the prominent CvSummaryInput after the recent UI refactor).
@@ -255,7 +269,10 @@ async fn prep_job_target(
     );
     if let Some(fit) = previous_fit {
         if !fit.trim().is_empty() {
-            user.push_str(&format!("PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n", fit));
+            user.push_str(&format!(
+                "PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n",
+                fit
+            ));
         }
     }
     user.push_str("Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and (if the JD asks for it) a strong 80-120 word 'exceptional work' example.\nReturn JSON only.");
@@ -274,13 +291,15 @@ async fn prep_job_target(
         "additionalProperties": false
     });
 
-    let (prep_json, usage) = crate::xai::structured_chat(system, &user, "job_prep_v1", schema).await?;
+    let (prep_json, usage) =
+        crate::xai::structured_chat(system, &user, "job_prep_v1", schema).await?;
 
     let cost = crate::xai::cost_from_usage(&usage);
 
     // Persist the prep artifacts.
     // Prefer updating the specific opportunity_id in place (so the same opportunity keeps its id and fit analysis).
     // This prevents duplicate rows for the same job post when doing "evaluate -> prep" from the panel.
+    // (upsert now reliably dedups by source_url per TD-001; id load reliable per TD-002)
     let run_id = if let Some(oid) = opportunity_id {
         if let Ok(guard) = db.0.lock() {
             let _ = guard.set_prep_artifacts(oid, &prep_json.to_string(), "prepped");
@@ -290,19 +309,21 @@ async fn prep_job_target(
         }
     } else if let Ok(guard) = db.0.lock() {
         // Fallback for calls without prior id (should be rare)
-        guard.upsert_opportunity(
-            "web",
-            effective_url.as_deref(),
-            None,
-            title.as_deref(),
-            company.as_deref(),
-            &jd,
-            "prepped",
-            None,
-            None,
-            Some(&prep_json.to_string()),
-            None,
-        ).unwrap_or(0)
+        guard
+            .upsert_opportunity(
+                "web",
+                effective_url.as_deref(),
+                None,
+                title.as_deref(),
+                company.as_deref(),
+                &jd,
+                "prepped",
+                None,
+                None,
+                Some(&prep_json.to_string()),
+                None,
+            )
+            .unwrap_or(0)
     } else {
         0
     };
@@ -355,8 +376,12 @@ fn strip_html_basic(html: &str) -> String {
         if in_tag {
             // crude script skip
             let lower = html.to_lowercase();
-            if lower.contains("<script") { in_script = true; }
-            if lower.contains("</script>") { in_script = false; }
+            if lower.contains("<script") {
+                in_script = true;
+            }
+            if lower.contains("</script>") {
+                in_script = false;
+            }
             continue;
         }
         if !in_script {
@@ -383,17 +408,20 @@ async fn search_x_recent(
         eprintln!("[x] rate remaining: {rem}");
     }
 
-    let run_id = db
-        .0
-        .lock()
-        .map(|s| persist_manual_search(&s, &query, max, &tweets, &rate, dur))
-        .unwrap_or_else(|e| {
-            eprintln!("[db] search persist skipped (non-fatal): {e}");
-            0
-        });
+    let run_id =
+        db.0.lock()
+            .map(|s| persist_manual_search(&s, &query, max, &tweets, &rate, dur))
+            .unwrap_or_else(|e| {
+                eprintln!("[db] search persist skipped (non-fatal): {e}");
+                0
+            });
 
     if run_id > 0 {
-        eprintln!("[db] recorded search_run {} ({} tweets)", run_id, tweets.len());
+        eprintln!(
+            "[db] recorded search_run {} ({} tweets)",
+            run_id,
+            tweets.len()
+        );
     }
 
     Ok(tweets)
@@ -409,21 +437,21 @@ async fn run_finder_cycle_cmd(
     let bearer = x_bearer()?;
     let start = std::time::Instant::now();
     let mut guard = reactor.0.lock().await;
-    let result = guard.run_autonomous_cycle(query.clone(), bearer, cv_summary).await?;
+    let result = guard
+        .run_autonomous_cycle(query.clone(), bearer, cv_summary)
+        .await?;
     let dur = start.elapsed().as_millis() as i64;
     drop(guard);
 
-    let run_id = db
-        .0
-        .lock()
-        .map(|s| persist_cycle_search(&s, &query, &result.tweets, dur))
-        .unwrap_or(0);
+    let run_id =
+        db.0.lock()
+            .map(|s| persist_cycle_search(&s, &query, &result.tweets, dur))
+            .unwrap_or(0);
 
-    let _lead_id = db
-        .0
-        .lock()
-        .map(|s| persist_cycle_lead(&s, &result))
-        .unwrap_or(0);
+    let _lead_id =
+        db.0.lock()
+            .map(|s| persist_cycle_lead(&s, &result))
+            .unwrap_or(0);
 
     if run_id > 0 {
         eprintln!("[db] recorded cycle search_run {}", run_id);
@@ -459,7 +487,10 @@ async fn promote_lead(
 }
 
 #[tauri::command]
-async fn get_search_history(db: State<'_, AppDb>, limit: Option<u32>) -> Result<Vec<db::SearchRun>, String> {
+async fn get_search_history(
+    db: State<'_, AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<db::SearchRun>, String> {
     let lim = limit.unwrap_or(50);
     db.0.lock()
         .map(|s| s.get_recent_searches(lim))
@@ -467,7 +498,10 @@ async fn get_search_history(db: State<'_, AppDb>, limit: Option<u32>) -> Result<
 }
 
 #[tauri::command]
-async fn get_search_run(db: State<'_, AppDb>, id: i64) -> Result<Option<db::SearchRunWithTweets>, String> {
+async fn get_search_run(
+    db: State<'_, AppDb>,
+    id: i64,
+) -> Result<Option<db::SearchRunWithTweets>, String> {
     db.0.lock()
         .map(|s| s.get_search_run(id))
         .map_err(|e| e.to_string())?
@@ -501,7 +535,10 @@ async fn get_dashboard_stats(db: State<'_, AppDb>) -> Result<db::DashboardStats,
 }
 
 #[tauri::command]
-async fn get_recent_pauses(db: State<'_, AppDb>, limit: Option<u32>) -> Result<Vec<db::Pause>, String> {
+async fn get_recent_pauses(
+    db: State<'_, AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<db::Pause>, String> {
     let lim = limit.unwrap_or(30);
     db.0.lock()
         .map(|s| s.get_recent_pauses(lim))
@@ -568,7 +605,12 @@ fn log_event(
     correlation_id: Option<String>,
 ) -> Result<(), String> {
     let _ = db.0.lock().map(|s| {
-        let _ = s.record_event(&event_type, payload.as_deref(), correlation_id.as_deref(), Some("ui"));
+        let _ = s.record_event(
+            &event_type,
+            payload.as_deref(),
+            correlation_id.as_deref(),
+            Some("ui"),
+        );
     });
     Ok(())
 }
