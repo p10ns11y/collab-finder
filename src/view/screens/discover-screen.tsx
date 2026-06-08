@@ -2,6 +2,7 @@ import * as React from 'react'
 import { DecisionPanel } from '../../components/finder/decision-panel'
 import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
+import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { TweetFeed } from '../../components/finder/tweet-feed'
 import { JobFitPanel } from '../../components/finder/job-fit-panel'
 import type { FinderViewState } from '../../core/finder/selectors'
@@ -13,7 +14,13 @@ type Props = {
   dispatch: Dispatch<FinderMsg>
 }
 
-/** Primary workspace: query + CV + presets left; live results feed right (split on lg+). */
+/** Primary workspace: Quick Job Target + global CV context + X search controls left;
+ *  contextual results (job fit or X feed) on right.
+ *
+ *  CV summary is deliberately placed as a top-level sibling (not inside SearchWorkspace)
+ *  because it is shared cross-cutting context used by both job target flows and X search/cycle.
+ *  This prevents X errors/busy states from making the grounding data inaccessible for recovery.
+ */
 export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
@@ -24,6 +31,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const jobResult = jt.status === 'ready' ? jt.data : null
   const jobError = jt.status === 'failed' ? (jt.error?.message || String(jt.error)) : null
   const showJobFit = jobBusy || !!jobResult || !!jobError
+  const sourceUrl = model.jobTargetUrl
 
   return (
     <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
@@ -31,6 +39,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
         {/* Quick Job Target (input only — results move to right panel via MVU) */}
+        {/* CV context is now a sibling above SearchWorkspace so it stays reachable
+            even when X search/cycle errors or is busy. */}
         <QuickJobTarget
           busy={jobBusy}
           onAnalyzeRequested={(url, pasted_jd) =>
@@ -38,17 +48,20 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           }
         />
 
+        <CvSummaryInput
+          cvSummary={model.cvSummary}
+          onCvSummaryChange={(cvSummary) =>
+            dispatch({ type: 'CvSummaryChanged', cvSummary })
+          }
+        />
+
         <SearchWorkspace
           query={model.query}
-          cvSummary={model.cvSummary}
           busy={view.busy}
           canSearch={view.canSearch}
           canRunCycle={view.canRunCycle}
           presets={view.presets}
           onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
-          onCvSummaryChange={(cvSummary) =>
-            dispatch({ type: 'CvSummaryChanged', cvSummary })
-          }
           onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
           onSearch={() => dispatch({ type: 'SearchRequested' })}
           onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
@@ -72,8 +85,11 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             result={jobResult}
             error={jobError}
             busy={jobBusy}
-            sourceUrl={model.jobTargetUrl}
+            sourceUrl={sourceUrl}
             onClear={() => dispatch({ type: 'JobTargetCleared' })}
+            onPrepRequested={(opportunityId) =>
+              dispatch({ type: 'JobTargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
+            }
           />
         ) : (
           <>
@@ -98,7 +114,7 @@ type QuickJobTargetProps = {
 
 /** Quick Job Target input form.
  *  Dispatches MVU message; results render in right panel (JobFitPanel) via model.jobTarget.
- *  CV summary is read from model inside the effect (no need to thread through input form).
+ *  CV summary (global context) is read from model inside the effect.
  *  No direct invoke — all I/O goes through effects/ports (per architecture).
  */
 function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
@@ -108,7 +124,7 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
   const canAnalyze = !busy && (url.trim() || pasted.trim())
 
   const run = (wantPrep: boolean) => {
-    if (wantPrep) return // disabled until Slice C prep path
+    if (wantPrep) return // Use the "Generate prep pack" button in the result panel after evaluation (Slice C)
     onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)
   }
 
@@ -150,7 +166,7 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
       </div>
 
       <div className="mt-2 text-[10px] text-ink-faint">
-        Uses the CV summary from the box below. Results appear on the right. Full prep coming soon.
+        Uses the CV summary packet above (global context, shared with X search &amp; prep). Results appear on the right.
       </div>
     </div>
   )
