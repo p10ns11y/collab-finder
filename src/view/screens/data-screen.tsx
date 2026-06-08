@@ -178,7 +178,11 @@ export function DataScreen({ view, dispatch }: Props) {
                 <td className="px-3 py-1.5 truncate max-w-[28ch]">{o.title || '—'}</td>
                 <td className="px-3 py-1.5 truncate max-w-[20ch]">{o.company || '—'}</td>
                 <td className="px-3 py-1.5">{o.fit_score ?? '—'}</td>
-                <td className="px-3 py-1.5"><Badge tone="neutral" className="text-[10px]">{o.status}</Badge></td>
+                <td className="px-3 py-1.5">
+                  <Badge tone={o.prep_artifacts_json ? 'success' : 'neutral'} className="text-[10px]">
+                    {o.prep_artifacts_json ? 'prepped' : o.status}
+                  </Badge>
+                </td>
                 <td className="px-3 py-1.5 font-mono text-[10px] text-ink-faint truncate max-w-[30ch]" title={o.source_url || ''}>{o.source_url ? o.source_url.replace(/^https?:\/\//, '').slice(0, 50) : '—'}</td>
                 <td className="px-3 py-1.5 text-ink-muted">{new Date(o.last_updated).toLocaleString()}</td>
               </tr>

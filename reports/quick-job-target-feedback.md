@@ -211,12 +211,16 @@ Until then: **disable or relabel** orange button.
 
 ### Slice C — Full prep (follow-on)
 
+**Basic prep shipped in this PR (foundation):**
 - [x] `prep_job_target` command (structured generation + persist as status=prepped + prep_artifacts_json)
 - [x] Artifacts rendered in JobFitPanel + "Generate prep pack" / "Regenerate prep" action (gated on reasonable fit)
-- [x] CV summary packet (from distillation / cv-packet-pruned) now properly exposed in UI (CvSummaryInput as independent sibling, not buried in SearchWorkspace) **and actually used** in Evaluate Fit (analyze_job_target) + prep flows. The rich packet is the default in queries.json and passed through model -> effects -> Rust (no more generic fallback for normal path).
-- [x] Prep prompt now receives + uses previous fit analysis (rationale, gaps, recommended_action) from the Evaluate Fit step for better context-aware artifacts.
-- [ ] Full devprofile CV load + prune via cv-promote-guard (currently uses the distilled packet from UI; real external devprofile + sidecar deltas for promote still pending)
-- [ ] Stronger guards + cost visibility (basic fit >=45 gate on prep button exists; could surface est cost pre-call)
+- [x] CV summary packet (from distillation / cv-packet-pruned) now properly exposed in UI (CvSummaryInput as independent sibling) **and actually used** in Evaluate Fit + prep. Rich packet is default and flows through.
+- [x] Prep prompt receives + uses previous fit analysis for context-aware artifacts.
+- [x] Reliability: fit state preserved after prep CTA, stable opportunity IDs (in-place updates), JD resolution by opp id.
+
+**Remaining (future PRs):**
+- [ ] Full devprofile CV load + prune via cv-promote-guard (real external devprofile + sidecar deltas)
+- [ ] Stronger guards + cost visibility (surface est cost pre-call, better pauses)
 
 ---
 

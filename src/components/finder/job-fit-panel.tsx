@@ -64,13 +64,14 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            Fit analysis <span className="text-[10px] text-accent">grok-4.3</span>
+            { (result as any)?.prep ? 'Fit analysis + Prep' : 'Fit analysis' } <span className="text-[10px] text-accent">grok-4.3</span>
           </CardTitle>
           <Badge tone={tone as any}>{score}/100</Badge>
         </div>
         <div className="text-[10px] text-ink-faint">
           opportunity #{result.opportunity_id} · ~${result.est_cost_usd?.toFixed(4) ?? '—'}
           {score >= 75 ? ' — Strong fit' : score >= 55 ? ' — Moderate fit — review gaps' : ' — Low fit — significant gaps'}
+          {(result as any)?.prep ? ' (prep generated)' : ''}
         </div>
       </CardHeader>
 
@@ -175,7 +176,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
             <button
               onClick={() => onPrepRequested((result as any).opportunity_id)}
               className="px-2 py-1 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent"
-              title="Generate (or regenerate) cover letter + CV suggestions + research using the current CV summary. Skipped for very low fit scores."
+              title="Generate (or regenerate) prep pack using current CV summary + prior fit analysis. Includes cover letter, CV suggestions (as sidecar proposals), research notes. Skipped for low-fit scores to avoid low-value xAI calls. Prep cost shown after generation."
             >
               {(result as any)?.prep ? 'Regenerate prep' : 'Generate prep pack'}
             </button>
