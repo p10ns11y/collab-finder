@@ -127,7 +127,7 @@ Orchestrator **may** implement only when the task is trivial or verification fai
 - [ ] 2. Decompose — spike vs implementation waves; disjoint file ownership
 - [ ] 3. Write task brief (template below) — outcome, standards, verification commands
 - [ ] 4. Create workspace — worktree or sandbox; record in brief
-- [ ] 5. After the work is done (especially multi-worker or execute-plan style): run global cleanup with `git-worktrees/scripts/agent-worktree-clean.sh` (see git-worktrees "Disk hygiene" section)
+- [ ] 5. After the work is done (especially multi-worker or execute-plan style): run `git worktree prune` + local git-worktrees scripts first for `.worktrees/`; use `git-worktrees/scripts/agent-worktree-clean.sh` (see git-worktrees "Disk hygiene" + new "Preference in this project" for local-default vs global-fallback)
 - [ ] 5. Delegate — paste brief; point to AGENTS.md + domain skills
 - [ ] 6. Worker claims done → orchestrator verifies (never accept on claim alone)
 - [ ] 7. Pass → integrate (merge order); fail → narrow fix brief → back to 6

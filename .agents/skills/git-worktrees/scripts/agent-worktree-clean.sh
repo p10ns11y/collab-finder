@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Clean Grok-managed worktrees (global ~/.grok/worktrees/ layer).
+# Clean Grok-managed worktrees (global ~/.grok/worktrees/ layer) + final native
+# prune for local .worktrees/ (the project default per git-worktrees/SKILL.md).
 #
-# This is the preferred tool for reclaiming disk after execute-plan, best-of-n,
-# concurrent subagents, etc.
+# This is the preferred wrapper for reclaiming disk after execute-plan, best-of-n,
+# concurrent subagents, etc. (local .worktrees/ first; global only if used as fallback).
 #
 # Primary mechanism (when grok CLI is available):
 #   - grok worktree list --json   → authoritative source of truth
@@ -33,21 +34,23 @@ usage() {
 Usage: agent-worktree-clean.sh [options]
 
 Clean orphaned / stale worktrees managed by the Grok CLI (the ones under
-~/.grok/worktrees/ created by execute-plan, subagents, etc.).
+~/.grok/worktrees/ created by execute-plan, subagents, etc. — fallback only;
+local `.worktrees/` inside project are the strong default per git-worktrees/SKILL.md).
 
 By default this is a **dry run** that shows what would happen.
 
 Primary path (recommended):
   Uses `grok worktree list --json` + `grok worktree gc` / `rm` when the
-  grok CLI is available. This is far more reliable than raw filesystem scanning.
+  grok CLI is available (for globals). Always ends with `git worktree prune`
+  for native local worktrees. Far more reliable than raw filesystem scanning.
 
 Options:
   --prune, --execute     Actually perform removals (after showing plan)
   --no-preserve          Do not fetch branches from worktrees before removal
                          (only use if you are sure the commits are already safe)
   --force                Skip confirmation prompts
-  --slug <name>          Limit to a specific repo slug under ~/.grok/worktrees/
-  --all                  Consider all repos under ~/.grok/worktrees/
+  --slug <name>          Limit to a specific repo slug under ~/.grok/worktrees/ (global fallback layer)
+  --all                  Consider all repos under ~/.grok/worktrees/ (global fallback layer)
   --base <path>          Override the base directory (advanced)
   -h, --help
 
