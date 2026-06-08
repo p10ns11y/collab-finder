@@ -407,8 +407,9 @@ CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
         Ok(())
     }
 
-    /// v4 (data integrity foundation, TD-001): ensure UNIQUE on source_url (nullable via partial index)
-    /// so that ON CONFLICT(source_url) DO UPDATE fires for re-analyzes of same URL.
+    /// v4 (data integrity foundation, TD-001): adds partial UNIQUE *index* on source_url (nullable via WHERE)
+    /// (for enforcement + query speed) + dedup step; upsert_opportunity uses explicit tx lookup+UPDATE/INSERT
+    /// (index alone does not enable ON CONFLICT(target) syntax in INSERT per SQLite rules; design allowed explicit form).
     /// Deduplicates any pre-existing duplicate rows (from repeated Greenhouse etc before this fix)
     /// by keeping the latest (max id) per source_url. Additive: optional content_hash column.
     /// See tech-debt-deep-dive TD-001 + Phase 0 acceptance.
@@ -1673,5 +1674,58 @@ mod tests {
             })
             .unwrap();
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn upsert_opportunity_coalesce_preserves_values_on_none_reupsert() {
+        // Addresses review feedback: exercise COALESCE in re-upsert when passing None for fit/analysis/prep/notes
+        // (only status + last_updated should change; priors preserved). Follows exact test patterns from sibling tests.
+        let (_dir, store) = temp_store();
+        let url = Some("https://example.com/coalesce-test");
+        let id1 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("T"),
+                None,
+                "jd",
+                "analyzed",
+                Some(70),
+                Some(r#"{"a":1}"#),
+                Some("prep1"),
+                Some("note1"),
+            )
+            .unwrap();
+        // Re-upsert same url, Nones for coalesced fields, different status
+        let id2 = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("T"),
+                None,
+                "jd",
+                "prepped",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(id1, id2);
+        let opps = store
+            .get_opportunities(&OpportunityFilter {
+                id: Some(id1),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(opps.len(), 1);
+        let o = &opps[0];
+        assert_eq!(o.status, "prepped");
+        assert_eq!(o.fit_score, Some(70)); // COALESCE preserved
+        assert!(o.analysis_json.as_ref().unwrap().contains("a\":1"));
+        assert_eq!(o.prep_artifacts_json.as_deref(), Some("prep1"));
+        assert_eq!(o.notes.as_deref(), Some("note1"));
     }
 }
