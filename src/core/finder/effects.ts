@@ -5,6 +5,7 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
+import type { JobAnalysisResult, JobPrepResult, JobTargetResult } from '../domain/job-target'
 
 export type FinderPorts = {
   credentials: {
@@ -28,9 +29,9 @@ export type FinderPorts = {
     hydrateTweet(id: string): Promise<import('../domain/finder').Tweet>
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
     // Job target analyze + visibility (MVU wired in Slice B)
-    analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<any>
+    analyzeJobTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<JobAnalysisResult>
     // Job target prep (Slice C)
-    prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<any>
+    prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<JobPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
   }
 }
@@ -202,12 +203,12 @@ export function jobTargetAnalyzeCmd(
       dispatch({ type: 'JobTargetAnalyzeSucceeded', result: result.value })
 
       // Audit: JobTargetAnalyzed with opportunity_id, score, cost (per feedback spec)
-      const r: any = result.value
-      const fit: any = r?.fit || {}
+      const r: JobAnalysisResult = result.value
+      const fit = r.fit
       const audit = JSON.stringify({
-        opportunity_id: r?.opportunity_id,
+        opportunity_id: r.opportunity_id,
         overall: fit.overall,
-        est_cost_usd: r?.est_cost_usd,
+        est_cost_usd: r.est_cost_usd,
       })
       void fromPromise(ports.finder.logEvent('JobTargetAnalyzed', audit), toAppError).then((logRes) => {
         if (logRes.ok) {
@@ -231,9 +232,10 @@ export function jobTargetPrepCmd(
     // so the prep prompt can be context-aware (gaps, rationale, recommended_action from the Evaluate Fit step).
     let previous_fit: string | undefined
     const jt = model.jobTarget
-    if (jt && jt.status === 'ready' && jt.data) {
-      const d: any = jt.data
-      if (d.fit) {
+    // Note: may be 'loading' + carried data (the cheap preserve-for-merge pattern); use guard not status check only.
+    if (jt && (jt.status === 'ready' || jt.status === 'loading') && 'data' in jt && jt.data) {
+      const d = jt.data as JobTargetResult
+      if ('fit' in d && d.fit) {
         previous_fit = JSON.stringify({
           overall: d.fit.overall,
           rationale: d.fit.rationale,
@@ -259,11 +261,11 @@ export function jobTargetPrepCmd(
       dispatch({ type: 'JobTargetPrepSucceeded', result: result.value })
 
       // Audit
-      const r: any = result.value
+      const r: JobPrepResult = result.value
       const audit = JSON.stringify({
-        opportunity_id: r?.opportunity_id ?? payload.opportunity_id,
-        has_prep: !!r?.prep,
-        est_cost_usd: r?.est_cost_usd,
+        opportunity_id: r.opportunity_id ?? payload.opportunity_id,
+        has_prep: !!r.prep,
+        est_cost_usd: r.est_cost_usd,
       })
       void fromPromise(ports.finder.logEvent('JobTargetPrepped', audit), toAppError).then((logRes) => {
         if (logRes.ok) {

@@ -9,6 +9,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
+import type { JobAnalysisResult, JobPrepResult } from '../domain/job-target'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -75,11 +76,11 @@ export type FinderMsg =
 
   // Job target analyze (MVU integration for Quick Job Target — Slice B)
   | { type: 'JobTargetAnalyzeRequested'; url?: string; pasted_jd?: string }
-  | { type: 'JobTargetAnalyzeSucceeded'; result: any }
+  | { type: 'JobTargetAnalyzeSucceeded'; result: JobAnalysisResult }
   | { type: 'JobTargetAnalyzeFailed'; error: AppError }
   | { type: 'JobTargetCleared' }
 
   // Job target prep (Slice C — Full Prep artifacts after fit evaluation)
   | { type: 'JobTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
-  | { type: 'JobTargetPrepSucceeded'; result: any }
+  | { type: 'JobTargetPrepSucceeded'; result: JobPrepResult }
   | { type: 'JobTargetPrepFailed'; error: AppError }
