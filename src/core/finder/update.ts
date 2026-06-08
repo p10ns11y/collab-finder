@@ -218,18 +218,15 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [{ ...model, banner: msg.error }]
 
     case 'HistoryRefreshRequested':
+      // Do NOT blank all slices to loading (old behavior caused History + Data to appear empty
+      // immediately after evaluate/prep/search/cycle until a full AppStarted refresh or manual re-open).
+      // The background historyRefreshCmd will emit incremental HistoryRefreshed as each slice arrives.
+      // Previous ready data (if any) remains visible in selectors + screens during the refresh window.
+      // This directly addresses the post-evaluate "History/Data show empty (data not lost on restart)" symptom
+      // and the related fan-out race noted in tech-debt-deep-dive TD-009 + UX reviews.
       return [
         {
           ...model,
-          history: {
-            ...model.history,
-            searches: { status: 'loading' },
-            leads: { status: 'loading' },
-            pauses: { status: 'loading' },
-            events: { status: 'loading' },
-            stats: { status: 'loading' },
-            opportunities: { status: 'loading' },
-          },
           banner: null,
         },
       ]

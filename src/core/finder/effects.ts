@@ -296,32 +296,37 @@ export function jobTargetPrepCmd(
 
 export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
   return (dispatch) => {
-    // Parallel-ish loads for the dashboard slices.
+    // Searches (X runs) — gate the immediate partial so UI gets *something* quickly.
     void fromPromise(ports.finder.getSearchHistory(60), toAppError).then((res) => {
       if (!res.ok) {
         dispatch({ type: 'HistoryFailed', error: res.error })
         return
       }
-      // Chain the rest; on success dispatch partial refresh.
       dispatch({ type: 'HistoryRefreshed', searches: res.value })
+    })
 
-      void fromPromise(ports.finder.getLeads({ limit: 80 }), toAppError).then((r) => {
-        if (r.ok) dispatch({ type: 'HistoryRefreshed', leads: r.value })
-      })
-      void fromPromise(ports.finder.getDashboardStats(), toAppError).then((r) => {
-        if (r.ok) dispatch({ type: 'HistoryRefreshed', stats: r.value })
-      })
-      void fromPromise(ports.finder.getRecentPauses(20), toAppError).then((r) => {
-        if (r.ok) dispatch({ type: 'HistoryRefreshed', pauses: r.value })
-      })
-      // Events for Data screen (was declared but never loaded before)
-      void fromPromise(ports.finder.getEvents({ limit: 100 }), toAppError).then((r) => {
-        if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
-      })
-      // Opportunities (job targets) for Data tab
-      void fromPromise(ports.finder.getOpportunities({ limit: 100 }), toAppError).then((r) => {
-        if (r.ok) dispatch({ type: 'HistoryRefreshed', opportunities: r.value })
-      })
+    // The rest are independent (no longer chained inside searches success).
+    // This ensures that after a JobTarget analyze/prep (which only affects opportunities),
+    // the Data "Opportunities" + History "Job targets" slices still get refreshed even if
+    // search history is empty/slow or the outer call has issues.
+    // Combined with the non-blanking change in update.ts HistoryRefreshRequested, this
+    // prevents the "History/Data show empty after evaluate (until full restart)" bug.
+    void fromPromise(ports.finder.getLeads({ limit: 80 }), toAppError).then((r) => {
+      if (r.ok) dispatch({ type: 'HistoryRefreshed', leads: r.value })
+    })
+    void fromPromise(ports.finder.getDashboardStats(), toAppError).then((r) => {
+      if (r.ok) dispatch({ type: 'HistoryRefreshed', stats: r.value })
+    })
+    void fromPromise(ports.finder.getRecentPauses(20), toAppError).then((r) => {
+      if (r.ok) dispatch({ type: 'HistoryRefreshed', pauses: r.value })
+    })
+    // Events for Data screen
+    void fromPromise(ports.finder.getEvents({ limit: 100 }), toAppError).then((r) => {
+      if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
+    })
+    // Opportunities (job targets) — critical for Data tab + History "Job targets" + Discover "Resume last"
+    void fromPromise(ports.finder.getOpportunities({ limit: 100 }), toAppError).then((r) => {
+      if (r.ok) dispatch({ type: 'HistoryRefreshed', opportunities: r.value })
     })
   }
 }
