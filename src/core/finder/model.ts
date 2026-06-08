@@ -10,6 +10,7 @@ import type {
   DashboardStats,
   Event,
   Lead,
+  Opportunity,
   Pause,
   SearchRun,
   SearchRunWithTweets,
@@ -40,6 +41,7 @@ export type HistorySlice = {
   pauses: AsyncState<Pause[]>
   events: AsyncState<Event[]>
   stats: AsyncState<DashboardStats | null>
+  opportunities: AsyncState<Opportunity[]>
 }
 
 export type FinderModel = {
@@ -62,6 +64,9 @@ export type FinderModel = {
   selectedRunId: number | null
   selectedRun: AsyncState<SearchRunWithTweets | null>
   hydrate: AsyncState<Tweet | null>
+  // Job target (Quick Job Target analyze via grok-4.3; drives right panel priority + Data tab)
+  jobTarget: AsyncState<any>
+  jobTargetUrl?: string
 }
 
 export function initialFinderModel(): FinderModel {
@@ -89,6 +94,7 @@ export function initialFinderModel(): FinderModel {
       pauses: idle(),
       events: idle(),
       stats: idle(),
+      opportunities: idle(),
     },
     activeScreen: 'discover',
     lookup: idle(),
@@ -96,5 +102,7 @@ export function initialFinderModel(): FinderModel {
     selectedRunId: null,
     selectedRun: idle(),
     hydrate: idle(),
+    jobTarget: idle(),
+    jobTargetUrl: undefined,
   }
 }

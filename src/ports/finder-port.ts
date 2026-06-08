@@ -5,6 +5,8 @@ import type {
   EventFilter,
   Lead,
   LeadFilter,
+  Opportunity,
+  OpportunityFilter,
   Pause,
   SearchRun,
   SearchRunWithTweets,
@@ -28,4 +30,10 @@ export type FinderPort = {
   searchPastTweets(ftsQuery: string, limit?: number): Promise<Result<Tweet[], AppError>>
   hydrateTweet(id: string): Promise<Result<Tweet, AppError>>
   logEvent(eventType: string, payload?: string, correlationId?: string): Promise<Result<void, AppError>>
+
+  // Job target (web/paste) — new primary flow
+  fetchJobPage(url: string): Promise<Result<any, AppError>>
+  analyzeJobTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<any, AppError>>
+  prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<any, AppError>>
+  getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
 }

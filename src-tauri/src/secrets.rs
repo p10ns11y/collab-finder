@@ -1,64 +1,77 @@
 // ============================================================================
-// STABILITY CONTRACT — X BEARER / KEYRING + FILE FALLBACK (CREDENTIALS)
+// STABILITY CONTRACT — X BEARER + xAI KEY / KEYRING + FILE FALLBACK (CREDENTIALS)
 // ============================================================================
 //
 // THIS IS THE #1 AREA THAT KEEPS GETTING BROKEN BY UNRELATED REFACTORS.
 //
-// What it is:
-// - Dual store for the X app-only Bearer token: prefer OS keyring (keyring crate +
-//   sync-secret-service on Linux), always write plaintext 0600 fallback file under
-//   app data dir, best-effort keyring with explicit "clear on keyring-fail so file wins".
-// - Rich status for the UI credentials panel: `get_x_bearer_storage` returns
-//   BearerStorageStatus (active_source, keyring.reachable + error, file info).
-// - Internal `get_x_bearer()` / `x_bearer()` used by search/cycle/hydrate — the token
-//   is NEVER passed over IPC from the frontend on each call.
-// - Automatic promotion ("heal"): `get_bearer_storage_status` (and the usage read path)
-//   will best-effort copy the file token into the keyring when the service is reachable
-//   but empty. This is the fix that made "keyring works again" after the screen-shell
-//   refactor without forcing the user to re-Save. Gated under `!cfg!(test)` in the
-//   status path. See docs/SETUP.md "Keyring reachable but not active".
+// There are now TWO independent credential pairs that must be treated with identical care:
 //
-// Why agents (Cursor composer, etc.) repeatedly break it on unrelated work:
-// - The 4 thin credential commands live in the big list in lib.rs:generate_handler!.
-// - `x_bearer()` helper is called from multiple command fns in the same file.
-// - Shared app_data_dir used to be owned by file_store (imported by db.rs) → "storage"
-//   refactors (e.g. implementing the x-content-storage-distributin-policy recommendation
-//   for tweet snippets vs full text) touch lib.rs + data layout + "storage" modules.
-// - Subtle invariants: dual-write + shadowing prevention, NoEntry special case,
-//   probe vs read vs resolve_active_source, unix 0600/0700 perms, global test harness mutex,
-//   exact serde shape matching the TS BearerStorageStatus type.
-// - keyring behavior is platform + DE dependent (works great on macOS/Windows full DEs,
-//   intentionally falls back on minimal Arch/Hyprland — agents on nice desktops delete
-//   the "complex" fallback).
-// - Verification often stops at `cargo check`; the real contract (status panel +
-//   Linux keyring roundtrip test + "save then search works") lives in `cargo test` + manual run.
+// 1. X Bearer (original, for X API search/cycle)
+//    - Dual store: OS keyring (preferred) + plaintext 0600 "x-bearer" file fallback.
+//    - Commands: has_x_bearer / get_x_bearer_storage / set_x_bearer / clear_x_bearer
+//    - Internal: get_x_bearer() / x_bearer()
+//    - Status: BearerStorageStatus (used by X Connection panel)
 //
-// RULES (non-negotiable for any agent or human):
-// 1. Treat the credential commands + Bearer* types + error string from get_x_bearer as
-//    a public contract. See docs/tauri-commands.md.
-// 2. Before touching lib.rs command registration, secrets.rs, file_store.rs, or app_dirs.rs:
-//    - Grep for all call sites of get_x_bearer*, set/clear, x_bearer, app_data_dir.
-//    - Read the header in app_dirs.rs and this header.
-// 3. Any edit that could affect registration, signatures, or the read/write paths:
-//    MUST be followed by `cd src-tauri && cargo test` (exercises the harness + keyring probes).
-// 4. After change, run the app and verify the X Connection panel shows correct
-//    active_source + keyring.reachable (and that search/cycle still succeed).
-//    In particular, after clearing a keyring entry (or on a machine that only has the
-//    file), simply opening **Settings** should cause the status line to flip to
-//    `active_source=Keyring` thanks to the automatic promotion logic.
-// 5. Never remove the file fallback "because keyring is better now".
-// 6. Never bypass x_bearer() or put bearer on the wire.
+// 2. xAI Key (new, for analysis, fit scoring, CV tailoring, cover letters, prep packs)
+//    - Exact parallel dual store: OS keyring (preferred) + plaintext 0600 "xai-key" file fallback.
+//    - Commands: has_xai_key / get_xai_key_storage / set_xai_key / clear_xai_key
+//    - Internal: get_xai_key() (used only inside analyze/prep commands — NEVER on IPC wire)
+//    - Status: XaiKeyStorageStatus (shape mirrors Bearer* exactly for UI consistency)
+//    - Default model for this app: grok-4.3 (highest quality for CV+JD work). Pricing
+//      for estimates: $1.25/M input, $2.50/M output (real costs from API usage fields).
 //
-// If the task is "implement X content storage policy / tweet snippets / hydrate":
-//   Do NOT refactor secrets, bearer storage, or the dir logic "while you're in the area".
-//   The two "storage" things are deliberately separated now (app_dirs + secrets vs db/tweets).
+// Shared invariants (apply to BOTH):
+// - Rich status for the UI (active_source, keyring.reachable + error, file info with 0600 note).
+// - Automatic promotion/heal on status query (when keyring reachable but empty and file has the secret).
+// - Heal is gated under !cfg!(test) to preserve existing bearer tests.
+// - file_store.rs (bearer) and the new xai_key_store.rs are deliberately separate modules.
+// - app_data_dir is the single source of truth for both fallback files.
+// - The 8 credential commands (4+4) live together in lib.rs generate_handler!.
+// - After ANY edit here, to lib.rs credential registration, to either *store.rs, or to app_dirs.rs:
+//   MUST run `cd src-tauri && cargo test` (exercises both harnesses + keyring probes for both secrets).
+// - After change, run the app and verify BOTH the X Connection panel AND the new xAI Intelligence
+//   panel in Settings show correct active_source + keyring status.
+// - In particular, after clearing a keyring entry (or on a machine that only has the file),
+//   simply opening **Settings** should cause the status to flip to active_source=Keyring thanks to heal.
+//
+// Why this area is fragile:
+// - The credential commands are the only way the rest of the app (and React via invoke) touches secrets.
+// - Unrelated refactors (DB, storage policy, "clean up lib.rs", new features) have historically
+//   broken one or both by touching the wrong files or the handler list.
+// - Linux keyring (secret-service) is DE-dependent and can be flaky on minimal setups (Hyprland etc.).
+//   The file fallback + heal + explicit clear-on-fail is what keeps things working.
+//
+// RULES (non-negotiable):
+// 1. Treat the 8 credential commands + *StorageStatus types + the two error strings
+//    ("X bearer not configured..." and the equivalent for xAI) as public contracts.
+//    See docs/tauri-commands.md.
+// 2. Before touching lib.rs command registration, secrets.rs, file_store.rs, xai_key_store.rs,
+//    or app_dirs.rs:
+//    - Grep for call sites of get_x_bearer*, set/clear_x_bearer, x_bearer,
+//      AND the new xai equivalents.
+//    - Read the header in app_dirs.rs AND this entire header.
+// 3. Any edit that could affect registration, signatures, read/write paths, or status shape:
+//    MUST be followed by `cd src-tauri && cargo test`.
+// 4. After change, manually run the app and check BOTH credential panels in Settings.
+// 5. Never remove the file fallback for either secret.
+// 6. Never bypass the internal get_*() helpers or put raw keys on the IPC wire.
+// 7. When adding a third secret in the future, create yet another parallel *_key_store.rs
+//    and duplicate the pattern again rather than abstracting (abstraction has caused breakage).
+//
+// If your task is "implement job URL analysis / xAI prep / new feature that happens to need a key":
+//   Do NOT refactor secrets, keyring, or the dir logic "while you're in the area".
+//   Implement the new secret type by copying the existing parallel pattern.
 //
 // ============================================================================
 
 mod file_store;
+mod xai_key_store;
 
 // Note: app_data_dir now lives in the sibling `app_dirs` module (decoupled on purpose).
-// file_store (bearer file) and db both consume it. See app_dirs.rs for rationale + its own stability header.
+// file_store (bearer file) and xai_key_store (xAI key file) + db consume it.
+// See app_dirs.rs for rationale + its own stability header.
+// The two secret types (X bearer + xAI key) are deliberately kept in parallel
+// modules so that work on one cannot accidentally regress the other.
 
 use keyring::Error as KeyringError;
 use serde::Serialize;
@@ -131,6 +144,244 @@ pub fn get_x_bearer() -> Result<String, String> {
 pub fn has_x_bearer() -> bool {
     get_bearer_storage_status().connected
 }
+
+// ============================================================================
+// xAI KEY STORAGE (EXACT PARALLEL TO X BEARER — DO NOT REFACTOR TOGETHER)
+// ============================================================================
+//
+// This is the new secret for grok-4.3 calls (analysis, CV tailoring, cover letters,
+// prep packs, job fit). It uses the identical dual keyring + 0600 file pattern.
+//
+// Rules from the top STABILITY CONTRACT apply verbatim to this block too.
+// All xai functions are deliberately duplicated (not shared) to protect the bearer path.
+
+const XAI_SERVICE: &str = "collab-finder";
+const XAI_USER: &str = "xai-key";
+
+fn xai_keyring_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(XAI_SERVICE, XAI_USER).map_err(|e| e.to_string())
+}
+
+fn read_xai_keyring() -> Result<Option<String>, String> {
+    let entry = xai_keyring_entry()?;
+    match entry.get_password() {
+        Ok(value) if value.trim().is_empty() => Ok(None),
+        Ok(value) => Ok(Some(value.trim().to_string())),
+        Err(KeyringError::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn write_xai_keyring(key: &str) -> Result<(), String> {
+    let entry = xai_keyring_entry()?;
+    entry.set_password(key).map_err(|e| e.to_string())
+}
+
+fn clear_xai_keyring() -> Result<(), String> {
+    let entry = xai_keyring_entry()?;
+    match entry.delete_credential() {
+        Ok(()) => Ok(()),
+        Err(KeyringError::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub fn get_xai_key_optional() -> Result<Option<String>, String> {
+    match read_xai_keyring() {
+        Ok(Some(key)) => {
+            eprintln!("[secrets] xAI key loaded from keyring");
+            return Ok(Some(key));
+        }
+        Ok(None) => {}
+        Err(e) => {
+            eprintln!("[secrets] keyring read failed (falling back to xai file store): {e}");
+        }
+    }
+    let file_key = xai_key_store::read()?;
+    if let Some(ref k) = file_key {
+        if let Err(e) = write_xai_keyring(k) {
+            eprintln!("[secrets] post-fallback heal of xAI key to keyring skipped: {e}");
+        } else {
+            eprintln!("[secrets] healed xAI key into keyring from file fallback");
+        }
+    }
+    Ok(file_key)
+}
+
+pub fn get_xai_key() -> Result<String, String> {
+    match get_xai_key_optional()? {
+        Some(key) => Ok(key),
+        None => Err(
+            "xAI API key not configured. Save your key under xAI / Intelligence in Settings.".to_string(),
+        ),
+    }
+}
+
+pub fn has_xai_key() -> bool {
+    get_xai_key_storage().connected
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum XaiKeyActiveSource {
+    Keyring,
+    File,
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct XaiKeyFileStorageInfo {
+    pub present: bool,
+    pub path: String,
+    pub encrypted: bool,
+    pub permissions: String,
+    pub why_not_encrypted: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct XaiKeyKeyringStorageInfo {
+    pub present: bool,
+    pub service: String,
+    pub user: String,
+    pub reachable: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct XaiKeyStorageStatus {
+    pub connected: bool,
+    pub active_source: XaiKeyActiveSource,
+    pub file: XaiKeyFileStorageInfo,
+    pub keyring: XaiKeyKeyringStorageInfo,
+}
+
+fn resolve_xai_active_source() -> XaiKeyActiveSource {
+    match read_xai_keyring() {
+        Ok(Some(k)) if !k.is_empty() => XaiKeyActiveSource::Keyring,
+        _ if xai_key_store::is_present() => XaiKeyActiveSource::File,
+        _ => XaiKeyActiveSource::None,
+    }
+}
+
+fn probe_xai_keyring() -> XaiKeyKeyringStorageInfo {
+    let service = XAI_SERVICE.to_string();
+    let user = XAI_USER.to_string();
+    match xai_keyring_entry() {
+        Err(e) => XaiKeyKeyringStorageInfo {
+            present: false,
+            service,
+            user,
+            reachable: false,
+            error: Some(e),
+        },
+        Ok(_) => match read_xai_keyring() {
+            Ok(Some(_)) => XaiKeyKeyringStorageInfo {
+                present: true,
+                service,
+                user,
+                reachable: true,
+                error: None,
+            },
+            Ok(None) => XaiKeyKeyringStorageInfo {
+                present: false,
+                service,
+                user,
+                reachable: true,
+                error: None,
+            },
+            Err(e) => XaiKeyKeyringStorageInfo {
+                present: false,
+                service,
+                user,
+                reachable: false,
+                error: Some(e),
+            },
+        },
+    }
+}
+
+pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
+    let mut keyring = probe_xai_keyring();
+    let mut file_present = xai_key_store::is_present();
+    let file_path = xai_key_store::path_display().unwrap_or_default();
+    let mut active_source = resolve_xai_active_source();
+
+    if !cfg!(test) && keyring.reachable && !keyring.present && file_present {
+        if let Ok(Some(k)) = xai_key_store::read() {
+            match write_xai_keyring(&k) {
+                Ok(()) => {
+                    eprintln!("[secrets] promoted xAI key from file into keyring (heal during status)");
+                    keyring = probe_xai_keyring();
+                    active_source = resolve_xai_active_source();
+                    file_present = xai_key_store::is_present();
+                }
+                Err(e) => {
+                    eprintln!("[secrets] promotion of xAI file key to keyring failed: {e}");
+                }
+            }
+        }
+    }
+
+    eprintln!(
+        "[secrets] xAI key storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}",
+        active_source, keyring.reachable, keyring.present, keyring.error, file_present
+    );
+
+    let why_not_encrypted = if file_present {
+        Some(
+            "Fallback file is plaintext UTF-8 with mode 0600 (user-only). It is not encrypted by design so Tauri/dev and minimal desktops can always read the key; prefer keyring when reachable.".to_string(),
+        )
+    } else {
+        None
+    };
+
+    XaiKeyStorageStatus {
+        connected: keyring.present || file_present,
+        active_source,
+        file: XaiKeyFileStorageInfo {
+            present: file_present,
+            path: file_path,
+            encrypted: false,
+            permissions: "0600".to_string(),
+            why_not_encrypted,
+        },
+        keyring,
+    }
+}
+
+pub fn set_xai_key(key: &str) -> Result<(), String> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err("xAI API key cannot be empty.".to_string());
+    }
+
+    xai_key_store::write(trimmed)?;
+
+    match write_xai_keyring(trimmed) {
+        Ok(()) => eprintln!("[secrets] xAI key also written to keyring"),
+        Err(e) => {
+            eprintln!("[secrets] keyring save skipped for xAI (using file store): {e}");
+            let _ = clear_xai_keyring();
+        }
+    }
+
+    match xai_key_store::read()? {
+        Some(stored) if stored == trimmed => Ok(()),
+        Some(_) => Err("Saved xAI key could not be verified (file mismatch).".to_string()),
+        None => Err(
+            "xAI key save failed — could not read back key. Check app data permissions."
+                .to_string(),
+        ),
+    }
+}
+
+pub fn clear_xai_key() -> Result<(), String> {
+    xai_key_store::clear()?;
+    clear_xai_keyring()
+}
+
+// End of xAI key parallel block
+// ============================================================================
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

@@ -4,17 +4,24 @@ import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Textarea } from '../ui/textarea'
+
+/**
+ * Search-specific controls only (query, actions, presets).
+ *
+ * The CV summary packet was moved out to its own top-level `CvSummaryInput`
+ * component. It is shared global context used by Quick Job Target (analyze/prep)
+ * in addition to X search/cycle. Keeping it inside the search card was the root
+ * cause of the reported problem: X errors/busy states made the CV hard to reach
+ * for recovery or for job-target-only workflows.
+ */
 
 type Props = {
   query: string
-  cvSummary: string
   busy: boolean
   canSearch: boolean
   canRunCycle: boolean
   presets: SearchPreset[]
   onQueryChange: (q: string) => void
-  onCvSummaryChange: (s: string) => void
   onPresetSelect: (query: string) => void
   onSearch: () => void
   onAutonomousCycle: () => void
@@ -22,13 +29,11 @@ type Props = {
 
 export function SearchWorkspace({
   query,
-  cvSummary,
   busy,
   canSearch,
   canRunCycle,
   presets,
   onQueryChange,
-  onCvSummaryChange,
   onPresetSelect,
   onSearch,
   onAutonomousCycle,
@@ -39,16 +44,6 @@ export function SearchWorkspace({
         <CardTitle>Search workspace</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="cv-summary">CV summary packet (from distillation)</Label>
-          <Textarea
-            id="cv-summary"
-            value={cvSummary}
-            onChange={(e) => onCvSummaryChange(e.target.value)}
-            rows={3}
-          />
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="search-query">Search query</Label>
           <Input

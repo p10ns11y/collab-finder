@@ -15,6 +15,17 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 
 **This set of 4 commands + the exact `BearerStorageStatus` / `Bearer*Info` shapes (snake_case) + the error string returned by internal `get_x_bearer` ("X bearer not configured...") form a stability boundary.**
 
+### xAI key (exact parallel to bearer; used for job target analysis, prep, CV tailoring)
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `has_xai_key` | — | `boolean` | Quick presence check (used by UI preflight in discover/settings) |
+| `get_xai_key_storage` | — | `XaiKeyStorageStatus` | Mirrors BearerStorageStatus: active_source, keyring + file details (0600 fallback) |
+| `set_xai_key` | `{ key: string }` | `void` | Dual-write keyring + file; trims input |
+| `clear_xai_key` | — | `void` | Clears both stores |
+
+See STABILITY CONTRACT headers in `src-tauri/src/secrets.rs`, `app_dirs.rs`, and credential section of `lib.rs`. After edits to these or command registration: `cd src-tauri && cargo test`.
+
 - They have been repeatedly broken during refactors of unrelated features (DB storage policy for tweet content, "clean up lib.rs", broad "storage" modules, etc.).
 - The Rust implementation lives behind loud STABILITY CONTRACT headers in `src-tauri/src/secrets.rs`, `src-tauri/src/app_dirs.rs`, and the credential section of `src-tauri/src/lib.rs`.
 - `BearerStorageStatus` is the diagnostic surface for "is keyring working on this machine or are we on file fallback?" — the credentials panel depends on the exact fields.
@@ -46,6 +57,16 @@ See also the agent instructions in root AGENTS.md (bearer row + conventions) and
 | `search_past_tweets` | `{ ftsQuery, limit? }` | `XTweet[]` | FTS5 lookup on stored snippets (not full post bodies). |
 | `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Manual QA: [tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md#example-hydrate_tweet-full-post-on-demand). |
 | `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
+
+## Job target (Quick Job Target — URL or pasted JD → grok-4.3 fit analysis)
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `fetch_job_page` | `{ url: string }` | `JobPageResult` (cleaned_text, truncated, lengths; title/company future) | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. |
+| `analyze_job_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `JobAnalysisResult` { opportunity_id, fit: {overall, rationale, gaps_must, gaps_nice, recommended_action}, packet_preview, est_cost_usd } | Persists to `opportunities` table (status 'analyzed'). Uses cv_summary from UI (Discover textarea for now). Structured JSON via grok-4.3. |
+| `get_opportunities` | `{ q?, status?, limit? }` | `Opportunity[]` | Filterable read for Data screen. Mirrors Rust OpportunityFilter (q, status, limit; client post-filter for min_fit/q in v1). |
+
+`JobAnalysisResult.fit` is the strict schema output from xAI (see `xai.rs` + `job_fit_v1`).
 
 ## TypeScript bridge
 

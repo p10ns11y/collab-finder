@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -27,6 +27,16 @@ pub struct EventFilter {
     pub event_type: Option<String>,
     pub since: Option<String>,
     pub correlation_id: Option<String>,
+    pub limit: Option<u32>,
+}
+
+/// Simple filter for opportunities (web/paste targets).
+#[derive(Debug, Default, Clone)]
+pub struct OpportunityFilter {
+    pub id: Option<i64>,
+    pub status: Option<String>,
+    pub min_fit: Option<i32>,
+    pub q: Option<String>,
     pub limit: Option<u32>,
 }
 
@@ -80,6 +90,25 @@ pub struct Lead {
     // Enriched (optional, joined in some queries)
     pub tweet_text: Option<String>,
     pub tweet_created_at: Option<String>,
+}
+
+/// Generalized target for web/pasted job posts (and future x-post enrichment).
+/// Mirrors the TS Opportunity type.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Opportunity {
+    pub id: i64,
+    pub kind: String, // "web" | "paste" | "x-post"
+    pub source_url: Option<String>,
+    pub source_ref: Option<String>,
+    pub title: Option<String>,
+    pub company: Option<String>,
+    pub jd_text: String,
+    pub status: String,
+    pub fit_score: Option<i32>,
+    pub analysis_json: Option<String>,
+    pub prep_artifacts_json: Option<String>,
+    pub last_updated: String,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -193,6 +222,11 @@ impl SqliteStore {
         if current < 2 {
             Self::migrate_v2(conn)?;
             Self::record_migration(conn, 2)?;
+        }
+
+        if current < 3 {
+            Self::migrate_v3(conn)?;
+            Self::record_migration(conn, 3)?;
         }
 
         Ok(())
@@ -329,6 +363,34 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         .map_err(|e| e.to_string())?;
         conn.execute_batch("INSERT INTO tweets_fts(tweets_fts) VALUES('rebuild');")
             .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// v3: opportunities table for web/paste job targets (additive, X leads untouched).
+    /// kind: "web" | "paste" | "x-post"
+    fn migrate_v3(conn: &Connection) -> Result<(), String> {
+        let sql = r#"
+CREATE TABLE IF NOT EXISTS opportunities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL DEFAULT 'web',
+  source_url TEXT,
+  source_ref TEXT,
+  title TEXT,
+  company TEXT,
+  jd_text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'new',
+  fit_score INTEGER,
+  analysis_json TEXT,
+  prep_artifacts_json TEXT,
+  last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+  notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_opp_status ON opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_opp_fit ON opportunities(fit_score DESC);
+CREATE INDEX IF NOT EXISTS idx_opp_kind ON opportunities(kind);
+CREATE INDEX IF NOT EXISTS idx_opp_updated ON opportunities(last_updated DESC);
+        "#;
+        conn.execute_batch(sql).map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -837,6 +899,151 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
             .map_err(|e| e.to_string())?;
 
         rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+    }
+
+    // --- Opportunities (web/paste job targets) ---
+
+    pub fn get_opportunities(&self, filter: &OpportunityFilter) -> Result<Vec<Opportunity>, String> {
+        if !self.is_enabled() {
+            return Ok(vec![]);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let lim = filter.limit.unwrap_or(100).clamp(1, 500) as i64;
+
+        let mut stmt = guard
+            .prepare("SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
+                      FROM opportunities
+                      ORDER BY last_updated DESC, fit_score DESC LIMIT ?1")
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(params![lim], |r| {
+                Ok(Opportunity {
+                    id: r.get(0)?,
+                    kind: r.get(1)?,
+                    source_url: r.get(2)?,
+                    source_ref: r.get(3)?,
+                    title: r.get(4)?,
+                    company: r.get(5)?,
+                    jd_text: r.get(6)?,
+                    status: r.get(7)?,
+                    fit_score: r.get(8)?,
+                    analysis_json: r.get(9)?,
+                    prep_artifacts_json: r.get(10)?,
+                    last_updated: r.get(11)?,
+                    notes: r.get(12)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut out: Vec<Opportunity> = rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())?;
+
+        if let Some(id) = filter.id {
+            out.retain(|o| o.id == id);
+        }
+        if let Some(min) = filter.min_fit {
+            out.retain(|o| o.fit_score.unwrap_or(0) >= min);
+        }
+        if let Some(ref st) = filter.status {
+            out.retain(|o| &o.status == st);
+        }
+        if let Some(ref qq) = filter.q {
+            let ql: String = qq.to_lowercase();
+            out.retain(|o| {
+                o.title.as_ref().is_some_and(|t| t.to_lowercase().contains(&ql))
+                    || o.company.as_ref().is_some_and(|c| c.to_lowercase().contains(&ql))
+                    || o.jd_text.to_lowercase().contains(&ql)
+                    || o.analysis_json.as_ref().is_some_and(|a| a.to_lowercase().contains(&ql))
+            });
+        }
+
+        Ok(out)
+    }
+
+    /// Insert or update an opportunity. Returns the id.
+    pub fn upsert_opportunity(
+        &self,
+        kind: &str,
+        source_url: Option<&str>,
+        source_ref: Option<&str>,
+        title: Option<&str>,
+        company: Option<&str>,
+        jd_text: &str,
+        status: &str,
+        fit_score: Option<i32>,
+        analysis_json: Option<&str>,
+        prep_artifacts_json: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<i64, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+
+        guard.execute(
+            "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT DO UPDATE SET
+               last_updated = datetime('now'),
+               status = excluded.status,
+               fit_score = COALESCE(excluded.fit_score, opportunities.fit_score),
+               analysis_json = COALESCE(excluded.analysis_json, opportunities.analysis_json),
+               prep_artifacts_json = COALESCE(excluded.prep_artifacts_json, opportunities.prep_artifacts_json),
+               notes = COALESCE(excluded.notes, opportunities.notes)",
+            params![
+                kind,
+                source_url,
+                source_ref,
+                title,
+                company,
+                jd_text,
+                status,
+                fit_score,
+                analysis_json,
+                prep_artifacts_json,
+                notes
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        let id: i64 = guard
+            .query_row(
+                "SELECT id FROM opportunities WHERE (source_url = ?1 AND ?1 IS NOT NULL) OR (jd_text = ?2) ORDER BY id DESC LIMIT 1",
+                params![source_url, jd_text],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        Ok(id)
+    }
+
+    pub fn update_opportunity_status(&self, id: i64, status: &str, notes: Option<&str>) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "UPDATE opportunities SET status = ?1, notes = COALESCE(?2, notes), last_updated = datetime('now') WHERE id = ?3",
+                params![status, notes, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Set prep artifacts on an existing opportunity (used by prep_job_target to avoid creating duplicate rows).
+    pub fn set_prep_artifacts(&self, id: i64, prep_artifacts_json: &str, status: &str) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "UPDATE opportunities SET prep_artifacts_json = ?1, status = ?2, last_updated = datetime('now') WHERE id = ?3",
+                params![prep_artifacts_json, status, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 

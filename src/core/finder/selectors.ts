@@ -35,6 +35,7 @@ export type FinderViewState = {
   historyLeads: import('../domain/history').Lead[]
   historyStats: import('../domain/history').DashboardStats | null
   historyEvents: import('../domain/history').Event[]
+  historyOpportunities: import('../domain/history').Opportunity[]
   // Screen + lookup projections
   activeScreen: FinderScreen
   lookupResults: import('../domain/finder').Tweet[]
@@ -89,6 +90,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     historyLeads: h.leads.status === 'ready' ? h.leads.data : [],
     historyStats: h.stats.status === 'ready' ? h.stats.data : null,
     historyEvents: h.events.status === 'ready' ? h.events.data : [],
+    historyOpportunities: h.opportunities.status === 'ready' ? h.opportunities.data : [],
     activeScreen: model.activeScreen,
     lookupResults: model.lookup.status === 'ready' ? model.lookup.data : [],
     lookupBusy: model.lookup.status === 'loading',

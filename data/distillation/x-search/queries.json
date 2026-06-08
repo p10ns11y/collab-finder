@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "operatorsDoc": "https://docs.x.com/x-api/posts/search/integrate/operators",
   "defaultQuery": "(hiring OR \"we are hiring\" OR collab OR \"build with me\") (react OR typescript OR rust OR ai) lang:en -is:retweet",
-  "defaultCvSummary": "Senior TS/React/Rust engineer. Oneflow leadership, energy-efficient agentic systems, Rust OSS. Open to SpaceXAI-tier AI infra (xAI division of SpaceX), Stockholm/remote roles, and high-fit collabs. Ships arch-machine, premflow, Grok Dia, thepulimaangani in public.",
+  "defaultCvSummary": "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.",
   "presets": [
     {
       "id": "priority-spacexai-careers",
