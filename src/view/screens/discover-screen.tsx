@@ -27,6 +27,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const hasXResults = view.tweets.length > 0
   const historyOpportunities = view.historyOpportunities || []
 
+  const isJobs = view.activeScreen === 'discover'
+
   // Job target state is now in MVU model (jobTarget + jobTargetUrl); right panel priority per feedback.
   // jobResult is now typed JobTargetResult | null (no any at call sites).
   const jt = model.jobTarget ?? { status: 'idle' as const }
@@ -41,41 +43,44 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       {/* Left: controls (scrollable) */}
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
-        {/* CV first so it feels owned by the job target flow (sticky context for fit/prep; reorder addresses T1 "CV editor still appears *after* the job form").
-           Persisted to localStorage (PR3 foundation) so value survives restart. */}
-        <CvSummaryInput
-          cvSummary={model.cvSummary}
-          onCvSummaryChange={(cvSummary) =>
-            dispatch({ type: 'CvSummaryChanged', cvSummary })
-          }
-        />
+        {/* CV first (jobs flow only per plan; collapsed by default in rail context). */}
+        {isJobs && (
+          <CvSummaryInput
+            cvSummary={model.cvSummary}
+            onCvSummaryChange={(cvSummary) =>
+              dispatch({ type: 'CvSummaryChanged', cvSummary })
+            }
+          />
+        )}
 
-        {/* Your Jobs rail (always visible list from opportunities - the "list is memory" per plan).
+        {/* Your Jobs rail (jobs mode only; always visible list from opportunities - the "list is memory" per plan).
            Click loads into panel (reuse OpportunitySelected + load from DB blobs, no new xAI).
            Optimistic updates via refresh after analyze/prep. This is the primary "intuitive" surface. */}
-        <div className="border border-border-subtle rounded p-2">
-          <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS</div>
-          {historyOpportunities.length === 0 ? (
-            <div className="text-xs text-ink-faint">No jobs yet. Paste URL below to evaluate.</div>
-          ) : (
-            <div className="space-y-1 max-h-40 overflow-auto text-xs">
-              {historyOpportunities.slice(0, 8).map((o) => (
-                <button
-                  key={o.id}
-                  onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
-                  className="w-full text-left px-2 py-1 rounded hover:bg-surface-2 border border-border-subtle/50 flex justify-between"
-                  title={`Load job #${o.id} fit+prep (from DB, no xAI call)`}
-                >
-                  <span>#{o.id} {o.title || o.source_url?.slice(0,40) || 'job'}</span>
-                  <span className="text-ink-faint">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {isJobs && (
+          <div className="border border-border-subtle rounded p-2">
+            <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS</div>
+            {historyOpportunities.length === 0 ? (
+              <div className="text-xs text-ink-faint">No jobs yet. Paste URL below to evaluate.</div>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-auto text-xs">
+                {historyOpportunities.slice(0, 8).map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
+                    className="w-full text-left px-2 py-1 rounded hover:bg-surface-2 border border-border-subtle/50 flex justify-between"
+                    title={`Load job #${o.id} fit+prep (from DB, no xAI call)`}
+                  >
+                    <span>#{o.id} {o.title || o.source_url?.slice(0,40) || 'job'}</span>
+                    <span className="text-ink-faint">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Resume last (kept for compatibility, but rail above is the main) */}
-        {!showJobFit && historyOpportunities.length > 0 && (
+        {/* Resume last (jobs mode only; kept for compatibility, rail above is the main) */}
+        {isJobs && !showJobFit && historyOpportunities.length > 0 && (
           <button
             onClick={() => {
               const last = historyOpportunities[0]
@@ -88,17 +93,20 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           </button>
         )}
 
-        {/* Quick Job Target (input only — results move to right panel via MVU) */}
-        <QuickJobTarget
-          busy={jobBusy}
-          onAnalyzeRequested={(url, pasted_jd) =>
-            dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
-          }
-        />
+        {/* Quick Job Target (jobs mode only — input only, results move to right panel via MVU) */}
+        {isJobs && (
+          <QuickJobTarget
+            busy={jobBusy}
+            onAnalyzeRequested={(url, pasted_jd) =>
+              dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
+            }
+          />
+        )}
 
-        {/* X workspace secondary / visually de-emphasized when in job context (implicit mode; job primary per user decision).
-           Keeps full capability but does not pollute the primary job-fit+prep flow. */}
-        <div className={showJobFit ? 'opacity-60' : ''}>
+        {/* X / Hunt workspace.
+           On Jobs: secondary, de-emphasized when a job fit is active.
+           On Hunt: primary and full (X search is the focus of this screen per plan). */}
+        <div className={isJobs && showJobFit ? 'opacity-60' : ''}>
           <SearchWorkspace
             query={model.query}
             busy={view.busy}
@@ -123,9 +131,11 @@ export function DiscoverScreen({ view, dispatch }: Props) {
         <PauseLog pauses={model.pauses} />
       </div>
 
-      {/* Right: contextual results (job fit takes priority over X feed) */}
+      {/* Right: contextual results.
+         Jobs mode: job fit takes priority.
+         Hunt mode: always X feed (search results / cycle output). */}
       <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
-        {showJobFit ? (
+        {(isJobs && showJobFit) ? (
           <JobFitPanel
             result={jobResult}
             error={jobError}
@@ -141,8 +151,11 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             <TweetFeed tweets={view.tweets} />
             {!hasXResults && (
               <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
-                No live results yet.<br />
-                Paste a job URL or JD on the left, or run an X search / cycle below.
+                {isJobs ? (
+                  <>No live results yet.<br />Paste a job URL or JD on the left, or run an X search / cycle below.</>
+                ) : (
+                  <>No live X results yet.<br />Run a search or autonomous cycle using the controls on the left.</>
+                )}
               </div>
             )}
           </>
