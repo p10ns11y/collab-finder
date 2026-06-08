@@ -173,7 +173,12 @@ export function DataScreen({ view, dispatch }: Props) {
               </tr>
             ))}
             {active === 'opportunities' && (sorted as Opportunity[]).map((o) => (
-              <tr key={o.id} className="hover:bg-surface-2/50">
+              <tr
+                key={o.id}
+                className="hover:bg-surface-2/50 cursor-pointer"
+                onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url })}
+                title="Load this opportunity's fit/prep into Discover (restores last work without re-analyzing)"
+              >
                 <td className="px-3 py-1.5 font-mono text-accent/80">{o.id}</td>
                 <td className="px-3 py-1.5 truncate max-w-[28ch]">{o.title || '—'}</td>
                 <td className="px-3 py-1.5 truncate max-w-[20ch]">{o.company || '—'}</td>
