@@ -1678,8 +1678,8 @@ mod tests {
 
     #[test]
     fn upsert_opportunity_coalesce_preserves_values_on_none_reupsert() {
-        // Addresses review feedback: exercise COALESCE in re-upsert when passing None for fit/analysis/prep/notes
-        // (only status + last_updated should change; priors preserved). Follows exact test patterns from sibling tests.
+        // Addresses review feedback (Issue 3): exercise COALESCE in re-upsert when passing None for fit_score/analysis_json/prep_artifacts/notes
+        // (only status + last_updated should change; priors preserved via COALESCE). Follows exact test patterns from sibling tests (e.g. same_url_updates_one_row).
         let (_dir, store) = temp_store();
         let url = Some("https://example.com/coalesce-test");
         let id1 = store
