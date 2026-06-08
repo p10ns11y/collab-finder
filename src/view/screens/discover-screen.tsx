@@ -26,7 +26,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const hasXResults = view.tweets.length > 0
 
   // Job target state is now in MVU model (jobTarget + jobTargetUrl); right panel priority per feedback.
-  const jt = model.jobTarget || { status: 'idle' as const }
+  // jobResult is now typed JobTargetResult | null (no any at call sites).
+  const jt = model.jobTarget ?? { status: 'idle' as const }
   const jobBusy = jt.status === 'loading'
   const jobResult = jt.status === 'ready' ? jt.data : null
   const jobError = jt.status === 'failed' ? (jt.error?.message || String(jt.error)) : null

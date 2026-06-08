@@ -15,6 +15,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
+import type { JobTargetResult } from '../domain/job-target'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
 
@@ -65,7 +66,7 @@ export type FinderModel = {
   selectedRun: AsyncState<SearchRunWithTweets | null>
   hydrate: AsyncState<Tweet | null>
   // Job target (Quick Job Target analyze via grok-4.3; drives right panel priority + Data tab)
-  jobTarget: AsyncState<any>
+  jobTarget: AsyncState<JobTargetResult>
   jobTargetUrl?: string
 }
 
@@ -102,7 +103,7 @@ export function initialFinderModel(): FinderModel {
     selectedRunId: null,
     selectedRun: idle(),
     hydrate: idle(),
-    jobTarget: idle(),
+    jobTarget: idle<JobTargetResult>(),
     jobTargetUrl: undefined,
   }
 }
