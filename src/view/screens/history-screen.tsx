@@ -21,7 +21,7 @@ export function HistoryScreen({ view, dispatch }: Props) {
           <div className="text-lg font-semibold tracking-tight flex items-center gap-2">
             <History className="h-4 w-4 text-ink-faint" /> History
           </div>
-          <p className="text-xs text-ink-faint">Timeline of runs and captured leads (persisted)</p>
+          <p className="text-xs text-ink-faint">Timeline of runs, captured leads, and job targets (persisted)</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'HistoryRefreshRequested' })}>
           <RefreshCw className="mr-1 h-3 w-3" /> Refresh
@@ -75,7 +75,7 @@ export function HistoryScreen({ view, dispatch }: Props) {
         <div className="mb-6">
           <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
             <span>Job targets</span>
-            <span>{opportunities.length} opportunities</span>
+            <span>{opportunities.length > 8 ? `last 8 of ${opportunities.length}` : `${opportunities.length} opportunities`}</span>
           </div>
           <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
             {opportunities.slice(0, 8).map((o) => (
@@ -92,18 +92,20 @@ export function HistoryScreen({ view, dispatch }: Props) {
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
                     <span>{o.status || '—'}</span>
-                    {o.prep_artifacts_json && <span className="text-success">prepped</span>}
+                    {o.prep_artifacts_json && <Badge tone="success" className="text-[10px]">prepped</Badge>}
                     <span className="ml-auto">{new Date(o.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
+                    // Only OpportunitySelected (let loadOpportunityCmd in effects own success-only ScreenChanged + hydrate/parse/*Succeeded).
+                    // Matches Data rows (data-screen:180) + Resume (discover:60) exactly for consistent error UX (failure keeps user here + banner; no unconditional nav).
+                    // Per review: avoids flip-to-Discover on getOpps fail / bad blob / edge (effects:428,436,480).
                     dispatch({ type: 'OpportunitySelected', id: o.id })
-                    dispatch({ type: 'ScreenChanged', screen: 'discover' })
                   }}
                   className="shrink-0 rounded border border-border-default px-2 py-1 text-[10px] hover:border-accent/50 hover:text-accent"
-                  title="Open in Discover (loads stored fit + prep without re-analyzing)"
+                  title="Load this opportunity into Discover (exact stored fit+prep via 6a path; stays here + banner on load error)"
                 >
                   Open
                 </button>

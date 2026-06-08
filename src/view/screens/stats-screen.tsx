@@ -6,9 +6,9 @@ type Props = {
   view: FinderViewState
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'accent' | 'warning' | 'neutral' | 'success' }) {
+function Metric({ label, value, tone, title }: { label: string; value: string; tone?: 'accent' | 'warning' | 'neutral' | 'success'; title?: string }) {
   return (
-    <div className="rounded-lg border border-border-subtle bg-surface-2/60 px-4 py-3">
+    <div className="rounded-lg border border-border-subtle bg-surface-2/60 px-4 py-3" title={title}>
       <p className="text-[10px] uppercase tracking-wide text-ink-faint">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${tone === 'accent' ? 'text-accent' : tone === 'warning' ? 'text-warning' : 'text-ink'}`}>
         {value}
@@ -35,7 +35,7 @@ export function StatsScreen({ view }: Props) {
       <div className="mt-1 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Total searches" value={String(s?.total_searches ?? historySearches.length)} />
         <Metric label="Unique leads" value={String(s?.total_unique_leads ?? historyLeads.length)} tone="accent" />
-        <Metric label="Job targets" value={String(historyOpportunities.length)} />
+        <Metric label="Job targets" value={String(historyOpportunities.length)} title="Reconciled with History/Data (opportunities slice count; see T3/TD-021 in reports)" />
         <Metric label="Total surfaces" value={String(s?.total_surfaces ?? 0)} />
         <Metric
           label="Pauses logged"
