@@ -47,7 +47,10 @@ pub fn read() -> Result<Option<String>, String> {
     if trimmed.is_empty() {
         Ok(None)
     } else {
-        eprintln!("[secrets] xAI key loaded from file store: {}", path.display());
+        eprintln!(
+            "[secrets] xAI key loaded from file store: {}",
+            path.display()
+        );
         Ok(Some(trimmed))
     }
 }
@@ -93,10 +96,15 @@ mod tests {
 
     impl TestDir {
         fn new() -> Self {
-            let lock = test_harness::LOCK.lock().expect("xai key file store test lock");
+            let lock = test_harness::LOCK
+                .lock()
+                .expect("xai key file store test lock");
             let dir = TempDir::new().expect("tempdir");
             test_harness::set(dir.path().to_path_buf());
-            Self { _dir: dir, _lock: lock }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
         }
     }
 

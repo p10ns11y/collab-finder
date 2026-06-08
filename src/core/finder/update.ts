@@ -1,8 +1,9 @@
-import { idle } from '../async'
-import { errorMessage } from '../error'
+import { idle, type AsyncState } from '../async'
+import { appError, errorMessage } from '../error'
 import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
+import type { JobTargetResult } from '../domain/job-target'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -32,6 +33,22 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
 
     case 'CvSummaryChanged':
       return [{ ...model, cvSummary: msg.cvSummary }]
+
+    case 'CvSummaryLoaded':
+      return [{ ...model, cvSummary: msg.cvSummary }]
+
+    case 'OpportunitySelected':
+      return [
+        {
+          ...model,
+          lastActiveOppId: msg.id,
+          // Set url if provided (from Data row or restore); enables exact "Open job URL" + prep re-use with correct source after hydrate.
+          ...(msg.url !== undefined ? { jobTargetUrl: msg.url } : {}),
+          // Mark loading for the hydrate path (succeeded will populate from DB data; no re-xAI).
+          jobTarget: { status: 'loading' } as AsyncState<JobTargetResult>,
+          banner: null,
+        },
+      ]
 
     case 'PresetSelected':
       return [{ ...model, query: msg.query }]
@@ -201,16 +218,15 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [{ ...model, banner: msg.error }]
 
     case 'HistoryRefreshRequested':
+      // Do NOT blank all slices to loading (old behavior caused History + Data to appear empty
+      // immediately after evaluate/prep/search/cycle until a full AppStarted refresh or manual re-open).
+      // The background historyRefreshCmd will emit incremental HistoryRefreshed as each slice arrives.
+      // Previous ready data (if any) remains visible in selectors + screens during the refresh window.
+      // This directly addresses the post-evaluate "History/Data show empty (data not lost on restart)" symptom
+      // and the related fan-out race noted in tech-debt-deep-dive TD-009 + UX reviews.
       return [
         {
           ...model,
-          history: {
-            ...model.history,
-            searches: { status: 'loading' },
-            leads: { status: 'loading' },
-            stats: { status: 'loading' },
-            opportunities: { status: 'loading' },
-          },
           banner: null,
         },
       ]
@@ -234,9 +250,20 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             ...model.history,
             searches: { status: 'failed', error: msg.error },
             leads: { status: 'failed', error: msg.error },
+            pauses: { status: 'failed', error: msg.error },
+            events: { status: 'failed', error: msg.error },
+            stats: { status: 'failed', error: msg.error },
             opportunities: { status: 'failed', error: msg.error },
           },
           banner: msg.error,
+        },
+      ]
+
+    case 'PersistFailed':
+      return [
+        {
+          ...model,
+          banner: appError('persist', msg.message),
         },
       ]
 
@@ -323,6 +350,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         {
           ...model,
           jobTarget: { status: 'ready', data: msg.result },
+          lastActiveOppId: msg.result.opportunity_id,
         },
       ]
     case 'JobTargetAnalyzeFailed':
@@ -342,6 +370,10 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    case 'JobTargetUrlSet':
+      // Pure setter (no I/O effect) used by restore/load paths to sync the display url (for panel "Open" button + prep dispatch) without triggering analyze.
+      return [{ ...model, jobTargetUrl: msg.url }]
+
     // Job target prep (Slice C)
     case 'JobTargetPrepRequested':
       // Preserve previous ready data (the fit analysis) on the loading state.
@@ -349,25 +381,35 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       // here so the Succeeded reducer below can merge the prep artifacts
       // without losing the original fit/score (the root cause of the 0/100 low fit
       // bug after clicking the prep CTA in the panel).
-      const prevForPrep = (model.jobTarget && model.jobTarget.status === 'ready')
+      // (Cheap carry hack preserved per design; no new state machinery or model fields added.)
+      // Only pull from 'ready' here (a 'loading' carry from a concurrent/prior prep request would be stale anyway; the effects previous_fit path handles the transient loading+data case).
+      const prevForPrep: JobTargetResult | undefined = (model.jobTarget && model.jobTarget.status === 'ready')
         ? model.jobTarget.data
         : undefined
       return [
         {
           ...model,
-          jobTarget: { status: 'loading', data: prevForPrep } as any,
+          // SAFETY: intentional structural escape to carry .data on the loading arm (AsyncState<loading> has no data per async.ts:6-8); see design PR2 "cheap carry hack preserved (no new state machinery)", TD-006 + prior 0/100 prep bug. NOT `as any`; downstream uses 'in' guards + union.
+          jobTarget: { status: 'loading', data: prevForPrep } as AsyncState<JobTargetResult>,
           banner: null,
         },
       ]
     case 'JobTargetPrepSucceeded':
       // Merge prep artifacts into the previous data (carried through the loading
       // state) so the original fit analysis remains visible alongside the prep pack.
-      const prevData = (model.jobTarget as any)?.data || {}
-      const merged = { ...prevData, ...msg.result }
+      const prevData: JobTargetResult | undefined =
+        model.jobTarget &&
+        (model.jobTarget.status === 'ready' || model.jobTarget.status === 'loading') &&
+        'data' in model.jobTarget
+          ? (model.jobTarget as { data?: JobTargetResult }).data
+          : undefined
+      // SAFETY: the two `as` below are narrow escapes only for the preserved carry hack (see Requested case SAFETY + design); no `as any`, no behavior change.
+      const merged: JobTargetResult = { ...(prevData ?? ({} as JobTargetResult)), ...msg.result } as JobTargetResult
       return [
         {
           ...model,
           jobTarget: { status: 'ready', data: merged },
+          lastActiveOppId: msg.result.opportunity_id,
         },
       ]
     case 'JobTargetPrepFailed':

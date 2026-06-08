@@ -62,7 +62,7 @@ See also the agent instructions in root AGENTS.md (bearer row + conventions) and
 
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
-| `fetch_job_page` | `{ url: string }` | `JobPageResult` (cleaned_text, truncated, lengths; title/company future) | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. |
+| `fetch_job_page` | `{ url: string }` | `JobPageResult` (cleaned_text, truncated, lengths; title/company now basic Greenhouse extraction) | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. (PR7: cheap title/company win while touching fetch; see job_target.rs) |
 | `analyze_job_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `JobAnalysisResult` { opportunity_id, fit: {overall, rationale, gaps_must, gaps_nice, recommended_action}, packet_preview, est_cost_usd } | Persists to `opportunities` table (status 'analyzed'). Uses cv_summary from UI (Discover textarea for now). Structured JSON via grok-4.3. |
 | `get_opportunities` | `{ q?, status?, limit? }` | `Opportunity[]` | Filterable read for Data screen. Mirrors Rust OpportunityFilter (q, status, limit; client post-filter for min_fit/q in v1). |
 

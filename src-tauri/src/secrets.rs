@@ -135,9 +135,9 @@ pub fn get_x_bearer_optional() -> Result<Option<String>, String> {
 pub fn get_x_bearer() -> Result<String, String> {
     match get_x_bearer_optional()? {
         Some(token) => Ok(token),
-        None => Err(
-            "X bearer not configured. Save your token under X connection first.".to_string(),
-        ),
+        None => {
+            Err("X bearer not configured. Save your token under X connection first.".to_string())
+        }
     }
 }
 
@@ -212,7 +212,8 @@ pub fn get_xai_key() -> Result<String, String> {
     match get_xai_key_optional()? {
         Some(key) => Ok(key),
         None => Err(
-            "xAI API key not configured. Save your key under xAI / Intelligence in Settings.".to_string(),
+            "xAI API key not configured. Save your key under xAI / Intelligence in Settings."
+                .to_string(),
         ),
     }
 }
@@ -310,7 +311,9 @@ pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
         if let Ok(Some(k)) = xai_key_store::read() {
             match write_xai_keyring(&k) {
                 Ok(()) => {
-                    eprintln!("[secrets] promoted xAI key from file into keyring (heal during status)");
+                    eprintln!(
+                        "[secrets] promoted xAI key from file into keyring (heal during status)"
+                    );
                     keyring = probe_xai_keyring();
                     active_source = resolve_xai_active_source();
                     file_present = xai_key_store::is_present();
@@ -587,7 +590,10 @@ mod tests {
             let dir = TempDir::new().expect("tempdir");
             test_harness::set(dir.path().to_path_buf());
             let _ = clear_x_bearer();
-            Self { _dir: dir, _lock: lock }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
         }
     }
 

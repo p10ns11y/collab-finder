@@ -12,7 +12,7 @@ pub(crate) fn lead_status_from_decision(decision: &Decision) -> &'static str {
     }
 }
 
-/// Best-effort persist for `search_x_recent`. Returns run id (0 if disabled / failed).
+/// Best-effort persist for `search_x_recent`. Returns run id or Err (TD-011: callers surface status; 0/err on disabled/failed).
 pub(crate) fn persist_manual_search(
     store: &SqliteStore,
     query: &str,
@@ -20,19 +20,17 @@ pub(crate) fn persist_manual_search(
     tweets: &[XTweet],
     rate: &XRateInfo,
     duration_ms: i64,
-) -> i64 {
-    let run_id = store
-        .record_search_run(
-            query,
-            "manual",
-            Some(max as i32),
-            rate.remaining,
-            rate.limit,
-            100,
-            Some(duration_ms),
-            None,
-        )
-        .unwrap_or(0);
+) -> Result<i64, String> {
+    let run_id = store.record_search_run(
+        query,
+        "manual",
+        Some(max as i32),
+        rate.remaining,
+        rate.limit,
+        100,
+        Some(duration_ms),
+        None,
+    )?;
     if run_id > 0 {
         if let Err(e) = store.record_search_hits(run_id, tweets, 0) {
             eprintln!("[db] hits persist skipped: {e}");
@@ -41,7 +39,7 @@ pub(crate) fn persist_manual_search(
             let _ = store.record_rate_snapshot(Some(r as i32), rate.limit.map(|l| l as i32));
         }
     }
-    run_id
+    Ok(run_id)
 }
 
 pub(crate) fn persist_cycle_search(
@@ -49,45 +47,65 @@ pub(crate) fn persist_cycle_search(
     query: &str,
     tweets: &[XTweet],
     duration_ms: i64,
-) -> i64 {
-    let run_id = store
-        .record_search_run(query, "cycle", Some(10), None, None, 200, Some(duration_ms), None)
-        .unwrap_or(0);
+) -> Result<i64, String> {
+    let run_id = store.record_search_run(
+        query,
+        "cycle",
+        Some(10),
+        None,
+        None,
+        200,
+        Some(duration_ms),
+        None,
+    )?;
     if run_id > 0 {
         if let Err(e) = store.record_search_hits(run_id, tweets, 0) {
             eprintln!("[db] cycle hits skipped: {e}");
         }
     }
-    run_id
+    Ok(run_id)
 }
 
-pub(crate) fn persist_cycle_lead(store: &SqliteStore, result: &CycleResult) -> i64 {
+pub(crate) fn persist_cycle_lead(store: &SqliteStore, result: &CycleResult) -> Result<i64, String> {
     let Some(best) = &result.best_tweet else {
-        return 0;
+        return Ok(0);
     };
     let decision_json = serde_json::to_string(&result.decision).ok();
-    store
-        .upsert_lead(
-            &best.id,
-            None,
-            Some(&result.decision.action),
-            decision_json.as_deref(),
-            lead_status_from_decision(&result.decision),
-            None,
-        )
-        .unwrap_or(0)
+    let id = store.upsert_lead(
+        &best.id,
+        None,
+        Some(&result.decision.action),
+        decision_json.as_deref(),
+        lead_status_from_decision(&result.decision),
+        None,
+    )?;
+    Ok(id)
 }
 
-pub(crate) fn persist_promote_event(store: &SqliteStore, lead_id: &str, message: &str) {
+pub(crate) fn persist_promote_event(
+    store: &SqliteStore,
+    lead_id: &str,
+    message: &str,
+) -> Result<(), String> {
     let payload = format!(
         r#"{{"lead_id":"{}","message":"{}"}}"#,
         lead_id,
         message.replace('"', "'")
     );
-    let _ = store.record_event("PromoteRequested", Some(&payload), Some(lead_id), Some("ui"));
+    store
+        .record_event(
+            "PromoteRequested",
+            Some(&payload),
+            Some(lead_id),
+            Some("ui"),
+        )
+        .map(|_| ())
 }
 
-pub(crate) fn promote_message(reactor: &mut FinderReactor, lead_id: &str) -> Result<String, String> {
+pub(crate) fn promote_message(
+    reactor: &mut FinderReactor,
+    lead_id: &str,
+) -> Result<String, String> {
     reactor.promote_insights(lead_id)
 }
 
@@ -144,7 +162,8 @@ mod tests {
             remaining: Some(99),
             limit: Some(450),
         };
-        let id = persist_manual_search(&store, "rust lang:en", 10, &[tweet("1")], &rate, 25);
+        let id =
+            persist_manual_search(&store, "rust lang:en", 10, &[tweet("1")], &rate, 25).unwrap();
         assert!(id > 0);
         let runs = store.get_recent_searches(5).unwrap();
         assert_eq!(runs[0].source, "manual");
@@ -166,7 +185,7 @@ mod tests {
             tweets: vec![],
             best_tweet: None,
         };
-        assert_eq!(persist_cycle_lead(&store, &result), 0);
+        assert_eq!(persist_cycle_lead(&store, &result).unwrap(), 0);
     }
 
     #[test]
@@ -190,7 +209,7 @@ mod tests {
             tweets: vec![low, high.clone()],
             best_tweet: Some(high),
         };
-        let lead_id = persist_cycle_lead(&store, &result);
+        let lead_id = persist_cycle_lead(&store, &result).unwrap();
         assert!(lead_id > 0);
         let leads = store
             .get_leads(&crate::db::LeadFilter {
@@ -204,7 +223,7 @@ mod tests {
     #[test]
     fn persist_promote_event_inserts_row() {
         let (_d, store) = temp_store();
-        persist_promote_event(&store, "lead-9", "Sidecar written");
+        persist_promote_event(&store, "lead-9", "Sidecar written").unwrap();
         let events = store
             .get_events(&crate::db::EventFilter {
                 limit: Some(5),

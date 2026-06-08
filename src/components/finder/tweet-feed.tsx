@@ -1,6 +1,6 @@
 import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
-import type { Tweet } from '../../lib/types'
+import type { Tweet } from '../../core/domain/finder'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 
 type Props = {

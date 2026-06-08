@@ -11,8 +11,14 @@ type Props = {
 }
 
 export function HistoryScreen({ view, dispatch }: Props) {
-  const { historySearches: searches, historyLeads: leads, historyStats: stats } = view
-  const hasData = searches.length > 0 || leads.length > 0
+  const {
+    historySearches: searches,
+    historyLeads: leads,
+    historyPauses: pauses,
+    historyStats: stats,
+    historyOpportunities: opportunities = [],
+  } = view
+  const hasData = searches.length > 0 || leads.length > 0 || pauses.length > 0 || opportunities.length > 0
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -21,7 +27,7 @@ export function HistoryScreen({ view, dispatch }: Props) {
           <div className="text-lg font-semibold tracking-tight flex items-center gap-2">
             <History className="h-4 w-4 text-ink-faint" /> History
           </div>
-          <p className="text-xs text-ink-faint">Timeline of runs and captured leads (persisted)</p>
+          <p className="text-xs text-ink-faint">Timeline of runs, captured leads, and job targets (persisted)</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'HistoryRefreshRequested' })}>
           <RefreshCw className="mr-1 h-3 w-3" /> Refresh
@@ -71,11 +77,55 @@ export function HistoryScreen({ view, dispatch }: Props) {
         </div>
       )}
 
+      {opportunities.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            <span>Job targets</span>
+            <span>{opportunities.length > 8 ? `last 8 of ${opportunities.length}` : `${opportunities.length} opportunities`}</span>
+          </div>
+          <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
+            {opportunities.slice(0, 8).map((o) => (
+              <li key={o.id} className="flex items-start justify-between gap-2 px-3 py-2.5 hover:bg-surface-2/60">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {o.fit_score != null && (
+                      <Badge tone={o.fit_score >= 80 ? 'success' : o.fit_score >= 60 ? 'accent' : 'neutral'} className="text-[10px]">
+                        {o.fit_score}
+                      </Badge>
+                    )}
+                    <span className="font-mono text-accent/80">#{o.id}</span>
+                    <span className="truncate text-ink-muted">{o.company || o.title || '—'}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
+                    <span>{o.status || '—'}</span>
+                    {o.prep_artifacts_json && <Badge tone="success" className="text-[10px]">prepped</Badge>}
+                    <span className="ml-auto">{new Date(o.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Only OpportunitySelected (let loadOpportunityCmd in effects own success-only ScreenChanged + hydrate/parse/*Succeeded).
+                    // Matches Data rows (data-screen:180) + Resume (discover:60) exactly for consistent error UX (failure keeps user here + banner; no unconditional nav).
+                    // Per review: avoids flip-to-Discover on getOpps fail / bad blob / edge (effects:428,436,480).
+                    dispatch({ type: 'OpportunitySelected', id: o.id })
+                  }}
+                  className="shrink-0 rounded border border-border-default px-2 py-1 text-[10px] hover:border-accent/50 hover:text-accent"
+                  title="Load this opportunity into Discover (exact stored fit+prep via 6a path; stays here + banner on load error)"
+                >
+                  Open
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {leads.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
             <span>Captured leads (unique)</span>
-            <span>{leads.length} opportunities</span>
+            <span>{leads.length} leads</span>
           </div>
           <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
             {leads.map((l) => (
@@ -104,6 +154,23 @@ export function HistoryScreen({ view, dispatch }: Props) {
           {stats?.most_reseen && (
             <p className="mt-1 text-[10px] text-ink-faint">Most re-surfaced: {stats.most_reseen[0]} ×{stats.most_reseen[1]}</p>
           )}
+        </div>
+      )}
+
+      {pauses.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            <span>Pauses (from DB)</span>
+            <span>{pauses.length} logged</span>
+          </div>
+          <ul className="divide-y divide-border-subtle overflow-auto rounded border border-border-subtle bg-surface-2/40 text-xs">
+            {pauses.slice(0, 5).map((p) => (
+              <li key={p.id} className="px-3 py-2 text-ink-muted">
+                <span className="font-mono text-accent/80">{p.id}</span> {p.reason}
+                {p.guard_type && <span className="ml-1 text-ink-faint">({p.guard_type})</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

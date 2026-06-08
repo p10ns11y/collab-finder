@@ -17,16 +17,19 @@ type Props = {
 /** Primary workspace: Quick Job Target + global CV context + X search controls left;
  *  contextual results (job fit or X feed) on right.
  *
- *  CV summary is deliberately placed as a top-level sibling (not inside SearchWorkspace)
- *  because it is shared cross-cutting context used by both job target flows and X search/cycle.
- *  This prevents X errors/busy states from making the grounding data inaccessible for recovery.
+ *  CV summary is placed first (reordered) so it is owned by / context for the job flow (addresses T1).
+ *  It remains shared cross-cutting for X too. When a job target is active (showJobFit), X workspace is
+ *  rendered secondary (visual + implicit mode per user decision: primary job, X as needed).
+ *  Resume-last affordance uses the opportunities already loaded via HistoryRefreshed/selectors.
  */
 export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
+  const historyOpportunities = view.historyOpportunities || []
 
   // Job target state is now in MVU model (jobTarget + jobTargetUrl); right panel priority per feedback.
-  const jt = model.jobTarget || { status: 'idle' as const }
+  // jobResult is now typed JobTargetResult | null (no any at call sites).
+  const jt = model.jobTarget ?? { status: 'idle' as const }
   const jobBusy = jt.status === 'loading'
   const jobResult = jt.status === 'ready' ? jt.data : null
   const jobError = jt.status === 'failed' ? (jt.error?.message || String(jt.error)) : null
@@ -38,16 +41,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       {/* Left: controls (scrollable) */}
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
-        {/* Quick Job Target (input only — results move to right panel via MVU) */}
-        {/* CV context is now a sibling above SearchWorkspace so it stays reachable
-            even when X search/cycle errors or is busy. */}
-        <QuickJobTarget
-          busy={jobBusy}
-          onAnalyzeRequested={(url, pasted_jd) =>
-            dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
-          }
-        />
-
+        {/* CV first so it feels owned by the job target flow (sticky context for fit/prep; reorder addresses T1 "CV editor still appears *after* the job form").
+           Persisted to localStorage (PR3 foundation) so value survives restart. */}
         <CvSummaryInput
           cvSummary={model.cvSummary}
           onCvSummaryChange={(cvSummary) =>
@@ -55,17 +50,45 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           }
         />
 
-        <SearchWorkspace
-          query={model.query}
-          busy={view.busy}
-          canSearch={view.canSearch}
-          canRunCycle={view.canRunCycle}
-          presets={view.presets}
-          onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
-          onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
-          onSearch={() => dispatch({ type: 'SearchRequested' })}
-          onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
+        {/* Resume last work (explicit affordance per design + user decision for restore).
+           Reuses historyOpportunities (populated by HistoryRefreshed + selectors + getOpps) + OpportunitySelected dispatch.
+           Loads exact stored analysis/prep into jobTarget without re-pay. Shows only when no active job. */}
+        {!showJobFit && historyOpportunities.length > 0 && (
+          <button
+            onClick={() => {
+              const last = historyOpportunities[0]
+              if (last) dispatch({ type: 'OpportunitySelected', id: last.id })
+            }}
+            className="w-full text-left px-3 py-1.5 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent flex items-center gap-2"
+            title="Load the most recent opportunity (by last_updated) from Data/History back into Discover jobTarget + fit/prep view. Reuses stored analysis without calling xAI again."
+          >
+            ↩ Resume last work <span className="text-ink-faint">(opp #{historyOpportunities[0].id})</span>
+          </button>
+        )}
+
+        {/* Quick Job Target (input only — results move to right panel via MVU) */}
+        <QuickJobTarget
+          busy={jobBusy}
+          onAnalyzeRequested={(url, pasted_jd) =>
+            dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
+          }
         />
+
+        {/* X workspace secondary / visually de-emphasized when in job context (implicit mode; job primary per user decision).
+           Keeps full capability but does not pollute the primary job-fit+prep flow. */}
+        <div className={showJobFit ? 'opacity-60' : ''}>
+          <SearchWorkspace
+            query={model.query}
+            busy={view.busy}
+            canSearch={view.canSearch}
+            canRunCycle={view.canRunCycle}
+            presets={view.presets}
+            onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
+            onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
+            onSearch={() => dispatch({ type: 'SearchRequested' })}
+            onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
+          />
+        </div>
 
         {model.decision && (
           <DecisionPanel
@@ -123,11 +146,6 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
 
   const canAnalyze = !busy && (url.trim() || pasted.trim())
 
-  const run = (wantPrep: boolean) => {
-    if (wantPrep) return // Use the "Generate prep pack" button in the result panel after evaluation (Slice C)
-    onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)
-  }
-
   return (
     <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
       <div className="font-medium text-sm mb-2 flex items-center gap-2">
@@ -147,26 +165,18 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
         rows={4}
         className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1.5 text-sm focus:outline-none focus:border-accent/60"
       />
-      <div className="flex gap-2">
+      <div>
         <button
-          onClick={() => run(false)}
+          onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
           disabled={!canAnalyze}
           className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
         >
           {busy ? 'Evaluating…' : 'Evaluate fit'}
         </button>
-        <button
-          onClick={() => run(true)}
-          disabled
-          title="Full prep (CV tweaks + cover letter) coming in a future update"
-          className="px-3 py-1.5 text-sm rounded border border-border-default opacity-60 cursor-not-allowed"
-        >
-          Full Prep (coming soon)
-        </button>
       </div>
 
       <div className="mt-2 text-[10px] text-ink-faint">
-        Uses the CV summary packet above (global context, shared with X search &amp; prep). Results appear on the right.
+        Uses the CV summary packet above (global context for this job target; also shared with X search &amp; prep if used). Results appear on the right. (Reopened jobs from Data/Resume restore fit/prep + Open URL to right panel; this form is for new evaluations.)
       </div>
     </div>
   )

@@ -168,10 +168,7 @@ mod tests {
 
     #[test]
     fn bearer_header_trims() {
-        assert_eq!(
-            bearer_authorization_header("  tok  "),
-            "Bearer tok"
-        );
+        assert_eq!(bearer_authorization_header("  tok  "), "Bearer tok");
     }
 
     #[test]

@@ -76,9 +76,6 @@ mod tests {
 
     #[test]
     fn accepts_documented_operators() {
-        validate_recent_search_query(
-            "(hiring OR engineer) lang:en -is:retweet has:links",
-        )
-        .unwrap();
+        validate_recent_search_query("(hiring OR engineer) lang:en -is:retweet has:links").unwrap();
     }
 }
