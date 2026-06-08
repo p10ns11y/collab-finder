@@ -29,7 +29,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
     return (
       <Card className="border-border-subtle">
         <CardHeader>
-          <CardTitle className="text-sm">Analyzing with grok-4.3…</CardTitle>
+          <CardTitle className="text-sm">Evaluating fit with grok-4.3…</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-4 w-2/3 animate-pulse bg-surface-2 rounded" />
@@ -63,7 +63,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            Job fit analysis <span className="text-[10px] text-accent">grok-4.3</span>
+            Fit analysis <span className="text-[10px] text-accent">grok-4.3</span>
           </CardTitle>
           <Badge tone={tone as any}>{score}/100</Badge>
         </div>
@@ -139,7 +139,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear }: Props) 
               className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent ml-auto"
               title="Dismiss this result so X results or empty state can show again"
             >
-              Clear / analyze another
+              Clear / evaluate another
             </button>
           )}
         </div>

@@ -137,15 +137,15 @@ function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
           disabled={!canAnalyze}
           className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
         >
-          {busy ? 'Analyzing…' : 'Analyze fit'}
+          {busy ? 'Evaluating…' : 'Evaluate fit'}
         </button>
         <button
           onClick={() => run(true)}
           disabled
-          title="Full prep (CV tweaks + cover letter) ships in the next slice"
+          title="Full prep (CV tweaks + cover letter) coming in a future update"
           className="px-3 py-1.5 text-sm rounded border border-border-default opacity-60 cursor-not-allowed"
         >
-          Analyze + Full Prep
+          Full Prep (coming soon)
         </button>
       </div>
 
