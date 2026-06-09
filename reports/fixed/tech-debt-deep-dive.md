@@ -1,16 +1,21 @@
+> **Note: Frozen / historical document**
+> This report is preserved in its state from `main` (pre-intuitive-shell / Discover+Xplore / terminology migration work).
+> It accurately reflects the project state and progress *at the time it was written*. Content and terminology may be outdated relative to current code.
+> Moved to `reports/fixed/` to keep active reports relevant to recent changes.
+
 # collab-finder — Deep technical debt report
 
 **Audience:** Tech lead, implementers, future agents  
 **Date:** 2026-06-08  
 **Horizon:** Issues that compound over **months → years** if unaddressed  
 **Scope:** Rust backend (`src-tauri/`), MVU/React frontend (`src/`), cross-boundary contracts, ops/test/docs  
-**Related:** [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) (product friction), [quick-target-feedback.md](./quick-target-feedback.md) (feature checklist)
+**Related:** [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) (product friction), [quick-job-target-feedback.md](./quick-job-target-feedback.md) (feature checklist)
 
 ---
 
 ## Executive summary
 
-collab-finder has a **strong architectural intent** (MVU shell, self-guards, stability contracts on credentials, snippet-only X storage) but **fast feature velocity** on target + multi-screen UI has outpaced **data integrity, type contracts, and test coverage**. Several items are not “cleanup” — they are **latent bugs** that will surface as opportunity count, command surface, and agent/MCP exposure grow.
+collab-finder has a **strong architectural intent** (MVU shell, self-guards, stability contracts on credentials, snippet-only X storage) but **fast feature velocity** on job-target + multi-screen UI has outpaced **data integrity, type contracts, and test coverage**. Several items are not “cleanup” — they are **latent bugs** that will surface as opportunity count, command surface, and agent/MCP exposure grow.
 
 | Tier | Count (approx.) | Time to bite | Theme |
 |------|-----------------|--------------|-------|
@@ -19,7 +24,7 @@ collab-finder has a **strong architectural intent** (MVU shell, self-guards, sta
 | **P2 — scaling** | 7 | Months–years | Async+SQLite blocking, SSRF, schema migrations, content policy asymmetry |
 | **P3 — intentional tax** | 4 | Ongoing | Duplicated secrets pattern, stability headers — **preserve, don’t “refactor away” blindly** |
 
-**If you fix nothing else in 2026:** fix `opportunities` dedup + ID query, unify reactor vs SQLite truth, add TS types for target IPC, add vitest for `update.ts`.
+**If you fix nothing else in 2026:** fix `opportunities` dedup + ID query, unify reactor vs SQLite truth, add TS types for job-target IPC, add vitest for `update.ts`.
 
 ---
 
@@ -33,13 +38,13 @@ Impact vs likelihood (12–36 months). **GitHub** renders `quadrantChart` (Merma
 | get_opportunities id filter | 0.80 | 0.88 | Act now |
 | Reactor vs DB split | 0.75 | 0.90 | Act now |
 | Zero frontend tests | 0.90 | 0.85 | Act now |
-| Target any types | 0.88 | 0.82 | Act now |
+| Job target any types | 0.88 | 0.82 | Act now |
 | lib.rs god module | 0.70 | 0.75 | Act now |
 | xAI bypasses MVU | 0.72 | 0.55 | Monitor |
 | Schema migration fragility | 0.65 | 0.78 | Monitor |
 | MCP not built yet | 0.60 | 0.70 | Monitor |
 | Silent DB disable | 0.55 | 0.80 | Monitor |
-| SSRF fetch_target_page | 0.45 | 0.95 | Plan migration |
+| SSRF fetch_job_page | 0.45 | 0.95 | Plan migration |
 | Duplicated secrets code | 0.95 | 0.40 | Backlog |
 
 ```mermaid
@@ -55,9 +60,9 @@ quadrantChart
     "get_opportunities id filter": [0.80, 0.88]
     "Reactor vs DB split": [0.75, 0.90]
     "Zero frontend tests": [0.90, 0.85]
-    "Target any types": [0.88, 0.82]
+    "Job target any types": [0.88, 0.82]
     "lib.rs god module": [0.70, 0.75]
-    "SSRF fetch_target_page": [0.45, 0.95]
+    "SSRF fetch_job_page": [0.45, 0.95]
     "Silent DB disable": [0.55, 0.80]
     "Schema migration fragility": [0.65, 0.78]
     "MCP not built yet": [0.60, 0.70]
@@ -76,7 +81,7 @@ flowchart TB
     TD002[TD-002 get_opportunities id]
     TD004[TD-004 Reactor vs DB split]
     TD007[TD-007 Zero frontend tests]
-    TD006[TD-006 Target any types]
+    TD006[TD-006 Job target any types]
     TD005[TD-005 lib.rs god module]
   end
 
@@ -89,7 +94,7 @@ flowchart TB
   end
 
   subgraph plan["Plan migration - high impact, lower likelihood"]
-    TD014[TD-014 SSRF fetch_target_page]
+    TD014[TD-014 SSRF fetch_job_page]
   end
 
   subgraph backlog["Backlog - low impact"]
@@ -133,7 +138,7 @@ flowchart TB
   style IPC fill:#fbbf24,stroke:#fbbf24,color:#000
 ```
 
-**Pressure point:** Two sources of truth (reactor RAM vs SQLite) + growing `lib.rs` surface + untyped target boundary. MCP/agents will call the same handlers — errors and silent failures multiply.
+**Pressure point:** Two sources of truth (reactor RAM vs SQLite) + growing `lib.rs` surface + untyped job-target boundary. MCP/agents will call the same handlers — errors and silent failures multiply.
 
 ---
 
@@ -155,7 +160,7 @@ ORDER BY id DESC LIMIT 1
 
 **Symptoms today:** 17 opportunities in Data tab from repeated Greenhouse runs; prep may attach to wrong row; `opportunity #17` ≠ stable identity for same URL.
 
-**Months out:** Pipeline features (re-analyze, status workflow, MCP `analyze_target`) amplify duplicates. Migrations to add UNIQUE require dedup script on live DBs.
+**Months out:** Pipeline features (re-analyze, status workflow, MCP `analyze_job_target`) amplify duplicates. Migrations to add UNIQUE require dedup script on live DBs.
 
 **Fix:** `UNIQUE(source_url)` where not null + proper upsert key; or explicit `UPDATE … WHERE source_url = ?`; tests in `db.rs`.
 
@@ -163,7 +168,7 @@ ORDER BY id DESC LIMIT 1
 
 ### TD-002 — `get_opportunities` ID filter is wrong
 
-**Where:** `db.rs` `906–943`; used by `prep_target` via `lib.rs`
+**Where:** `db.rs` `906–943`; used by `prep_job_target` via `lib.rs`
 
 **Problem:** Query applies `ORDER BY last_updated DESC LIMIT ?`, then filters `filter.id` **in memory**. Target opportunity not in top N recency → empty result → prep fails silently for older jobs.
 
@@ -214,30 +219,30 @@ ORDER BY id DESC LIMIT 1
 
 **Contains:** Credential stability boundary, job pipeline (~230 lines), HTML strip, JSON schemas, search/cycle/history handlers, app bootstrap.
 
-**Why it compounds:** Every feature touches the same file as the **8 credential commands** stability contract. `commands.rs` exists for persist helpers but target logic stayed inline. MCP server will mirror this surface — duplication without extraction = double maintenance.
+**Why it compounds:** Every feature touches the same file as the **8 credential commands** stability contract. `commands.rs` exists for persist helpers but job-target logic stayed inline. MCP server will mirror this surface — duplication without extraction = double maintenance.
 
-**Fix (safe):** Extract `target.rs`, `html_util.rs`, keep credential block untouched per STABILITY CONTRACT headers (`lib.rs` `26–41`).
+**Fix (safe):** Extract `job_target.rs`, `html_util.rs`, keep credential block untouched per STABILITY CONTRACT headers (`lib.rs` `26–41`).
 
 ---
 
-### TD-006 — Target domain untyped end-to-end (`any`)
+### TD-006 — Job-target domain untyped end-to-end (`any`)
 
 **Where:**
 
 | Layer | File | Issue |
 |-------|------|-------|
-| Model | `model.ts:68` | `opportunityTarget: AsyncState<any>` |
+| Model | `model.ts:68` | `jobTarget: AsyncState<any>` |
 | Messages | `msg.ts:78,84` | `result: any` |
 | Port | `finder-port.ts:35–37` | `Result<any, …>` |
 | Effects | `effects.ts:31–33,205–206,235,262` | `Promise<any>`, `const r: any` |
-| UI | `target-fit-panel.tsx` | ~15 `(result as any)` |
+| UI | `job-fit-panel.tsx` | ~15 `(result as any)` |
 | Rust | `lib.rs` | `fit: serde_json::Value`, `prep: Value` |
 
-Rust defines `TargetAnalysisResult` / `TargetPrepResult`; TS has `Opportunity` row type but not runtime fit/prep shapes.
+Rust defines `JobAnalysisResult` / `JobPrepResult`; TS has `Opportunity` row type but not runtime fit/prep shapes.
 
 **Months out:** Every xAI schema tweak breaks UI silently. Prep merge hacks (`update.ts` `346–371` with `as any`) get worse with editable artifacts + cv-promote-guard.
 
-**Fix:** `src/core/domain/target.ts` mirroring serde; codegen or shared JSON schema; remove `any` from model/msg/port/adapter.
+**Fix:** `src/core/domain/job-target.ts` mirroring serde; codegen or shared JSON schema; remove `any` from model/msg/port/adapter.
 
 ---
 
@@ -249,7 +254,7 @@ Rust defines `TargetAnalysisResult` / `TargetPrepResult`; TS has `Opportunity` r
 
 **Gap:** No TS↔Rust contract tests; no pure MVU tests for `update.ts`, `flows.ts`, `selectors.ts`.
 
-**Months out:** Refactors to target, history refresh, or screen shell regress without signal. Agents merge broken MVU transitions routinely.
+**Months out:** Refactors to job-target, history refresh, or screen shell regress without signal. Agents merge broken MVU transitions routinely.
 
 **Fix:** Vitest + tests for `update.ts` / `flows.ts` first (pure, highest ROI).
 
@@ -329,7 +334,7 @@ All `async` commands lock std mutex on Tokio runtime — no `spawn_blocking`. WA
 
 ---
 
-### TD-014 — `fetch_target_page` SSRF + unbounded fetch
+### TD-014 — `fetch_job_page` SSRF + unbounded fetch
 
 **Where:** `lib.rs` `89–111` — registered IPC command
 
@@ -375,7 +380,7 @@ Open/path failure → in-memory disabled store; writes return `Ok(0)` / empty ve
 | Data | Policy |
 |------|--------|
 | X tweets | Snippet 280 chars, hydrate on demand — tested, documented |
-| Descriptions | Full text in `opportunities.jd_text` — unbounded |
+| Job descriptions | Full text in `opportunities.jd_text` — unbounded |
 | LLM artifacts | Full JSON in `analysis_json`, `prep_artifacts_json` |
 
 **Years out:** DB size, backup privacy, inconsistent compliance story vs X snippet policy.
@@ -393,9 +398,9 @@ Open/path failure → in-memory disabled store; writes return `Ok(0)` / empty ve
 | x rate 450 | `finder_reactor.rs` |
 | grok-4.3 pricing | `xai.rs` |
 | JD 8000 / preview 600 | `lib.rs` |
-| Prep gate 45 in UI | `target-fit-panel.tsx` `175` |
+| Prep gate 45 in UI | `job-fit-panel.tsx` `175` |
 
-**Years out:** Product tuning requires multi-file changes; reactor guards disagree with target gates.
+**Years out:** Product tuning requires multi-file changes; reactor guards disagree with job-target gates.
 
 **Fix:** `config.toml` or Rust `FinderConfig` loaded once; expose read-only in Settings.
 
@@ -418,11 +423,11 @@ Stability contract **requires** duplication to avoid regression (`secrets.rs` `5
 **In MVU, lost on restart:**
 
 - `cvSummary`, `query`, `activeScreen`
-- `opportunityTarget` result blob
+- `jobTarget` result blob
 - `model.pauses` (session strings)
-- Quick Target URL/JD (`useState` in `discover-screen.tsx` `121–122`)
+- Quick Job Target URL/JD (`useState` in `discover-screen.tsx` `121–122`)
 
-Opportunities persist in SQLite but Discover never reloads them into `opportunityTarget`.
+Opportunities persist in SQLite but Discover never reloads them into `jobTarget`.
 
 ---
 
@@ -447,7 +452,7 @@ Prep flow merges prior fit via `as any` during loading (`update.ts`). `JobTarget
 
 ### TD-023 — Selector/view leaks
 
-`selectFinderView` returns full `model` + projections; screens read `view.model` directly. `history.pauses` loaded never projected. `opportunityTarget` not in `FinderViewState`.
+`selectFinderView` returns full `model` + projections; screens read `view.model` directly. `history.pauses` loaded never projected. `jobTarget` not in `FinderViewState`.
 
 ---
 
@@ -458,7 +463,7 @@ Prep flow merges prior fit via `as any` during loading (`update.ts`). `JobTarget
 | Credential IPC | **Good** | Internal getters; stability contract |
 | Plaintext file fallback | **Documented** | `0600`, tradeoff stated |
 | Keyring heal on read | **Surprising** | Side effect on Settings open |
-| `fetch_target_page` | **Weak** | SSRF |
+| `fetch_job_page` | **Weak** | SSRF |
 | `log_event` | **Open** | Arbitrary payload size → DB bloat |
 | `hydrate_tweet` | **Good** | Full text memory-only |
 
@@ -469,7 +474,7 @@ Prep flow merges prior fit via `as any` during loading (`update.ts`). `JobTarget
 | Doc | Drift |
 |-----|-------|
 | `README.md` | Says “17 handlers”; actual `generate_handler!` has **26** commands |
-| `docs/tauri-commands.md` | Target documented; MCP “planned” |
+| `docs/tauri-commands.md` | Job-target documented; MCP “planned” |
 | `SKILL.md` / architecture docs | Promise MCP + xAI cycle; reactor still heuristic |
 | `cv-promote-guard` skill | devprofile integration pending; fallback CV in Rust |
 
@@ -544,14 +549,14 @@ Untyped errors, silent DB failures, and duplicate opportunities become **agent-v
 5. TD-004 reactor hydrates from DB or drops RAM leads
 6. TD-003 wire `record_pause` or remove dead table reads
 7. TD-009 consolidated history refresh
-8. TD-006 TS domain types for target
+8. TD-006 TS domain types for job-target
 
 ### Phase 2 — Hardening (1–2 months)
 
 9. TD-007 vitest for MVU core
 10. TD-014 SSRF guards on fetch
 11. TD-013 spawn_blocking for SQLite
-12. TD-005 extract target module (no credential touch)
+12. TD-005 extract job_target module (no credential touch)
 13. TD-008 xAI into MVU
 
 ### Phase 3 — Platform (3–12 months)
@@ -567,7 +572,7 @@ Untyped errors, silent DB failures, and duplicate opportunities become **agent-v
 ## Acceptance criteria (Phase 0 done)
 
 - [ ] Re-analyzing same Greenhouse URL updates **one** row (count stable)
-- [ ] `prep_target(opportunity_id: 1)` works when 50+ newer opportunities exist
+- [ ] `prep_job_target(opportunity_id: 1)` works when 50+ newer opportunities exist
 - [ ] `cargo test` includes opportunity upsert + id filter cases
 - [ ] Failed DB write shows user-visible banner (not silent `Ok`)
 - [ ] README handler count matches `generate_handler!`
@@ -581,7 +586,7 @@ Untyped errors, silent DB failures, and duplicate opportunities become **agent-v
 | TD-001, TD-002 | `src-tauri/src/db.rs`, `src-tauri/src/lib.rs` |
 | TD-003, TD-004, TD-012 | `src-tauri/src/finder_reactor.rs`, `commands.rs` |
 | TD-005, TD-014, TD-011 | `src-tauri/src/lib.rs` |
-| TD-006, TD-020–023 | `src/core/finder/*`, `target-fit-panel.tsx` |
+| TD-006, TD-020–023 | `src/core/finder/*`, `job-fit-panel.tsx` |
 | TD-007 | `package.json`, new `*.test.ts` |
 | TD-008 | `settings-screen.tsx`, `credentials-panel.tsx` |
 | TD-009 | `effects.ts`, `update.ts`, `stats-screen.tsx` |
@@ -592,10 +597,10 @@ Untyped errors, silent DB failures, and duplicate opportunities become **agent-v
 
 ## Closing verdict
 
-The project is **architecturally pointed in the right direction** (MVU, guards, official X resources, credential stability contracts). The debt that will **bite hardest** is not cosmetic — it is **wrong opportunity identity**, **split reactor/DB truth**, and **untyped target contracts** at the exact moment you scale from “dogfood one URL” to “pipeline of 50+ jobs + MCP agents.”
+The project is **architecturally pointed in the right direction** (MVU, guards, official X resources, credential stability contracts). The debt that will **bite hardest** is not cosmetic — it is **wrong opportunity identity**, **split reactor/DB truth**, and **untyped job-target contracts** at the exact moment you scale from “dogfood one URL” to “pipeline of 50+ jobs + MCP agents.”
 
 Treat Phase 0 as **bugfix, not refactor**. Everything else can ride the UX waves in [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) — but build pipeline UX on correct data first.
 
 ---
 
-*Generated from static analysis + subagent exploration of `src-tauri/` and `src/`. Re-validate after major merges to `feat/target-analysis` or main.*
+*Generated from static analysis + subagent exploration of `src-tauri/` and `src/`. Re-validate after major merges to `feat/job-target-analysis` or main.*

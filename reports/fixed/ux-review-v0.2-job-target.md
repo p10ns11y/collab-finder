@@ -1,14 +1,19 @@
-# collab-finder — UX / product review (target + prep + narrow polish)
+> **Note: Frozen / historical document**
+> This report is preserved in its state from `main` (pre-intuitive-shell / Discover+Xplore / terminology migration work).
+> It accurately reflects the project state and progress *at the time it was written*. Content and terminology may be outdated relative to current code.
+> Moved to `reports/fixed/` to keep active reports relevant to recent changes.
+
+# collab-finder — UX / product review (job target + prep + narrow polish)
 
 **Audience:** Implementer, designer, PM  
-**Date:** 2026-06 (post narrow polish on feat/target-analysis)  
-**Scope:** Quick Target / "Evaluate fit" + "Generate prep pack" (Slice C foundation), after CV extraction, distillation packet wiring, prep reliability fixes, and the narrow UI/report polishes  
-**Evidence:** Code inspection of current state (`discover-screen.tsx`, `target-fit-panel.tsx`, `cv-summary-input.tsx`, `data-screen.tsx`, `lib.rs` prep path, MVU effects/update), previous dogfood descriptions in `ux-review-v0.1-dogfood.md` and `quick-target-feedback.md`, recent session fixes  
+**Date:** 2026-06 (post narrow polish on feat/job-target-analysis)  
+**Scope:** Quick Job Target / "Evaluate fit" + "Generate prep pack" (Slice C foundation), after CV extraction, distillation packet wiring, prep reliability fixes, and the narrow UI/report polishes  
+**Evidence:** Code inspection of current state (`discover-screen.tsx`, `job-fit-panel.tsx`, `cv-summary-input.tsx`, `data-screen.tsx`, `lib.rs` prep path, MVU effects/update), previous dogfood descriptions in `ux-review-v0.1-dogfood.md` and `quick-job-target-feedback.md`, recent session fixes  
 **Lenses:**
 1. **Lens 1** — UI/UX expert + designer + developer (visual system, IA, layout decisions, component boundaries)
 2. **Lens 2** — Power user / dogfooder (friction in the evaluate → prep → revisit loop, trust, mental model)
 
-**Related:** [quick-target-feedback.md](./quick-target-feedback.md) (original implementer checklist) and [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) (baseline)
+**Related:** [quick-job-target-feedback.md](./quick-job-target-feedback.md) (original implementer checklist) and [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) (baseline)
 
 ---
 
@@ -18,11 +23,11 @@
 |-----------|-------|------------------|
 | Visual design | **B+** | Still cohesive; the new "Fit analysis + Prep" header and success "prepped" badge are nice touches |
 | Core job-fit + prep flow | **A** | Greenhouse URL → structured fit (with real distillation CV) → one-click prep pack is now genuinely useful and reliable |
-| Information architecture | **C** | Target path and X path still fight for the same left column real estate; no unified "my opportunities" view |
+| Information architecture | **C** | Job path and X path still fight for the same left column real estate; no unified "my opportunities" view |
 | Trust & consistency | **B-** | Major wins (no more state loss after prep, stable opportunity IDs, CV is a first-class shared component). Remaining copy/ordering nits |
 | Daily-driver readiness (job track) | **B** | Excellent first-run experience. Revisit / pipeline / closure still weak |
 
-**Bottom line:** The "Evaluate fit → Generate prep pack" loop is the product's current high point. The CV extraction + rich packet usage + state + persistence fixes removed the worst "analysis failed" and "0/100 surprise" moments. However, the target user still scrolls past (or pastes into) a layout that feels X-hunt-first, and there is still no satisfying "what happened to the opportunities I evaluated?" story. The narrow polish helped surface the combined state; the next real gains are in **placement, mode clarity, and pipeline continuity**.
+**Bottom line:** The "Evaluate fit → Generate prep pack" loop is the product's current high point. The CV extraction + rich packet usage + state + persistence fixes removed the worst "analysis failed" and "0/100 surprise" moments. However, the job user still scrolls past (or pastes into) a layout that feels X-hunt-first, and there is still no satisfying "what happened to the jobs I evaluated?" story. The narrow polish helped surface the combined state; the next real gains are in **placement, mode clarity, and pipeline continuity**.
 
 ---
 
@@ -33,19 +38,19 @@
 - Prep now receives prior fit context (rationale, gaps, recommended action) so artifacts feel connected to the evaluation.
 - Critical reliability: clicking "Generate prep pack" from the right panel no longer nukes the fit view or jumps to a brand-new opportunity ID (MVU preservation + in-place `set_prep_artifacts`).
 - UI polish (this session):
-  - `TargetFitPanel` title becomes "Fit analysis + Prep" and subtitle notes "(prep generated)" when artifacts exist.
+  - `JobFitPanel` title becomes "Fit analysis + Prep" and subtitle notes "(prep generated)" when artifacts exist.
   - Prep button tooltip is now informative about what it does and why the gate exists.
   - Data → Opportunities tab shows a success "prepped" badge instead of raw status.
 - Feedback report updated to clearly separate "basic prep shipped" from the remaining cv-promote-guard and guard work.
 
-The hero flow now feels like it could ship as "v0.2 target foundation."
+The hero flow now feels like it could ship as "v0.2 job target foundation."
 
 ---
 
 ## Current hero flow (Evaluate fit + prep) — observations
 
 **Layout order in Discover left column (current):**
-1. QuickTarget (URL + pasted JD + "Evaluate fit" + disabled "Full Prep (coming soon)")
+1. QuickJobTarget (URL + pasted JD + "Evaluate fit" + disabled "Full Prep (coming soon)")
 2. CvSummaryInput ("CV summary packet (from distillation)" + "shared" tag + helper)
 3. SearchWorkspace (X query + presets + Search / Run cycle)
 
@@ -55,7 +60,7 @@ The hero flow now feels like it could ship as "v0.2 target foundation."
 - Prep artifacts are actually reviewable in the same view (cover letter, CV suggestions, research, exceptional work example).
 
 **Friction still visible:**
-- For a pure job user, the first thing they see is the job form, then they have to scroll to the CV. The helper in the old QuickTarget used to lie ("from the box below"); we cleaned the copy in the new component, but the visual order is still "job first, context second."
+- For a pure job user, the first thing they see is the job form, then they have to scroll to the CV. The helper in the old QuickJobTarget used to lie ("from the box below"); we cleaned the copy in the new component, but the visual order is still "job first, context second."
 - The disabled "Full Prep (coming soon)" button is still sitting right next to the active "Evaluate fit" button. This is the exact dual-affordance problem called out in v0.1.
 - No obvious way to say "I already did this job last week" — you re-paste the URL or hunt in the Data table (which is still mostly read-only).
 
@@ -68,7 +73,7 @@ The hero flow now feels like it could ship as "v0.2 target foundation."
 - **Component boundaries are clearer.** `CvSummaryInput` is now a first-class shared piece with its own documentation comment explaining why it must survive search errors. This is real architectural hygiene.
 - **State model for the combined view** is finally honest. The merge in `update.ts` + carrying previous data through the prep loading state + the in-place DB update means the panel can show both the original fit *and* the new prep without lying about scores or IDs.
 - **Data tab now signals progress.** The success-toned "prepped" badge is a cheap but effective signal that the opportunity has moved forward.
-- The "shared" tag and helper text in `CvSummaryInput` make the cross-use (X + target) explicit.
+- The "shared" tag and helper text in `CvSummaryInput` make the cross-use (X + job target) explicit.
 
 ### Issues (code-backed, prioritized)
 
@@ -76,13 +81,13 @@ The hero flow now feels like it could ship as "v0.2 target foundation."
 
 | ID | Issue | Evidence | Fix |
 |----|-------|----------|-----|
-| T1 | CV editor still appears *after* the job form | `discover-screen.tsx:44-56` (QuickTarget then CvSummaryInput) | For job mode, put CV context first or as a sticky summary chip above the job inputs. Job users shouldn't have to hunt for their grounding data. |
-| T2 | Dead "Full Prep (coming soon)" affordance still next to the real button | `discover-screen.tsx:145-152` (the disabled button in QuickTarget) | Remove it. One prep entry point (the one in the result panel) is enough until the left one is real. |
-| T3 | No way to reopen a previous opportunity from Data | `data-screen.tsx:175-188` — rows are display-only | Add `OpportunitySelected` message + effect that loads the opportunity into the Discover opportunityTarget state (or at least pre-fills the form + shows the old result). |
+| T1 | CV editor still appears *after* the job form | `discover-screen.tsx:44-56` (QuickJobTarget then CvSummaryInput) | For job mode, put CV context first or as a sticky summary chip above the job inputs. Job users shouldn't have to hunt for their grounding data. |
+| T2 | Dead "Full Prep (coming soon)" affordance still next to the real button | `discover-screen.tsx:145-152` (the disabled button in QuickJobTarget) | Remove it. One prep entry point (the one in the result panel) is enough until the left one is real. |
+| T3 | No way to reopen a previous opportunity from Data | `data-screen.tsx:175-188` — rows are display-only | Add `OpportunitySelected` message + effect that loads the opportunity into the Discover jobTarget state (or at least pre-fills the form + shows the old result). |
 
 #### P1 — IA and mode confusion
 
-- Still no explicit "I'm in job mode" vs "I'm in X xplore mode." The left column is a long vertical stack of both.
+- Still no explicit "I'm in job mode" vs "I'm in X hunt mode." The left column is a long vertical stack of both.
 - History and Statistics are still almost entirely X-centric. Opportunities exist in the DB and Data tab but feel like an afterthought in the rest of the app.
 - Opportunity titles/companies are often "—" for Greenhouse jobs (the extraction path was never finished).
 
@@ -139,14 +144,14 @@ These are good hygiene wins on top of the bigger reliability work (state merge +
 
 ### Wave 1 (still small, high trust/continuity impact)
 
-- Reorder or restyle so the CV context feels *owned by the job flow* when a URL/JD is present (sticky chip or move CvSummaryInput before QuickTarget for job users).
+- Reorder or restyle so the CV context feels *owned by the job flow* when a URL/JD is present (sticky chip or move CvSummaryInput before QuickJobTarget for job users).
 - Remove the dead "Full Prep (coming soon)" button from the left column entirely.
 - Make Data opportunities rows clickable (dispatch something that loads the opportunity back into the Discover right panel).
 
 ### Wave 2 (slightly larger)
 
 - Persist `cvSummary` (localStorage or proper sidecar on `CvSummaryChanged`).
-- Add a minimal "Targets" section to History (or a combined Pipeline view).
+- Add a minimal "Job targets" section to History (or a combined Pipeline view).
 - Finish basic title/company extraction for Greenhouse jobs so the Data table isn't full of "—".
 
 ### Wave 3 (the real remaining Slice C)
@@ -164,8 +169,8 @@ These are good hygiene wins on top of the bigger reliability work (state merge +
 | `src/view/screens/discover-screen.tsx` | Reorder CV for job priority or add sticky summary; remove dead prep button |
 | `src/view/screens/data-screen.tsx` | Row click / `OpportunitySelected` handler |
 | `src/core/finder/msg.ts` + `effects.ts` | Add `OpportunitySelected` + load effect |
-| `src/components/finder/target-fit-panel.tsx` | (already improved) — consider splitting prep section into its own small component later |
-| `reports/quick-target-feedback.md` | (already updated in this round) |
+| `src/components/finder/job-fit-panel.tsx` | (already improved) — consider splitting prep section into its own small component later |
+| `reports/quick-job-target-feedback.md` | (already updated in this round) |
 
 ---
 
@@ -178,6 +183,6 @@ After the changes above + this review:
 - Clicking an opportunity in the Data tab does *something* useful (reopens the fit/prep in context).
 - The feedback report accurately reflects "basic usable prep shipped; the big guard and pipeline work is explicitly future."
 
-This keeps the spirit of the v0.1 review (ruthless but constructive, code-backed, user-empathy + implementation lens) while acknowledging the real progress that has been made on the target story. 
+This keeps the spirit of the v0.1 review (ruthless but constructive, code-backed, user-empathy + implementation lens) while acknowledging the real progress that has been made on the job target story. 
 
 The product is in a much better place for the "evaluate one job and get real prep" use case than it was in v0.1. The remaining work is mostly about making that experience feel like part of a coherent personal pipeline rather than a bolted-on feature.
