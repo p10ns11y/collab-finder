@@ -1,9 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BarChart3,
-  Clock,
   Compass,
-  Database,
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react'
@@ -18,10 +15,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'discover', label: 'Discover', Icon: Compass },
-  { id: 'stats', label: 'Statistics', Icon: BarChart3 },
-  { id: 'history', label: 'History', Icon: Clock },
-  { id: 'data', label: 'Data', Icon: Database },
-  { id: 'lookup', label: 'Lookup', Icon: Search },
+  { id: 'xplore', label: 'Xplore', Icon: Search },
   { id: 'settings', label: 'Settings', Icon: SettingsIcon },
 ]
 

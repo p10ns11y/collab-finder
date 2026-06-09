@@ -58,7 +58,7 @@
 // 7. When adding a third secret in the future, create yet another parallel *_key_store.rs
 //    and duplicate the pattern again rather than abstracting (abstraction has caused breakage).
 //
-// If your task is "implement job URL analysis / xAI prep / new feature that happens to need a key":
+// If your task is "implement target (URL/JD) analysis / xAI prep / new feature that happens to need a key":
 //   Do NOT refactor secrets, keyring, or the dir logic "while you're in the area".
 //   Implement the new secret type by copying the existing parallel pattern.
 //
@@ -150,7 +150,7 @@ pub fn has_x_bearer() -> bool {
 // ============================================================================
 //
 // This is the new secret for grok-4.3 calls (analysis, CV tailoring, cover letters,
-// prep packs, job fit). It uses the identical dual keyring + 0600 file pattern.
+// prep packs, target fit). It uses the identical dual keyring + 0600 file pattern.
 //
 // Rules from the top STABILITY CONTRACT apply verbatim to this block too.
 // All xai functions are deliberately duplicated (not shared) to protect the bearer path.

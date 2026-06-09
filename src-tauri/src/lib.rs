@@ -2,7 +2,7 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
-mod job_target;
+mod opportunity_target;
 mod secrets;
 mod x_query;
 mod x_search;
@@ -13,15 +13,15 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
-use job_target::{analyze_job_target, fetch_job_page, prep_job_target};
+use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, prep_opportunity_target};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
 use x_search::XTweet;
 
-// Re-export Job*Result types at crate root for wire compatibility (TS domain mirrors "from lib.rs")
-// and any future internal refs. (PR7 extraction; types now defined in job_target.rs)
-pub use job_target::{JobAnalysisResult, JobPageResult, JobPrepResult};
+// Re-export OpportunityTarget*Result types at crate root for wire compatibility (TS domain mirrors "from opportunity-target.rs")
+// and any future internal refs.
+pub use opportunity_target::{OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult};
 
 pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
@@ -89,11 +89,9 @@ fn clear_xai_key() -> Result<(), String> {
     secrets::clear_xai_key()
 }
 
-// Job target commands (analyze_job_target, prep_job_target, fetch_job_page + Job*Result structs + strip_html_basic + basic Greenhouse title/company extract)
-// narrowly extracted to src-tauri/src/job_target.rs (PR7: TD-005 god-module relief + safe boundaries per design + user decision).
-// Re-exports in this file (see top) keep the 3 command registrations + internal call sites (in analyze/prep/upsert) working verbatim.
-// Credential STABILITY block (26-41), 8 credential commands, reactor, and bootstrap left 100% untouched (AGENTS + STABILITY CONTRACT).
-// See job_target.rs for the moved code (exact) + extraction notes (other wins e.g. fit gate 45 for later).
+// Opportunity target commands (analyze_opportunity_target, prep_opportunity_target, fetch_opportunity_target_page + OpportunityTarget*Result structs + strip_html_basic + basic Greenhouse title/company extract)
+// extracted to src-tauri/src/opportunity_target.rs (TD-005 god-module relief).
+// Credential STABILITY block, 8 credential commands, reactor, and bootstrap left 100% untouched (AGENTS + STABILITY CONTRACT).
 
 #[tauri::command]
 async fn search_x_recent(
@@ -397,9 +395,9 @@ pub fn run() {
             get_xai_key_storage,
             set_xai_key,
             clear_xai_key,
-            fetch_job_page,
-            analyze_job_target,
-            prep_job_target,
+            fetch_opportunity_target_page,
+            analyze_opportunity_target,
+            prep_opportunity_target,
             get_opportunities,
             search_x_recent,
             run_finder_cycle_cmd,

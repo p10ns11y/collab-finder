@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
-import type { JobTargetResult, JobFit, JobPrep } from '../../core/domain/job-target'
+import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
 
 type Props = {
-  result: JobTargetResult | null
+  result: OpportunityTargetResult | null
   error: string | null
   busy: boolean
   sourceUrl?: string
@@ -12,7 +12,7 @@ type Props = {
   onPrepRequested?: (opportunityId?: number) => void
 }
 
-export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
+export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
@@ -31,7 +31,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
     return (
       <Card className="border-danger/30 bg-danger/5">
         <CardHeader>
-          <CardTitle className="text-sm text-danger">Job target failed</CardTitle>
+          <CardTitle className="text-sm text-danger">Target analysis failed</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-ink-muted">{error}</CardContent>
       </Card>
@@ -41,8 +41,8 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
   if (!result) {
     return null
   }
-  const fit: JobFit | undefined = 'fit' in result ? result.fit : undefined
-  const prep: JobPrep | undefined = 'prep' in result ? result.prep : undefined
+  const fit: OpportunityTargetFit | undefined = 'fit' in result ? result.fit : undefined
+  const prep: OpportunityTargetPrep | undefined = 'prep' in result ? result.prep : undefined
   if (!fit && !prep) {
     return null
   }
@@ -155,7 +155,7 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
               onClick={() => { try { window.open(sourceUrl, '_blank', 'noopener,noreferrer') } catch {} }}
               className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
             >
-              Open job URL
+              Open URL
             </button>
           )}
           {fit?.recommended_action && (
@@ -196,8 +196,9 @@ export function JobFitPanel({ result, error, busy, sourceUrl, onClear, onPrepReq
 
         {packetPreview && (
           <details className="text-[10px] text-ink-faint">
-            <summary className="cursor-pointer hover:text-ink">CV packet preview used (trust)</summary>
+            <summary className="cursor-pointer hover:text-ink">Full CV packet was sent (preview of what the model received)</summary>
             <pre className="mt-1 p-2 bg-surface-2 rounded text-[9px] overflow-auto max-h-24 whitespace-pre-wrap">{packetPreview}</pre>
+            <div className="mt-1 text-[9px] text-ink-faint/70">The complete packet you have in the input above was included verbatim in the prompt.</div>
           </details>
         )}
       </CardContent>

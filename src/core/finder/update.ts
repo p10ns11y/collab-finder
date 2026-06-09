@@ -3,7 +3,7 @@ import { appError, errorMessage } from '../error'
 import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
-import type { JobTargetResult } from '../domain/job-target'
+import type { OpportunityTargetResult } from '../domain/opportunity-target'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -42,10 +42,10 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         {
           ...model,
           lastActiveOppId: msg.id,
-          // Set url if provided (from Data row or restore); enables exact "Open job URL" + prep re-use with correct source after hydrate.
-          ...(msg.url !== undefined ? { jobTargetUrl: msg.url } : {}),
+          // Set url if provided (from Data row or restore); enables exact "Open URL" + prep re-use with correct source after hydrate.
+          ...(msg.url !== undefined ? { opportunityTargetUrl: msg.url } : {}),
           // Mark loading for the hydrate path (succeeded will populate from DB data; no re-xAI).
-          jobTarget: { status: 'loading' } as AsyncState<JobTargetResult>,
+          opportunityTarget: { status: 'loading' } as AsyncState<OpportunityTargetResult>,
           banner: null,
         },
       ]
@@ -335,47 +335,47 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'HydrateCleared':
       return [{ ...model, hydrate: idle() }]
 
-    // Job target MVU (no raw invoke in views)
-    case 'JobTargetAnalyzeRequested':
+    // Opportunity target MVU (no raw invoke in views)
+    case 'OpportunityTargetAnalyzeRequested':
       return [
         {
           ...model,
-          jobTarget: { status: 'loading' },
-          jobTargetUrl: msg.url,
+          opportunityTarget: { status: 'loading' },
+          opportunityTargetUrl: msg.url,
           banner: null,
         },
       ]
-    case 'JobTargetAnalyzeSucceeded':
+    case 'OpportunityTargetAnalyzeSucceeded':
       return [
         {
           ...model,
-          jobTarget: { status: 'ready', data: msg.result },
+          opportunityTarget: { status: 'ready', data: msg.result },
           lastActiveOppId: msg.result.opportunity_id,
         },
       ]
-    case 'JobTargetAnalyzeFailed':
+    case 'OpportunityTargetAnalyzeFailed':
       return [
         {
           ...model,
-          jobTarget: { status: 'failed', error: msg.error },
+          opportunityTarget: { status: 'failed', error: msg.error },
           banner: msg.error,
         },
       ]
-    case 'JobTargetCleared':
+    case 'OpportunityTargetCleared':
       return [
         {
           ...model,
-          jobTarget: idle(),
-          jobTargetUrl: undefined,
+          opportunityTarget: idle(),
+          opportunityTargetUrl: undefined,
         },
       ]
 
-    case 'JobTargetUrlSet':
+    case 'OpportunityTargetUrlSet':
       // Pure setter (no I/O effect) used by restore/load paths to sync the display url (for panel "Open" button + prep dispatch) without triggering analyze.
-      return [{ ...model, jobTargetUrl: msg.url }]
+      return [{ ...model, opportunityTargetUrl: msg.url }]
 
-    // Job target prep (Slice C)
-    case 'JobTargetPrepRequested':
+    // Opportunity target prep (Slice C)
+    case 'OpportunityTargetPrepRequested':
       // Preserve previous ready data (the fit analysis) on the loading state.
       // The AsyncState<'loading'> type doesn't declare .data, but we carry it
       // here so the Succeeded reducer below can merge the prep artifacts
@@ -383,40 +383,40 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       // bug after clicking the prep CTA in the panel).
       // (Cheap carry hack preserved per design; no new state machinery or model fields added.)
       // Only pull from 'ready' here (a 'loading' carry from a concurrent/prior prep request would be stale anyway; the effects previous_fit path handles the transient loading+data case).
-      const prevForPrep: JobTargetResult | undefined = (model.jobTarget && model.jobTarget.status === 'ready')
-        ? model.jobTarget.data
+      const prevForPrep: OpportunityTargetResult | undefined = (model.opportunityTarget && model.opportunityTarget.status === 'ready')
+        ? model.opportunityTarget.data
         : undefined
       return [
         {
           ...model,
           // SAFETY: intentional structural escape to carry .data on the loading arm (AsyncState<loading> has no data per async.ts:6-8); see design PR2 "cheap carry hack preserved (no new state machinery)", TD-006 + prior 0/100 prep bug. NOT `as any`; downstream uses 'in' guards + union.
-          jobTarget: { status: 'loading', data: prevForPrep } as AsyncState<JobTargetResult>,
+          opportunityTarget: { status: 'loading', data: prevForPrep } as AsyncState<OpportunityTargetResult>,
           banner: null,
         },
       ]
-    case 'JobTargetPrepSucceeded':
+    case 'OpportunityTargetPrepSucceeded':
       // Merge prep artifacts into the previous data (carried through the loading
       // state) so the original fit analysis remains visible alongside the prep pack.
-      const prevData: JobTargetResult | undefined =
-        model.jobTarget &&
-        (model.jobTarget.status === 'ready' || model.jobTarget.status === 'loading') &&
-        'data' in model.jobTarget
-          ? (model.jobTarget as { data?: JobTargetResult }).data
+      const prevData: OpportunityTargetResult | undefined =
+        model.opportunityTarget &&
+        (model.opportunityTarget.status === 'ready' || model.opportunityTarget.status === 'loading') &&
+        'data' in model.opportunityTarget
+          ? (model.opportunityTarget as { data?: OpportunityTargetResult }).data
           : undefined
       // SAFETY: the two `as` below are narrow escapes only for the preserved carry hack (see Requested case SAFETY + design); no `as any`, no behavior change.
-      const merged: JobTargetResult = { ...(prevData ?? ({} as JobTargetResult)), ...msg.result } as JobTargetResult
+      const merged: OpportunityTargetResult = { ...(prevData ?? ({} as OpportunityTargetResult)), ...msg.result } as OpportunityTargetResult
       return [
         {
           ...model,
-          jobTarget: { status: 'ready', data: merged },
+          opportunityTarget: { status: 'ready', data: merged },
           lastActiveOppId: msg.result.opportunity_id,
         },
       ]
-    case 'JobTargetPrepFailed':
+    case 'OpportunityTargetPrepFailed':
       return [
         {
           ...model,
-          jobTarget: { status: 'failed', error: msg.error },
+          opportunityTarget: { status: 'failed', error: msg.error },
           banner: msg.error,
         },
       ]

@@ -1,3 +1,8 @@
+> **Note: Frozen / historical document**
+> This report is preserved in its state from `main` (pre-intuitive-shell / Discover+Xplore / terminology migration work).
+> It accurately reflects the project state and progress *at the time it was written*. Content and terminology may be outdated relative to current code.
+> Moved to `reports/fixed/` to keep active reports relevant to recent changes.
+
 # collab-finder v0.1 — UX / product review (dogfood)
 
 **Audience:** Implementer, designer, PM  

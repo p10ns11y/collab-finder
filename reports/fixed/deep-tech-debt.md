@@ -1,3 +1,8 @@
+> **Note: Frozen / historical document**
+> This report is preserved in its state from `main` (pre-intuitive-shell / Discover+Xplore / terminology migration work).
+> It accurately reflects the project state and progress *at the time it was written*. Content and terminology may be outdated relative to current code.
+> Moved to `reports/fixed/` to keep active reports relevant to recent changes.
+
 # Deep Tech Debt Report — collab-finder
 
 **Date:** 2026-06  

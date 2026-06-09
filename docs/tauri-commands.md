@@ -1,6 +1,6 @@
 # Tauri command contract
 
-The desktop shell exposes **Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`.
+The desktop shell exposes **25 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
@@ -15,7 +15,7 @@ The desktop shell exposes **Tauri commands** (not an MCP server yet). The React 
 
 **This set of 4 commands + the exact `BearerStorageStatus` / `Bearer*Info` shapes (snake_case) + the error string returned by internal `get_x_bearer` ("X bearer not configured...") form a stability boundary.**
 
-### xAI key (exact parallel to bearer; used for job target analysis, prep, CV tailoring)
+### xAI key (exact parallel to bearer; used for target analysis, prep, CV tailoring)
 
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
@@ -58,15 +58,18 @@ See also the agent instructions in root AGENTS.md (bearer row + conventions) and
 | `hydrate_tweet` | `{ id }` | `XTweet` | Live lookup of full post from X; not persisted. Manual QA: [tauri-webview-and-devtools.md](./tauri-webview-and-devtools.md#example-hydrate_tweet-full-post-on-demand). |
 | `log_event` | `{ eventType, payload?, correlationId? }` | `void` | For frontend to record PresetSelected, intents etc. |
 
-## Job target (Quick Job Target — URL or pasted JD → grok-4.3 fit analysis)
+## Quick Target (Discover — URL or pasted JD → live xAI fit + prep)
+
+Implemented in `src-tauri/src/opportunity_target.rs`. Adapter: `finder-adapter.ts` (`fetchOpportunityTargetPage`, `analyzeOpportunityTarget`, `prepOpportunityTarget`, `getOpportunities`). Requires saved xAI key (`set_xai_key`).
 
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
-| `fetch_job_page` | `{ url: string }` | `JobPageResult` (cleaned_text, truncated, lengths; title/company now basic Greenhouse extraction) | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. (PR7: cheap title/company win while touching fetch; see job_target.rs) |
-| `analyze_job_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `JobAnalysisResult` { opportunity_id, fit: {overall, rationale, gaps_must, gaps_nice, recommended_action}, packet_preview, est_cost_usd } | Persists to `opportunities` table (status 'analyzed'). Uses cv_summary from UI (Discover textarea for now). Structured JSON via grok-4.3. |
-| `get_opportunities` | `{ q?, status?, limit? }` | `Opportunity[]` | Filterable read for Data screen. Mirrors Rust OpportunityFilter (q, status, limit; client post-filter for min_fit/q in v1). |
+| `fetch_opportunity_target_page` | `{ url: string }` | `OpportunityTargetPageResult` | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. Basic Greenhouse title/company extraction for prefill. |
+| `analyze_opportunity_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `OpportunityTargetAnalysisResult` | Live xAI structured fit (`target_fit_v1`). Persists to `opportunities` (status `analyzed`). Uses CV summary from Discover textarea. |
+| `prep_opportunity_target` | `{ opportunity_id?, url?, pasted_jd?, title?, company?, cv_summary?, previous_fit? }` | `OpportunityTargetPrepResult` | Live xAI prep pack (`target_prep_v1`: cover letter, cv_suggestions, research_notes, optional exceptional_work_example). Updates row to `prepped`. `previous_fit` carries Evaluate Fit JSON from the panel. |
+| `get_opportunities` | `{ id?, q?, status?, limit? }` | `Opportunity[]` | SQLite read for rail, Data tables, and hydrate-by-id (`loadOpportunityCmd`). `id` filter pushed to SQL (TD-002). |
 
-`JobAnalysisResult.fit` is the strict schema output from xAI (see `xai.rs` + `job_fit_v1`).
+`OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `src/core/domain/opportunity-target.ts`.
 
 ## TypeScript bridge
 
@@ -84,6 +87,7 @@ View (finder-app-view.tsx)
 
 - MCP stdio/HTTP server wrapping the same operations for Cursor/Grok
 - `ask_user` pause tool for guard interventions
-- xAI-backed `analyze` / prep / promote with CV guard sidecars
+- xAI structured analyze for the **reactor cycle** path (`run_finder_cycle_cmd` — today heuristic in `finder_reactor.rs`)
+- CV promote to external devprofile with sidecar + diff preview + multi-confirm guard (`promote_lead` is stub until wired)
 
-See root `SKILL.md` for the product-level tool spec; treat it as roadmap until listed above is implemented.
+Quick Target analyze/prep on Discover is **live** (commands above). See root product skills for roadmap detail beyond this table.

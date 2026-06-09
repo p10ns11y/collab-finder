@@ -7,10 +7,6 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
-import { StatsScreen } from './screens/stats-screen'
-import { HistoryScreen } from './screens/history-screen'
-import { DataScreen } from './screens/data-screen'
-import { LookupScreen } from './screens/lookup-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import type { FinderScreen } from '../core/finder/model'
 
@@ -21,11 +17,12 @@ type Props = {
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
   discover: 'Discover',
+  xplore: 'Xplore',
+  settings: 'Settings',
   stats: 'Statistics',
   history: 'History',
   data: 'Data',
   lookup: 'Lookup',
-  settings: 'Settings',
 }
 
 /** Presentational shell — props in, events out as Msg. No hooks, no invoke. */
@@ -42,14 +39,10 @@ export function FinderAppView({ view, dispatch }: Props) {
     switch (activeScreen) {
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
-      case 'stats':
-        return <StatsScreen view={view} />
-      case 'history':
-        return <HistoryScreen view={view} dispatch={dispatch} />
-      case 'data':
-        return <DataScreen view={view} dispatch={dispatch} />
-      case 'lookup':
-        return <LookupScreen view={view} dispatch={dispatch} />
+      case 'xplore':
+        // Xplore: X search/cycle to discover new opportunities on X.
+        // DiscoverScreen branches based on activeScreen (Discover = opportunity management + quick target; Xplore = pure X).
+        return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       default:
