@@ -482,8 +482,10 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
             const analysis: OpportunityTargetAnalysisResult = {
               opportunity_id: o.id,
               fit,
-              // Note (Issue 8): for restores we populate packet_preview from JD excerpt (original CV distillation packet not stored in opp row per design; real analyze paths use the CV packet).
-              packet_preview: (o.jd_text || '').slice(0, 200),
+              // Note (Issue 8): for restores we populate a short JD excerpt as packet_preview because the original full CV packet the user had entered is not persisted in the opportunity row (by design — only analysis/prep artifacts are). Real fresh analyze paths always send the complete current CV packet the user has in the input.
+              // For restored opportunities we don't have the original CV packet that was sent.
+              // We use a short excerpt of the JD as a stand-in so the UI can still render the preview section.
+              packet_preview: (o.jd_text || '').slice(0, 800),
               est_cost_usd: 0,
             }
             dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
@@ -508,7 +510,7 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
         const analysis: OpportunityTargetAnalysisResult = {
           opportunity_id: o.id,
           fit: stubFit,
-          packet_preview: '(restored; original CV packet not stored)',
+          packet_preview: '(restored — the original distilled CV packet that was sent is not stored; only the opportunity record remains)',
           est_cost_usd: 0,
         }
         dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })

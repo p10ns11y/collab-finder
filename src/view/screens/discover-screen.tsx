@@ -177,8 +177,10 @@ type QuickTargetProps = {
 }
 
 /** Quick Target input form (for any opportunity: role, collab, side hustle, community, etc.).
- *  Dispatches MVU message; results render in right panel (OpportunityTargetFitPanel) via model.opportunityTarget.
- *  CV summary (global context) is read from model inside the effect.
+ *  The CV packet entered above is sent **verbatim/in full** to the model (the user is expected to have already
+ *  distilled it to the right length and content). Dispatches MVU message; results render in right panel
+ *  (OpportunityTargetFitPanel) via model.opportunityTarget.
+ *  The same packet value is also available (read from model) for Xplore.
  *  No direct invoke — all I/O goes through effects/ports (per architecture).
  */
 function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
@@ -217,7 +219,7 @@ function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
       </div>
 
       <div className="mt-2 text-[10px] text-ink-faint">
-        Uses the CV summary packet above (global context for this target; also shared with X search &amp; prep if used). Results appear on the right. (Reopened from rail/Data restore fit/prep + Open URL; this form is for new evaluations.)
+        The CV summary packet you enter above is sent **in full** to the model (it is already the distilled version you want the model to see). The same packet is also available for Xplore searches and prep generation. Results appear on the right. (Reopened opportunities from the rail restore the fit/prep without a new xAI call.)
       </div>
     </div>
   )

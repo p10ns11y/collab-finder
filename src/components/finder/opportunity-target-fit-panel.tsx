@@ -196,8 +196,9 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
 
         {packetPreview && (
           <details className="text-[10px] text-ink-faint">
-            <summary className="cursor-pointer hover:text-ink">CV packet preview used (trust)</summary>
+            <summary className="cursor-pointer hover:text-ink">Full CV packet was sent (preview of what the model received)</summary>
             <pre className="mt-1 p-2 bg-surface-2 rounded text-[9px] overflow-auto max-h-24 whitespace-pre-wrap">{packetPreview}</pre>
+            <div className="mt-1 text-[9px] text-ink-faint/70">The complete packet you have in the input above was included verbatim in the prompt.</div>
           </details>
         )}
       </CardContent>

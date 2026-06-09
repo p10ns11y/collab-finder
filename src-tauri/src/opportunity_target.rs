@@ -73,8 +73,9 @@ pub(crate) async fn analyze_opportunity_target(
         _ => return Err("Provide either url or pasted_jd".into()),
     };
 
-    // Use the CV summary packet passed from the UI (the distilled one shown in CvSummaryInput).
-    // This is the "CV summary packet (from distillation)" that is now properly exposed in the Discover left column.
+    // The cv_summary passed from the UI is the *complete* distilled CV packet the user wants the model to see.
+    // It is sent verbatim (in full) inside the prompt. The user is responsible for distilling it to an
+    // appropriate length before hitting "Evaluate fit". No further skimming of this packet occurs.
     // Fallback is only for safety if nothing was passed.
     let cv = cv_summary.unwrap_or_else(|| {
         "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.".to_string()
@@ -135,7 +136,10 @@ pub(crate) async fn analyze_opportunity_target(
     Ok(OpportunityTargetAnalysisResult {
         opportunity_id: run_id,
         fit: fit_json,
-        packet_preview: cv.chars().take(600).collect(),
+        // We return a reasonably long prefix as the preview shown in the UI.
+    // The *full* cv string (the complete distilled packet the user provided)
+    // is included verbatim in the prompt sent to the model.
+    packet_preview: cv.chars().take(2000).collect(),
         est_cost_usd: cost,
     })
 }

@@ -31,6 +31,12 @@ export type OpportunityTargetPrep = {
 export type OpportunityTargetAnalysisResult = {
   opportunity_id: number
   fit: OpportunityTargetFit
+  /**
+   * A prefix of the CV packet that was actually sent to the model for this call.
+   * The *full* packet the user entered in the input is always used verbatim
+   * (the input is already the distilled version intended for the model).
+   * This field exists only so the result UI can show a compact "what was sent" reference.
+   */
   packet_preview: string
   est_cost_usd: number
 }
