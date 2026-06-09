@@ -94,15 +94,14 @@ sequenceDiagram
   participant U as update
   participant E as historyRefreshCmd
   participant Sel as selectors
-  participant UI as History/Data
+  participant UI as HistoryData
 
   Job->>U: HistoryRefreshRequested
-  U->>U: ALL slices → loading (data gone)
-  Sel->>UI: [] for every slice
-  E->>E: searches first; opps chained inside success
-  Note over E, UI: User opens History → blank until restart
+  U->>U: all slices set to loading, data cleared
+  Sel->>UI: empty arrays for every slice
+  UI->>UI: History opens blank until restart
+  E->>E: searches first, opps chained on search success
 ```
-(Note: the Note syntax with space after comma helps GitHub Mermaid parser avoid treating it as continuation of previous message label.)
 
 ### After (current code)
 
@@ -112,15 +111,12 @@ sequenceDiagram
   participant U as update
   participant E as historyRefreshCmd
   participant Sel as selectors
-  participant UI as History/Data
+  participant UI as HistoryData
 
   Job->>U: HistoryRefreshRequested
-  U->>U: banner null only (keep prior ready data)
-  Sel->>UI: stale-but-visible rows if any
-  par parallel fetches
-    E->>E: searches
-    E->>E: leads / stats / pauses / events / opportunities
-  end
+  U->>U: banner null only, keep prior ready data
+  Sel->>UI: stale rows stay visible if any
+  E->>E: parallel fetches for all history slices
   E->>U: partial HistoryRefreshed per slice
 ```
 
@@ -136,26 +132,15 @@ sequenceDiagram
 ## 4. Resume / prev opportunity path
 
 ```mermaid
-sequenceDiagram
-  participant User
-  participant D as Discover
-  participant U as update
-  participant E as loadOpportunityCmd
-  participant DB as getOpportunities id
-
-  User->>D: Resume last / Data row / History Open
-  D->>U: OpportunitySelected
-  Note over U: target loading (jobTarget); lastActiveOppId; url?
-  U->>E: effect
-  E->>DB: { id }
-  alt ok + blobs
-    E->>U: AnalyzeSucceeded + PrepSucceeded
-    E->>U: ScreenChanged discover
-  else fail
-    E->>U: GlobalError + JobTargetCleared
-  else no blobs
-    E->>U: JobTargetCleared
-  end
+flowchart TD
+  A[User: Resume last, Data row, or History Open] --> B[OpportunitySelected]
+  B --> C[update: jobTarget loading, lastActiveOppId, optional url]
+  C --> D[loadOpportunityCmd]
+  D --> E{getOpportunities by id}
+  E -->|ok with stored JSON| F[AnalyzeSucceeded and PrepSucceeded]
+  E -->|fetch error| G[GlobalError and JobTargetCleared]
+  E -->|no analysis or prep blobs| H[JobTargetCleared]
+  F --> I[ScreenChanged to discover]
 ```
 
 **Depends on:** `historyOpportunities[0]` for Resume button → needs opps slice **ready** at least once (AppStarted refresh or post-opp partial). (Rail now in Discover.)
@@ -228,12 +213,12 @@ stateDiagram-v2
 sequenceDiagram
   participant E as targetAnalyzeCmd
   participant U as update
-  participant H as history opps slice
+  participant H as oppsSlice
 
   E->>U: TargetAnalyzeSucceeded
-  U->>H: prepend/upsert optimistic row from result
+  U->>H: prepend optimistic row from result
   E->>U: HistoryRefreshRequested
-  Note over H: Reconcile when server list returns
+  H->>H: reconcile when server list returns
 ```
 
 | File | Work |

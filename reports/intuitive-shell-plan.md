@@ -336,26 +336,28 @@ Current 6-screen reality (post some fixes, pre-intuitive shell):
 **Current system (post terminology update + partial shell)**
 ```mermaid
 flowchart TB
-  subgraph UI["Discover (opps rail + target) + Xplore (X parts) + Settings"]
-    D["Discover: rail 'YOUR OPPORTUNITIES' + Quick Target + (faded X if active)"]
-    X[Xplore: full SearchWorkspace + feed]
-    Rail[Opportunities rail from historyOpps]
+  subgraph UI["Discover plus Xplore plus Settings"]
+    D["Discover rail YOUR OPPORTUNITIES plus Quick Target"]
+    X["Xplore SearchWorkspace and tweet feed"]
+    Rail["Opportunities rail from historyOpps"]
   end
   subgraph MVU
-    H[history.opportunities: AsyncState ready? data : []]
-    T[target / jobTarget (legacy name) separate panel]
-    Sel[selectors gate on 'ready'; isDiscover branch]
+    H["history.opportunities slice gates on ready status"]
+    T["jobTarget panel separate from rail"]
+    Sel["selectors empty when not ready"]
   end
   subgraph Rust
-    JTcmd[job_target.rs: analyze/prep/upsert → DB]
-    DB[(opps: v4 index + explicit tx dedup)]
-    get[get_opportunities(id) or limit]
+    JTcmd["job_target.rs analyze prep upsert to DB"]
+    DB[("opps v4 index plus tx dedup")]
+    get["get_opportunities by id or limit"]
   end
-  D -->|Target*Succeeded + HistoryRefreshRequested| H
+  D -->|Target Succeeded triggers refresh| H
   Rail -->|OpportunitySelected| loadOpportunityCmd
-  loadOpportunityCmd --> get --> synthetic Succeeded + ScreenChanged
+  loadOpportunityCmd --> get
+  get --> syntheticSucceeded
+  syntheticSucceeded --> ScreenChanged
   JTcmd --> DB
-  Sel -->|[] if !ready| UI
+  Sel -->|empty when not ready| UI
 ```
 (See batch §2 system map + ux v0.1 architecture map for baseline. Current nav: Discover | Xplore | Settings. Rail header = "YOUR OPPORTUNITIES".)
 
@@ -414,15 +416,15 @@ flowchart LR
     b6[Settings]
   end
   subgraph after[Target]
-    D[Discover] -->|rail 'YOUR OPPORTUNITIES' + panel + input| D
-    X[Xplore] -->|X only: search/cycle/feed| X
+    D[Discover] -->|rail panel and input| D
+    X[Xplore] -->|X search cycle feed| X
     S[Settings]
   end
   b1 --> D
   b2 -->|chip| S
-  b3 -->|X runs to Xplore; opps to rail| D
-  b4 -->|palette only 'Raw data'| S
-  b5 -->|palette 'Search archive'| X
+  b3 -->|opps to rail X to Xplore| D
+  b4 -->|palette Raw data| S
+  b5 -->|palette Search archive| X
   b6 --> S
 ```
 (Note: internal ids 'discover' / 'xplore'; labels "Discover" / "Xplore".)
@@ -447,16 +449,17 @@ CV owned by opportunity flow (reorder per v0.2 T1). Rail always visible. Click r
 **Zero manual user flows (state + single-pr §292)**
 ```mermaid
 stateDiagram-v2
-  [*] --> Cold: AppStarted → refreshOpps (keep prior) + loadCv LS
-  Cold --> Visible: opps ready → rail shows rows
+  [*] --> Cold
+  Cold --> Visible: AppStarted refresh opps and load CV
   Visible --> Pick: click rail row
-  Pick --> Hydrate: loadOpportunityCmd (DB blobs) → synthetic JobTarget*Succeeded
-  Visible --> New: +New / URL / JD
-  New --> Eval: Evaluate fit (cvSummary from model/LS)
-  Eval --> Panel: AnalyzeSucceeded + optimistic row
-  Panel --> Prep: Generate prep (previous_fit carried)
-  Prep --> Visible: list badge + artifacts in panel
-  Visible --> Restart: list + CV back (LS)
+  Pick --> Hydrate: loadOpportunityCmd from DB blobs
+  Hydrate --> Visible: synthetic Analyze and Prep Succeeded
+  Visible --> New: new URL or pasted JD
+  New --> Eval: Evaluate fit
+  Eval --> Panel: AnalyzeSucceeded plus optimistic row
+  Panel --> Prep: Generate prep pack
+  Prep --> Visible: prepped badge on row
+  Visible --> Restart: list and CV from localStorage
 ```
 
 **Principles (first-principles, single-pr §4)**
@@ -477,12 +480,19 @@ Priority. Each: problem → visual flow → files → done/verify.
 
 ```mermaid
 sequenceDiagram
-  Target*Succeeded->>update: optimistic opps row + HistoryRefreshRequested (no blank)
-  update->>Sel: historyOpps (ready || refreshing && data)  [isDiscover branch for rail]
-  effects->>ports: refresh (parallel other slices ok)
-  ports->>DB: get_opportunities
-  DB->>effects: rows
-  effects->>update: HistoryRefreshed opps
+  participant T as TargetSucceeded
+  participant U as update
+  participant Sel as selectors
+  participant E as effects
+  participant P as ports
+  participant DB as SQLite
+
+  T->>U: optimistic opps row and HistoryRefreshRequested
+  U->>Sel: historyOpps when ready or refreshing with data
+  E->>P: parallel refresh fetches
+  P->>DB: get_opportunities
+  DB->>E: rows
+  E->>U: HistoryRefreshed opps
 ```
 (See batch §198 stateDiagram for slice lifecycle. Current: rail lives inside discover-screen when isDiscover.)
 
@@ -552,8 +562,8 @@ Batched bundle or per-slice error if still pain; reactor hydrate leads or drop R
 ## Verification — Visual gate (SETUP + AGENTS + batch B2-1 expanded)
 ```mermaid
 flowchart LR
-  Build[pnpm build] --> Cargo[cd src-tauri && cargo test]
-  Cargo --> Cred[run app → X Connection + xAI panels: keyring ok]
+  Build[pnpm build] --> Cargo["cd src-tauri cargo test"]
+  Cargo --> Cred["run app check X Connection and xAI keyring"]
   Cred --> Dog[Dogfood gate]
   Dog --> Reports[update all referred + surplus log]
 ```
