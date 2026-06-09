@@ -36,16 +36,16 @@ Each requirement must name **who** asked and **what happens if we drop it**.
 
 | Requirement | Who said it | Still needed? | Verdict |
 |-------------|-------------|---------------|---------|
-| 6 sidebar screens | Early shell scaffold | No — user has one intent: jobs | **Drop nav** |
-| History + Data both show jobs | Reports Wave 2 | No — duplicate surfaces | **One rail** |
+| 6 sidebar screens | Early shell scaffold | No — user has one intent: opportunities | **Drop nav** |
+| History + Data both show opps | Reports Wave 2 | No — duplicate surfaces | **One rail** |
 | Manual Refresh | Implicit “dashboard” pattern | No — action must refresh | **Drop button** |
 | Statistics screen | v0.1 guards view | No for daily path | **Header chip** |
-| Lookup as primary nav | FTS power feature | No for 95% sessions | **Palette / Hunt archive** |
-| `historyRefreshCmd` × 6 | TD-009 patch mindset | No on job path | **One `jobs` fetch** |
+| Lookup as primary nav | FTS power feature | No for 95% sessions | **Palette / Xplore archive** |
+| `historyRefreshCmd` × 6 | TD-009 patch mindset | No on main path | **One opps fetch (Discover)** |
 | Command palette screen hops | Agent ergonomics | No — 3 screens exist | **Actions only** |
-| X + job on same scroll column | v0.1 layout | No — mode pollution | **Split Hunt** |
+| X + job on same scroll column | v0.1 layout | No — mode pollution | **Split Xplore** |
 | Resume-last button | PR6a continuity | No if list always visible | **Delete** |
-| Reactor dashboard for jobs | TD-004 | No — SQLite is truth for opps | **DB-only list** |
+| Reactor dashboard for opps | TD-004 | No — SQLite is truth for opps | **DB-only list** |
 | vitest for MVU | TD-007 | Yes — but **step ⑤ only** | **After delete** |
 
 **Dumb requirement test:** “We need Data tab 4 so users trust persistence.”  
@@ -175,15 +175,15 @@ flowchart TB
 
 | Rule | Meaning |
 |------|---------|
-| **One job, one place** | Fit, prep, and “my jobs” live on **one screen**. |
+| **One opportunity, one place** | Fit, prep, and “my opportunities” live on **one screen** (Discover). |
 | **List is memory** | If SQLite has it, the UI shows it. No hunt. |
 | **Action refreshes** | Success on analyze/prep/search **updates the list**. No Refresh button. |
-| **Click = continue** | Row click loads that job into the panel. No “Resume last” gimmick. |
-| **X is optional** | Job path is default. X hunt is a **second mode**, not a scroll past job form. |
+| **Click = continue** | Row click loads that opportunity into the panel. No “Resume last” gimmick. |
+| **X is optional** | Opportunity path (Discover) is default. X is a **second mode** (Xplore), not a scroll past the form. |
 | **Admin is hidden** | Raw SQL tables, FTS, reactor stats → palette or Settings › Advanced only. |
 | **Fail loud, keep data** | Errors get a banner. Last good rows stay on screen. |
 
-SpaceX-style: **remove until it breaks, then add back the minimum (≤10%).**
+SpaceX-style: **remove until it breaks, then add back the minimum (≤10%).** (Implemented with Discover rail + Xplore.)
 
 ---
 
@@ -215,17 +215,17 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  U[User] --> J[Jobs screen]
-  J --> L[Your jobs list - always visible]
-  J --> P[Result panel]
+  U[User] --> D[Discover screen]
+  D --> L[Your opportunities list - always visible]
+  D --> P[Result panel]
   L -->|click row| P
-  J --> N[New job input]
+  D --> N[New opportunity input]
   N -->|Evaluate| P
   P -->|Prep| P
   L -->|auto updates| DB[(SQLite)]
 ```
 
-**Three nav items:** Jobs · Hunt · Settings.
+**Three nav items:** Discover · Xplore · Settings. (Xplore for X search/cycle.)
 
 ---
 
@@ -257,32 +257,32 @@ flowchart LR
 | Screen | Fate | Why |
 |--------|------|-----|
 | **Discover** | Rename → **Jobs** | Hero loop stays; layout rebuilt. |
-| **History** | **Remove** | Job rows → Jobs rail. X runs → Hunt. |
+| **History** | **Remove** | Opp rows → Discover rail. X runs → Xplore. |
 | **Data** | **Remove from nav** | Power users: palette “Raw data tables”. |
 | **Statistics** | **Remove from nav** | One status chip in header (pauses / connection). |
-| **Lookup** | **Remove from nav** | Palette “Search archive” or Hunt › Archive. |
+| **Lookup** | **Remove from nav** | Palette “Search archive” or Xplore › Archive. |
 | **Settings** | **Keep** | Keys + Advanced (diagnostics). |
-| **Hunt** | **New** | X query, cycle, tweet feed only. |
+| **Xplore** | **New** | X query, cycle, tweet feed only. |
 
 ---
 
-## 7. Jobs screen — the whole product
+## 7. Discover screen — the whole product (opportunities rail primary)
 
 ### Layout (wireframe)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Header: Jobs          [● Connected] [2 pauses]     [⌘K]         │
+│ Header: Discover      [● Connected] [2 pauses]     [⌘K]         │
 ├─────────────┬────────────────────────────────────────────────────┤
-│ YOUR JOBS   │  RESULT                                             │
+│ YOUR OPPORTUNITIES │  RESULT                                      │
 │ ─────────── │  ┌─────────────────────────────────────────────┐   │
 │ ● #19 xAI   │  │ 78/100  Fit + Prep                          │   │
 │   prepped   │  │ rationale · gaps · prep artifacts           │   │
 │ ○ #17 …     │  │ [Generate prep] [Open URL] [Clear]          │   │
 │ ○ #12 …     │  └─────────────────────────────────────────────┘   │
-│             │  — or empty: “Pick a job or add a new one below”   │
-│ [+ New job] │                                                     │
-├─────────────┤  NEW JOB                                            │
+│             │  — or empty: “Pick an opp or add a new one below”  │
+│ [+ New]     │                                                     │
+├─────────────┤  NEW / PASTE                                        │
 │ CV ▾        │  [ URL________________________ ]                    │
 │ (collapsed  │  [ Paste JD___________________ ]                    │
 │  by default)│  [ Evaluate fit ]                                   │
@@ -294,10 +294,10 @@ flowchart LR
 ```mermaid
 stateDiagram-v2
   [*] --> ColdStart
-  ColdStart --> ListVisible: AppStarted refresh jobs
-  ListVisible --> RowSelected: click job in rail
+  ColdStart --> ListVisible: AppStarted refresh opps
+  ListVisible --> RowSelected: click opp in rail
   RowSelected --> PanelReady: loadOpportunityCmd
-  ListVisible --> NewJob: + New job / paste URL
+  ListVisible --> NewJob: + New / paste URL
   NewJob --> Evaluating: Evaluate fit
   Evaluating --> PanelReady: AnalyzeSucceeded + optimistic list
   PanelReady --> Prepped: Generate prep
@@ -306,7 +306,7 @@ stateDiagram-v2
 
 | User thought | UI answer (no doc needed) |
 |--------------|---------------------------|
-| “Where are my jobs?” | Left rail, always. |
+| “Where are my opportunities?” | Left rail, always. |
 | “Continue last one?” | Top row is most recent — click it. |
 | “Did it save?” | Row appears / badge updates. |
 | “What do I do first?” | Empty panel copy + URL field. |

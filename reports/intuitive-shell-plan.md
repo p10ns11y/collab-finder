@@ -224,7 +224,7 @@ Prep suggestions go to sidecar first. User confirm before live.
 ### W8 SearchRun "prev" + platform (batch B2-8/10)
 History search rows only fill query today.  
 Make button label honest: "Reuse query" vs "Open in Lookup".  
-Optional: wire SearchRunSelected into Discover or Hunt.
+Optional: wire SearchRunSelected into Discover or Xplore.
 
 Platform later: SSRF allowlist on fetch_job_page (before public paste), structured AppError before MCP, expose search/analyze/prep as MCP tools after core slices and tests.
 
@@ -238,20 +238,20 @@ gantt
   section Now
   B2-1 Dogfood gate :a1, 1d
   section Week 1
-  W1 Jobs slice + one fetch : after a1, 2d
+  W1 Discover projection + one fetch : after a1, 2d
   W2 Per-slice state : 1d
   W3 Selector projection : 1d
-  W4 Optimistic row : 1d
+  W4 Optimistic opp row : 1d
   section Week 2
   W4 FE tests : 2d
   W5 Reactor hydrate : 2d
   section Later
   W6 Batched (optional) : 3d
-  W7 cv-promote-guard + shell cut (delete navs, 3 screens, rail, Hunt carve) : 5d
+  W7 cv-promote-guard + shell cut (delete navs, 3 screens, rail, Xplore carve) : 5d
   W8 Platform/MCP : after
 ```
 
-UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note).
+UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note). Discover (was Jobs) + Xplore (was Hunt) terminology.
 
 ---
 
@@ -266,17 +266,17 @@ mindmap
       selectors.ts
       msg.ts
     Views
-      discover-screen.tsx (becomes Jobs + rail)
+      discover-screen.tsx (Discover with rail; Xplore reuses for X parts)
       history-screen.tsx
       data-screen.tsx
       stats-screen.tsx
       job-fit-panel.tsx
       cv-summary-input.tsx
     Layout
-      sidebar-nav.tsx (3 items)
+      sidebar-nav.tsx (3 items: Discover, Xplore, Settings)
       command-palette.tsx (actions + lazy)
     New / carve
-      Hunt (X only)
+      Xplore (X only)
     Rust
       lib.rs
       db.rs
@@ -307,22 +307,20 @@ mindmap
 **Rule (batch close):** Fix trust on the list before you cut the screens that show it.
 
 *Short words. Diagrams over prose. One critical path.*
-*Short words. Diagrams over prose. One critical path.*
 
-**Copy to project:** The pictorial visual plan (the short content based only on single-pr-intuitive-product.md and batch-2-engineering-blueprints.md at the top of this file) is the spec. Copy the clean visual sections of this plan to the project (e.g. as reports/intuitive-shell-plan.md) after approval.
-**Date context:** Post TD-00x mitigations, job_target extraction, typed domain, partial TD-009 refresh fix, clickable Data rows, CV LS restore (current tree state)  
-**Style:** Short. Tables + exact file:line. Waves with gates. Surplus required.  
-**Primary lenses:** Referred reports (tech-debt-deep-dive, deep-tech-debt, ux-v0.1/0.2, quick-feedback) + AGENTS.md routing + .agents/skills (finder-reactor, cv-promote-guard, tauri-agentic, agent-orchestrator, etc.) + actual code (db.rs migrate_v4/upsert/get, job_target.rs, lib.rs stability headers, MVU finder/*, domain/job-target.ts, selectors gating).
+**Terminology (current code reality):** "Jobs" screen/rail → Discover ("YOUR OPPORTUNITIES" rail); "Hunt" → Xplore. 3 nav: Discover | Xplore | Settings. The intuitive shell (Discover rail + Xplore for X) has been partially realized. DB (opportunities) and core Rust kept generic.
+
+**Copy to project:** The pictorial visual plan (short content based only on single-pr + batch-2) is the spec. This file was updated for broken mermaids, fixed asset refs (relative paths), and 100% code reality + new terminology. (Old duplicated tail trimmed.)
 
 ---
 
 ## Evidence — Today (referred docs + assets + code)
 Current 6-screen reality (post some fixes, pre-intuitive shell):
 
-![Discover: job fit + CV after form + X below](reports/assets/ux-review-2026-06/01-discover-job-fit-greenhouse.png)
-![Stats 0 searches](reports/assets/ux-review-2026-06/02-statistics.png) vs ![History 10 runs](reports/assets/ux-review-2026-06/03-history.png)
-![Data opps (17 dups pre-fix, now deduped)](reports/assets/ux-review-2026-06/04-data-search-runs.png)
-![Lookup / Settings](reports/assets/ux-review-2026-06/05-lookup.png) ![06-settings.png](reports/assets/ux-review-2026-06/06-settings.png)
+![Discover: opportunity fit + CV after form + X below](assets/ux-review-2026-06/01-discover-job-fit-greenhouse.png)
+![Stats 0 searches](assets/ux-review-2026-06/02-statistics.png) vs ![History 10 runs](assets/ux-review-2026-06/03-history.png)
+![Data opps (17 dups pre-fix, now deduped)](assets/ux-review-2026-06/04-data-search-runs.png)
+![Lookup / Settings](assets/ux-review-2026-06/05-lookup.png) ![06-settings.png](assets/ux-review-2026-06/06-settings.png)
 
 **Scorecard (updated from ux v0.2 + batch §1 + debt heat)**
 | Area | Grade | Note (referred) |
@@ -335,31 +333,31 @@ Current 6-screen reality (post some fixes, pre-intuitive shell):
 | Typed jobTarget | A (was TD-006) | domain/job-target.ts full + union; job_target.rs extracted (lib:93) |
 | FE tests / projection | C | Zero vitest (TD-007); strict ready gate (selectors:95) |
 
-**Current system (post TD-009/001/005/006 partial)**
+**Current system (post terminology update + partial shell)**
 ```mermaid
 flowchart TB
-  subgraph UI["6 screens + history.* slices"]
-    D[Discover: QuickJobTarget + CvSummaryInput + SearchWorkspace]
-    Rail[Resume last from historyOpps[0]]
-    Data[Data opps tab - now clickable via OpportunitySelected]
+  subgraph UI["Discover (opps rail + target) + Xplore (X parts) + Settings"]
+    D[Discover: rail "YOUR OPPORTUNITIES" + Quick Target + (faded X if active)]
+    X[Xplore: full SearchWorkspace + feed]
+    Rail[Opportunities rail from historyOpps]
   end
   subgraph MVU
     H[history.opportunities: AsyncState ready? data : []]
-    JT[jobTarget separate panel]
-    Sel[selectors gate on 'ready']
+    T[target / jobTarget (legacy name) separate panel]
+    Sel[selectors gate on 'ready'; isDiscover branch]
   end
   subgraph Rust
     JTcmd[job_target.rs: analyze/prep/upsert → DB]
     DB[(opps: v4 index + explicit tx dedup)]
     get[get_opportunities(id) or limit]
   end
-  D -->|JobTarget*Succeeded + HistoryRefreshRequested| H
-  Data -->|row| loadOpportunityCmd
-  loadOpportunityCmd --> get --> synthetic Succeeded
+  D -->|Target*Succeeded + HistoryRefreshRequested| H
+  Rail -->|OpportunitySelected| loadOpportunityCmd
+  loadOpportunityCmd --> get --> synthetic Succeeded + ScreenChanged
   JTcmd --> DB
   Sel -->|[] if !ready| UI
 ```
-(See batch §2 system map + ux v0.1 architecture map for baseline.)
+(See batch §2 system map + ux v0.1 architecture map for baseline. Current nav: Discover | Xplore | Settings. Rail header = "YOUR OPPORTUNITIES".)
 
 **Fixes landed vs open (referred debt heat)**
 ```mermaid
@@ -411,18 +409,18 @@ flowchart LR
     b1[Discover] b2[Stats] b3[History] b4[Data] b5[Lookup] b6[Settings]
   end
   subgraph after[Target]
-    J[Jobs] -->|rail + panel + input| J
-    H[Hunt] -->|X only: search/cycle/feed/archive| H
+    D[Discover] -->|rail "YOUR OPPORTUNITIES" + panel + input| D
+    X[Xplore] -->|X only: search/cycle/feed| X
     S[Settings]
   end
-  b1 --> J
+  b1 --> D
   b2 -->|chip| S
-  b3 -->|X runs to Hunt; jobs to rail| J
+  b3 -->|X runs to Xplore; opps to rail| D
   b4 -->|palette only "Raw data"| S
-  b5 -->|palette "Search archive"| H
+  b5 -->|palette "Search archive"| X
   b6 --> S
 ```
-
+(Note: internal ids 'discover' / 'xplore'; labels "Discover" / "Xplore".)
 **Jobs screen = the product (wireframe evolved from single-pr §7 + ux T1 reorder)**
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -474,25 +472,25 @@ Priority. Each: problem → visual flow → files → done/verify.
 
 ```mermaid
 sequenceDiagram
-  JobTarget*Succeeded->>update: optimistic opps row + HistoryRefreshRequested (no blank)
-  update->>Sel: historyOpps (ready || refreshing && data)
-  effects->>ports: refreshOpps (or dedicated; parallel other slices ok)
+  Target*Succeeded->>update: optimistic opps row + HistoryRefreshRequested (no blank)
+  update->>Sel: historyOpps (ready || refreshing && data)  [isDiscover branch for rail]
+  effects->>ports: refresh (parallel other slices ok)
   ports->>DB: get_opportunities
   DB->>effects: rows
-  effects->>update: HistoryRefreshed opps (or JobsRefreshed)
+  effects->>update: HistoryRefreshed opps
 ```
-(See batch §198 stateDiagram for slice lifecycle.)
+(See batch §198 stateDiagram for slice lifecycle. Current: rail lives inside discover-screen when isDiscover.)
 
 | File | Work |
 |------|------|
-| model/selectors | projectOppsSlice (ready \|\| refreshing+data \|\| loading-with-prior); historyOpportunities robust |
-| update | keep non-blank; add optimistic on Succeeded |
-| effects | refreshOppsCmd (cut fanout for job path); error → HistorySliceFailed per key |
-| discover/data | "refreshing…" chip + error row (keep prior) |
+| model/selectors | project for opportunities (ready \|\| refreshing+data \|\| loading-with-prior); historyOpportunities robust |
+| update.ts | keep non-blank on RefreshRequested; add optimistic on Succeeded |
+| effects.ts | refresh (opps); error paths per key |
+| discover-screen.tsx (Discover branch) | "YOUR OPPORTUNITIES" rail + "refreshing…" affordance |
 
-**Done when:** Kill net mid-refresh → error banner + old rows visible; cold open shows skeleton or real rows (not "no history"); re-analyze same URL stable; old id load works.
+**Done when:** Kill net mid-refresh → error banner + old rows visible; cold open shows skeleton or real rows (not fake "no history"); re-analyze same URL stable; old id load works.
 
-**Verify:** cargo test (db) + pnpm build + dogfood: Evaluate → immediate rail/History/Data row + prepped; restart → list + CV; click row → panel no xAI.
+**Verify:** cargo test (db) + pnpm build + dogfood: Evaluate → immediate rail row + prepped; restart → list + CV; click row → panel no xAI. (Note: "JobsRefreshed" was plan name; reality uses history.opportunities + isDiscover guard.)
 
 ### W2 · FE tests (TD-007 B2-7)
 **Problem:** MVU regressions (refresh keep-data, prep merge, hydrate) have no guard.
@@ -659,14 +657,14 @@ From SETUP.md + AGENTS "after any src-tauri/src/":
 - Final: full dogfood + cargo test + surplus + "intuitive product" feels like the product (not bolted).
 
 **Acceptance (intuitive complete):**
-- [ ] Wave gates + dogfood script passes on real job URL(s) + restart + re-analyze + resume + X side sanity.
+- [ ] Wave gates + dogfood script passes on real Greenhouse URL(s) + restart + re-analyze + resume + Xplore side sanity.
 - [ ] Reports (all referred) accurately reflect landed state + "simplistic views superseded because...".
 - [ ] `cargo test` + `pnpm build` + cred panels clean after every src-tauri touch.
 - [ ] CV promote (when in) follows guard skill exactly (sidecar, preview, confirm).
 - [ ] No new "blank until restart" or "wrong row on resume" or "fit lost on prep" regressions.
-- [ ] 3-nav (Jobs/Hunt/Settings) + rail as daily driver for jobs users; Hunt for X.
+- [ ] 3-nav (Discover / Xplore / Settings) + rail ("YOUR OPPORTUNITIES") as daily driver. Xplore isolated for X.
 
-*Plain rule (from referred): Trust the list (projection + DB invariants) and the continue path before you delete the surfaces that currently expose them. Then the intuitive shell compounds because the foundation is real.*
+*Plain rule (from referred + code): Trust the list (Discover rail) before you cut the screens. Xplore is the dedicated place to find on X. Current reality uses Discover + Xplore (no "Jobs"/"Hunt" in nav).*
 
 ---
 

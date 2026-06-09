@@ -1,6 +1,6 @@
 # Batch 2 — Engineering blueprints
 
-> **UX path superseded** by [single-pr-intuitive-product.md](./single-pr-intuitive-product.md) — one PR, 3 screens, `jobs` slice. Incremental B2 cards below remain valid for **non-UI** work (MCP, SSRF, cv-promote) if split later.
+> **UX path superseded** by [single-pr-intuitive-product.md](./single-pr-intuitive-product.md) — one PR, 3 screens (Discover + Xplore), opportunities rail (generalized from `jobs` slice). Incremental B2 cards below remain valid for **non-UI** work (MCP, SSRF, cv-promote) if split later. Terminology note: "Jobs" → "Discover", "Hunt" → "Xplore" to match current code (opportunities beyond jobs).
 
 **Branch:** `review/d83821fe-2026-06-08`  
 **Audience:** Implementer + agent  
@@ -35,12 +35,12 @@ flowchart LR
 |------|-------|----------|
 | First-run evaluate + prep | **A** | Works; right panel; real CV; prep keeps fit |
 | Revisit after evaluate | **B** | Paths exist; refresh race **mitigated** (see §3) |
-| History / Data trust | **B-** | Job targets visible; stats better; not atomic refresh |
-| Daily driver (many jobs) | **B** | Persistence OK; pipeline UX thin |
+| History / Data trust | **B-** | Opportunities visible; stats better; not atomic refresh |
+| Daily driver (many opps) | **B** | Persistence OK; pipeline UX thin |
 | Platform / tests | **C** | No vitest; reactor split; MCP later |
 
 **d83821fe plan:** PR1–PR7 + narrow UX polish = **~75%** of report-driven Phase 0–1.  
-**Not missing:** data or hero loop. **Still noisy:** history projection + fan-out edges.
+**Not missing:** data or hero loop. **Still noisy:** history projection + fan-out edges. (Note: target UI generalized to Discover/Xplore; "jobs slice" became opportunities rail in Discover.)
 
 ---
 
@@ -80,7 +80,7 @@ flowchart TB
 ```
 
 **Rule that bites:** `selectFinderView` returns `[]` unless `history.*.status === 'ready'`.  
-Idle or loading with no prior ready → **empty tables**.
+Idle or loading with no prior ready → **empty tables**. (Current: rail lives in Discover when opportunities ready.)
 
 ---
 
@@ -157,7 +157,7 @@ sequenceDiagram
   end
 ```
 
-**Depends on:** `historyOpportunities[0]` for Resume button → needs opps slice **ready** at least once (AppStarted refresh or post-job partial).
+**Depends on:** `historyOpportunities[0]` for Resume button → needs opps slice **ready** at least once (AppStarted refresh or post-opp partial). (Rail now in Discover.)
 
 ---
 
@@ -182,9 +182,9 @@ flowchart LR
 
 | Step | Pass if |
 |------|---------|
-| Post-evaluate History | Job targets row visible (score / prepped) |
+| Post-evaluate History / Discover rail | Opportunities row visible (score / prepped) |
 | Post-evaluate Data | Same opp in table |
-| Resume | Fit + prep without new xAI call |
+| Resume / rail click | Fit + prep without new xAI call |
 | Restart | CV text back; optional last-opp hydrate |
 
 **Commands:** `cd src-tauri && cargo test` · `pnpm build`
@@ -225,11 +225,11 @@ stateDiagram-v2
 
 ```mermaid
 sequenceDiagram
-  participant E as jobTargetAnalyzeCmd
+  participant E as targetAnalyzeCmd
   participant U as update
   participant H as history opps slice
 
-  E->>U: JobTargetAnalyzeSucceeded
+  E->>U: TargetAnalyzeSucceeded
   U->>H: prepend/upsert optimistic row from result
   E->>U: HistoryRefreshRequested
   Note over H: Reconcile when server list returns
@@ -237,10 +237,10 @@ sequenceDiagram
 
 | File | Work |
 |------|------|
-| `update.ts` | `JobTargetAnalyzeSucceeded` / `PrepSucceeded` merge into `history.opportunities.data` |
+| `update.ts` | `TargetAnalyzeSucceeded` / `PrepSucceeded` merge into `history.opportunities.data` (rail in Discover) |
 | `effects.ts` | Refresh still runs; server wins on conflict |
 
-**Done when:** New opp visible in History **before** parallel fetch completes.
+**Done when:** New opp visible in Discover rail **before** parallel fetch completes.
 
 ---
 
@@ -342,19 +342,19 @@ flowchart LR
 
 ### B2-8 · SearchRun “prev” in Discover (UX gap)
 
-**Problem:** History search rows only `PresetSelected` + `ScreenChanged`. Full tweet replay lives in Lookup.
+**Problem:** History search rows only `PresetSelected` + `ScreenChanged`. Full tweet replay lives in Lookup (or Xplore).
 
 ```mermaid
 flowchart TD
   HS[History search row] -->|today| Q[Fill query only]
   HS -->|option A| L[Navigate to Lookup + SearchRunSelected]
-  HS -->|option B| D[Discover: hydrate tweets into search slice]
+  HS -->|option B| X[Xplore: hydrate tweets into search slice]
 ```
 
 | File | Work |
 |------|------|
 | `history-screen.tsx` | Button label honest: “Reuse query” vs “Open in Lookup” |
-| Optional | Wire `SearchRunSelected` + consumer in Discover |
+| Optional | Wire `SearchRunSelected` + consumer in Xplore / Discover |
 
 **Done when:** No button promises replay it does not deliver.
 
@@ -412,7 +412,7 @@ gantt
   B2-5 Batched history cmd    :a7, 2026-06-23, 3d
   B2-9 cv-promote-guard       :a8, 2026-07-01, 5d
 ```
-
+(Note: target UX uses Discover + Xplore; "jobs" language in cards is historical.)
 ---
 
 ## 7. File index (batch 2 touch map)
@@ -445,10 +445,10 @@ mindmap
 ## 8. Acceptance — batch 2 complete
 
 - [ ] B2-1 dogfood script passes on real Greenhouse URL  
-- [ ] Post-evaluate History/Data never blank when prior data existed  
+- [ ] Post-evaluate History/Data/ Discover rail never blank when prior data existed  
 - [ ] Failed history slice shows error; stale data still visible  
 - [ ] `pnpm test` covers refresh + prep merge  
-- [ ] Reports updated: Phase 0 checkboxes in tech-debt-deep-dive  
+- [ ] Reports updated: Phase 0 checkboxes in tech-debt-deep-dive (terminology aligned to Discover/Xplore)  
 
 ---
 
@@ -463,4 +463,4 @@ mindmap
 
 ---
 
-*Plain rule: fix trust on secondary screens before new features. Hero loop is already the product hook.*
+*Plain rule: fix trust on secondary screens before new features. Hero loop is already the product hook.* (Current: Discover rail + Xplore for X.)
