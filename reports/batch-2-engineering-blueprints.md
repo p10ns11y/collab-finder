@@ -132,7 +132,7 @@ sequenceDiagram
 
 ---
 
-## 4. Resume / prev job path
+## 4. Resume / prev opportunity path
 
 ```mermaid
 sequenceDiagram
@@ -144,7 +144,7 @@ sequenceDiagram
 
   User->>D: Resume last / Data row / History Open
   D->>U: OpportunitySelected
-  U->>U: jobTarget loading; lastActiveOppId; url?
+  Note over U: target loading (jobTarget); lastActiveOppId; url?
   U->>E: effect
   E->>DB: { id }
   alt ok + blobs
