@@ -100,8 +100,9 @@ sequenceDiagram
   U->>U: ALL slices → loading (data gone)
   Sel->>UI: [] for every slice
   E->>E: searches first; opps chained inside success
-  Note over E,UI: User opens History → blank until restart
+  Note over E, UI: User opens History → blank until restart
 ```
+(Note: the Note syntax with space after comma helps GitHub Mermaid parser avoid treating it as continuation of previous message label.)
 
 ### After (current code)
 
@@ -144,7 +145,7 @@ sequenceDiagram
 
   User->>D: Resume last / Data row / History Open
   D->>U: OpportunitySelected
-  U->>U: "target loading (jobTarget); lastActiveOppId; url?"
+  Note over U: target loading (jobTarget); lastActiveOppId; url?
   U->>E: effect
   E->>DB: { id }
   alt ok + blobs
