@@ -236,22 +236,22 @@ gantt
   title Intuitive shell + valid B2 cards
   dateFormat YYYY-MM-DD
   section Now
-  B2-1 Dogfood gate :a1, 1d
+  B2-1 Dogfood gate :a1, 2024-06-01, 1d
   section Week 1
-  W1 Discover projection + one fetch : after a1, 2d
-  W2 Per-slice state : 1d
-  W3 Selector projection : 1d
-  W4 Optimistic opp row : 1d
+  W1 Discover projection + one fetch :a2, after a1, 2d
+  W2 Per-slice state :a3, after a2, 1d
+  W3 Selector projection :a4, after a3, 1d
+  W4 Optimistic opp row :a5, after a4, 1d
   section Week 2
-  W4 FE tests : 2d
-  W5 Reactor hydrate : 2d
+  W4 FE tests :a6, after a5, 2d
+  W5 Reactor hydrate :a7, after a6, 2d
   section Later
-  W6 Batched (optional) : 3d
-  W7 cv-promote-guard + shell cut (delete navs, 3 screens, rail, Xplore carve) : 5d
-  W8 Platform/MCP : after
+  W6 Batched (optional) :a8, after a7, 3d
+  W7 cv-promote-guard + shell cut (delete navs, 3 screens, rail, Xplore carve) :a9, after a8, 5d
+  W8 Platform/MCP : after a9
 ```
 
-UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note). Discover (was Jobs) + Xplore (was Hunt) terminology.
+UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note). Discover (was Jobs) + Xplore (was Hunt) terminology. All tasks now use explicit task IDs (a1, a2, ...) and `after aN` for dependencies to satisfy Mermaid Gantt parser. Dummy start date used for rendering (not real schedule).
 
 ---
 
