@@ -16,8 +16,8 @@ type Props = {
 }
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
-  discover: 'Jobs',
-  hunt: 'Hunt',
+  discover: 'Discover',
+  xplore: 'Xplore',
   settings: 'Settings',
   stats: 'Statistics',
   history: 'History',
@@ -39,9 +39,10 @@ export function FinderAppView({ view, dispatch }: Props) {
     switch (activeScreen) {
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
-      case 'hunt':
-        // Hunt: X only (search, cycle, feed). Jobs path is primary in Discover/Jobs.
-        return <DiscoverScreen view={view} dispatch={dispatch} /> // temp reuse for X; full carve later
+      case 'xplore':
+        // Xplore: X search/cycle to discover new opportunities on X.
+        // DiscoverScreen branches based on activeScreen (Discover = opportunity management + quick target; Xplore = pure X).
+        return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       default:

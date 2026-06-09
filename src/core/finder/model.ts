@@ -30,7 +30,7 @@ export type PersistedSession = {
   jobTargetUrl?: string
 }
 
-const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'hunt']
+const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'xplore']
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
   return typeof s === 'string' && VALID_SCREENS.includes(s as FinderScreen)
@@ -43,7 +43,7 @@ export type FinderScreen =
   | 'data'
   | 'lookup'
   | 'settings'
-  | 'hunt'
+  | 'xplore'
 
 export type CredentialsSlice = {
   connected: boolean
@@ -83,7 +83,10 @@ export type FinderModel = {
   selectedRunId: number | null
   selectedRun: AsyncState<SearchRunWithTweets | null>
   hydrate: AsyncState<Tweet | null>
-  // Job target (Quick Job Target analyze via grok-4.3; drives right panel priority + Data tab)
+  // Current target for quick analyze/prep (the "Quick Target" flow in Discover).
+  // Works for any opportunity type (jobs, collabs, etc.). Legacy field name "jobTarget" kept
+  // to avoid ripple across update/effects/ports/Rust (job_target.rs + commands).
+  // UI labels and this product now treat it as a general opportunity target.
   jobTarget: AsyncState<JobTargetResult>
   jobTargetUrl?: string
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
