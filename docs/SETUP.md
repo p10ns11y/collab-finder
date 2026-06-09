@@ -41,7 +41,7 @@ cd src-tauri && cargo test
 ## X Bearer credentials
 
 1. Create an app on the [X Developer Portal](https://developer.x.com/) and copy the **Bearer token** (app-only).
-2. In the app, open **X connection** (credentials panel).
+2. In the app, open **Settings → X connection**.
 3. Paste the token and choose **Save credentials**.
 4. The draft field is cleared after save; the token is **not** kept in React state. The panel calls `get_x_bearer_storage` to show active source, file path, and keyring reachability.
 
@@ -54,17 +54,28 @@ cd src-tauri && cargo test
 
 **Stability note:** The bearer/keyring + dual file fallback + `get_x_bearer_storage` status surface is a known hotspot that unrelated refactors (especially anything involving "storage", DB paths, lib.rs command lists, or content policy work) have broken repeatedly. The sources contain loud STABILITY CONTRACT headers. See root AGENTS.md and docs/tauri-commands.md before touching. Always run `cargo test` + manually check the credentials panel after changes.
 
+## xAI key (Quick Target on Discover)
+
+1. Obtain an xAI API key from the [xAI console](https://console.x.ai/).
+2. In the app, open **Settings → xAI key**.
+3. Paste the key and **Save**. The panel calls `get_xai_key_storage` (same keyring/file dual-write pattern as bearer).
+
+Quick Target on **Discover** (`analyze_opportunity_target`, `prep_opportunity_target` in `src-tauri/src/opportunity_target.rs`) requires a saved xAI key. The reactor **cycle** path on **Xplore** still uses heuristic analyze — xAI structured decisions there remain planned.
+
 ## What works vs stubs
 
 | Feature | Status |
 |---------|--------|
 | Recent X search (`search_x_recent`) | Live HTTP to `api.x.com` |
-| Credential save/clear | Live |
-| Autonomous cycle (`run_finder_cycle_cmd`) | Live X search in cycle; heuristic analyze (xAI planned); populates tweet feed |
-| Durable history (SQLite) | Searches, leads, pauses, events; dashboard refresh on start; best-effort if DB init fails |
-| CV / devprofile grounding | Not wired (hardcoded path in reactor) |
+| X + xAI credential save/clear | Live (keyring + file fallback) |
+| Quick Target analyze (`analyze_opportunity_target`) | Live xAI structured fit on Discover; persists to `opportunities` |
+| Quick Target prep (`prep_opportunity_target`) | Live xAI prep pack; updates same opportunity row |
+| Opportunity rail + hydrate (`get_opportunities`) | Live SQLite read; click row loads stored fit/prep blobs (no new xAI) |
+| Autonomous cycle (`run_finder_cycle_cmd`) | Live X search in cycle; **heuristic** analyze in reactor (xAI for cycle path still planned); populates tweet feed |
+| Durable history (SQLite) | Searches, leads, pauses, events, opportunities; dashboard refresh on start; best-effort if DB init fails |
+| CV grounding (Quick Target) | Live via Discover CV summary textarea (`cv_summary` arg); devprofile read/promote guard not wired |
 | MCP server for external agents | Planned (today: Tauri `invoke` only) |
-| xAI structured decisions | Planned (stub in `finder_reactor.rs`) |
+| xAI structured decisions (reactor cycle) | Planned (heuristic stub in `finder_reactor.rs`; distinct from live Quick Target xAI) |
 
 See [tauri-commands.md](./tauri-commands.md) and [agentic-architecture.md](./agentic-architecture.md).
 
