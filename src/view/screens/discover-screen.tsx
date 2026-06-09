@@ -14,23 +14,24 @@ type Props = {
   dispatch: Dispatch<FinderMsg>
 }
 
-/** Primary workspace: Quick Job Target + global CV context + X search controls left;
- *  contextual results (job fit or X feed) on right.
+/** Primary workspace (Discover screen): opportunity rail + quick target analyze/prep + (optionally) X controls.
+ *  Right panel shows fit/prep results for the current target (or X feed on Xplore).
  *
- *  CV summary is placed first (reordered) so it is owned by / context for the job flow (addresses T1).
- *  It remains shared cross-cutting for X too. When a job target is active (showJobFit), X workspace is
- *  rendered secondary (visual + implicit mode per user decision: primary job, X as needed).
- *  Resume-last affordance uses the opportunities already loaded via HistoryRefreshed/selectors.
+ *  The product covers jobs, collabs, side hustles, community opportunities, etc. (not just "jobs").
+ *  "Discover" = manage/continue opportunities you've found (rail + quick target).
+ *  "Xplore" = actively search X for new ones.
+ *  CV context is global but emphasized in Discover for opportunity work.
  */
 export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
   const historyOpportunities = view.historyOpportunities || []
 
-  const isJobs = view.activeScreen === 'discover'
+  const isDiscover = view.activeScreen === 'discover'
 
-  // Job target state is now in MVU model (jobTarget + jobTargetUrl); right panel priority per feedback.
-  // jobResult is now typed JobTargetResult | null (no any at call sites).
+  // Current target state (jobTarget + jobTargetUrl in model) for the quick analyze/prep flow.
+  // This applies to any opportunity type (jobs, collabs, etc.). Right panel priority.
+  // jobResult is typed JobTargetResult | null (legacy name; no `any` at call sites).
   const jt = model.jobTarget ?? { status: 'idle' as const }
   const jobBusy = jt.status === 'loading'
   const jobResult = jt.status === 'ready' ? jt.data : null
@@ -44,7 +45,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
 
         {/* CV first (jobs flow only per plan; collapsed by default in rail context). */}
-        {isJobs && (
+        {isDiscover && (
           <CvSummaryInput
             cvSummary={model.cvSummary}
             onCvSummaryChange={(cvSummary) =>
@@ -53,12 +54,13 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           />
         )}
 
-        {/* Your Jobs rail (jobs mode only; always visible list from opportunities - the "list is memory" per plan).
+        {/* Your Opportunities rail (Discover screen; always visible list from opportunities - the "list is memory" per plan).
            Click loads into panel (reuse OpportunitySelected + load from DB blobs, no new xAI).
-           Optimistic updates via refresh after analyze/prep. This is the primary "intuitive" surface. */}
-        {isJobs && (
+           This is the primary surface for managing/continuing opportunities (jobs, collabs, side hustles, community, etc.).
+           Optimistic updates via refresh after analyze/prep. */}
+        {isDiscover && (
           <div className="border border-border-subtle rounded p-2">
-            <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR JOBS</div>
+            <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR OPPORTUNITIES</div>
             {historyOpportunities.length === 0 ? (
               <div className="text-xs text-ink-faint">No jobs yet. Paste URL below to evaluate.</div>
             ) : (
@@ -79,8 +81,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           </div>
         )}
 
-        {/* Resume last (jobs mode only; kept for compatibility, rail above is the main) */}
-        {isJobs && !showJobFit && historyOpportunities.length > 0 && (
+        {/* Resume last (Discover mode; kept for compatibility, rail above is the main) */}
+        {isDiscover && !showJobFit && historyOpportunities.length > 0 && (
           <button
             onClick={() => {
               const last = historyOpportunities[0]
@@ -93,9 +95,10 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           </button>
         )}
 
-        {/* Quick Job Target (jobs mode only — input only, results move to right panel via MVU) */}
-        {isJobs && (
-          <QuickJobTarget
+        {/* Quick Target (Discover mode — analyze + prep for a specific opportunity URL/JD).
+           Results appear in the right panel. The flow works for any opportunity type. */}
+        {isDiscover && (
+          <QuickTarget
             busy={jobBusy}
             onAnalyzeRequested={(url, pasted_jd) =>
               dispatch({ type: 'JobTargetAnalyzeRequested', url, pasted_jd })
@@ -103,10 +106,11 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           />
         )}
 
-        {/* X / Hunt workspace.
-           On Jobs: secondary, de-emphasized when a job fit is active.
-           On Hunt: primary and full (X search is the focus of this screen per plan). */}
-        <div className={isJobs && showJobFit ? 'opacity-60' : ''}>
+        {/* X search workspace only on Xplore screen.
+           "Xplore" is the mode to actively find new opportunities on X (search + autonomous cycle).
+           Discover is for working with opportunities you've found (rail, quick target analyze/prep).
+           Per plan: clean separation, no mode pollution. */}
+        {!isDiscover && (
           <SearchWorkspace
             query={model.query}
             busy={view.busy}
@@ -118,9 +122,10 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             onSearch={() => dispatch({ type: 'SearchRequested' })}
             onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
           />
-        </div>
+        )}
 
-        {model.decision && (
+        {/* DecisionPanel (cycle results) only on Xplore per plan split. */}
+        {!isDiscover && model.decision && (
           <DecisionPanel
             decision={model.decision}
             onRerun={() => dispatch({ type: 'CycleRequested' })}
@@ -128,14 +133,15 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           />
         )}
 
+        {/* PauseLog kept for now (guards can apply to both flows); move to Xplore-only if desired later. */}
         <PauseLog pauses={model.pauses} />
       </div>
 
       {/* Right: contextual results.
-         Jobs mode: job fit takes priority.
-         Hunt mode: always X feed (search results / cycle output). */}
+         Discover: only opportunity fit/prep (or clean empty state). No X feed.
+         Xplore: X search results / cycle output (TweetFeed). */}
       <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
-        {(isJobs && showJobFit) ? (
+        {(isDiscover && showJobFit) ? (
           <JobFitPanel
             result={jobResult}
             error={jobError}
@@ -146,36 +152,38 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               dispatch({ type: 'JobTargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
             }
           />
-        ) : (
+        ) : !isDiscover ? (
           <>
             <TweetFeed tweets={view.tweets} />
             {!hasXResults && (
               <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
-                {isJobs ? (
-                  <>No live results yet.<br />Paste a job URL or JD on the left, or run an X search / cycle below.</>
-                ) : (
-                  <>No live X results yet.<br />Run a search or autonomous cycle using the controls on the left.</>
-                )}
+                No live X results yet.<br />Run a search or autonomous cycle using the controls on the left.
               </div>
             )}
           </>
+        ) : (
+          <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
+            No opportunity selected.<br />
+            Choose one from the YOUR OPPORTUNITIES rail on the left, or add a new one below.
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-type QuickJobTargetProps = {
+type QuickTargetProps = {
   busy: boolean
   onAnalyzeRequested: (url?: string, pasted_jd?: string) => void
 }
 
-/** Quick Job Target input form.
+/** Quick Target input form (for any opportunity: job, collab, side hustle, community, etc.).
  *  Dispatches MVU message; results render in right panel (JobFitPanel) via model.jobTarget.
  *  CV summary (global context) is read from model inside the effect.
  *  No direct invoke — all I/O goes through effects/ports (per architecture).
+ *  Internal state name "jobTarget" is legacy from when this was jobs-only; the flow applies to opportunities in general.
  */
-function QuickJobTarget({ busy, onAnalyzeRequested }: QuickJobTargetProps) {
+function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
   const [url, setUrl] = React.useState('')
   const [pasted, setPasted] = React.useState('')
 

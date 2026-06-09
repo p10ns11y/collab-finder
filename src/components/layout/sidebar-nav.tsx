@@ -14,8 +14,8 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'discover', label: 'Jobs', Icon: Compass },
-  { id: 'hunt', label: 'Hunt', Icon: Search },
+  { id: 'discover', label: 'Discover', Icon: Compass },
+  { id: 'xplore', label: 'Xplore', Icon: Search },
   { id: 'settings', label: 'Settings', Icon: SettingsIcon },
 ]
 
