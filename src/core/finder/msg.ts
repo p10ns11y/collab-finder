@@ -9,7 +9,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
-import type { TargetAnalysisResult, TargetPrepResult } from '../domain/target'
+import type { OpportunityTargetAnalysisResult, OpportunityTargetPrepResult } from '../domain/opportunity-target'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -23,7 +23,7 @@ export type FinderMsg =
   | { type: 'CvSummaryChanged'; cvSummary: string }
   | { type: 'CvSummaryLoaded'; cvSummary: string }
   | { type: 'OpportunitySelected'; id: number; url?: string }
-  | { type: 'TargetUrlSet'; url?: string }
+  | { type: 'OpportunityTargetUrlSet'; url?: string }
   | { type: 'PresetSelected'; query: string }
   | { type: 'CredentialsChecked'; storage: BearerStorageStatus }
   | { type: 'CredentialsDraftChanged'; draft: string }
@@ -80,13 +80,13 @@ export type FinderMsg =
   | { type: 'LookupCleared' }
   | { type: 'HydrateCleared' }
 
-  // Target analyze (MVU integration for Quick Target flow in Discover)
-  | { type: 'TargetAnalyzeRequested'; url?: string; pasted_jd?: string }
-  | { type: 'TargetAnalyzeSucceeded'; result: TargetAnalysisResult }
-  | { type: 'TargetAnalyzeFailed'; error: AppError }
-  | { type: 'TargetCleared' }
+  // Opportunity target analyze (MVU integration for Quick Target flow in Discover)
+  | { type: 'OpportunityTargetAnalyzeRequested'; url?: string; pasted_jd?: string }
+  | { type: 'OpportunityTargetAnalyzeSucceeded'; result: OpportunityTargetAnalysisResult }
+  | { type: 'OpportunityTargetAnalyzeFailed'; error: AppError }
+  | { type: 'OpportunityTargetCleared' }
 
-  // Target prep (Slice C — Full Prep artifacts after fit evaluation)
-  | { type: 'TargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
-  | { type: 'TargetPrepSucceeded'; result: TargetPrepResult }
-  | { type: 'TargetPrepFailed'; error: AppError }
+  // Opportunity target prep (Slice C — Full Prep artifacts after fit evaluation)
+  | { type: 'OpportunityTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
+  | { type: 'OpportunityTargetPrepSucceeded'; result: OpportunityTargetPrepResult }
+  | { type: 'OpportunityTargetPrepFailed'; error: AppError }

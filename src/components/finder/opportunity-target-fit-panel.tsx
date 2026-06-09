@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
-import type { TargetResult, TargetFit, TargetPrep } from '../../core/domain/target'
+import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
 
 type Props = {
-  result: TargetResult | null
+  result: OpportunityTargetResult | null
   error: string | null
   busy: boolean
   sourceUrl?: string
@@ -12,7 +12,7 @@ type Props = {
   onPrepRequested?: (opportunityId?: number) => void
 }
 
-export function TargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
+export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
@@ -41,8 +41,8 @@ export function TargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrep
   if (!result) {
     return null
   }
-  const fit: TargetFit | undefined = 'fit' in result ? result.fit : undefined
-  const prep: TargetPrep | undefined = 'prep' in result ? result.prep : undefined
+  const fit: OpportunityTargetFit | undefined = 'fit' in result ? result.fit : undefined
+  const prep: OpportunityTargetPrep | undefined = 'prep' in result ? result.prep : undefined
   if (!fit && !prep) {
     return null
   }

@@ -1,6 +1,6 @@
-/** Target domain types for quick opportunity analysis (URL or pasted description) + prep.
- * Mirror the Rust wire types from src-tauri/src/target.rs exactly:
- *   - TargetAnalysisResult / TargetPrepResult (top level from analyze_target / prep_target)
+/** OpportunityTarget domain types for quick opportunity analysis (URL or pasted description) + prep.
+ * Mirror the Rust wire types from src-tauri/src/opportunity_target.rs exactly:
+ *   - OpportunityTargetAnalysisResult / OpportunityTargetPrepResult (top level from analyze_opportunity_target / prep_opportunity_target)
  *   - Inner fit report (from xAI structured schema in analyze)
  *   - Inner prep artifacts (from xAI structured schema in prep)
  * Opportunity row shape (from history + db) is related but separate (analysis_json/prep_artifacts_json strings).
@@ -13,7 +13,7 @@
  * Per design PR2 / TD-006 + Key Decision 3.
  */
 
-export type TargetFit = {
+export type OpportunityTargetFit = {
   overall: number
   rationale: string
   gaps_must: string[]
@@ -21,39 +21,39 @@ export type TargetFit = {
   recommended_action: string
 }
 
-export type TargetPrep = {
+export type OpportunityTargetPrep = {
   cover_letter: string
   cv_suggestions: string[]
   research_notes: string
   exceptional_work_example?: string
 }
 
-export type TargetAnalysisResult = {
+export type OpportunityTargetAnalysisResult = {
   opportunity_id: number
-  fit: TargetFit
+  fit: OpportunityTargetFit
   packet_preview: string
   est_cost_usd: number
 }
 
-export type TargetPrepResult = {
+export type OpportunityTargetPrepResult = {
   opportunity_id: number
-  prep: TargetPrep
+  prep: OpportunityTargetPrep
   est_cost_usd: number
 }
 
-/** Union for the data carried in AsyncState<TargetResult> (model.opportunityTarget).
- * - After TargetAnalyzeSucceeded: TargetAnalysisResult
- * - After TargetPrepSucceeded (merged in update): TargetAnalysisResult & { prep: TargetPrep } (fit preserved + prep added)
- * - TargetPrepResult alone is possible in fallback flows
+/** Union for the data carried in AsyncState<OpportunityTargetResult> (model.opportunityTarget).
+ * - After OpportunityTargetAnalyzeSucceeded: OpportunityTargetAnalysisResult
+ * - After OpportunityTargetPrepSucceeded (merged in update): OpportunityTargetAnalysisResult & { prep: OpportunityTargetPrep } (fit preserved + prep added)
+ * - OpportunityTargetPrepResult alone is possible in fallback flows
  * Uses structural/property-presence narrowing (e.g. 'fit' in r) rather than a runtime 'type' tag (intentional: no new state, mirrors separate Rust results + client merge exactly; see PR2 design + update.ts).
  */
-export type TargetResult =
-  | TargetAnalysisResult
-  | TargetPrepResult
-  | (TargetAnalysisResult & { prep: TargetPrep })
+export type OpportunityTargetResult =
+  | OpportunityTargetAnalysisResult
+  | OpportunityTargetPrepResult
+  | (OpportunityTargetAnalysisResult & { prep: OpportunityTargetPrep })
 
-/** Mirror of Rust TargetPageResult (used by fetch_target_page; mostly internal to backend today). */
-export type TargetPageResult = {
+/** Mirror of Rust OpportunityTargetPageResult (used by fetch_opportunity_target_page; mostly internal to backend today). */
+export type OpportunityTargetPageResult = {
   title?: string | null
   company?: string | null
   cleaned_text: string

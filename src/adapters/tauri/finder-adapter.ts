@@ -11,7 +11,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../../core/domain/history'
-import type { TargetAnalysisResult, TargetPageResult, TargetPrepResult } from '../../core/domain/target'
+import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../../core/domain/opportunity-target'
 import { safeInvoke } from './safe-invoke'
 
 // Re-export filter types for the effects wrapper sig (used by history MVU)
@@ -39,10 +39,10 @@ export function createTauriFinderPort(): FinderPort {
     logEvent: (eventType, payload, correlationId) =>
       safeInvoke('log_event', { eventType, payload, correlationId }),
 
-    // Target (web/paste focus) — Quick Target flow
-    fetchTargetPage: (url) => safeInvoke<TargetPageResult>('fetch_target_page', { url }),
-    analyzeTarget: (payload) => safeInvoke<TargetAnalysisResult>('analyze_target', payload),
-    prepTarget: (payload) => safeInvoke<TargetPrepResult>('prep_target', payload),
+    // Opportunity target (web/paste focus) — Quick Target flow
+    fetchOpportunityTargetPage: (url) => safeInvoke<OpportunityTargetPageResult>('fetch_opportunity_target_page', { url }),
+    analyzeOpportunityTarget: (payload) => safeInvoke<OpportunityTargetAnalysisResult>('analyze_opportunity_target', payload),
+    prepOpportunityTarget: (payload) => safeInvoke<OpportunityTargetPrepResult>('prep_opportunity_target', payload),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
   }
 }
@@ -115,13 +115,13 @@ export function finderPortForEffects(port: FinderPort) {
       if (!result.ok) throw result.error
       return result.value
     },
-    async analyzeTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }) {
-      const result = await port.analyzeTarget(payload)
+    async analyzeOpportunityTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }) {
+      const result = await port.analyzeOpportunityTarget(payload)
       if (!result.ok) throw result.error
       return result.value
     },
-    async prepTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }) {
-      const result = await port.prepTarget(payload)
+    async prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }) {
+      const result = await port.prepOpportunityTarget(payload)
       if (!result.ok) throw result.error
       return result.value
     },

@@ -1,10 +1,10 @@
-//! Target commands (fetch/analyze/prep for URL or pasted opportunity description + Target*Result types + strip).
+//! Opportunity target commands (fetch/analyze/prep for URL or pasted opportunity description + OpportunityTarget*Result types + strip).
 //!
-//! Extracted from lib.rs (TD-005 god-module relief). Mirrors TS domain/target.ts.
+//! Extracted from lib.rs (TD-005 god-module relief). Mirrors TS domain/opportunity-target.ts.
 //!
 //! Safe per AGENTS.md: credential STABILITY CONTRACT untouched. After edits: `cd src-tauri && cargo test`.
 //!
-//! Basic Greenhouse title/company extraction in fetch_target_page (populates TargetPageResult for prefill).
+//! Basic Greenhouse title/company extraction in fetch_opportunity_target_page (populates OpportunityTargetPageResult for prefill).
 //! Note: fit gate, other site parsers etc. for later.
 
 use crate::db;
@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use tauri::State;
 
 #[tauri::command]
-pub(crate) async fn fetch_target_page(url: String) -> Result<TargetPageResult, String> {
+pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
@@ -46,7 +46,7 @@ pub(crate) async fn fetch_target_page(url: String) -> Result<TargetPageResult, S
     // Other sites/parsers (Lever, Ashby, full JSON-LD, xAI-assisted, fit-gate 45 etc) noted for later.
     let (title, company) = extract_basic_title_company(&text);
 
-    Ok(TargetPageResult {
+    Ok(OpportunityTargetPageResult {
         title,
         company,
         cleaned_text: truncated.to_string(),
@@ -56,18 +56,18 @@ pub(crate) async fn fetch_target_page(url: String) -> Result<TargetPageResult, S
 }
 
 #[tauri::command]
-pub(crate) async fn analyze_target(
+pub(crate) async fn analyze_opportunity_target(
     db: State<'_, AppDb>,
     url: Option<String>,
     pasted_jd: Option<String>,
     title: Option<String>,
     company: Option<String>,
     cv_summary: Option<String>, // from UI model (populated from data/distillation defaultCvSummary / cv-packet-pruned)
-) -> Result<TargetAnalysisResult, String> {
+) -> Result<OpportunityTargetAnalysisResult, String> {
     let jd = match (url.clone(), pasted_jd) {
         (_, Some(p)) if !p.trim().is_empty() => p,
         (Some(u), _) => {
-            let fetched = fetch_target_page(u.clone()).await?;
+            let fetched = fetch_opportunity_target_page(u.clone()).await?;
             fetched.cleaned_text
         }
         _ => return Err("Provide either url or pasted_jd".into()),
@@ -132,7 +132,7 @@ pub(crate) async fn analyze_target(
 
     let cost = crate::xai::cost_from_usage(&usage);
 
-    Ok(TargetAnalysisResult {
+    Ok(OpportunityTargetAnalysisResult {
         opportunity_id: run_id,
         fit: fit_json,
         packet_preview: cv.chars().take(600).collect(),
@@ -141,7 +141,7 @@ pub(crate) async fn analyze_target(
 }
 
 #[tauri::command]
-pub(crate) async fn prep_target(
+pub(crate) async fn prep_opportunity_target(
     db: State<'_, AppDb>,
     opportunity_id: Option<i64>,
     url: Option<String>,
@@ -151,7 +151,7 @@ pub(crate) async fn prep_target(
     cv_summary: Option<String>,
     // Optional context from prior Evaluate Fit (analysis). Allows prep to be informed by the just-computed fit/gaps/rationale.
     previous_fit: Option<String>,
-) -> Result<TargetPrepResult, String> {
+) -> Result<OpportunityTargetPrepResult, String> {
     // Resolve JD text.
     // Prefer pasted_jd or url (for fresh calls from the form).
     // If only opportunity_id (e.g. "Generate prep pack" CTA from TargetFitPanel after prior analyze),
@@ -165,7 +165,7 @@ pub(crate) async fn prep_target(
     }
     if jd.is_empty() {
         if let Some(u) = &url {
-            let fetched = fetch_target_page(u.clone()).await?;
+            let fetched = fetch_opportunity_target_page(u.clone()).await?;
             jd = fetched.cleaned_text;
         }
     }
@@ -269,7 +269,7 @@ pub(crate) async fn prep_target(
         0
     };
 
-    Ok(TargetPrepResult {
+    Ok(OpportunityTargetPrepResult {
         opportunity_id: run_id,
         prep: prep_json,
         est_cost_usd: cost,
@@ -277,7 +277,7 @@ pub(crate) async fn prep_target(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TargetPageResult {
+pub struct OpportunityTargetPageResult {
     pub title: Option<String>,
     pub company: Option<String>,
     pub cleaned_text: String,
@@ -286,7 +286,7 @@ pub struct TargetPageResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TargetAnalysisResult {
+pub struct OpportunityTargetAnalysisResult {
     pub opportunity_id: i64,
     pub fit: Value,
     pub packet_preview: String,
@@ -294,7 +294,7 @@ pub struct TargetAnalysisResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TargetPrepResult {
+pub struct OpportunityTargetPrepResult {
     pub opportunity_id: i64,
     pub prep: Value,
     pub est_cost_usd: f64,
@@ -334,7 +334,7 @@ fn strip_html_basic(html: &str) -> String {
 }
 
 /// Basic title + company extraction (Greenhouse-focused per ux I3 + PR7 cheap win; other sites noted for later).
-/// Called from fetch_target_page. Crude string finds only (no extra crates, matches v1 style of strip_html_basic).
+/// Called from fetch_opportunity_target_page. Crude string finds only (no extra crates, matches v1 style of strip_html_basic).
 /// Common patterns: "Senior Engineer at Acme Corp | Greenhouse", "Role - Acme | Greenhouse"
 /// Updates JobPageResult so that analyze/prep can receive + persist non-None title/company (fixes '—' in Data/History for Greenhouse).
 /// Other sites and richer extraction (JSON-LD, dedicated parsers, xAI fallback, fit thresholds) left explicit for later.

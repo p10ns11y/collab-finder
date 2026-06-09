@@ -15,7 +15,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
-import type { TargetResult } from '../domain/target'
+import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
 
@@ -85,7 +85,7 @@ export type FinderModel = {
   hydrate: AsyncState<Tweet | null>
   // Current target for quick analyze/prep (the "Quick Target" flow in Discover).
   // Works for any opportunity type (collab, side hustle, community, role, etc.).
-  opportunityTarget: AsyncState<TargetResult>
+  opportunityTarget: AsyncState<OpportunityTargetResult>
   opportunityTargetUrl?: string
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
@@ -148,7 +148,7 @@ export function initialFinderModel(): FinderModel {
     selectedRunId: null,
     selectedRun: idle(),
     hydrate: idle(),
-    opportunityTarget: idle<TargetResult>(),
+    opportunityTarget: idle<OpportunityTargetResult>(),
     opportunityTargetUrl,
     lastActiveOppId,
   }

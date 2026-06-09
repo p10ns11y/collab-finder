@@ -4,7 +4,7 @@ import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { TweetFeed } from '../../components/finder/tweet-feed'
-import { TargetFitPanel } from '../../components/finder/target-fit-panel'
+import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -100,7 +100,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           <QuickTarget
             busy={targetBusy}
             onAnalyzeRequested={(url, pasted_jd) =>
-              dispatch({ type: 'TargetAnalyzeRequested', url, pasted_jd })
+              dispatch({ type: 'OpportunityTargetAnalyzeRequested', url, pasted_jd })
             }
           />
         )}
@@ -141,14 +141,14 @@ export function DiscoverScreen({ view, dispatch }: Props) {
          Xplore: X search results / cycle output (TweetFeed). */}
       <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
         {(isDiscover && showTarget) ? (
-          <TargetFitPanel
+          <OpportunityTargetFitPanel
             result={targetResult}
             error={targetError}
             busy={targetBusy}
             sourceUrl={sourceUrl}
-            onClear={() => dispatch({ type: 'TargetCleared' })}
+            onClear={() => dispatch({ type: 'OpportunityTargetCleared' })}
             onPrepRequested={(opportunityId) =>
-              dispatch({ type: 'TargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
+              dispatch({ type: 'OpportunityTargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
             }
           />
         ) : !isDiscover ? (
@@ -177,7 +177,7 @@ type QuickTargetProps = {
 }
 
 /** Quick Target input form (for any opportunity: role, collab, side hustle, community, etc.).
- *  Dispatches MVU message; results render in right panel (TargetFitPanel) via model.opportunityTarget.
+ *  Dispatches MVU message; results render in right panel (OpportunityTargetFitPanel) via model.opportunityTarget.
  *  CV summary (global context) is read from model inside the effect.
  *  No direct invoke — all I/O goes through effects/ports (per architecture).
  */

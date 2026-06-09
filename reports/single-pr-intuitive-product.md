@@ -130,9 +130,9 @@ flowchart TB
 |--------------------|-------------------------|----------------------------|
 | Remove History/Data nav | Power user cannot browse raw SQL daily | Palette › Raw data **lazy** — not nav |
 | Single `jobs` slice | Xplore screen needs its own `xRuns` slice | Add **only** on Xplore; do not merge |
-| Delete Refresh | User cannot “force fix” stale UI | `projectOpportunitys` keeps last-good + banner on fail |
+| Delete Refresh | User cannot “force fix” stale UI | `projectOpportunities` keeps last-good + banner on fail |
 | Collapsed CV default | User may not see CV before first evaluate | Empty-state copy: “CV used for fit — expand to edit” |
-| Optimistic row insert | Rare mismatch if server row differs | Background `OpportunitysRefreshed` reconciles |
+| Optimistic row insert | Rare mismatch if server row differs | Background `OpportunitiesRefreshed` reconciles |
 | Split Xplore | Opportunity-only user never discovers X | **OK** — mission is jobs; Xplore label clear |
 | vitest last | Short window without FE regression net | Keep PR small; dogfood F1–F8 mandatory |
 
@@ -248,7 +248,7 @@ flowchart LR
   end
   b1 --> a1
   b2 -->|delete nav| a3
-  b3 -->|merge list into Opportunitys| a1
+  b3 -->|merge list into Opportunities| a1
   b4 -->|delete nav| pal[Command palette only]
   b5 -->|delete nav| pal
   b6 --> a3
@@ -404,11 +404,11 @@ Reactor RAM vs DB (TD-004): **UI no longer reads reactor for jobs.** Promote/cyc
 
 | Remove | Replacement |
 |--------|-------------|
-| Sidebar: Statistics, History, Data, Lookup | Opportunitys · Xplore · Settings |
+| Sidebar: Statistics, History, Data, Lookup | Opportunities · Xplore · Settings |
 | History “Refresh” button | Auto refresh |
 | Data 4-tab default UX | Palette › “Raw data” |
-| `historyRefreshCmd` 6-way fan-out on job path | `refreshOpportunitysCmd` |
-| Resume-last button | Opportunitys rail |
+| `historyRefreshCmd` 6-way fan-out on job path | `refreshOpportunitiesCmd` |
+| Resume-last button | Opportunities rail |
 | Discover X column pollution | Xplore screen |
 | “Full Prep (coming soon)” | Already gone — don’t reintroduce |
 | Footer essay on every screen | Settings one-liner |
@@ -427,7 +427,7 @@ mindmap
       sidebar-nav.tsx
       finder-app-view.tsx
       model.ts FinderScreen
-    Opportunitys screen
+    Opportunities screen
       jobs-screen.tsx new
       jobs-rail.tsx new
       target-fit-panel.tsx trim
@@ -437,10 +437,10 @@ mindmap
       search-workspace tweet-feed
     MVU
       model.ts opportunities slice
-      msg.ts Opportunitys star
+      msg.ts Opportunities star
       update.ts optimistic merge
-      effects.ts refreshOpportunitysCmd
-      selectors.ts projectOpportunitys
+      effects.ts refreshOpportunitiesCmd
+      selectors.ts projectOpportunities
     Delete or gate
       history-screen.tsx
       data-screen.tsx
@@ -468,14 +468,14 @@ flowchart TD
     D4[Delete Resume-last + Refresh buttons]
   end
   subgraph step3["③ Simplify"]
-    S1[opportunities slice + projectOpportunitys]
-    S2[Opportunitys screen + rail]
+    S1[opportunities slice + projectOpportunities]
+    S2[Opportunities screen + rail]
     S3[Optimistic Opportunity star merge]
     S4[Xplore extract]
     S5[Header chip + collapsible CV]
   end
   subgraph step4["④ Accelerate"]
-    A1[refreshOpportunitysCmd on success + AppStarted]
+    A1[refreshOpportunitiesCmd on success + AppStarted]
     A2[loadOpportunityCmd unchanged fast path]
     A3[Dogfood TTC measure]
   end
@@ -489,10 +489,10 @@ flowchart TD
 | Commit block | Musk step | Deliverable |
 |--------------|-----------|-------------|
 | 1–2 | ② Delete | 3 nav items; old screens unreachable from sidebar |
-| 3–4 | ③ Simplify | `jobs` model + `refreshOpportunitysCmd` + selector |
-| 5–6 | ③ Simplify | Opportunitys screen + rail + wire click/hydrate |
+| 3–4 | ③ Simplify | `jobs` model + `refreshOpportunitiesCmd` + selector |
+| 5–6 | ③ Simplify | Opportunities screen + rail + wire click/hydrate |
 | 7 | ③ Simplify | Optimistic merge on analyze/prep success |
-| 8 | ③ Simplify | Xplore screen; strip X from Opportunitys |
+| 8 | ③ Simplify | Xplore screen; strip X from Opportunities |
 | 9 | ②③ | Gate raw Data via palette; palette cleanup |
 | 10 | ③ | Header status chip |
 | 11 | ④ | Dogfood script + TTC log in PR description |
@@ -515,9 +515,9 @@ Cold start **with keys set**, no README:
 | F5 | Restart → CV + list still there | No empty flash |
 | F6 | Never need Refresh | — |
 | F7 | Never open Data/History to find a job | — |
-| F8 | Xplore is optional; Opportunitys works with zero X knowledge | — |
+| F8 | Xplore is optional; Opportunities works with zero X knowledge | — |
 
-**Dogfood script (5 min):** Greenhouse URL → evaluate → prep → click another row → restart → click top row. **All on Opportunitys.**
+**Dogfood script (5 min):** Greenhouse URL → evaluate → prep → click another row → restart → click top row. **All on Opportunities.**
 
 **Automated:** `cargo test` · `pnpm test` (new) · `pnpm build`.
 
@@ -530,16 +530,16 @@ Every open item from prior reports → **this PR**:
 | Source | Item | How single PR closes it |
 |--------|------|-------------------------|
 | quick-target | Right panel, CV, MVU, visibility | Discover layout |
-| ux v0.2 T1 | CV order | Collapsible CV on Opportunitys |
+| ux v0.2 T1 | CV order | Collapsible CV on Opportunities |
 | ux v0.2 T2 | Dead prep button | Stay deleted |
-| ux v0.2 T3 | Data rows click | Opportunitys rail |
-| ux v0.2 Wave 2 | History job targets | Opportunitys rail |
+| ux v0.2 T3 | Data rows click | Opportunities rail |
+| ux v0.2 Wave 2 | History job targets | Opportunities rail |
 | ux v0.1 | Stats vs History mismatch | One jobs snapshot; stats in chip |
 | TD-001/002 | Dedup + id filter | Keep (done) |
 | TD-003/011 | Pauses + persist banner | Keep (done) |
-| TD-009 | Refresh fan-out | `refreshOpportunitysCmd` |
+| TD-009 | Refresh fan-out | `refreshOpportunitiesCmd` |
 | TD-020 | Session persist | Keep + list on start |
-| TD-023 | Selector leaks | `projectOpportunitys` |
+| TD-023 | Selector leaks | `projectOpportunities` |
 | TD-004 | Dual state | UI reads DB for jobs |
 | TD-007 | No FE tests | vitest in same PR |
 | TD-021 | Dead code | Delete gated screens |
@@ -552,7 +552,7 @@ Every open item from prior reports → **this PR**:
 
 ## 16. Copy rules (Orwell)
 
-Use on Opportunitys screen only:
+Use on Opportunities screen only:
 
 | Bad | Good |
 |-----|------|
@@ -613,7 +613,7 @@ If TTC is not measured in dogfood, the PR is not done (step ④).
 flowchart TD
   A[Proposed change] --> B{Who required it?}
   B -->|nobody / habit| C[Delete]
-  B -->|real user| D{Can Opportunitys or Xplore host it?}
+  B -->|real user| D{Can Opportunities or Xplore host it?}
   D -->|no| E{Worth 4th nav item?}
   E -->|yes| F[Stop — redesign feature]
   E -->|no| C

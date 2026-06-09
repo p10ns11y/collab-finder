@@ -2,7 +2,7 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
-mod target;
+mod opportunity_target;
 mod secrets;
 mod x_query;
 mod x_search;
@@ -13,15 +13,15 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
-use target::{analyze_target, fetch_target_page, prep_target};
+use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, prep_opportunity_target};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
 use x_search::XTweet;
 
-// Re-export Target*Result types at crate root for wire compatibility (TS domain mirrors "from target.rs")
+// Re-export OpportunityTarget*Result types at crate root for wire compatibility (TS domain mirrors "from opportunity-target.rs")
 // and any future internal refs.
-pub use target::{TargetAnalysisResult, TargetPageResult, TargetPrepResult};
+pub use opportunity_target::{OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult};
 
 pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
@@ -89,8 +89,8 @@ fn clear_xai_key() -> Result<(), String> {
     secrets::clear_xai_key()
 }
 
-// Target commands (analyze_target, prep_target, fetch_target_page + Target*Result structs + strip_html_basic + basic Greenhouse title/company extract)
-// extracted to src-tauri/src/target.rs (TD-005 god-module relief).
+// Opportunity target commands (analyze_opportunity_target, prep_opportunity_target, fetch_opportunity_target_page + OpportunityTarget*Result structs + strip_html_basic + basic Greenhouse title/company extract)
+// extracted to src-tauri/src/opportunity_target.rs (TD-005 god-module relief).
 // Credential STABILITY block, 8 credential commands, reactor, and bootstrap left 100% untouched (AGENTS + STABILITY CONTRACT).
 
 #[tauri::command]
@@ -395,9 +395,9 @@ pub fn run() {
             get_xai_key_storage,
             set_xai_key,
             clear_xai_key,
-            fetch_target_page,
-            analyze_target,
-            prep_target,
+            fetch_opportunity_target_page,
+            analyze_opportunity_target,
+            prep_opportunity_target,
             get_opportunities,
             search_x_recent,
             run_finder_cycle_cmd,
