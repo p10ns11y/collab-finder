@@ -49,7 +49,7 @@ Each requirement must name **who** asked and **what happens if we drop it**.
 | vitest for MVU | TD-007 | Yes — but **step ⑤ only** | **After delete** |
 
 **Dumb requirement test:** “We need Data tab 4 so users trust persistence.”  
-**Answer:** Trust comes from **seeing the row on Jobs**, not from an admin table.
+**Answer:** Trust comes from **seeing the row on Discover**, not from an admin table.
 
 ### ② Delete — if you are not adding back ~10%, you did not delete enough
 
@@ -73,14 +73,14 @@ flowchart LR
   delete --> keep10
 ```
 
-**Delete first in code** (commits 1–2), before polishing Jobs layout. Polishing a six-screen shell is step ③ on the wrong object.
+**Delete first in code** (commits 1–2), before polishing Discover layout. Polishing a six-screen shell is step ③ on the wrong object.
 
 ### ③ Simplify / optimize — only after delete
 
 | Optimize (allowed now) | Not yet (would be lipstick) |
 |------------------------|-----------------------------|
-| `jobs` single slice + `projectJobs` | Per-slice refresh flags × 6 |
-| Optimistic row on `Job*Succeeded` | New loading skeleton system |
+| `opps` slice (in Discover) + projection | Per-slice refresh flags × 6 |
+| Optimistic row on `Target*Succeeded` | New loading skeleton system |
 | Collapsible CV strip | Sticky CV + chip + tooltip stack |
 | One `get_opportunities` or snapshot IPC | Batched mega-bundle before delete proven |
 
@@ -91,8 +91,8 @@ flowchart LR
 | Row click → `loadOpportunityCmd` (no screen change) | TTC ↓ |
 | Optimistic list update before IPC returns | Perceived save ↓ |
 | No blank-to-loading on refresh | No “restart fixes it” |
-| AppStarted: jobs list + optional last job hydrate | Return visit ↓ |
-| Hunt isolated | Jobs never waits on X fetch |
+| AppStarted: opps list + optional last opp hydrate | Return visit ↓ |
+| Xplore isolated | Discover never waits on X fetch |
 
 **Metric:** Time-to-continue (TTC) §18 — the step-④ scoreboard.
 
@@ -100,7 +100,7 @@ flowchart LR
 
 | Automate | When |
 |----------|------|
-| vitest: `update` jobs refresh + optimistic merge | After Jobs screen ships |
+| vitest: `update` opps refresh + optimistic merge | After Discover screen ships |
 | `cargo test` (existing db) | Every commit |
 | MCP / agents driving 6 screens | **Reject** — agents inherit human nav; 3 screens only |
 | Auto-retry history fan-out | **Reject** — wrong model |
@@ -115,7 +115,7 @@ First order = what we intended. Second order = what happens *because* of that.
 
 ```mermaid
 flowchart TB
-  O1["1st order: 3 screens + Jobs rail"]
+  O1["1st order: 3 screens + Discover rail"]
   O2a["2nd: User stops hunting tabs"]
   O2b["2nd: Empty History/Data bugs class dies"]
   O2c["2nd: X users must find Hunt"]
@@ -136,7 +136,7 @@ flowchart TB
 | Split Hunt | Job-only user never discovers X | **OK** — mission is jobs; Hunt label clear |
 | vitest last | Short window without FE regression net | Keep PR small; dogfood F1–F8 mandatory |
 
-**Anti-pattern (2nd order failure):** Delete nav but **keep** `historyRefreshCmd` on job success → bugs move to Jobs rail instead of dying. **Must** switch trigger to `refreshJobsCmd`.
+**Anti-pattern (2nd order failure):** Delete nav but **keep** `historyRefreshCmd` on target success → bugs move to Discover rail instead of dying. **Must** switch trigger to refresh in effects.
 
 ---
 
@@ -147,13 +147,13 @@ flowchart TB
   O2["2nd: Simpler MVU + fewer screens"]
   O3a["3rd: Agents ship faster"]
   O3b["3rd: Temptation to re-add screens for new features"]
-  O3c["3rd: More jobs evaluated → long rail"]
+  O3c["3rd: More opps evaluated → long rail"]
   O3d["3rd: Users trust app → more xAI spend"]
   O2 --> O3a
   O2 --> O3b
   O2 --> O3c
   O2 --> O3d
-  O3b --> R1["Guard: new feature must fit Jobs rail or Hunt — never nav item 7"]
+  O3b --> R1["Guard: new feature must fit Discover rail or Xplore — never nav item 7"]
   O3c --> R2["Guard: rail search/filter before new screen"]
   O3d --> R3["Guard: cost chip before auto-prep loops"]
 ```
@@ -161,13 +161,13 @@ flowchart TB
 | 2nd order | 3rd order | Guard (write in PR or follow-up) |
 |-----------|-----------|----------------------------------|
 | Faster dev | Feature creep restores Statistics “just for one chart” | **Nav freeze:** 3 items; charts → Advanced |
-| Users evaluate more jobs | Rail > 30 rows; scroll fatigue | **Rail cap + search in-place** (not new screen) |
+| Users evaluate more opps | Rail > 30 rows; scroll fatigue | **Rail cap + search in-place** (not new screen) |
 | DB trust rises | User runs prep on everything; cost surprise | Header **est. cost** on prep CTA (defer full guard) |
 | Dead `history.*` on hot path | Agent reintroduces fan-out “for completeness” | Delete triggers from job effects in same PR |
-| Hunt obscure | X feature atrophy | Hunt sidebar icon + one dogfood X script |
+| Xplore obscure | X feature atrophy | Xplore sidebar icon + one dogfood X script |
 | Single PR success | “Let’s split intuitive shell into 8 PRs again” | **One PR** — commits inside, not Graphite stack |
 
-**Third-order trap for this product:** Success on Jobs → stakeholders ask for “pipeline CRM” → six screens return under new names. **Counter:** pipeline = **sorted rail + status badge**, not new IA.
+**Third-order trap for this product:** Success on Discover → stakeholders ask for “pipeline CRM” → six screens return under new names. **Counter:** pipeline = **sorted rail + status badge**, not new IA.
 
 ---
 
@@ -242,7 +242,7 @@ flowchart LR
     b6[Settings]
   end
   subgraph after["Target 3 screens"]
-    a1[Jobs]
+    a1[Discover]
     a2[Hunt]
     a3[Settings]
   end
@@ -256,7 +256,7 @@ flowchart LR
 
 | Screen | Fate | Why |
 |--------|------|-----|
-| **Discover** | Rename → **Jobs** | Hero loop stays; layout rebuilt. |
+| **Discover** | (primary) | Hero loop stays; layout with rail. |
 | **History** | **Remove** | Opp rows → Discover rail. X runs → Xplore. |
 | **Data** | **Remove from nav** | Power users: palette “Raw data tables”. |
 | **Statistics** | **Remove from nav** | One status chip in header (pauses / connection). |
@@ -312,11 +312,11 @@ stateDiagram-v2
 | “What do I do first?” | Empty panel copy + URL field. |
 | “Where’s my CV?” | Expand **CV** strip; edits persist. |
 
-**Delete from Jobs screen:** Resume-last button, separate History/Data navigation, X search block (moves to Hunt), PauseLog wall (→ header chip), DecisionPanel unless cycle ran from Hunt.
+**Delete from Discover screen:** Resume-last button, separate History/Data navigation, X search block (moves to Xplore), PauseLog wall (→ header chip), DecisionPanel unless cycle ran from Xplore.
 
 ---
 
-## 8. Hunt screen — optional mode
+## 8. Xplore screen — optional mode
 
 ```mermaid
 flowchart TB
@@ -359,29 +359,29 @@ flowchart TB
     h5[history.stats]
     h6[history.opportunities]
   end
-  subgraph new["Jobs hot path"]
-    jobs[jobs: AsyncSlice Opportunity array]
-    xruns[xRuns: optional on Hunt only]
+  subgraph new["Discover hot path"]
+    opps[opps: AsyncSlice Opportunity array]
+    xruns[xRuns: optional on Xplore only]
   end
   old -.->|keep for Advanced raw tables only| adv[Lazy load on palette action]
-  jobs --> rail[Jobs rail selector]
-  jobs --> opt[Optimistic merge on Job star Succeeded]
+  opps --> rail[Discover rail selector]
+  opps --> opt[Optimistic merge on Target* Succeeded]
 ```
 
 ### Messages (minimal new surface)
 
 | Msg | Role |
 |-----|------|
-| `JobsRefreshRequested` | User never dispatches — effects only |
-| `JobsRefreshed` | `{ opportunities: Opportunity[] }` |
-| `JobsRefreshFailed` | Banner; **keep** `jobs.data` |
+| `DiscoverRefreshRequested` | User never dispatches — effects only |
+| `DiscoverRefreshed` | `{ opportunities: Opportunity[] }` |
+| `DiscoverRefreshFailed` | Banner; **keep** `opps.data` |
 
-**Replace** `HistoryRefreshRequested` on job analyze/prep success with `JobsRefreshRequested` only (or optimistic-only + background refresh).
+**Replace** `HistoryRefreshRequested` on target analyze/prep success with Discover refresh only (or optimistic-only + background refresh).
 
 ### Selector rule (fixes “empty while loading”)
 
 ```ts
-// projectJobs(slice):
+// projectOpps(slice) for Discover:
 //   ready → data
 //   refreshing → data (same rows + subtle indicator)
 //   failed → data + error flag

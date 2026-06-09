@@ -174,7 +174,7 @@ Priority order. Each card: problem → flow → files → done when → verify.
 
 ```mermaid
 flowchart LR
-  A[Evaluate URL] --> B[History Job targets]
+  A[Evaluate URL] --> B[History / Discover rail]
   B --> C[Data opps tab]
   C --> D[Resume last]
   D --> E[Right panel hydrated]

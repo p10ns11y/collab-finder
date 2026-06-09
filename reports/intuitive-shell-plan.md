@@ -294,7 +294,7 @@ mindmap
 - [ ] Post-evaluate History/Data/rail never blank when prior data existed.
 - [ ] Failed history slice shows error. Stale data still visible.
 - [ ] `pnpm test` covers refresh + prep merge + optimistic.
-- [ ] Pure job user uses only Jobs screen. Rail always visible. No X column. No manual Refresh. Click or restart gives fit + prep with no new xAI.
+- [ ] Pure opportunity user uses only Discover screen. Rail always visible. No X column. No manual Refresh. Click or restart gives fit + prep with no new xAI.
 - [ ] Reports updated.
 
 ---
@@ -337,7 +337,7 @@ Current 6-screen reality (post some fixes, pre-intuitive shell):
 ```mermaid
 flowchart TB
   subgraph UI["Discover (opps rail + target) + Xplore (X parts) + Settings"]
-    D[Discover: rail 'YOUR OPPORTUNITIES' + Quick Target + (faded X if active)]
+    D["Discover: rail 'YOUR OPPORTUNITIES' + Quick Target + (faded X if active)"]
     X[Xplore: full SearchWorkspace + feed]
     Rail[Opportunities rail from historyOpps]
   end
@@ -392,7 +392,7 @@ quadrantChart
 
 ---
 
-## Target — Intuitive (3 screens, jobs rail primary)
+## Target — Intuitive (3 screens, opportunities rail primary)
 **Musk 5-step applied (single-pr §1, diagrams first):**
 ```mermaid
 flowchart LR
@@ -426,23 +426,23 @@ flowchart LR
   b6 --> S
 ```
 (Note: internal ids 'discover' / 'xplore'; labels "Discover" / "Xplore".)
-**Jobs screen = the product (wireframe evolved from single-pr §7 + ux T1 reorder)**
+**Discover screen = the product (wireframe evolved from single-pr §7 + ux T1 reorder)**
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ Jobs                  [● X] [2 pauses] [est $]     [⌘K]   │
+│ Discover              [● X] [2 pauses] [est $]     [⌘K]   │
 ├──────────────┬─────────────────────────────────────────────┤
-│ YOUR JOBS    │  RESULT (fit + prep)                        │
+│ YOUR OPPORTUNITIES │  RESULT (fit + prep)                   │
 │ • #42 xAI    │  78/100 rationale gaps recommended action   │
 │   prepped    │  [Generate prep / re-prep] [Open URL]       │
 │ • #17 …      │                                             │
-│ • #12 …      │  (or empty: "Paste URL or pick from rail")  │
+│ • #12 …      │  (or empty: "Pick an opp or add a new one below")  │
 │ [+ New]      │                                             │
 ├──────────────┤  NEW / PASTE                                │
 │ CV ▾ (sticky │  [URL or Greenhouse…] [Paste JD]            │
-│  for jobs)   │  [Evaluate fit]                             │
+│  for opps)   │  [Evaluate fit]                             │
 └──────────────┴─────────────────────────────────────────────┘
 ```
-CV owned by job flow (reorder per v0.2 T1). Rail always visible. Click row = hydrate panel (reuse loadOpportunityCmd). No X controls on this surface.
+CV owned by opportunity flow (reorder per v0.2 T1). Rail always visible. Click row = hydrate panel (reuse loadOpportunityCmd). No X controls on this surface.
 
 **Zero manual user flows (state + single-pr §292)**
 ```mermaid
@@ -460,11 +460,11 @@ stateDiagram-v2
 ```
 
 **Principles (first-principles, single-pr §4)**
-- One job, one place (rail + panel).
+- One opportunity, one place (rail + panel).
 - List = memory (DB canonical once projection robust).
 - Action refreshes (no button).
 - Click = continue (no "Resume last" gimmick once rail exists).
-- X = Hunt (second mode).
+- X = Xplore (second mode).
 - Admin = palette / Settings Advanced only.
 
 ---
@@ -510,10 +510,10 @@ flowchart LR
 
 **Done when:** pnpm test covers W1 behaviors + OpportunitySelected hydrate.
 
-### W3 · Jobs rail + shell IA cut (single-pr core + UX Wave 1/2)
+### W3 · Opportunities rail + shell IA cut (single-pr core + UX Wave 1/2)
 **Problem:** 6 nav + stacked X/job + buried CV + no always-visible list = cognitive load. (Assets 01 + 02/03 mismatch prove it.)
 
-**Target nav + rail (mermaid + wireframe above).** Evolve discover → Jobs (rail left, panel+input right). Carve Hunt from X parts. De-nav History/Data/Stats/Lookup (palette escapes only). Reorder CV for job priority. Remove dead prep CTA.
+**Target nav + rail (mermaid + wireframe above).** Evolve discover → Discover (rail left, panel+input right). Carve Xplore from X parts. De-nav History/Data/Stats/Lookup (palette escapes only). Reorder CV for opportunity priority. Remove dead prep CTA.
 
 **Files (reuse heavy):**
 - layout: sidebar-nav (3 items), command-palette (fewer nav + guard actions + raw/archive)
@@ -523,9 +523,9 @@ flowchart LR
 - MVU: minimal new msgs (JobsRefreshed if dedicated); reuse loadOpportunityCmd + optimistic
 - No new Rust cmd if get_opportunities suffices
 
-**Done when:** Job-only user: open sees rail, pastes, Evaluate+Prep updates rail+panel, click prior → instant hydrate (no xAI), restart list+CV present, no X on Jobs surface. Hunt isolated.
+**Done when:** Opportunity user: open sees rail, pastes, Evaluate+Prep updates rail+panel, click prior → instant hydrate (no xAI), restart list+CV present, no X on Discover surface. Xplore isolated.
 
-**Verify (visual gate):** Dogfood flow from W1 + "no need to open Data/History for jobs"; assets-style screenshots of new 3-screen vs old 6.
+**Verify (visual gate):** Dogfood flow from W1 + "no need to open Data/History for opportunities"; assets-style screenshots of new 3-screen vs old 6.
 
 ### W4 · CV + cv-promote-guard (UX Wave 3 + deep debt §1 + skill)
 **Problem:** CV LS only (ephemeral risk); prep suggestions not sidecar + preview + confirm (cv-promote-guard violated).
