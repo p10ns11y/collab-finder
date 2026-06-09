@@ -13,7 +13,7 @@ description: Overarching patterns for self-guarded, pause-aware, agent-driven sy
 - **Pauses**: Explicit points for user (or outer agent) intervention. UI dialogs, MCP "pause" tool responses, notifications.
 - **Smart Decisions**: xAI structured "next action" with guards evaluated in Rust core.
 - **Self-Improvement**: After cycles, surplus proposals auto-applied if low-risk, or paused for review. Evolve prompts, guards, CV packet.
-- **Composability**: Full MCP exposure so this Grok session, Cursor, or future agents can invoke "run daily hunt with my latest CV, pause on <70 fit".
+- **Composability**: Full MCP exposure so this Grok session, Cursor, or future agents can invoke "run daily xplore with my latest CV, pause on <70 fit".
 - **Integration**: X via x-agent-resources (ingest skill.md/llms, use XMCP/xurl), CV via cv-promote-guard, shell via tauri-agentic.
 
 ## Architecture (Fusion View)

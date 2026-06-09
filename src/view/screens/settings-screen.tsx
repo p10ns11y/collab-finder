@@ -112,7 +112,7 @@ function XaiKeyPanel() {
         <div className="text-[10px] px-2 py-0.5 rounded border">{connected ? 'Connected' : 'Required'}</div>
       </div>
       <div className="text-[10px] text-ink-faint mb-2">
-        Used for job fit analysis, CV tailoring, cover letters. Stored the same way as your X bearer (keyring + file).
+        Used for target fit analysis, CV tailoring, cover letters. Stored the same way as your X bearer (keyring + file).
       </div>
 
       {!connected && (

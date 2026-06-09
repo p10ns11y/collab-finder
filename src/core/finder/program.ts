@@ -18,4 +18,4 @@ export function createFinderProgram(ports: FinderPorts): Program<FinderModel, Fi
 }
 
 // Note: AppStarted (in effects) + OpportunitySelected now drive CV localStorage load + lastActiveOppId +
-// jobTarget hydrate from DB getOpportunities({id}) + screen restore. (PR3 / TD-004+020 + continuity)
+// target hydrate from DB getOpportunities({id}) + screen restore. (PR3 / TD-004+020 + continuity)

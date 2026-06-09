@@ -67,7 +67,7 @@ flowchart LR
   end
   subgraph keep10["Add back ≤10%"]
     K1[Palette: Raw data lazy]
-    K2[Hunt archive drawer]
+    K2[Xplore archive drawer]
     K3[Settings Advanced diagnostics]
   end
   delete --> keep10
@@ -116,9 +116,9 @@ First order = what we intended. Second order = what happens *because* of that.
 ```mermaid
 flowchart TB
   O1["1st order: 3 screens + Discover rail"]
-  O2a["2nd: User stops hunting tabs"]
+  O2a["2nd: User stops xploreing tabs"]
   O2b["2nd: Empty History/Data bugs class dies"]
-  O2c["2nd: X users must find Hunt"]
+  O2c["2nd: X users must find Xplore"]
   O2d["2nd: history.* code becomes dead on hot path"]
   O1 --> O2a
   O1 --> O2b
@@ -129,11 +129,11 @@ flowchart TB
 | 1st order (intent) | 2nd order (consequence) | Design response in this PR |
 |--------------------|-------------------------|----------------------------|
 | Remove History/Data nav | Power user cannot browse raw SQL daily | Palette › Raw data **lazy** — not nav |
-| Single `jobs` slice | Hunt screen needs its own `xRuns` slice | Add **only** on Hunt; do not merge |
-| Delete Refresh | User cannot “force fix” stale UI | `projectJobs` keeps last-good + banner on fail |
+| Single `jobs` slice | Xplore screen needs its own `xRuns` slice | Add **only** on Xplore; do not merge |
+| Delete Refresh | User cannot “force fix” stale UI | `projectOpportunitys` keeps last-good + banner on fail |
 | Collapsed CV default | User may not see CV before first evaluate | Empty-state copy: “CV used for fit — expand to edit” |
-| Optimistic row insert | Rare mismatch if server row differs | Background `JobsRefreshed` reconciles |
-| Split Hunt | Job-only user never discovers X | **OK** — mission is jobs; Hunt label clear |
+| Optimistic row insert | Rare mismatch if server row differs | Background `OpportunitysRefreshed` reconciles |
+| Split Xplore | Opportunity-only user never discovers X | **OK** — mission is jobs; Xplore label clear |
 | vitest last | Short window without FE regression net | Keep PR small; dogfood F1–F8 mandatory |
 
 **Anti-pattern (2nd order failure):** Delete nav but **keep** `historyRefreshCmd` on target success → bugs move to Discover rail instead of dying. **Must** switch trigger to refresh in effects.
@@ -176,7 +176,7 @@ flowchart TB
 | Rule | Meaning |
 |------|---------|
 | **One opportunity, one place** | Fit, prep, and “my opportunities” live on **one screen** (Discover). |
-| **List is memory** | If SQLite has it, the UI shows it. No hunt. |
+| **List is memory** | If SQLite has it, the UI shows it. No xplore. |
 | **Action refreshes** | Success on analyze/prep/search **updates the list**. No Refresh button. |
 | **Click = continue** | Row click loads that opportunity into the panel. No “Resume last” gimmick. |
 | **X is optional** | Opportunity path (Discover) is default. X is a **second mode** (Xplore), not a scroll past the form. |
@@ -201,7 +201,7 @@ flowchart TB
   Q --> ST[Stats]
   Q --> L[Lookup]
   D --> R[Resume last button?]
-  H --> J[Job targets section?]
+  H --> J[Opportunity targets section?]
   DT --> O[Opportunities tab?]
   R --> W[Wait for refresh?]
   H --> W
@@ -243,12 +243,12 @@ flowchart LR
   end
   subgraph after["Target 3 screens"]
     a1[Discover]
-    a2[Hunt]
+    a2[Xplore]
     a3[Settings]
   end
   b1 --> a1
   b2 -->|delete nav| a3
-  b3 -->|merge list into Jobs| a1
+  b3 -->|merge list into Opportunitys| a1
   b4 -->|delete nav| pal[Command palette only]
   b5 -->|delete nav| pal
   b6 --> a3
@@ -297,8 +297,8 @@ stateDiagram-v2
   ColdStart --> ListVisible: AppStarted refresh opps
   ListVisible --> RowSelected: click opp in rail
   RowSelected --> PanelReady: loadOpportunityCmd
-  ListVisible --> NewJob: + New / paste URL
-  NewJob --> Evaluating: Evaluate fit
+  ListVisible --> NewOpportunity: + New / paste URL
+  NewOpportunity --> Evaluating: Evaluate fit
   Evaluating --> PanelReady: AnalyzeSucceeded + optimistic list
   PanelReady --> Prepped: Generate prep
   Prepped --> ListVisible: list row shows prepped badge
@@ -320,7 +320,7 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TB
-  H[Hunt]
+  H[Xplore]
   H --> Q[X query + presets]
   H --> C[Run cycle]
   H --> T[Tweet feed]
@@ -328,7 +328,7 @@ flowchart TB
   A -->|open run| L[Lookup-style detail in drawer]
 ```
 
-**Rule:** No job URL field on Hunt. No CV required for browse (cycle may still use model CV).
+**Rule:** No job URL field on Xplore. No CV required for browse (cycle may still use model CV).
 
 ---
 
@@ -396,7 +396,7 @@ flowchart TB
 | Optional `get_jobs_snapshot` | Single IPC: opps + `total_pauses` for header chip |
 | **Do not** touch secrets / credential block | STABILITY CONTRACT |
 
-Reactor RAM vs DB (TD-004): **UI no longer reads reactor for jobs.** Promote/cycle stay on Hunt; job list is **SQLite only**.
+Reactor RAM vs DB (TD-004): **UI no longer reads reactor for jobs.** Promote/cycle stay on Xplore; job list is **SQLite only**.
 
 ---
 
@@ -404,16 +404,16 @@ Reactor RAM vs DB (TD-004): **UI no longer reads reactor for jobs.** Promote/cyc
 
 | Remove | Replacement |
 |--------|-------------|
-| Sidebar: Statistics, History, Data, Lookup | Jobs · Hunt · Settings |
+| Sidebar: Statistics, History, Data, Lookup | Opportunitys · Xplore · Settings |
 | History “Refresh” button | Auto refresh |
 | Data 4-tab default UX | Palette › “Raw data” |
-| `historyRefreshCmd` 6-way fan-out on job path | `refreshJobsCmd` |
-| Resume-last button | Jobs rail |
-| Discover X column pollution | Hunt screen |
+| `historyRefreshCmd` 6-way fan-out on job path | `refreshOpportunitysCmd` |
+| Resume-last button | Opportunitys rail |
+| Discover X column pollution | Xplore screen |
 | “Full Prep (coming soon)” | Already gone — don’t reintroduce |
 | Footer essay on every screen | Settings one-liner |
 | Palette 6 “Go to X screen” items | 3 screens + actions |
-| `SearchRunSelected` from job contexts | Hunt archive only |
+| `SearchRunSelected` from job contexts | Xplore archive only |
 | Guard dashboard full screen | Header chip + Advanced |
 
 ---
@@ -427,20 +427,20 @@ mindmap
       sidebar-nav.tsx
       finder-app-view.tsx
       model.ts FinderScreen
-    Jobs screen
+    Opportunitys screen
       jobs-screen.tsx new
       jobs-rail.tsx new
-      job-fit-panel.tsx trim
+      target-fit-panel.tsx trim
       cv-summary-input.tsx collapsible
-    Hunt screen
-      hunt-screen.tsx new
+    Xplore screen
+      xplore-screen.tsx new
       search-workspace tweet-feed
     MVU
-      model.ts jobs slice
-      msg.ts Jobs star
+      model.ts opportunities slice
+      msg.ts Opportunitys star
       update.ts optimistic merge
-      effects.ts refreshJobsCmd
-      selectors.ts projectJobs
+      effects.ts refreshOpportunitysCmd
+      selectors.ts projectOpportunitys
     Delete or gate
       history-screen.tsx
       data-screen.tsx
@@ -468,14 +468,14 @@ flowchart TD
     D4[Delete Resume-last + Refresh buttons]
   end
   subgraph step3["③ Simplify"]
-    S1[jobs slice + projectJobs]
-    S2[Jobs screen + rail]
-    S3[Optimistic Job star merge]
-    S4[Hunt extract]
+    S1[opportunities slice + projectOpportunitys]
+    S2[Opportunitys screen + rail]
+    S3[Optimistic Opportunity star merge]
+    S4[Xplore extract]
     S5[Header chip + collapsible CV]
   end
   subgraph step4["④ Accelerate"]
-    A1[refreshJobsCmd on success + AppStarted]
+    A1[refreshOpportunitysCmd on success + AppStarted]
     A2[loadOpportunityCmd unchanged fast path]
     A3[Dogfood TTC measure]
   end
@@ -489,10 +489,10 @@ flowchart TD
 | Commit block | Musk step | Deliverable |
 |--------------|-----------|-------------|
 | 1–2 | ② Delete | 3 nav items; old screens unreachable from sidebar |
-| 3–4 | ③ Simplify | `jobs` model + `refreshJobsCmd` + selector |
-| 5–6 | ③ Simplify | Jobs screen + rail + wire click/hydrate |
+| 3–4 | ③ Simplify | `jobs` model + `refreshOpportunitysCmd` + selector |
+| 5–6 | ③ Simplify | Opportunitys screen + rail + wire click/hydrate |
 | 7 | ③ Simplify | Optimistic merge on analyze/prep success |
-| 8 | ③ Simplify | Hunt screen; strip X from Jobs |
+| 8 | ③ Simplify | Xplore screen; strip X from Opportunitys |
 | 9 | ②③ | Gate raw Data via palette; palette cleanup |
 | 10 | ③ | Header status chip |
 | 11 | ④ | Dogfood script + TTC log in PR description |
@@ -515,9 +515,9 @@ Cold start **with keys set**, no README:
 | F5 | Restart → CV + list still there | No empty flash |
 | F6 | Never need Refresh | — |
 | F7 | Never open Data/History to find a job | — |
-| F8 | Hunt is optional; Jobs works with zero X knowledge | — |
+| F8 | Xplore is optional; Opportunitys works with zero X knowledge | — |
 
-**Dogfood script (5 min):** Greenhouse URL → evaluate → prep → click another row → restart → click top row. **All on Jobs.**
+**Dogfood script (5 min):** Greenhouse URL → evaluate → prep → click another row → restart → click top row. **All on Opportunitys.**
 
 **Automated:** `cargo test` · `pnpm test` (new) · `pnpm build`.
 
@@ -529,22 +529,22 @@ Every open item from prior reports → **this PR**:
 
 | Source | Item | How single PR closes it |
 |--------|------|-------------------------|
-| quick-job-target | Right panel, CV, MVU, visibility | Jobs layout |
-| ux v0.2 T1 | CV order | Collapsible CV on Jobs |
+| quick-target | Right panel, CV, MVU, visibility | Discover layout |
+| ux v0.2 T1 | CV order | Collapsible CV on Opportunitys |
 | ux v0.2 T2 | Dead prep button | Stay deleted |
-| ux v0.2 T3 | Data rows click | Jobs rail |
-| ux v0.2 Wave 2 | History job targets | Jobs rail |
+| ux v0.2 T3 | Data rows click | Opportunitys rail |
+| ux v0.2 Wave 2 | History job targets | Opportunitys rail |
 | ux v0.1 | Stats vs History mismatch | One jobs snapshot; stats in chip |
 | TD-001/002 | Dedup + id filter | Keep (done) |
 | TD-003/011 | Pauses + persist banner | Keep (done) |
-| TD-009 | Refresh fan-out | `refreshJobsCmd` |
+| TD-009 | Refresh fan-out | `refreshOpportunitysCmd` |
 | TD-020 | Session persist | Keep + list on start |
-| TD-023 | Selector leaks | `projectJobs` |
+| TD-023 | Selector leaks | `projectOpportunitys` |
 | TD-004 | Dual state | UI reads DB for jobs |
 | TD-007 | No FE tests | vitest in same PR |
 | TD-021 | Dead code | Delete gated screens |
 | batch-2 B2-2–B2-4 | Per-slice refresh, optimistic, projection | §10 |
-| batch-2 B2-8 | SearchRun prev | Hunt archive only |
+| batch-2 B2-8 | SearchRun prev | Xplore archive only |
 
 **Defer (not this PR):** cv-promote-guard live devprofile · MCP · SSRF · prep HTML UI · reactor full hydrate.
 
@@ -552,7 +552,7 @@ Every open item from prior reports → **this PR**:
 
 ## 16. Copy rules (Orwell)
 
-Use on Jobs screen only:
+Use on Opportunitys screen only:
 
 | Bad | Good |
 |-----|------|
@@ -560,7 +560,7 @@ Use on Jobs screen only:
 | “Evaluate fit using grok-4.3 structured output” | “Evaluate fit” |
 | “No matching rows in opportunities slice” | “No jobs yet — paste a URL below” |
 | “History refresh requested” | (no user-visible text) |
-| “Timeline of runs and captured leads” | (gone — Hunt shows X runs) |
+| “Timeline of runs and captured leads” | (gone — Xplore shows X runs) |
 
 ---
 
@@ -569,9 +569,9 @@ Use on Jobs screen only:
 | Risk | Order | Mitigation |
 |------|-------|------------|
 | Power user wants raw SQL | 2nd | Palette › Raw data (lazy) |
-| X-heavy user | 2nd | Hunt screen; label + one X dogfood path |
+| X-heavy user | 2nd | Xplore screen; label + one X dogfood path |
 | Large diff | 2nd | One PR; commits follow §13 steps |
-| Regression on cycle | 2nd | Hunt-only; cargo test |
+| Regression on cycle | 2nd | Xplore-only; cargo test |
 | Re-nav creep (Stats “just one chart”) | 3rd | Nav freeze in AGENTS or PR template |
 | Rail overflow at 50+ jobs | 3rd | In-rail search before any new screen |
 | Agent restores `historyRefreshCmd` | 3rd | Grep gate in PR checklist |
@@ -586,7 +586,7 @@ Rollback = revert one PR; DB schema unchanged. **3rd order:** rollback restores 
 
 | Cohort | Today (est.) | Target |
 |--------|--------------|--------|
-| Returning user | 30–90 s (nav + hunt + refresh) | **< 5 s** (click top row) |
+| Returning user | 30–90 s (nav + xplore + refresh) | **< 5 s** (click top row) |
 | New user | 60 s (parse 6 icons) | **< 15 s** (one field + one button) |
 
 If TTC is not measured in dogfood, the PR is not done (step ④).
@@ -603,7 +603,7 @@ If TTC is not measured in dogfood, the PR is not done (step ④).
 |-----|------|
 | [batch-2-engineering-blueprints.md](./batch-2-engineering-blueprints.md) | Incremental path — **superseded for UX by this PR** |
 | [tech-debt-deep-dive.md](./tech-debt-deep-dive.md) | TD IDs referenced in §15 |
-| [ux-review-v0.2-job-target.md](./ux-review-v0.2-job-target.md) | Problem statements |
+| [ux-review-v0.2-target.md](./ux-review-v0.2-target.md) | Problem statements |
 
 ---
 
@@ -613,7 +613,7 @@ If TTC is not measured in dogfood, the PR is not done (step ④).
 flowchart TD
   A[Proposed change] --> B{Who required it?}
   B -->|nobody / habit| C[Delete]
-  B -->|real user| D{Can Jobs or Hunt host it?}
+  B -->|real user| D{Can Opportunitys or Xplore host it?}
   D -->|no| E{Worth 4th nav item?}
   E -->|yes| F[Stop — redesign feature]
   E -->|no| C

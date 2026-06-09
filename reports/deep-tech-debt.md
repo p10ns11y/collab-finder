@@ -3,7 +3,7 @@
 **Date:** 2026-06  
 **Audience:** Core implementers + future maintainers  
 **Purpose:** Identify architectural, data, and systems decisions that feel acceptable today but will cause significant pain, rework, or bugs in 6–24+ months.  
-**Context:** Post job-target analysis + basic prep (Slice C foundation), CV extraction, and narrow polishes on `feat/job-target-analysis`.
+**Context:** Post target analysis + basic prep (Slice C foundation), CV extraction, and narrow polishes on `feat/target-analysis`.
 
 This report focuses on **deep** debt — not surface polish or missing features, but structural choices that will become exponentially harder to fix later.
 
@@ -14,7 +14,7 @@ This report focuses on **deep** debt — not surface polish or missing features,
 | Debt Area                        | Time to Serious Pain | Severity | Current Masking Factor                  | Primary Risk |
 |----------------------------------|----------------------|----------|-----------------------------------------|--------------|
 | In-memory user context (CV + job sessions) | 3–6 months          | High     | Single-user desktop; restarts feel rare | Data loss + broken trust |
-| Loose `jobTarget: AsyncState<any>` + merge hacks | 6–12 months       | High     | Only two result shapes so far           | Type explosions, impossible refactors |
+| Loose `opportunityTarget: AsyncState<any>` + merge hacks | 6–12 months       | High     | Only two result shapes so far           | Type explosions, impossible refactors |
 | Opportunity dedup & schema (opaque JSON blobs) | 6–12 months      | High     | Small data volume; no multi-prep yet    | Data corruption, lost history, migration hell |
 | Secrets / dual keyring+file storage | Ongoing (already bitten) | Critical | "STABILITY CONTRACT" comments + duplicated code | Silent auth breakage on OS/keyring changes |
 | No unified opportunity/lead pipeline model | 12–18 months     | Medium-High | History & Stats still X-centric         | Agentic reactor becomes unmaintainable |
@@ -22,22 +22,22 @@ This report focuses on **deep** debt — not surface polish or missing features,
 | cv-promote-guard integration debt | 9–18 months        | High     | Still using static distilled packet     | When real devprofile arrives, current prep artifacts become legacy garbage |
 | SQLite schema evolution & migrations | 12+ months       | Medium   | Only one additive table so far          | Breaking changes when adding columns to analysis/prep |
 | Weak observability & testing of agentic paths | 6–12 months   | Medium   | Manual dogfooding works for happy path  | Regressions in guards, cost, rate limits, structured output |
-| Monolithic Discover + mixed modes | 9–15 months        | Medium   | Only two primary flows (X + job target) | UI and state become unmaintainable as more opportunity types added |
+| Monolithic Discover + mixed modes | 9–15 months        | Medium   | Only two primary flows (X + target) | UI and state become unmaintainable as more opportunity types added |
 
-**Overall assessment:** The project has good bones (MVU, ports/adapters, Tauri command discipline, self-guard philosophy). However, several "we'll fix it when we need real CV / multi-job usage / restart resilience" decisions are now accumulating. The job target work exposed several of them.
+**Overall assessment:** The project has good bones (MVU, ports/adapters, Tauri command discipline, self-guard philosophy). However, several "we'll fix it when we need real CV / multi-job usage / restart resilience" decisions are now accumulating. The target work exposed several of them.
 
 ---
 
 ## 1. In-Memory User Context (Highest Near-Term Risk)
 
 **Location:**
-- `src/core/finder/model.ts`: `cvSummary`, `jobTarget`, `jobTargetUrl`
+- `src/core/finder/model.ts`: `cvSummary`, `opportunityTarget`, `jobTargetUrl`
 - `src/core/finder/update.ts`: `CvSummaryChanged` just mutates in-memory
 - `initialFinderModel()` always resets to `DEFAULT_CV_SUMMARY`
 - No effect that persists `CvSummaryChanged`
 
 **Current situation:**
-- CV packet and recent job target state are lost on every app restart.
+- CV packet and recent target state are lost on every app restart.
 - `QuickJobTarget` still carries some local `useState` for url/pasted.
 - The recent `CvSummaryInput` extraction made the *component* resilient, but the *data* is still ephemeral.
 
@@ -50,16 +50,16 @@ This report focuses on **deep** debt — not surface polish or missing features,
 
 ---
 
-## 2. `jobTarget: AsyncState<any>` + Ad-Hoc Merging
+## 2. `opportunityTarget: AsyncState<any>` + Ad-Hoc Merging
 
 **Location:**
 - `model.ts:68`
 - `update.ts` (multiple `as any` casts, especially the prep loading data hack and merge)
-- `effects.ts: jobTarget*Cmd`
-- `job-fit-panel.tsx` (heavy `(result as any)?.fit` / `?.prep`)
+- `effects.ts: opportunityTarget*Cmd`
+- `target-fit-panel.tsx` (heavy `(result as any)?.fit` / `?.prep`)
 
 **Current situation:**
-- We have two different result shapes (`JobAnalysisResult` vs `JobPrepResult`).
+- We have two different result shapes (`TargetAnalysisResult` vs `TargetPrepResult`).
 - Prep success does a shallow merge to "preserve" fit.
 - We had to carry previous data on the `loading` state using `as any` because the `AsyncState` discriminated union doesn't allow it.
 - Every new artifact type (CV deltas, multiple prep versions, research packs) will make this worse.
@@ -125,8 +125,8 @@ This is one of the few areas the project itself has called out as high-risk.
 
 Related to #1 but broader:
 
-- `FinderModel` (including `activeScreen`, recent `jobTarget`, `cvSummary`, etc.) is reconstructed on every launch.
-- `HistorySlice` is refreshed from DB, but live job target work is not.
+- `FinderModel` (including `activeScreen`, recent `opportunityTarget`, `cvSummary`, etc.) is reconstructed on every launch.
+- `HistorySlice` is refreshed from DB, but live target work is not.
 - No concept of "current work session" or "pinned opportunities".
 
 **Future pain:**
@@ -178,7 +178,7 @@ This is classic "we'll connect the real thing later" debt that usually requires 
 
 **High impact, relatively cheap (do in next 1–2 months):**
 1. Add persistence for `cvSummary` (localStorage or app-data sidecar + load on `AppStarted`).
-2. Give `jobTarget` a proper discriminated type instead of `any` (at minimum `AnalysisResult | PrepResult | null`).
+2. Give `opportunityTarget` a proper discriminated type instead of `any` (at minimum `AnalysisResult | PrepResult | null`).
 3. Add a real content hash or proper unique constraint + `content_hash` column on opportunities.
 4. Remove the dead "Full Prep (coming soon)" button (already flagged multiple times).
 
@@ -190,7 +190,7 @@ This is classic "we'll connect the real thing later" debt that usually requires 
 **High effort (plan for dedicated slice):**
 8. Actual `cv-promote-guard` integration with sidecars (do this *before* too many people have prep artifacts in the old format).
 9. Proper secrets abstraction that can be tested and evolved without duplicating 200+ lines.
-10. Mode separation in Discover (Job Mode vs X Hunt Mode) with collapsed irrelevant UI.
+10. Mode separation in Discover (Target Mode vs X Xplore Mode) with collapsed irrelevant UI.
 
 ---
 
@@ -200,4 +200,4 @@ Many of these debts are "acceptable for v0.1–v0.2 dogfood" because the user ba
 
 The project has unusually good self-awareness in places (the secrets stability contract, the cv-promote-guard skill doc, the original feedback report). The risk is that the momentum of "make the next feature work" will keep deferring the structural fixes until they are painful.
 
-Prioritize the persistence + typing + opportunity model items soon. They are the ones most likely to bite first as the job target flow matures.
+Prioritize the persistence + typing + opportunity model items soon. They are the ones most likely to bite first as the target flow matures.

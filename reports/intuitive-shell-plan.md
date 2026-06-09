@@ -16,7 +16,7 @@ flowchart LR
 |------|-------|----------|
 | First-run evaluate + prep | A | Works. Right panel. Real CV. Prep keeps fit. |
 | Revisit after evaluate | B | Paths exist. Refresh race mitigated. |
-| History / Data trust | B- | Job targets visible. Not atomic refresh. |
+| History / Data trust | B- | Targets visible. Not atomic refresh. |
 | Daily driver (many jobs) | B | Persistence OK. Pipeline UX thin. |
 | Platform / tests | C | No vitest. Reactor split. MCP later. |
 
@@ -44,7 +44,7 @@ Six nav. Six history slices. Six IPC calls. Three places for the same job row.
 **Target — one critical path**
 ```mermaid
 flowchart LR
-  U[User] --> J[Jobs screen]
+  U[User] --> J[Discover screen]
   J --> L[Your jobs list - always visible]
   L -->|click| P[Result panel]
   J --> N[New job input]
@@ -52,7 +52,7 @@ flowchart LR
   P -->|Prep| P
   L -->|auto updates| DB[(SQLite)]
 ```
-Three nav items: Jobs | Hunt | Settings.
+Three nav items: Discover | Xplore | Settings.
 
 ---
 
@@ -67,20 +67,20 @@ flowchart TD
 
 | Cut | Reason |
 |-----|--------|
-| History screen | Job rows to Jobs rail. X runs to Hunt. |
+| History screen | Job rows to Discover rail. X runs to Xplore. |
 | Data nav | Power users: palette "Raw data tables". |
 | Stats nav | One chip in header (pauses / connection). |
-| Lookup nav | Palette "Search archive" or Hunt archive. |
+| Lookup nav | Palette "Search archive" or Xplore archive. |
 | 6-slice fan-out on job path | One jobs fetch. |
 | Resume-last button | Rail is always visible. |
 | Dead "Full Prep (coming soon)" CTA | One prep entry in the result panel. |
-| X + job in same scroll column | Split Hunt. |
+| X + target in same scroll column | Split Xplore. |
 
-Add back only: palette raw data (lazy), Hunt archive drawer, Settings Advanced.
+Add back only: palette raw data (lazy), Xplore archive drawer (historical), Settings Advanced.
 
 ---
 
-## Jobs screen — the whole product (single-pr §7)
+## Discover screen — the whole product (single-pr §7)
 **Wireframe**
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -119,7 +119,7 @@ stateDiagram-v2
 - List is memory (SQLite is truth for opps).
 - Action refreshes (no Refresh button).
 - Click = continue (no Resume-last gimmick).
-- X is optional (Hunt is second mode).
+- X is optional (Xplore is second mode).
 - Admin is hidden (palette or Settings Advanced).
 
 ---
@@ -140,7 +140,7 @@ flowchart LR
 
 | Step | Pass if |
 |------|---------|
-| Post-evaluate History/rail | Job targets row visible (score / prepped) |
+| Post-evaluate History/rail | Targets row visible (score / prepped) |
 | Post-evaluate Data | Same opp in table |
 | Resume / click | Fit + prep without new xAI call |
 | Restart | CV text back; optional last-opp hydrate |
@@ -159,7 +159,7 @@ stateDiagram-v2
   ready --> refreshing
 ```
 
-**Design:** Add `jobs` slice (or replace history.opps for job path). `projectJobs`. `refreshJobsCmd` (one fetch, not 6). Optimistic row on JobTarget*Succeeded. Selector emits data on ready || (refreshing && data).
+**Design:** Add `jobs` slice (or replace history.opps for job path). `projectJobs`. `refreshJobsCmd` (one fetch, not 6). Optimistic row on Target*Succeeded. Selector emits data on ready || (refreshing && data).
 
 | File | Work |
 |------|------|
@@ -226,7 +226,7 @@ History search rows only fill query today.
 Make button label honest: "Reuse query" vs "Open in Lookup".  
 Optional: wire SearchRunSelected into Discover or Xplore.
 
-Platform later: SSRF allowlist on fetch_job_page (before public paste), structured AppError before MCP, expose search/analyze/prep as MCP tools after core slices and tests.
+Platform later: SSRF allowlist on fetch_target_page (before public paste), structured AppError before MCP, expose search/analyze/prep as MCP tools after core slices and tests.
 
 ---
 
@@ -251,7 +251,7 @@ gantt
   W8 Platform/MCP : after a9
 ```
 
-UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note). Discover (was Jobs) + Xplore (was Hunt) terminology. All tasks now use explicit task IDs (a1, a2, ...) and `after aN` for dependencies to satisfy Mermaid Gantt parser. Dummy start date used for rendering (not real schedule).
+UX shell in one PR (single-pr). Split only non-UI cards if needed (batch note). Discover (was Jobs) + Xplore (was Xplore) terminology. All tasks now use explicit task IDs (a1, a2, ...) and `after aN` for dependencies to satisfy Mermaid Gantt parser. Dummy start date used for rendering (not real schedule).
 
 ---
 
@@ -270,7 +270,7 @@ mindmap
       history-screen.tsx
       data-screen.tsx
       stats-screen.tsx
-      job-fit-panel.tsx
+      target-fit-panel.tsx
       cv-summary-input.tsx
     Layout
       sidebar-nav.tsx (3 items: Discover, Xplore, Settings)
@@ -308,7 +308,7 @@ mindmap
 
 *Short words. Diagrams over prose. One critical path.*
 
-**Terminology (current code reality):** "Jobs" screen/rail → Discover ("YOUR OPPORTUNITIES" rail); "Hunt" → Xplore. 3 nav: Discover | Xplore | Settings. The intuitive shell (Discover rail + Xplore for X) has been partially realized. DB (opportunities) and core Rust kept generic.
+**Terminology (current code reality):** "Jobs" screen/rail → Discover ("YOUR OPPORTUNITIES" rail); "Xplore" → Xplore. 3 nav: Discover | Xplore | Settings. The intuitive shell (Discover rail + Xplore for X) has been partially realized. DB (opportunities) and core Rust kept generic.
 
 **Copy to project:** The pictorial visual plan (short content based only on single-pr + batch-2) is the spec. This file was updated for broken mermaids, fixed asset refs (relative paths), and 100% code reality + new terminology. (Old duplicated tail trimmed.)
 
@@ -330,7 +330,7 @@ Current 6-screen reality (post some fixes, pre-intuitive shell):
 | Trust (refresh / list) | B- | TD-009 non-blank + parallel shipped (update:220, effects:308); still 6-slice + 'ready' gate |
 | IA / mode | C | X + job stacked; CV order wrong (T1); dead prep CTA (T2) |
 | Data integrity (opps) | A (was P0) | migrate_v4 + tx upsert + id WHERE + tests (db:410,1111,1012) |
-| Typed jobTarget | A (was TD-006) | domain/job-target.ts full + union; job_target.rs extracted (lib:93) |
+| Typed opportunityTarget | A (was TD-006) | domain/target.ts full + union; target.rs extracted (lib:93) |
 | FE tests / projection | C | Zero vitest (TD-007); strict ready gate (selectors:95) |
 
 **Current system (post terminology update + partial shell)**
@@ -343,11 +343,11 @@ flowchart TB
   end
   subgraph MVU
     H["history.opportunities slice gates on ready status"]
-    T["jobTarget panel separate from rail"]
+    T["opportunityTarget panel separate from rail"]
     Sel["selectors empty when not ready"]
   end
   subgraph Rust
-    JTcmd["job_target.rs analyze prep upsert to DB"]
+    JTcmd["target.rs analyze prep upsert to DB"]
     DB[("opps v4 index plus tx dedup")]
     get["get_opportunities by id or limit"]
   end
@@ -377,12 +377,12 @@ quadrantChart
   quadrant-4 Done for opps
   "Opps upsert dedup" : [0.1, 0.2]
   "id filter" : [0.1, 0.2]
-  "jobTarget any" : [0.1, 0.15]
+  "opportunityTarget any" : [0.1, 0.15]
   "god lib (job part)" : [0.2, 0.3]
 ```
 
 **Why single-pr + batch-2 read simplistic here**
-- Treat "open P0 dups/id" and "no jobs slice" as current (they were; now closed for opps per db.rs + subagent mapping).
+- Treat "open P0 dups/id" and "no opportunities slice" as current (they were; now closed for opps per db.rs + subagent mapping).
 - "One PR delete nav first" skips "projection must be bomb-proof before surfaces removed" (batch B2-1 gate + ux "trust before features").
 - Under-weights cv-promote-guard as full skill (sidecar + 2x confirm) vs "later card".
 - Ignores AGENTS stability (lib.rs:30 cred block + "cargo test + cred panel after any src-tauri/src") + load-skill rules.
@@ -529,7 +529,7 @@ flowchart LR
 - layout: sidebar-nav (3 items), command-palette (fewer nav + guard actions + raw/archive)
 - view: finder-app-view, discover-screen (rail + Jobs primary; move SearchWorkspace out)
 - data/history (keep code, remove nav entries)
-- job-fit-panel, cv-summary-input (sticky/job-owned)
+- target-fit-panel, cv-summary-input (sticky/job-owned)
 - MVU: minimal new msgs (JobsRefreshed if dedicated); reuse loadOpportunityCmd + optimistic
 - No new Rust cmd if get_opportunities suffices
 
@@ -548,14 +548,14 @@ flowchart LR
   Preview -->|no| Log[surplus]
 ```
 
-**Files (per cv-promote-guard/SKILL.md):** guard module (prune + sidecar writer), job-fit or delta viewer, effects promote, Settings devprofile_path, job_target.rs (read hook, read-only), reports update.
+**Files (per cv-promote-guard/SKILL.md):** guard module (prune + sidecar writer), target-fit or delta viewer, effects promote, Settings devprofile_path, target.rs (read hook, read-only), reports update.
 
 **Done when:** Prep CV deltas → sidecar + preview + explicit multi-confirm; no external write without gates; analyze can use pruned real CV.
 
 **Activation (required):** Load cv-promote-guard + finder-reactor + tauri-agentic.
 
 ### W5 · Platform leftovers (TD-004 reactor/DB leads, TD-008 xAI MVU, MCP, B2-5/6/8/10)
-Batched bundle or per-slice error if still pain; reactor hydrate leads or drop RAM; xAI slice mirror bearer; structured errors; MCP expose analyze/prep (guarded) per tauri-agentic; Hunt "reuse query" honest; SSRF allowlist; config constants.
+Batched bundle or per-slice error if still pain; reactor hydrate leads or drop RAM; xAI slice mirror bearer; structured errors; MCP expose analyze/prep (guarded) per tauri-agentic; Xplore "reuse query" honest; SSRF allowlist; config constants.
 
 ---
 
@@ -578,7 +578,7 @@ flowchart LR
 7. W3 pure job: CV first/owned, one CTA, no X pollution.
 8. W4: CV suggestions → sidecar + diff + confirm only → audit.
 
-**Commands (non-negotiable after src-tauri/src edits):** `cd src-tauri && cargo test` + manual cred panels (stability headers lib:30, job_target:7, secrets, AGENTS).
+**Commands (non-negotiable after src-tauri/src edits):** `cd src-tauri && cargo test` + manual cred panels (stability headers lib:30, target:7, secrets, AGENTS).
 
 **Once vitest:** pnpm test.
 
@@ -605,19 +605,19 @@ This plan.md (visual cards + diagrams) **is** the review/approval artifact + exe
 
 **Reuse (heavy — do not reimplement):**
 - `loadOpportunityCmd` / `OpportunitySelected` + blob hydrate + synthetic Succeeded (effects.ts, update.ts, discover/data/history screens) — "click = continue".
-- Typed `JobTargetResult` union + prep carry/merge logic (domain/job-target.ts:50, update.ts:378 "preserve previous... fit").
-- Non-blank `HistoryRefreshRequested` + parallel gets (update:220 comment, effects:308 "independent... after a JobTarget...").
+- Typed `TargetResult` union + prep carry/merge logic (domain/target.ts:50, update.ts:378 "preserve previous... fit").
+- Non-blank `HistoryRefreshRequested` + parallel gets (update:220 comment, effects:308 "independent... after a Target...").
 - `upsert_opportunity` tx dedup + `get_opportunities({id})` + `set_prep_artifacts` + v4 index + existing cargo tests (db.rs).
 - CV LS keys + initial load + persist effect (model.ts:24, initialFinderModel, effects).
-- job_target.rs extract pattern + fetch title/company start (for "—" pain).
+- target.rs extract pattern + fetch title/company start (for "—" pain).
 - `historyOpportunities` selector path + "Resume last" / row dispatch (discover-screen).
 - Per-skill surplus/guard patterns, bdd, worktrees, agent-orchestrator briefs.
 - UX friction matrix + emotional arc from v0.1/v0.2 (revisit is the big daily gap; mode pollution; trust from seeing row immediately).
 
 **Files that will move (accurate from subagent + reads + single-pr file map adapted to current):**
 MVU: model.ts, msg.ts, update.ts, effects.ts, selectors.ts (core projection/refresh/jobs path), program.ts.
-Views/layout: sidebar-nav.tsx, command-palette.tsx, finder-app-view.tsx, discover-screen.tsx (primary Jobs evolution), data-screen.tsx/history-screen.tsx/stats/lookup (de-nav or palette), job-fit-panel.tsx, cv-summary-input.tsx; new/rename: jobs-rail (or inline), hunt components.
-Rust (minimal touch): job_target.rs (cv guard hooks), db.rs (if batch or projection), lib.rs (new cmd registration only if unavoidable; headers respected), possibly commands.rs.
+Views/layout: sidebar-nav.tsx, command-palette.tsx, finder-app-view.tsx, discover-screen.tsx (primary Jobs evolution), data-screen.tsx/history-screen.tsx/stats/lookup (de-nav or palette), target-fit-panel.tsx, cv-summary-input.tsx; new/rename: jobs-rail (or inline), hunt components.
+Rust (minimal touch): target.rs (cv guard hooks), db.rs (if batch or projection), lib.rs (new cmd registration only if unavoidable; headers respected), possibly commands.rs.
 Tests + config: package.json, new *.test.ts, db tests (already good).
 Cross: ports/finder-port + adapter (reuse or thin), domain/*, reports/* (all), docs/tauri-commands.md if surface changes, .agents/skills/* surplus, AGENTS.md if new skill.
 
@@ -631,14 +631,14 @@ From SETUP.md + AGENTS "after any src-tauri/src/":
 - `cd src-tauri && cargo check && cargo test` (exercises db upsert/id/analyze/prep harness, secrets dual-write, reactor; 67/67 in prior memory).
 - Manual: run app (pnpm tauri dev or built); open X Connection panel + xAI key panel; confirm keyring/file status + no breakage (stability contract).
 - Expanded dogfood gate (B2-1 + data invariants now that fixes are in + UX lenses):
-  1. Post-evaluate: History/Data (or Jobs rail) shows the row (score + prepped badge) immediately; no blank.
+  1. Post-evaluate: History/Data (or Discover rail) shows the row (score + prepped badge) immediately; no blank.
   2. Resume / Data row / History Open / rail click: fit + prep hydrate in panel **without new xAI call**.
   3. Restart: CV from LS present; list populates (opps ready); last opp optional auto or easy resume.
   4. Re-analyze identical source_url: row count stable (1), same id or correct update via coalesce; prep attaches to it.
   5. Old id fetch (prep or load after 50+ newer): succeeds (id filter path).
   6. Refresh during error injection: banner/slice error; prior rows visible.
   7. Pure job flow (no X): CV context first/owned, one prep CTA, panel shows combined fit+prep, rail updates optimistically or fast.
-  8. X Hunt path sanity (if touched): searches/cycle still produce visible runs; no cross-mode pollution.
+  8. X Xplore path sanity (if touched): searches/cycle still produce visible runs; no cross-mode pollution.
   9. CV promote (wave 4): sidecar created on prep CV suggestions; diff/preview shown; external write **only after explicit multi-confirm**; audit present.
 - Once added: `pnpm test` covers MVU (refresh keep, prep merge, selectors for opps states).
 - Reports: all referred updated (checkboxes, grades post-change, "what simplistic views missed").
@@ -651,10 +651,10 @@ From SETUP.md + AGENTS "after any src-tauri/src/":
 ---
 
 ## 4. Why this plan (vs simplistic alternatives)
-- Starts from *actual* code + closed P0s (subagent mapping + db.rs:386 migrate_v4, job_target.rs header, update.ts:220, domain/job-target.ts, selectors:95, effects historyRefreshCmd) rather than v0.1 6-screen baseline or open-debt heat map as current.
-- Respects every AGENTS routing table entry + stability headers (lib.rs:30 "DO NOT rename 8 cred commands..."; job_target.rs:7 "credential STABILITY + reactor + bootstrap untouched"; post-edit cargo test ritual).
+- Starts from *actual* code + closed P0s (subagent mapping + db.rs:386 migrate_v4, target.rs header, update.ts:220, domain/target.ts, selectors:95, effects historyRefreshCmd) rather than v0.1 6-screen baseline or open-debt heat map as current.
+- Respects every AGENTS routing table entry + stability headers (lib.rs:30 "DO NOT rename 8 cred commands..."; target.rs:7 "credential STABILITY + reactor + bootstrap untouched"; post-edit cargo test ritual).
 - Integrates full skills (load finder-reactor for analyze/prep/decide, cv-promote-guard for any CV delta, tauri-agentic for shell + MCP + palette + guards, agent-orchestrator for waves/briefs/verify, etc.).
-- Produces the intuitive experience (rail + panel + input as primary; Hunt isolated; admin hidden; zero manual) while keeping power-user escape + X value.
+- Produces the intuitive experience (rail + panel + input as primary; Xplore isolated; admin hidden; zero manual) while keeping power-user escape + X value.
 - Incremental + gates reduce risk of the exact "History/Data blank after evaluate" and "prep nukes fit" and "dups on re-analyze" classes that the referred UX + debt reports called out.
 - Surplus + report updates close the loop (exponential per fusion/finder-reactor).
 - Tradeoff accepted: more waves than "one PR" (single-pr) but far safer and aligned with "verify-before-merge", "split to reviewable", "dogfood gate before more MVU churn" in referred.
@@ -679,7 +679,7 @@ From SETUP.md + AGENTS "after any src-tauri/src/":
 - [ ] No new "blank until restart" or "wrong row on resume" or "fit lost on prep" regressions.
 - [ ] 3-nav (Discover / Xplore / Settings) + rail ("YOUR OPPORTUNITIES") as daily driver. Xplore isolated for X.
 
-*Plain rule (from referred + code): Trust the list (Discover rail) before you cut the screens. Xplore is the dedicated place to find on X. Current reality uses Discover + Xplore (no "Jobs"/"Hunt" in nav).*
+*Plain rule (from referred + code): Trust the list (Discover rail) before you cut the screens. Xplore is the dedicated place to find on X. Current reality uses Discover + Xplore (no "Jobs"/"Xplore" in nav).*
 
 ---
 

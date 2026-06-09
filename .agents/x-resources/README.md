@@ -69,7 +69,7 @@ Upstream (docs.x.com)     →  .agents/x-resources/     →  agents & prompts
 ```
 
 - **skill.md** = what X allows agents to do.
-- **distillation** = what *you* want to hunt (SpaceXAI, Stockholm, etc.).
+- **distillation** = what *you* want to find (SpaceXAI, Stockholm, etc.).
 - **Never** replace skill.md with distillation alone.
 
 ## App runtime (today)

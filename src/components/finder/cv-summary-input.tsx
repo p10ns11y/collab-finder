@@ -12,7 +12,7 @@ type Props = {
  * This is *global application context* (sourced from data/distillation + eventually
  * cv-promote-guard), not a search-specific input. It is used by:
  * - X search / autonomous cycle (reactor)
- * - Quick Job Target (analyze + prep)
+ * - Quick Target (analyze + prep)
  *
  * It must remain always reachable and editable, even when search/cycle flows error,
  * are busy, or are not the current focus. Placing it inside SearchWorkspace caused
@@ -39,7 +39,7 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange }: Props) {
       />
 
       <div className="mt-2 text-[10px] text-ink-faint">
-        Used by X cycles, Quick Job Target analysis, and prep. Edit anytime — independent of search state.
+        Used by X cycles, Quick Target analysis, and prep. Edit anytime — independent of search state.
       </div>
     </div>
   )

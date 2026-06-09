@@ -1,7 +1,7 @@
-# Quick Job Target — Combined feedback report for implementer
+# Quick Target — Combined feedback report for implementer
 
 **Audience:** Engineer implementing fixes  
-**Feature:** Discover → Quick Job Target (URL / paste JD) + grok-4.3 analysis  
+**Feature:** Discover → Quick Target (URL / paste JD) + grok-4.3 analysis  
 **Reporter lens:** Product manager + senior dev + primary user (dogfooding xAI Greenhouse URL)  
 **Date context:** Post full-viewport shell; v1 “dogfood slice” shipped
 
@@ -25,7 +25,7 @@ The feature **works end-to-end** (xAI key → fetch/paste JD → grok-4.3 struct
 
 ## User journey (what I experienced)
 
-1. Open **Discover** — Quick Job Target at top of left column.
+1. Open **Discover** — Quick Target at top of left column.
 2. Paste Greenhouse URL: `job-boards.greenhouse.io/xai/jobs/4956028007`
 3. Click **Analyze + Full Prep** (orange).
 4. Wait ~few seconds.
@@ -47,7 +47,7 @@ The feature **works end-to-end** (xAI key → fetch/paste JD → grok-4.3 struct
 `QuickJobTarget` is **isolated** from MVU:
 
 - Local `useState` only (`url`, `pasted`, `busy`, `result`, `error`)
-- Direct `safeInvoke('analyze_job_target', …)` — not `FinderPort.analyzeJobTarget`
+- Direct `safeInvoke('analyze_target', …)` — not `FinderPort.analyzeJobTarget`
 - Checks `has_xai_key` first; error directs to Settings
 - **`runAnalyze(_fullPrep: boolean)` ignores `_fullPrep`** — both buttons call identical payload
 
@@ -59,14 +59,14 @@ The feature **works end-to-end** (xAI key → fetch/paste JD → grok-4.3 struct
 // title, company NOT sent
 ```
 
-### Rust — `src-tauri/src/lib.rs` `analyze_job_target`
+### Rust — `src-tauri/src/lib.rs` `analyze_target`
 
 **JD preparation:**
 
 | Source | Processing |
 |--------|------------|
 | `pasted_jd` | Used verbatim |
-| `url` | `fetch_job_page` → GET with 20s timeout → `strip_html_basic` → **truncate 8000 chars** |
+| `url` | `fetch_target_page` → GET with 20s timeout → `strip_html_basic` → **truncate 8000 chars** |
 | Neither | Error: “Provide either url or pasted_jd” |
 
 Gaps: no title/company extraction; no readability pass; Greenhouse may work but quality unverified.
@@ -119,7 +119,7 @@ User:
 
 | ID | Issue | Evidence | Fix direction |
 |----|--------|----------|---------------|
-| P0-1 | **“Analyze + Full Prep” is a no-op difference** | `_fullPrep` unused; same `analyze_job_target` | Until prep ships: rename to “Analyze fit only” OR implement `prep_job_target` with second xAI call + artifacts |
+| P0-1 | **“Analyze + Full Prep” is a no-op difference** | `_fullPrep` unused; same `analyze_target` | Until prep ships: rename to “Analyze fit only” OR implement `prep_target` with second xAI call + artifacts |
 | P0-2 | **Wrong CV context** | Generic Rust one-liner; user’s CV packet ignored | Pass `model.cvSummary` from Discover; then wire devprofile prune per cv-promote-guard |
 | P0-3 | **Results in wrong place / raw JSON** | `<pre>` under left form; right panel empty | Render structured **JobFitReport** in right column; left = input only |
 
@@ -127,7 +127,7 @@ User:
 
 | ID | Issue | Fix direction |
 |----|--------|---------------|
-| P1-1 | Quick Job Target bypasses MVU | Add `JobTargetAnalyzeRequested` / `JobTargetAnalyzeSucceeded`; effects → port; enables history refresh, guards, logging |
+| P1-1 | Quick Target bypasses MVU | Add `JobTargetAnalyzeRequested` / `JobTargetAnalyzeSucceeded`; effects → port; enables history refresh, guards, logging |
 | P1-2 | Saved opportunities invisible | Expose `get_opportunities`; add tab on Data or History; link from fit panel |
 | P1-3 | Misleading footer copy | Update after P0-1: either deliver prep or say “Fit analysis only” |
 | P1-4 | No cost guard before xAI | Pre-flight token estimate + pause if over budget (finder-reactor pattern) |
@@ -139,17 +139,17 @@ User:
 | P2-1 | URL fetch naive | Log `truncated` flag in UI; consider readability or user warning if JD &lt; N chars |
 | P2-2 | xAI key panel not in MVU | Mirror credentials slice for consistent busy/error states |
 | P2-3 | No loading state on right panel | Skeleton / “Analyzing with grok-4.3…” in results area |
-| P2-4 | `docs/tauri-commands.md` stale | Document `analyze_job_target`, `fetch_job_page`, xAI key commands |
+| P2-4 | `docs/tauri-commands.md` stale | Document `analyze_target`, `fetch_target_page`, xAI key commands |
 
 ---
 
 ## Recommended UX (right panel) — implementer spec
 
-Replace raw JSON with a **Job Fit Review** card (reuse Card/Badge tokens):
+Replace raw JSON with a **Target Fit Review** card (reuse Card/Badge tokens):
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Job fit analysis · grok-4.3          [55/100] badge     │
+│ Target fit analysis · grok-4.3          [55/100] badge     │
 │ xAI · opportunity #12 · ~$0.003                       │
 ├─────────────────────────────────────────────────────────┤
 │ Rationale (prose paragraph)                             │
@@ -165,9 +165,9 @@ Replace raw JSON with a **Job Fit Review** card (reuse Card/Badge tokens):
 
 **Discover layout behavior:**
 
-- Left: Quick Job Target form only (no result dump).
+- Left: Quick Target form only (no result dump).
 - Right: **Contextual panel** — priority:
-  1. Job fit result (if present)
+  1. Target fit result (if present)
   2. Else X tweet feed (if search/cycle ran)
   3. Else empty state: “Paste a JD or run X search”
 
@@ -195,25 +195,25 @@ Until then: **disable or relabel** orange button.
 ### Slice A — Honest fit analysis (ship first)
 
 - [x] Both buttons differentiated OR single button until prep exists (disabled orange + "Analyze fit" label)
-- [x] `cv_summary` from Discover CV textarea passed to `analyze_job_target`
-- [x] Right panel shows structured fit (not JSON `<pre>`) — JobFitPanel
+- [x] `cv_summary` from Discover CV textarea passed to `analyze_target`
+- [x] Right panel shows structured fit (not JSON `<pre>`) — TargetFitPanel
 - [x] Loading/error states on right panel
-- [x] Empty right state mentions job target OR X search
+- [x] Empty right state mentions target OR X search
 - [x] `pnpm build` + manual Greenhouse URL test (prior commit)
 
 ### Slice B — Visibility & architecture
 
-- [x] MVU messages + effects for job target analyze
+- [x] MVU messages + effects for target analyze
 - [x] `get_opportunities` Tauri command + Data/History tab (opportunities tab in Data screen)
 - [x] Event log: `JobTargetAnalyzed` with opportunity_id, score, cost (plus History auto-refresh)
 
-**JobFitPanel polish shipped alongside Slice B:** "Open job URL", "Copy recommended action", "Clear / analyze another", score subtitle in header (55 → "Moderate fit — review gaps"). Source URL passed from discover (for open); clear resets model.jobTarget so X feed regains priority.
+**TargetFitPanel polish shipped alongside Slice B:** "Open job URL", "Copy recommended action", "Clear / analyze another", score subtitle in header (55 → "Moderate fit — review gaps"). Source URL passed from discover (for open); clear resets model.opportunityTarget so X feed regains priority.
 
 ### Slice C — Full prep (follow-on)
 
 **Basic prep shipped in this PR (foundation):**
-- [x] `prep_job_target` command (structured generation + persist as status=prepped + prep_artifacts_json)
-- [x] Artifacts rendered in JobFitPanel + "Generate prep pack" / "Regenerate prep" action (gated on reasonable fit)
+- [x] `prep_target` command (structured generation + persist as status=prepped + prep_artifacts_json)
+- [x] Artifacts rendered in TargetFitPanel + "Generate prep pack" / "Regenerate prep" action (gated on reasonable fit)
 - [x] CV summary packet (from distillation / cv-packet-pruned) now properly exposed in UI (CvSummaryInput as independent sibling) **and actually used** in Evaluate Fit + prep. Rich packet is default and flows through.
 - [x] Prep prompt receives + uses previous fit analysis for context-aware artifacts.
 - [x] Reliability: fit state preserved after prep CTA, stable opportunity IDs (in-place updates), JD resolution by opp id.
@@ -229,8 +229,8 @@ Until then: **disable or relabel** orange button.
 | File | Change |
 |------|--------|
 | `src/view/screens/discover-screen.tsx` | Lift job result to screen level; right panel component; pass `cvSummary`; fix buttons |
-| New `job-fit-panel.tsx` | Structured fit UI |
-| `src-tauri/src/lib.rs` | Accept/use `cv_summary`; optional `prep_job_target` |
+| New `target-fit-panel.tsx` | Structured fit UI |
+| `src-tauri/src/lib.rs` | Accept/use `cv_summary`; optional `prep_target` |
 | `src/core/finder/msg.ts` / `effects.ts` / `model.ts` | MVU integration |
 | `src/adapters/tauri/finder-adapter.ts` | Already has `analyzeJobTarget` — use it |
 | `src-tauri/src/db.rs` + `src-tauri/src/lib.rs` | `get_opportunities` command |

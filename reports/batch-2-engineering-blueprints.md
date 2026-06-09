@@ -1,11 +1,11 @@
 # Batch 2 — Engineering blueprints
 
-> **UX path superseded** by [single-pr-intuitive-product.md](./single-pr-intuitive-product.md) — one PR, 3 screens (Discover + Xplore), opportunities rail (generalized from `jobs` slice). Incremental B2 cards below remain valid for **non-UI** work (MCP, SSRF, cv-promote) if split later. Terminology note: "Jobs" → "Discover", "Hunt" → "Xplore" to match current code (opportunities beyond jobs).
+> **UX path superseded** by [single-pr-intuitive-product.md](./single-pr-intuitive-product.md) — one PR, 3 screens (Discover + Xplore), opportunities rail (generalized from `jobs` slice). Incremental B2 cards below remain valid for **non-UI** work (MCP, SSRF, cv-promote) if split later. Terminology note: "Jobs" → "Discover", "Xplore" → "Xplore" to match current code (opportunities beyond jobs).
 
 **Branch:** `review/d83821fe-2026-06-08`  
 **Audience:** Implementer + agent  
 **Style:** Short words. Diagrams over prose.  
-**Builds on:** [tech-debt-deep-dive.md](./tech-debt-deep-dive.md) · [ux-review-v0.2-job-target.md](./ux-review-v0.2-job-target.md) · d83821fe plan (PR1–PR7)
+**Builds on:** [tech-debt-deep-dive.md](./tech-debt-deep-dive.md) · [ux-review-v0.2-target.md](./ux-review-v0.2-target.md) · d83821fe plan (PR1–PR7)
 
 ---
 
@@ -17,7 +17,7 @@ flowchart LR
     H[Hero: Evaluate fit + prep]
     CV[CV packet used end-to-end]
     DB[(SQLite opps + dedup + id filter)]
-    MVU[MVU job-target path]
+    MVU[MVU target path]
     REV[Revisit: Data/History click + Resume last]
     FIX[TD-009 refresh fix in code]
   end
@@ -40,7 +40,7 @@ flowchart LR
 | Platform / tests | **C** | No vitest; reactor split; MCP later |
 
 **d83821fe plan:** PR1–PR7 + narrow UX polish = **~75%** of report-driven Phase 0–1.  
-**Not missing:** data or hero loop. **Still noisy:** history projection + fan-out edges. (Note: target UI generalized to Discover/Xplore; "jobs slice" became opportunities rail in Discover.)
+**Not missing:** data or hero loop. **Still noisy:** history projection + fan-out edges. (Note: target UI generalized to Discover/Xplore; "opportunities slice" became opportunities rail in Discover.)
 
 ---
 
@@ -63,12 +63,12 @@ flowchart TB
   end
 
   subgraph Rust["Tauri"]
-    JT[job_target.rs]
+    JT[target.rs]
     DB[(SQLite)]
     IPC[get_opportunities / get_search_history / …]
   end
 
-  D -->|JobTarget* / OpportunitySelected| U
+  D -->|Target* / OpportunitySelected| U
   H --> S
   DT --> S
   ST --> S
@@ -90,7 +90,7 @@ Idle or loading with no prior ready → **empty tables**. (Current: rail lives i
 
 ```mermaid
 sequenceDiagram
-  participant Job as jobTargetAnalyzeCmd
+  participant Job as opportunityTargetAnalyzeCmd
   participant U as update
   participant E as historyRefreshCmd
   participant Sel as selectors
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Job as jobTargetAnalyzeCmd
+  participant Job as opportunityTargetAnalyzeCmd
   participant U as update
   participant E as historyRefreshCmd
   participant Sel as selectors
@@ -134,12 +134,12 @@ sequenceDiagram
 ```mermaid
 flowchart TD
   A[User: Resume last, Data row, or History Open] --> B[OpportunitySelected]
-  B --> C[update: jobTarget loading, lastActiveOppId, optional url]
+  B --> C[update: opportunityTarget loading, lastActiveOppId, optional url]
   C --> D[loadOpportunityCmd]
   D --> E{getOpportunities by id}
   E -->|ok with stored JSON| F[AnalyzeSucceeded and PrepSucceeded]
-  E -->|fetch error| G[GlobalError and JobTargetCleared]
-  E -->|no analysis or prep blobs| H[JobTargetCleared]
+  E -->|fetch error| G[GlobalError and TargetCleared]
+  E -->|no analysis or prep blobs| H[TargetCleared]
   F --> I[ScreenChanged to discover]
 ```
 
@@ -313,7 +313,7 @@ flowchart LR
   T[vitest] --> U[update.ts cases]
   T --> S[selectors.ts cases]
   U --> R[HistoryRefreshRequested keeps data]
-  U --> P[JobTargetPrepSucceeded merges fit]
+  U --> P[TargetPrepSucceeded merges fit]
 ```
 
 | File | Work |
@@ -372,7 +372,7 @@ flowchart LR
 | ID | Blueprint | When |
 |----|-----------|------|
 | TD-008 | xAI key check via MVU in Settings | With credentials refactor |
-| TD-014 | SSRF allowlist on `fetch_job_page` | Before public URL paste |
+| TD-014 | SSRF allowlist on `fetch_target_page` | Before public URL paste |
 | TD-013 | `spawn_blocking` for SQLite | Under load |
 | TD-010 | Structured `AppError` in Rust IPC | Before MCP |
 | MCP | Expose search / analyze / prep as tools | After B2-6 + B2-7 |
@@ -442,8 +442,8 @@ mindmap
 
 | Doc | Use |
 |-----|-----|
-| [quick-job-target-feedback.md](./quick-job-target-feedback.md) | Slice A/B/C checklist (mostly done) |
-| [ux-review-v0.2-job-target.md](./ux-review-v0.2-job-target.md) | Waves 1–2 done; Wave 3 → B2-9 |
+| [quick-target-feedback.md](./quick-target-feedback.md) | Slice A/B/C checklist (mostly done) |
+| [ux-review-v0.2-target.md](./ux-review-v0.2-target.md) | Waves 1–2 done; Wave 3 → B2-9 |
 | [tech-debt-deep-dive.md](./tech-debt-deep-dive.md) | TD IDs |
 | [ux-review-v0.1-dogfood.md](./ux-review-v0.1-dogfood.md) | Stats vs History baseline |
 

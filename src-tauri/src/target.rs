@@ -1,18 +1,11 @@
-//! Narrow extraction of job target commands (fetch/analyze/prep + Job*Result types + strip).
+//! Target commands (fetch/analyze/prep for URL or pasted opportunity description + Target*Result types + strip).
 //!
-//! Moved verbatim from lib.rs (exact logic, no behavior change) to relieve god-module
-//! pressure in lib.rs (TD-005: 613 lines/26 handlers, job paths ~230 lines).
-//! Supports "typed for future MCP" (ties to PR2 typed domain/job-target.ts).
+//! Extracted from lib.rs (TD-005 god-module relief). Mirrors TS domain/target.ts.
 //!
-//! Safe per AGENTS.md + design: credential STABILITY CONTRACT (secrets.rs:2-65, app_dirs.rs:1-20,
-//! lib.rs credential block 26-41 + 8 cred commands) + reactor + bootstrap 100% untouched.
-//! After any src-tauri/src edit: full `cd src-tauri && cargo test` + manual credential panels verify.
+//! Safe per AGENTS.md: credential STABILITY CONTRACT untouched. After edits: `cd src-tauri && cargo test`.
 //!
-//! Basic Greenhouse title/company extraction added in fetch_job_page (cheap win per ux I3 '—' pain
-//! + user tuning decision; populates JobPageResult so callers/UI can prefill title/company for
-//! analyze/prep/upsert; fixes '—' for Greenhouse jobs in Data/History when wired).
-//! Note: other enhancements (e.g. fit gate 45, cost thresholds, Lever/Ashby/etc parsers, xAI light extract)
-//! left for later; see comments.
+//! Basic Greenhouse title/company extraction in fetch_target_page (populates TargetPageResult for prefill).
+//! Note: fit gate, other site parsers etc. for later.
 
 use crate::db;
 use crate::AppDb;
@@ -21,7 +14,7 @@ use serde_json::{json, Value};
 use tauri::State;
 
 #[tauri::command]
-pub(crate) async fn fetch_job_page(url: String) -> Result<JobPageResult, String> {
+pub(crate) async fn fetch_target_page(url: String) -> Result<TargetPageResult, String> {
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
@@ -53,7 +46,7 @@ pub(crate) async fn fetch_job_page(url: String) -> Result<JobPageResult, String>
     // Other sites/parsers (Lever, Ashby, full JSON-LD, xAI-assisted, fit-gate 45 etc) noted for later.
     let (title, company) = extract_basic_title_company(&text);
 
-    Ok(JobPageResult {
+    Ok(TargetPageResult {
         title,
         company,
         cleaned_text: truncated.to_string(),
@@ -63,18 +56,18 @@ pub(crate) async fn fetch_job_page(url: String) -> Result<JobPageResult, String>
 }
 
 #[tauri::command]
-pub(crate) async fn analyze_job_target(
+pub(crate) async fn analyze_target(
     db: State<'_, AppDb>,
     url: Option<String>,
     pasted_jd: Option<String>,
     title: Option<String>,
     company: Option<String>,
-    cv_summary: Option<String>, // from UI model (populated from data/distillation defaultCvSummary / cv-packet-pruned); real devprofile + cv-promote-guard prune still pending
-) -> Result<JobAnalysisResult, String> {
+    cv_summary: Option<String>, // from UI model (populated from data/distillation defaultCvSummary / cv-packet-pruned)
+) -> Result<TargetAnalysisResult, String> {
     let jd = match (url.clone(), pasted_jd) {
         (_, Some(p)) if !p.trim().is_empty() => p,
         (Some(u), _) => {
-            let fetched = fetch_job_page(u.clone()).await?;
+            let fetched = fetch_target_page(u.clone()).await?;
             fetched.cleaned_text
         }
         _ => return Err("Provide either url or pasted_jd".into()),
@@ -90,11 +83,11 @@ pub(crate) async fn analyze_job_target(
     // Build a minimal system + user for structured fit
     let system = "You are an expert career fit analyst. Output ONLY valid JSON matching the provided schema. Be precise and cite phrases from the JD.";
     let user = format!(
-        "CV PACKET (pruned):\n{}\n\nJOB DESCRIPTION:\n{}\n\nReturn fit analysis.",
+        "CV PACKET (pruned):\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\nReturn fit analysis.",
         cv, jd
     );
 
-    // Minimal strict schema for JobFitReport (v1)
+    // Minimal strict schema for TargetFit (v1)
     let schema = json!({
         "type": "object",
         "properties": {
@@ -109,7 +102,7 @@ pub(crate) async fn analyze_job_target(
     });
 
     let (fit_json, usage) =
-        crate::xai::structured_chat(system, &user, "job_fit_v1", schema).await?;
+        crate::xai::structured_chat(system, &user, "target_fit_v1", schema).await?;
 
     let fit_score = fit_json
         .get("overall")
@@ -139,7 +132,7 @@ pub(crate) async fn analyze_job_target(
 
     let cost = crate::xai::cost_from_usage(&usage);
 
-    Ok(JobAnalysisResult {
+    Ok(TargetAnalysisResult {
         opportunity_id: run_id,
         fit: fit_json,
         packet_preview: cv.chars().take(600).collect(),
@@ -148,7 +141,7 @@ pub(crate) async fn analyze_job_target(
 }
 
 #[tauri::command]
-pub(crate) async fn prep_job_target(
+pub(crate) async fn prep_target(
     db: State<'_, AppDb>,
     opportunity_id: Option<i64>,
     url: Option<String>,
@@ -157,12 +150,11 @@ pub(crate) async fn prep_job_target(
     company: Option<String>,
     cv_summary: Option<String>,
     // Optional context from prior Evaluate Fit (analysis). Allows prep to be informed by the just-computed fit/gaps/rationale.
-    // This is part of making the full "evaluate then prep" flow in Slice C use the CV packet + fit context.
     previous_fit: Option<String>,
-) -> Result<JobPrepResult, String> {
+) -> Result<TargetPrepResult, String> {
     // Resolve JD text.
     // Prefer pasted_jd or url (for fresh calls from the form).
-    // If only opportunity_id (e.g. "Generate prep pack" CTA from JobFitPanel after prior analyze),
+    // If only opportunity_id (e.g. "Generate prep pack" CTA from TargetFitPanel after prior analyze),
     // load the persisted jd_text (and source_url) from the opportunities table.
     let mut jd = String::new();
     let mut effective_url = url.clone();
@@ -173,7 +165,7 @@ pub(crate) async fn prep_job_target(
     }
     if jd.is_empty() {
         if let Some(u) = &url {
-            let fetched = fetch_job_page(u.clone()).await?;
+            let fetched = fetch_target_page(u.clone()).await?;
             jd = fetched.cleaned_text;
         }
     }
@@ -211,9 +203,9 @@ pub(crate) async fn prep_job_target(
     });
 
     // Slice C: incorporate previous fit analysis (gaps, rationale, recommended_action) when provided
-    // by the frontend from the current jobTarget result after "Evaluate Fit".
+    // by the frontend from the current opportunityTarget result after "Evaluate Fit".
     let mut user = format!(
-        "CANDIDATE CV PACKET:\n{}\n\nJOB DESCRIPTION:\n{}\n\n",
+        "CANDIDATE CV PACKET:\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\n",
         cv, jd
     );
     if let Some(fit) = previous_fit {
@@ -241,13 +233,13 @@ pub(crate) async fn prep_job_target(
     });
 
     let (prep_json, usage) =
-        crate::xai::structured_chat(system, &user, "job_prep_v1", schema).await?;
+        crate::xai::structured_chat(system, &user, "target_prep_v1", schema).await?;
 
     let cost = crate::xai::cost_from_usage(&usage);
 
     // Persist the prep artifacts.
     // Prefer updating the specific opportunity_id in place (so the same opportunity keeps its id and fit analysis).
-    // This prevents duplicate rows for the same job post when doing "evaluate -> prep" from the panel.
+    // This prevents duplicate rows for the same posting when doing "evaluate -> prep" from the panel.
     // (upsert now reliably dedups by source_url per TD-001; id load reliable per TD-002)
     let run_id = if let Some(oid) = opportunity_id {
         if let Ok(guard) = db.0.lock() {
@@ -277,7 +269,7 @@ pub(crate) async fn prep_job_target(
         0
     };
 
-    Ok(JobPrepResult {
+    Ok(TargetPrepResult {
         opportunity_id: run_id,
         prep: prep_json,
         est_cost_usd: cost,
@@ -285,7 +277,7 @@ pub(crate) async fn prep_job_target(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct JobPageResult {
+pub struct TargetPageResult {
     pub title: Option<String>,
     pub company: Option<String>,
     pub cleaned_text: String,
@@ -294,7 +286,7 @@ pub struct JobPageResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct JobAnalysisResult {
+pub struct TargetAnalysisResult {
     pub opportunity_id: i64,
     pub fit: Value,
     pub packet_preview: String,
@@ -302,7 +294,7 @@ pub struct JobAnalysisResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct JobPrepResult {
+pub struct TargetPrepResult {
     pub opportunity_id: i64,
     pub prep: Value,
     pub est_cost_usd: f64,
@@ -342,7 +334,7 @@ fn strip_html_basic(html: &str) -> String {
 }
 
 /// Basic title + company extraction (Greenhouse-focused per ux I3 + PR7 cheap win; other sites noted for later).
-/// Called from fetch_job_page. Crude string finds only (no extra crates, matches v1 style of strip_html_basic).
+/// Called from fetch_target_page. Crude string finds only (no extra crates, matches v1 style of strip_html_basic).
 /// Common patterns: "Senior Engineer at Acme Corp | Greenhouse", "Role - Acme | Greenhouse"
 /// Updates JobPageResult so that analyze/prep can receive + persist non-None title/company (fixes '—' in Data/History for Greenhouse).
 /// Other sites and richer extraction (JSON-LD, dedicated parsers, xAI fallback, fit thresholds) left explicit for later.
@@ -433,7 +425,7 @@ fn extract_company_from_greenhouse_title(title: &str) -> Option<String> {
     if lower.contains("greenhouse") {
         if let Some(pipe) = lower.rfind(" | ") {
             let before = &t[..pipe].trim();
-            // last "word group" before | as weak signal, but only if looks like company (capitalized, not too job-like)
+            // last "word group" before | as weak signal, but only if looks like company (capitalized, not too role-like)
             let last = before
                 .rsplit(|c: char| c == ' ' || c == '-')
                 .next()

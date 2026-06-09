@@ -9,10 +9,10 @@ import { Label } from '../ui/label'
  * Search-specific controls only (query, actions, presets).
  *
  * The CV summary packet was moved out to its own top-level `CvSummaryInput`
- * component. It is shared global context used by Quick Job Target (analyze/prep)
+ * component. It is shared global context used by Quick Target (analyze/prep)
  * in addition to X search/cycle. Keeping it inside the search card was the root
  * cause of the reported problem: X errors/busy states made the CV hard to reach
- * for recovery or for job-target-only workflows.
+ * for recovery or for target-only workflows.
  */
 
 type Props = {

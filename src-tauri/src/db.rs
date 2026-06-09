@@ -92,7 +92,7 @@ pub struct Lead {
     pub tweet_created_at: Option<String>,
 }
 
-/// Generalized target for web/pasted job posts (and future x-post enrichment).
+/// Generalized target for web/pasted opportunity descriptions (and future x-post enrichment).
 /// Mirrors the TS Opportunity type.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Opportunity {
@@ -379,7 +379,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_ts ON rate_snapshots(ts DESC);
         Ok(())
     }
 
-    /// v3: opportunities table for web/paste job targets (additive, X leads untouched).
+    /// v3: opportunities table for web/paste targets (additive, X leads untouched).
     /// kind: "web" | "paste" | "x-post"
     fn migrate_v3(conn: &Connection) -> Result<(), String> {
         let sql = r#"
@@ -997,7 +997,7 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
             .map_err(|e| e.to_string())
     }
 
-    // --- Opportunities (web/paste job targets) ---
+    // --- Opportunities (web/paste targets) ---
 
     pub fn get_opportunities(
         &self,
@@ -1009,7 +1009,7 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         let lim = filter.limit.unwrap_or(100).clamp(1, 500) as i64;
 
-        // TD-002 fix: when filter.id is set, push WHERE id=? into SQL so that prep_job_target(opportunity_id: old)
+        // TD-002 fix: when filter.id is set, push WHERE id=? into SQL so that prep_target(opportunity_id: old)
         // and get by id work even when 50+ newer rows exist (N>50 newer per tech-debt-deep-dive:570-571).
         // Previously: always LIMIT recency then in-mem retain, which dropped old ids.
         let mut out: Vec<Opportunity> = if filter.id.is_some() {
@@ -1190,7 +1190,7 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
         Ok(())
     }
 
-    /// Set prep artifacts on an existing opportunity (used by prep_job_target to avoid creating duplicate rows).
+    /// Set prep artifacts on an existing opportunity (used by prep_target to avoid creating duplicate rows).
     pub fn set_prep_artifacts(
         &self,
         id: i64,
@@ -1573,7 +1573,7 @@ mod tests {
                 .unwrap();
         }
 
-        // Now simulate what prep_job_target does: load by old opportunity_id (with limit=1)
+        // Now simulate what prep_target does: load by old opportunity_id (with limit=1)
         let mut filter = OpportunityFilter::default();
         filter.id = Some(old_id);
         filter.limit = Some(1);

@@ -15,7 +15,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../domain/history'
-import type { JobTargetResult } from '../domain/job-target'
+import type { TargetResult } from '../domain/target'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
 
@@ -27,7 +27,7 @@ export const SESSION_LS_KEY = 'cf.lastSession'
 export type PersistedSession = {
   lastActiveOppId?: number
   activeScreen?: FinderScreen
-  jobTargetUrl?: string
+  opportunityTargetUrl?: string
 }
 
 const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'xplore']
@@ -84,11 +84,9 @@ export type FinderModel = {
   selectedRun: AsyncState<SearchRunWithTweets | null>
   hydrate: AsyncState<Tweet | null>
   // Current target for quick analyze/prep (the "Quick Target" flow in Discover).
-  // Works for any opportunity type (jobs, collabs, etc.). Legacy field name "jobTarget" kept
-  // to avoid ripple across update/effects/ports/Rust (job_target.rs + commands).
-  // UI labels and this product now treat it as a general opportunity target.
-  jobTarget: AsyncState<JobTargetResult>
-  jobTargetUrl?: string
+  // Works for any opportunity type (collab, side hustle, community, role, etc.).
+  opportunityTarget: AsyncState<TargetResult>
+  opportunityTargetUrl?: string
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
 }
@@ -96,11 +94,11 @@ export type FinderModel = {
 export function initialFinderModel(): FinderModel {
   // Minimal sync load of persisted session (CV + last ids + screen + url) from localStorage for zero-flash restore.
   // localStorage is FE-owned fast cache for CV (per design Key Decision 1 + user OQ); DB owns durable opps.
-  // AppStarted will still issue loadCvCmd + conditional OpportunitySelected for async jobTarget hydrate + consistency.
+  // AppStarted will still issue loadCvCmd + conditional OpportunitySelected for async target hydrate + consistency.
   let cvSummary = DEFAULT_CV_SUMMARY
   let activeScreen: FinderScreen = 'discover'
   let lastActiveOppId: number | undefined = undefined
-  let jobTargetUrl: string | undefined = undefined
+  let opportunityTargetUrl: string | undefined = undefined
   try {
     const savedCv = localStorage.getItem(CV_LS_KEY)
     if (savedCv != null) cvSummary = savedCv
@@ -113,7 +111,7 @@ export function initialFinderModel(): FinderModel {
       if (typeof s.lastActiveOppId === 'number' && s.lastActiveOppId > 0) {
         lastActiveOppId = s.lastActiveOppId
       }
-      if (s.jobTargetUrl) jobTargetUrl = s.jobTargetUrl
+      if (s.opportunityTargetUrl) opportunityTargetUrl = s.opportunityTargetUrl
     }
   } catch {
     // ignore; fall back to defaults (robustness for tampered/legacy LS)
@@ -150,8 +148,8 @@ export function initialFinderModel(): FinderModel {
     selectedRunId: null,
     selectedRun: idle(),
     hydrate: idle(),
-    jobTarget: idle<JobTargetResult>(),
-    jobTargetUrl,
+    opportunityTarget: idle<TargetResult>(),
+    opportunityTargetUrl,
     lastActiveOppId,
   }
 }

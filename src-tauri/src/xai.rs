@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn cost_estimation_is_sane() {
-        // 2000 input + 800 output for a typical job analysis + prep
+        // 2000 input + 800 output for a typical target analysis + prep
         let usd = estimate_cost_usd(2000, 800);
         assert!(usd > 0.0 && usd < 0.01, "unexpected cost: {}", usd);
     }

@@ -11,7 +11,7 @@ import type {
   SearchRun,
   SearchRunWithTweets,
 } from '../core/domain/history'
-import type { JobAnalysisResult, JobPageResult, JobPrepResult } from '../core/domain/job-target'
+import type { TargetAnalysisResult, TargetPageResult, TargetPrepResult } from '../core/domain/target'
 import type { Result } from '../core/result'
 import type { AppError } from '../core/error'
 
@@ -32,9 +32,9 @@ export type FinderPort = {
   hydrateTweet(id: string): Promise<Result<Tweet, AppError>>
   logEvent(eventType: string, payload?: string, correlationId?: string): Promise<Result<void, AppError>>
 
-  // Job target (web/paste) — new primary flow
-  fetchJobPage(url: string): Promise<Result<JobPageResult, AppError>>
-  analyzeJobTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<JobAnalysisResult, AppError>>
-  prepJobTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<JobPrepResult, AppError>>
+  // Target (web/paste URL or JD) — primary flow for analyzing opportunities in Discover
+  fetchTargetPage(url: string): Promise<Result<TargetPageResult, AppError>>
+  analyzeTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<TargetAnalysisResult, AppError>>
+  prepTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<TargetPrepResult, AppError>>
   getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
 }

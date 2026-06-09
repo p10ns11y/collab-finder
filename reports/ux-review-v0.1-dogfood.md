@@ -2,14 +2,14 @@
 
 **Audience:** Implementer, designer, PM  
 **Date:** 2026-06-08  
-**Scope:** Full six-screen shell after Quick Job Target + Slice A/B/C partial ship  
+**Scope:** Full six-screen shell after Quick Target + Slice A/B/C partial ship  
 **Evidence:** Live dogfood session (Greenhouse xAI URL), screenshots in `reports/assets/ux-review-2026-06/`  
 **Lenses:**
 
 1. **Lens 1** — UI/UX expert + designer + developer (visual system, IA, code alignment)
 2. **Lens 2** — Daily power user (~1 week habit) + human interaction (friction, trust, usefulness psychology)
 
-**Related:** [quick-job-target-feedback.md](./quick-job-target-feedback.md) (feature-specific implementer checklist)
+**Related:** [quick-target-feedback.md](./quick-target-feedback.md) (feature-specific implementer checklist)
 
 ---
 
@@ -81,7 +81,7 @@ flowchart TB
   end
 
   SB --> DISC
-  DISC -->|analyze_job_target| OP
+  DISC -->|analyze_target| OP
   DISC -->|search cycle| SR
   DISC -->|cycle| LD
   HIST --> SR
@@ -98,13 +98,13 @@ flowchart TB
   style DISC fill:#34d399,stroke:#34d399,color:#000
 ```
 
-**Observation:** Job opportunities (`opportunities`) are **second-class** in navigation — visible in Data tab #4, absent from History’s mental model (“Timeline of runs and captured leads”). X-centric History vs job-centric Discover split the user’s pipeline.
+**Observation:** Opportunities (`opportunities`) are **second-class** in navigation — visible in Data tab #4, absent from History’s mental model (“Timeline of runs and captured leads”). X-centric History vs target-centric Discover split the user’s pipeline.
 
 ---
 
 ## Flow diagrams
 
-### Current flow — Quick Job Target (as implemented)
+### Current flow — Quick Target (as implemented)
 
 ```mermaid
 sequenceDiagram
@@ -113,13 +113,13 @@ sequenceDiagram
   participant MVU as MVU effects
   participant Rust as Tauri xAI
   participant DB as SQLite opportunities
-  participant Right as JobFitPanel
+  participant Right as TargetFitPanel
 
   User->>Left: Paste Greenhouse URL
   Note over Left: CV below job form - helper says above
   User->>Left: Click Evaluate fit
   Left->>MVU: JobTargetAnalyzeRequested
-  MVU->>Rust: analyze_job_target with cv_summary
+  MVU->>Rust: analyze_target with cv_summary
   Rust->>DB: upsert opportunity
   Rust-->>MVU: fit JSON and opportunity_id
   MVU->>MVU: log JobTargetAnalyzed
@@ -131,7 +131,7 @@ sequenceDiagram
     User->>Right: Generate prep pack
     Note over Left: Full Prep coming soon still visible
     Right->>MVU: JobTargetPrepRequested
-    MVU->>Rust: prep_job_target
+    MVU->>Rust: prep_target
     Rust-->>Right: letter cv_suggestions research
   end
 
@@ -155,10 +155,10 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  JM[Job mode]
-  XM[X hunt mode]
+  JM[Target mode]
+  XM[X xplore mode]
 
-  subgraph JobPath["Job path - default for URL paste"]
+  subgraph JobPath["Target path - default for URL paste"]
     A1["CV context chip - sticky"]
     A2[Paste URL or JD]
     A3[Evaluate fit]
@@ -211,7 +211,7 @@ flowchart TB
   root_today[collab-finder today]
 
   root_today --> D[Discover]
-  D --> D1[Job URL]
+  D --> D1[Target URL]
   D --> D2[CV packet]
   D --> D3[X search]
   D --> D4[Right panel switches]
@@ -237,12 +237,12 @@ flowchart TB
 
   root_target --> P[Pipeline]
   P --> P1[All opportunities]
-  P --> P2[X leads and job targets]
+  P --> P2[X leads and targets]
   P --> P3[Status filters]
 
   root_target --> W[Work]
-  W --> W1[Job mode]
-  W --> W2[Hunt mode]
+  W --> W1[Target mode]
+  W --> W2[Xplore mode]
 
   root_target --> T[Trust]
   T --> T1[Guards dashboard]
@@ -261,11 +261,11 @@ flowchart TB
 
 ### Strengths
 
-**Visual system** (`src/index.css`): `surface-0` (#070709), accent `#f59e0b`, DM Sans — reads as focused instrument, not generic SaaS. Score badge tones in `job-fit-panel.tsx` (≥75 success, ≥55 accent, else warning) match screenshot hierarchy.
+**Visual system** (`src/index.css`): `surface-0` (#070709), accent `#f59e0b`, DM Sans — reads as focused instrument, not generic SaaS. Score badge tones in `target-fit-panel.tsx` (≥75 success, ≥55 accent, else warning) match screenshot hierarchy.
 
 **Discover split** (`discover-screen.tsx`): Left inputs, right outcomes. `showJobFit` priority over TweetFeed is correct product wiring.
 
-**JobFitPanel** structure: Score → band subtitle → rationale → must/nice gaps → recommended action → actions. Matches [quick-job-target-feedback.md](./quick-job-target-feedback.md) target copy.
+**TargetFitPanel** structure: Score → band subtitle → rationale → must/nice gaps → recommended action → actions. Matches [quick-target-feedback.md](./quick-target-feedback.md) target copy.
 
 **MVU architecture**: Views dispatch messages; effects call ports — enables audit events, history refresh, guards. Good foundation for daily-driver polish.
 
@@ -276,7 +276,7 @@ flowchart TB
 | ID | Issue | Code | Fix |
 |----|-------|------|-----|
 | T1 | Helper says CV is “above” but CV is **below** job form | `discover-screen.tsx` L44–56 vs L169 | Reorder `CvSummaryInput` above `QuickJobTarget`, or fix copy to “below” |
-| T2 | Dual prep affordances | Left L158–165 disabled “Full Prep”; `job-fit-panel.tsx` L175–182 “Generate prep pack” | Remove dead left button; one prep entry after fit |
+| T2 | Dual prep affordances | Left L158–165 disabled “Full Prep”; `target-fit-panel.tsx` L175–182 “Generate prep pack” | Remove dead left button; one prep entry after fit |
 | T3 | Stats vs History mismatch | `stats-screen.tsx` L36 uses `s?.total_searches ?? historySearches.length` — if `s.total_searches === 0` explicitly, fallback never runs | Reconcile `get_dashboard_stats` or use `max(s, history.length)` / show loading until both ready |
 
 #### P1 — IA & discoverability
@@ -285,8 +285,8 @@ flowchart TB
 |----|-------|------|-----|
 | I1 | Icon-only sidebar | `sidebar-nav.tsx` — labels `sr-only` + `title` only | Expand labels at `md+` or hover tooltips with delay |
 | I2 | Opportunities table is read-only admin | `data-screen.tsx` L175–188 — no row click | `OpportunitySelected` → Discover + load fit/prep |
-| I3 | Title/company always `—` for Greenhouse | `fetch_job_page` / analyze path | Parse `<title>`, og:meta, Greenhouse JSON-LD |
-| I4 | History ignores job opportunities | `history-screen.tsx` — X runs + X leads only | Add “Job targets” section or rename screens |
+| I3 | Title/company always `—` for Greenhouse | `fetch_target_page` / analyze path | Parse `<title>`, og:meta, Greenhouse JSON-LD |
+| I4 | History ignores job opportunities | `history-screen.tsx` — X runs + X leads only | Add “Targets” section or rename screens |
 
 #### P2 — Polish
 
@@ -308,7 +308,7 @@ finder-app-view.tsx
     ├── QuickJobTarget    → local useState(url,pasted) — LOST on navigate
     ├── CvSummaryInput    → model.cvSummary — LOST on restart
     ├── SearchWorkspace   → X query (orthogonal to job mode)
-    └── JobFitPanel       → fit + prep + actions
+    └── TargetFitPanel       → fit + prep + actions
 DataScreen
 └── opportunities tab   → display only, no actions
 ```
@@ -354,7 +354,7 @@ DataScreen
 | Workflow | Verdict | Notes |
 |----------|---------|-------|
 | First-time job fit (Greenhouse) | **Ship-quality** | Screenshot proof: 78/100, actionable gaps |
-| Daily X hunt + cycle | **Usable** | History/Data support replay; Lookup for FTS |
+| Daily Xplore + cycle | **Usable** | History/Data support replay; Lookup for FTS |
 | Job pipeline over time | **Not yet** | 17 opportunities in DB, no user-facing pipeline |
 | Prep → apply | **Partial** | Generate prep exists; review/edit/sidecar immature |
 | Settings / keys | **Solid** | Both X + xAI connected; clear status |
@@ -380,8 +380,8 @@ Statistics ──aggregates► search_runs, leads (jobs invisible)
 
 ```mermaid
 flowchart TB
-  J[Job mode]
-  Xmode[X hunt mode]
+  J[Target mode]
+  Xmode[X xplore mode]
 
   subgraph Store["SQLite"]
     OP[opportunities]
@@ -402,7 +402,7 @@ flowchart TB
   ALL -->|click row| J
 ```
 
-**Minimal v1.1:** Add **“Job targets”** section to History (last N opportunities with score + link to Discover).  
+**Minimal v1.1:** Add **“Targets”** section to History (last N opportunities with score + link to Discover).  
 **v1.2:** Rename Data → “Advanced” or tuck under Settings; promote Pipeline to sidebar slot.
 
 ---
@@ -425,7 +425,7 @@ flowchart TB
 
 ### Wave 1 — Trust fixes (1–2 sessions)
 
-- [ ] **T1** Reorder CV above Quick Job Target OR fix helper copy
+- [ ] **T1** Reorder CV above Quick Target OR fix helper copy
 - [ ] **T2** Remove disabled “Full Prep (coming soon)” from left column
 - [ ] **T3** Fix Statistics aggregates vs History (code + verify in dogfood)
 - [ ] **P3** Toast on clipboard copy
@@ -434,13 +434,13 @@ flowchart TB
 
 - [ ] **I2** Opportunity row click → `OpportunitySelected` → Discover + reload fit
 - [ ] Persist `cvSummary` (localStorage or app-data sidecar on `CvSummaryChanged`)
-- [ ] Persist Quick Job Target URL in session (or model slice) across navigate
-- [ ] Extract title/company from Greenhouse HTML in `fetch_job_page`
+- [ ] Persist Quick Target URL in session (or model slice) across navigate
+- [ ] Extract title/company from Greenhouse HTML in `fetch_target_page`
 
 ### Wave 3 — Pipeline & mode clarity (3–5 sessions)
 
-- [ ] Discover mode toggle: Job | X hunt (collapse irrelevant left sections)
-- [ ] History: “Job targets” section (score, company, status, Open)
+- [ ] Discover mode toggle: Job | Xplore (collapse irrelevant left sections)
+- [ ] History: “Targets” section (score, company, status, Open)
 - [ ] Stats: include opportunity count + cumulative xAI cost
 - [ ] Sidebar labels at `md+`
 
@@ -458,11 +458,11 @@ flowchart TB
 | File | Wave | Change |
 |------|------|--------|
 | `src/view/screens/discover-screen.tsx` | 1, 3 | CV order; remove dead prep button; mode toggle |
-| `src/components/finder/job-fit-panel.tsx` | 1, 4 | Copy toast; prep review UI |
+| `src/components/finder/target-fit-panel.tsx` | 1, 4 | Copy toast; prep review UI |
 | `src/view/screens/stats-screen.tsx` | 1, 3 | Stats reconciliation; job + cost metrics |
 | `src-tauri/src/db.rs` | 1 | Verify `get_dashboard_stats` vs `get_search_history` |
 | `src/view/screens/data-screen.tsx` | 2 | Row actions for opportunities |
-| `src/view/screens/history-screen.tsx` | 3 | Job targets section |
+| `src/view/screens/history-screen.tsx` | 3 | Targets section |
 | `src/core/finder/msg.ts` / `effects.ts` | 2 | `OpportunitySelected`, CV persist effect |
 | `src/components/layout/sidebar-nav.tsx` | 3 | Visible labels |
 | `src-tauri/src/lib.rs` | 2 | Greenhouse title/company extraction |
@@ -487,7 +487,7 @@ Dogfood with same Greenhouse URL after Wave 1:
 
 ```
 [Discover left — scroll stack]
-  Job URL + JD
+  Target URL + JD
   [Evaluate] [Full Prep DISABLED ← confusion]
   CV summary (below URL, text says "above" ← bug)
   X Search workspace
@@ -495,7 +495,7 @@ Dogfood with same Greenhouse URL after Wave 1:
         │
         ▼ dispatch
 [Discover right]
-  JobFitPanel OR TweetFeed
+  TargetFitPanel OR TweetFeed
   [Generate prep ← active]  ← contradicts left
 
 [Elsewhere]
@@ -507,9 +507,9 @@ Dogfood with same Greenhouse URL after Wave 1:
 ### Target (low cognitive load)
 
 ```
-[Discover — Job mode]
+[Discover — Target mode]
   CV chip (sticky, persisted)
-  Job URL + JD
+  Target URL + JD
   [Evaluate fit]
         │
         ▼
@@ -530,7 +530,7 @@ Dogfood with same Greenhouse URL after Wave 1:
 ## References
 
 - Screenshots: `reports/assets/ux-review-2026-06/`
-- Feature checklist: [quick-job-target-feedback.md](./quick-job-target-feedback.md)
+- Feature checklist: [quick-target-feedback.md](./quick-target-feedback.md)
 - Architecture: [docs/agentic-architecture.md](../docs/agentic-architecture.md)
 - Commands: [docs/tauri-commands.md](../docs/tauri-commands.md)
 

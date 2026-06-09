@@ -87,7 +87,7 @@ export type EventFilter = {
   limit?: number;
 };
 
-/// Web / pasted job targets persisted via analyze_job_target (Slice B+).
+/// Web / pasted targets persisted via analyze_target (Quick Target flow).
 /// Mirrors Rust db::Opportunity (v3 table).
 export type Opportunity = {
   id: number;
