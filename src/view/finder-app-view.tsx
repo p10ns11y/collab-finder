@@ -7,10 +7,6 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
-import { StatsScreen } from './screens/stats-screen'
-import { HistoryScreen } from './screens/history-screen'
-import { DataScreen } from './screens/data-screen'
-import { LookupScreen } from './screens/lookup-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import type { FinderScreen } from '../core/finder/model'
 
@@ -20,11 +16,8 @@ type Props = {
 }
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
-  discover: 'Discover',
-  stats: 'Statistics',
-  history: 'History',
-  data: 'Data',
-  lookup: 'Lookup',
+  discover: 'Jobs',
+  hunt: 'Hunt',
   settings: 'Settings',
 }
 
@@ -42,14 +35,9 @@ export function FinderAppView({ view, dispatch }: Props) {
     switch (activeScreen) {
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
-      case 'stats':
-        return <StatsScreen view={view} />
-      case 'history':
-        return <HistoryScreen view={view} dispatch={dispatch} />
-      case 'data':
-        return <DataScreen view={view} dispatch={dispatch} />
-      case 'lookup':
-        return <LookupScreen view={view} dispatch={dispatch} />
+      case 'hunt':
+        // Hunt: X only (search, cycle, feed). Jobs path is primary in Discover/Jobs.
+        return <DiscoverScreen view={view} dispatch={dispatch} /> // temp reuse for X; full carve later
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       default:
