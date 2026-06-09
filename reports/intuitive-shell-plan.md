@@ -337,7 +337,7 @@ Current 6-screen reality (post some fixes, pre-intuitive shell):
 ```mermaid
 flowchart TB
   subgraph UI["Discover (opps rail + target) + Xplore (X parts) + Settings"]
-    D[Discover: rail "YOUR OPPORTUNITIES" + Quick Target + (faded X if active)]
+    D[Discover: rail 'YOUR OPPORTUNITIES' + Quick Target + (faded X if active)]
     X[Xplore: full SearchWorkspace + feed]
     Rail[Opportunities rail from historyOpps]
   end
@@ -406,18 +406,23 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph before[Today 6]
-    b1[Discover] b2[Stats] b3[History] b4[Data] b5[Lookup] b6[Settings]
+    b1[Discover]
+    b2[Stats]
+    b3[History]
+    b4[Data]
+    b5[Lookup]
+    b6[Settings]
   end
   subgraph after[Target]
-    D[Discover] -->|rail "YOUR OPPORTUNITIES" + panel + input| D
+    D[Discover] -->|rail 'YOUR OPPORTUNITIES' + panel + input| D
     X[Xplore] -->|X only: search/cycle/feed| X
     S[Settings]
   end
   b1 --> D
   b2 -->|chip| S
   b3 -->|X runs to Xplore; opps to rail| D
-  b4 -->|palette only "Raw data"| S
-  b5 -->|palette "Search archive"| X
+  b4 -->|palette only 'Raw data'| S
+  b5 -->|palette 'Search archive'| X
   b6 --> S
 ```
 (Note: internal ids 'discover' / 'xplore'; labels "Discover" / "Xplore".)
