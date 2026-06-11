@@ -7,6 +7,10 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 | [curation/profile-and-strategy.md](./curation/profile-and-strategy.md) | Positioning, geo priorities, platforms (non-X) |
 | [x-search/operators.md](./x-search/operators.md) | Valid v2 operators only — do not guess |
 | [x-search/queries.json](./x-search/queries.json) | Qualified search presets + default CV packet |
+| [cv-packet-distilled.txt](./cv-packet-distilled.txt) | General distilled CV (~6k chars; PDF + projects; synced to `queries.json` + Rust IPC fallback) |
+| [cv-packet-agent-distilled.txt](./cv-packet-agent-distilled.txt) | Agent-optimized context packet (MVU/Tauri/OSS focus; for reactor/MCP — not app default) |
+| [prompts/cv-packet-agent.md](./prompts/cv-packet-agent.md) | When to use agent vs general CV packet |
+| [public-projects.json](./public-projects.json) | Pruned public GitHub repos for CV/agent grounding (re-prune raw API dump via `scripts/prune-public-projects.mjs`) |
 | [prompts/xai-analyze-opportunity.md](./prompts/xai-analyze-opportunity.md) | Structured analyze template for reactor/xAI |
 | [prompts/cv-packet-pruned.md](./prompts/cv-packet-pruned.md) | Pruned CV grounding for prompts |
 

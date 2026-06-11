@@ -41,8 +41,25 @@ export function createTauriFinderPort(): FinderPort {
 
     // Opportunity target (web/paste focus) — Quick Target flow
     fetchOpportunityTargetPage: (url) => safeInvoke<OpportunityTargetPageResult>('fetch_opportunity_target_page', { url }),
-    analyzeOpportunityTarget: (payload) => safeInvoke<OpportunityTargetAnalysisResult>('analyze_opportunity_target', payload),
-    prepOpportunityTarget: (payload) => safeInvoke<OpportunityTargetPrepResult>('prep_opportunity_target', payload),
+    // Tauri maps Rust snake_case args to camelCase invoke keys (cv_summary → cvSummary).
+    analyzeOpportunityTarget: (payload) =>
+      safeInvoke<OpportunityTargetAnalysisResult>('analyze_opportunity_target', {
+        url: payload.url,
+        pastedJd: payload.pasted_jd,
+        title: payload.title,
+        company: payload.company,
+        cvSummary: payload.cv_summary,
+      }),
+    prepOpportunityTarget: (payload) =>
+      safeInvoke<OpportunityTargetPrepResult>('prep_opportunity_target', {
+        opportunityId: payload.opportunity_id,
+        url: payload.url,
+        pastedJd: payload.pasted_jd,
+        title: payload.title,
+        company: payload.company,
+        cvSummary: payload.cv_summary,
+        previousFit: payload.previous_fit,
+      }),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
   }
 }

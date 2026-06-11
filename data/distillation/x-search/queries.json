@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "operatorsDoc": "https://docs.x.com/x-api/posts/search/integrate/operators",
   "defaultQuery": "(hiring OR \"we are hiring\" OR collab OR \"build with me\") (react OR typescript OR rust OR ai) lang:en -is:retweet",
-  "defaultCvSummary": "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.",
+  "defaultCvSummary": "PROFILE\nPeramanathan Sathyamoorthy — Senior Software Engineer (9+ years). Swedish citizen. TypeScript/React/Rust; platform and frontend leadership; agentic desktop (Tauri, MVU, MCP). MSc Computer Science (Uppsala) + MSc Operations Research (NIT Trichy). Stockholm work history; remote/hybrid; selective relocation for high-impact AI/platform roles. Open: staff/senior IC in platform engineering, agent infrastructure, observability/reliability, AI tooling, technical cofounder collabs. GitHub: p10ns11y · Portfolio: peramanathan-sathyamoorthy-cv.vercel.app\n\nEDUCATION\nMSc Computer Science, Uppsala University (2010–2016). MSc Operations Research & Computer Applications, NIT Tiruchirappalli (2007–2009). BSc Mathematics, Bharathidasan University (2004–2007). Languages: English (proficient), Swedish (basic).\n\nONEFLOW AB — digital signature & contract management, Stockholm (Apr 2017 – Dec 2024)\nSenior Software Engineer (Jan 2023 – Dec 2024): integrated TypeScript into legacy FlowType/JavaScript mix → 70% reduction in type-related errors; Zod inference for business data; automated JS→TypeScript migration preserving VCS history (~200 hours saved); unified distributed ACL permissions (owner/guest contexts) into one utility module.\nEngineering Team Lead (Oct 2021 – Dec 2022): co-led JSON rich-text editor with legacy HTML integration (+60% user satisfaction); mentored team to self-organizing model; hiring/onboarding; Playwright E2E transformation (mob-test prototype → full suite rewrite); lightweight Zod validation library.\nFull Stack Integration Engineer (Mar 2019 – Sep 2021): established Integration Team; Python/React multi-client apps (HubSpot, SuperOffice, Microsoft Dynamics, Salesforce, Teamtailor); stabilized Public API for third-party ecosystem; frontend reviews for Dynamics/Salesforce.\nJavaScript Developer (Apr 2017 – Feb 2019): React Router in Backbone.js IAM; CI build time −40%; React modernization.\nStack: TypeScript, React, Python, Playwright, Zod, Jest, Webpack, Node/Express, Flask, MySQL, Connexion, CRM integrations.\n\nEARLIER ROLES\nWeavler AB (Jan 2016 – Mar 2017): full-stack accessible e-commerce artisans platform (1.6M SEK PTS grant); AWS infrastructure −40% costs; Mandrill, Slack bots, PayPal; SSR/SEO; WCAG accessibility; OSS Babel i18n plugin; MongoDB.\nBumbee Labs AB intern (Jul–Sep 2015): MongoDB aggregation/map-reduce on millions of samples; AngularJS/Python KPI dashboard; stack migration exploration (React, Eve).\n\nPUBLIC PROJECTS (featured OSS — see github.com/p10ns11y)\ndevprofile | TypeScript, Next.js 16 | Live portfolio with AI Q&A, interactive docs, automated PDF CV; xAI/fusion-style agent patterns. https://peramanathan-sathyamoorthy-cv.vercel.app\ncollab-finder | Tauri, Rust, React, TypeScript | Personal agentic dashboard: X API + xAI for jobs/collabs/side hustles; guarded autonomous reactor, MCP, CV sidecars, cover letters, research packs.\nthepulimaangani | Rust, WASM, React, TanStack | Tamil classical grammar & poem prosody segmenter. https://seiyul-alagi.vercel.app\narch-machine | Shell, Arch Linux | Profile-based AI/ML-ready workstation installer: security audits, self-healing, agent-oriented dev environment.\npremflow | C CLI (thecuriousts/premflow) | Notes, tasks, pomodoro, daily journal, search, stats — distraction-free terminal workflow.\nelomaxz | C, MVU | Hybrid Model-View-Update framework for systems programming: Elm-like Cmd/Effect, composition, testability.\nprototype-it-to-explain-itself | Python, PyTorch | Minimal runnable LLM education: char-level LSTM (~150k params), next-token sampling, minimal trainable ReAct agent. Cloudflare Workers deploy.\nagent-prompt-tuning-lab | JavaScript | Privacy-first Cursor transcript harvest → prompt-tuning datasets, skills, rules, gold exemplars for LLM agents.\nskills | Shell | Curated Agent Skills library: orchestration, fusion/fission optimization, security, concurrent multi-agent development.\nselfie-sign-in-flow-using-v0-xAI | TypeScript, XState | Face-auth POC: multi-angle AWS Rekognition enrollment + login; complex state-machine UX.\n\nOTHER NOTABLE BUILD\nAdaptate — dynamic model validator using Zod, interoperable with OpenAPI (from CV portfolio projects).\nbabel-plugin-react-intl-messages-generator — Babel AST plugin for react-intl translation extraction at scale (OSS).\n\nRESEARCH & PUBLICATIONS\nThesis: Energy Efficiency as Orchestration Service — participatory sensing, context-aware policies, intelligent cloud orchestration for resource-constrained/mobile IoT (relevant to on-device agents, reliability, efficient infra).\nIEEE CloudCom 2015 — Energy Efficiency as Orchestration Service for Mobile IoT.\nWireless Communications and Mobile Computing (2017) — Profiling energy efficiency and data communications for mobile IoT.\n\nTECH (selected breadth)\nProduct: system thinking, proactive problem prevention, detail orientation, innovative adjacent thinking, mentoring and team leadership. Engineering: Agile, TDD, BDD, E2E testing, mob/pair programming, architectural design, integration platform building.\nLanguages: TypeScript/JavaScript, Python, Rust, C, C++, Java, R, Erlang/Elixir. Frontend: React, Next.js, Remix, Astro, Solid-start, Playwright, Esbuild, Vite, Webpack. Backend/API: Flask, Django, Eve, Node/Express, Connexion. Data: MySQL, Postgres, MongoDB; NumPy/Pandas/scikit-learn. Deploy: AWS (EC2/S3/IAM/ELB), Vercel, Fly.io, Heroku, Netlify. AI/ML: LangChain/agents, PyTorch, xAI API, prompt engineering, dataset/skill extraction from agent transcripts. Workflow: Graphite stacking; accessibility (WCAG), SEO, KPI dashboards.\n\nRECENT LEARNING\nCilium AI/ML Security; HashiCorp Terraform Associate (O'Reilly live); LangChain Chat with Your Data; Build LLM Apps with LangChain.js.\n\nDIFFERENTIATORS\nOfficial X agent resources in production workflows; self-guarded autonomous tooling with cost/fit/CV-mutation gates; high-signal OSS shipped in public with minimal hype; educator and team-builder.",
   "presets": [
     {
       "id": "priority-spacexai-careers",
@@ -12,7 +12,14 @@
       "geo": "us",
       "query": "from:xaicareers (hiring OR engineer OR careers OR inference OR RL) lang:en -is:retweet has:links",
       "rationale": "Official @xaicareers posts (SpaceXAI division; legacy xAI handle). Highest alignment target.",
-      "fitKeywords": ["spacexai", "xai", "grok", "inference", "engineer", "hiring"]
+      "fitKeywords": [
+        "spacexai",
+        "xai",
+        "grok",
+        "inference",
+        "engineer",
+        "hiring"
+      ]
     },
     {
       "id": "priority-spacexai-keywords",
@@ -22,7 +29,13 @@
       "geo": "global",
       "query": "(SpaceXAI OR \"xAI\" OR Grok) (hiring OR engineer OR SpaceX) lang:en -is:retweet has:links",
       "rationale": "SpaceXAI hiring posts on X; keep xAI/Grok terms — people still use legacy names in posts.",
-      "fitKeywords": ["spacexai", "xai", "grok", "spacex", "hiring"]
+      "fitKeywords": [
+        "spacexai",
+        "xai",
+        "grok",
+        "spacex",
+        "hiring"
+      ]
     },
     {
       "id": "priority-stockholm-ai",
@@ -32,7 +45,13 @@
       "geo": "se",
       "query": "(\"AI Engineer\" OR \"Senior Software Engineer\" OR \"Rust Developer\") (Stockholm OR Sweden) (hiring OR jobb OR rekryterar) lang:en -is:retweet place_country:SE",
       "rationale": "Sweden citizen; family anchor market for AI/Rust senior roles.",
-      "fitKeywords": ["stockholm", "sweden", "rust", "ai", "hiring"]
+      "fitKeywords": [
+        "stockholm",
+        "sweden",
+        "rust",
+        "ai",
+        "hiring"
+      ]
     },
     {
       "id": "jobs-senior-react-rust",
@@ -42,7 +61,13 @@
       "geo": "global",
       "query": "(hiring OR \"open role\" OR \"we're hiring\") (senior OR staff OR lead) (react OR typescript OR rust) lang:en -is:retweet has:links",
       "rationale": "Core stack + seniority + posts with links.",
-      "fitKeywords": ["hiring", "senior", "react", "typescript", "rust"]
+      "fitKeywords": [
+        "hiring",
+        "senior",
+        "react",
+        "typescript",
+        "rust"
+      ]
     },
     {
       "id": "jobs-remote-agent",
@@ -52,7 +77,12 @@
       "geo": "remote",
       "query": "(hiring OR careers) (remote OR distributed) (\"AI engineer\" OR \"agent\" OR LLM OR inference) lang:en -is:retweet has:links",
       "rationale": "Remote-friendly AI/agent IC roles.",
-      "fitKeywords": ["remote", "agent", "ai", "hiring"]
+      "fitKeywords": [
+        "remote",
+        "agent",
+        "ai",
+        "hiring"
+      ]
     },
     {
       "id": "collab-cofounder",
@@ -62,7 +92,12 @@
       "geo": "global",
       "query": "(collab OR cofounder OR \"co-founder\" OR \"build with me\") (rust OR typescript OR \"AI agent\") lang:en -is:retweet",
       "rationale": "Convertible builder partnerships, not formal HR posts.",
-      "fitKeywords": ["collab", "cofounder", "rust", "agent"]
+      "fitKeywords": [
+        "collab",
+        "cofounder",
+        "rust",
+        "agent"
+      ]
     },
     {
       "id": "collab-bounty-freelance",
@@ -72,7 +107,12 @@
       "geo": "global",
       "query": "(\"looking for\" OR bounty OR freelance OR \"need help\") (\"Rust developer\" OR \"AI agent\" OR \"local LLM\") lang:en -is:retweet",
       "rationale": "Side income and short engagements aligned with agent/Rust skills.",
-      "fitKeywords": ["bounty", "freelance", "rust", "agent"]
+      "fitKeywords": [
+        "bounty",
+        "freelance",
+        "rust",
+        "agent"
+      ]
     },
     {
       "id": "collab-agent-infra",
@@ -82,7 +122,12 @@
       "geo": "global",
       "query": "(\"AI agent\" OR agentic OR \"agent infrastructure\" OR MCP) (hiring OR builder OR ship OR collab) lang:en -is:retweet",
       "rationale": "Agentic tooling ecosystem matches public projects and thesis.",
-      "fitKeywords": ["agent", "agentic", "mcp", "infra"]
+      "fitKeywords": [
+        "agent",
+        "agentic",
+        "mcp",
+        "infra"
+      ]
     },
     {
       "id": "niche-energy-local-first",
@@ -92,7 +137,12 @@
       "geo": "global",
       "query": "(\"energy efficient\" OR \"local-first\" OR on-device OR edge) (AI OR LLM OR agent) (hiring OR engineer OR collab) lang:en -is:retweet",
       "rationale": "Thesis-aligned positioning (2016 orchestration → today's edge AI).",
-      "fitKeywords": ["energy", "local-first", "edge", "agent"]
+      "fitKeywords": [
+        "energy",
+        "local-first",
+        "edge",
+        "agent"
+      ]
     },
     {
       "id": "niche-tesla-energy",
@@ -102,7 +152,12 @@
       "geo": "us",
       "query": "(Tesla OR @Tesla) (\"Energy Software\" OR \"Distributed Systems\" OR Megapack) (engineer OR hiring OR careers) lang:en -is:retweet has:links",
       "rationale": "Energy + distributed systems fit thesis and systems background.",
-      "fitKeywords": ["tesla", "energy", "distributed", "engineer"]
+      "fitKeywords": [
+        "tesla",
+        "energy",
+        "distributed",
+        "engineer"
+      ]
     },
     {
       "id": "niche-japan-english",
@@ -112,7 +167,13 @@
       "geo": "jp",
       "query": "(\"AI Engineer\" OR \"Software Engineer\") (Tokyo OR Japan) (hiring OR job) (english OR remote OR visa) lang:en -is:retweet has:links",
       "rationale": "English-friendly Japan tech hiring (supplement Japan-Dev off-X).",
-      "fitKeywords": ["tokyo", "japan", "ai", "english", "hiring"]
+      "fitKeywords": [
+        "tokyo",
+        "japan",
+        "ai",
+        "english",
+        "hiring"
+      ]
     },
     {
       "id": "community-build-public",
@@ -122,7 +183,12 @@
       "geo": "global",
       "query": "(\"build in public\" OR \"shipping\" OR \"join me\") (community OR together OR indie) lang:en -is:retweet",
       "rationale": "Community and indie builder graph for inbound collabs.",
-      "fitKeywords": ["build", "public", "community", "indie"]
+      "fitKeywords": [
+        "build",
+        "public",
+        "community",
+        "indie"
+      ]
     }
   ]
 }

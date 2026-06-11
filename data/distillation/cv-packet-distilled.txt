@@ -1,0 +1,47 @@
+PROFILE
+Peramanathan Sathyamoorthy — Senior Software Engineer (9+ years). Swedish citizen. TypeScript/React/Rust; platform and frontend leadership; agentic desktop (Tauri, MVU, MCP). MSc Computer Science (Uppsala) + MSc Operations Research (NIT Trichy). Stockholm work history; remote/hybrid; selective relocation for high-impact AI/platform roles. Open: staff/senior IC in platform engineering, agent infrastructure, observability/reliability, AI tooling, technical cofounder collabs. GitHub: p10ns11y · Portfolio: peramanathan-sathyamoorthy-cv.vercel.app
+
+EDUCATION
+MSc Computer Science, Uppsala University (2010–2016). MSc Operations Research & Computer Applications, NIT Tiruchirappalli (2007–2009). BSc Mathematics, Bharathidasan University (2004–2007). Languages: English (proficient), Swedish (basic).
+
+ONEFLOW AB — digital signature & contract management, Stockholm (Apr 2017 – Dec 2024)
+Senior Software Engineer (Jan 2023 – Dec 2024): integrated TypeScript into legacy FlowType/JavaScript mix → 70% reduction in type-related errors; Zod inference for business data; automated JS→TypeScript migration preserving VCS history (~200 hours saved); unified distributed ACL permissions (owner/guest contexts) into one utility module.
+Engineering Team Lead (Oct 2021 – Dec 2022): co-led JSON rich-text editor with legacy HTML integration (+60% user satisfaction); mentored team to self-organizing model; hiring/onboarding; Playwright E2E transformation (mob-test prototype → full suite rewrite); lightweight Zod validation library.
+Full Stack Integration Engineer (Mar 2019 – Sep 2021): established Integration Team; Python/React multi-client apps (HubSpot, SuperOffice, Microsoft Dynamics, Salesforce, Teamtailor); stabilized Public API for third-party ecosystem; frontend reviews for Dynamics/Salesforce.
+JavaScript Developer (Apr 2017 – Feb 2019): React Router in Backbone.js IAM; CI build time −40%; React modernization.
+Stack: TypeScript, React, Python, Playwright, Zod, Jest, Webpack, Node/Express, Flask, MySQL, Connexion, CRM integrations.
+
+EARLIER ROLES
+Weavler AB (Jan 2016 – Mar 2017): full-stack accessible e-commerce artisans platform (1.6M SEK PTS grant); AWS infrastructure −40% costs; Mandrill, Slack bots, PayPal; SSR/SEO; WCAG accessibility; OSS Babel i18n plugin; MongoDB.
+Bumbee Labs AB intern (Jul–Sep 2015): MongoDB aggregation/map-reduce on millions of samples; AngularJS/Python KPI dashboard; stack migration exploration (React, Eve).
+
+PUBLIC PROJECTS (featured OSS — see github.com/p10ns11y)
+devprofile | TypeScript, Next.js 16 | Live portfolio with AI Q&A, interactive docs, automated PDF CV; xAI/fusion-style agent patterns. https://peramanathan-sathyamoorthy-cv.vercel.app
+collab-finder | Tauri, Rust, React, TypeScript | Personal agentic dashboard: X API + xAI for jobs/collabs/side hustles; guarded autonomous reactor, MCP, CV sidecars, cover letters, research packs.
+thepulimaangani | Rust, WASM, React, TanStack | Tamil classical grammar & poem prosody segmenter. https://seiyul-alagi.vercel.app
+arch-machine | Shell, Arch Linux | Profile-based AI/ML-ready workstation installer: security audits, self-healing, agent-oriented dev environment.
+premflow | C CLI (thecuriousts/premflow) | Notes, tasks, pomodoro, daily journal, search, stats — distraction-free terminal workflow.
+elomaxz | C, MVU | Hybrid Model-View-Update framework for systems programming: Elm-like Cmd/Effect, composition, testability.
+prototype-it-to-explain-itself | Python, PyTorch | Minimal runnable LLM education: char-level LSTM (~150k params), next-token sampling, minimal trainable ReAct agent. Cloudflare Workers deploy.
+agent-prompt-tuning-lab | JavaScript | Privacy-first Cursor transcript harvest → prompt-tuning datasets, skills, rules, gold exemplars for LLM agents.
+skills | Shell | Curated Agent Skills library: orchestration, fusion/fission optimization, security, concurrent multi-agent development.
+selfie-sign-in-flow-using-v0-xAI | TypeScript, XState | Face-auth POC: multi-angle AWS Rekognition enrollment + login; complex state-machine UX.
+
+OTHER NOTABLE BUILD
+Adaptate — dynamic model validator using Zod, interoperable with OpenAPI (from CV portfolio projects).
+babel-plugin-react-intl-messages-generator — Babel AST plugin for react-intl translation extraction at scale (OSS).
+
+RESEARCH & PUBLICATIONS
+Thesis: Energy Efficiency as Orchestration Service — participatory sensing, context-aware policies, intelligent cloud orchestration for resource-constrained/mobile IoT (relevant to on-device agents, reliability, efficient infra).
+IEEE CloudCom 2015 — Energy Efficiency as Orchestration Service for Mobile IoT.
+Wireless Communications and Mobile Computing (2017) — Profiling energy efficiency and data communications for mobile IoT.
+
+TECH (selected breadth)
+Product: system thinking, proactive problem prevention, detail orientation, innovative adjacent thinking, mentoring and team leadership. Engineering: Agile, TDD, BDD, E2E testing, mob/pair programming, architectural design, integration platform building.
+Languages: TypeScript/JavaScript, Python, Rust, C, C++, Java, R, Erlang/Elixir. Frontend: React, Next.js, Remix, Astro, Solid-start, Playwright, Esbuild, Vite, Webpack. Backend/API: Flask, Django, Eve, Node/Express, Connexion. Data: MySQL, Postgres, MongoDB; NumPy/Pandas/scikit-learn. Deploy: AWS (EC2/S3/IAM/ELB), Vercel, Fly.io, Heroku, Netlify. AI/ML: LangChain/agents, PyTorch, xAI API, prompt engineering, dataset/skill extraction from agent transcripts. Workflow: Graphite stacking; accessibility (WCAG), SEO, KPI dashboards.
+
+RECENT LEARNING
+Cilium AI/ML Security; HashiCorp Terraform Associate (O'Reilly live); LangChain Chat with Your Data; Build LLM Apps with LangChain.js.
+
+DIFFERENTIATORS
+Official X agent resources in production workflows; self-guarded autonomous tooling with cost/fit/CV-mutation gates; high-signal OSS shipped in public with minimal hype; educator and team-builder.

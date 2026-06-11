@@ -32,12 +32,20 @@ export type OpportunityTargetAnalysisResult = {
   opportunity_id: number
   fit: OpportunityTargetFit
   /**
-   * A prefix of the CV packet that was actually sent to the model for this call.
-   * The *full* packet the user entered in the input is always used verbatim
-   * (the input is already the distilled version intended for the model).
-   * This field exists only so the result UI can show a compact "what was sent" reference.
+   * Prefix of the CV packet in the xAI user prompt (max 8000 chars).
+   * When `packet_preview_truncated` is false and this matches your input, the full CV was sent.
    */
   packet_preview: string
+  /** True when the full CV exceeded the preview cap (model still received the full CV). */
+  packet_preview_truncated: boolean
+  /** Character count of the full CV in the prompt (not JD). */
+  cv_chars_sent: number
+  /** Non-zero when `cv_summary` was non-empty over IPC (after trim). */
+  cv_ipc_chars: number
+  /** True when IPC omitted/empty `cv_summary` and the distillation default was used. */
+  cv_used_fallback: boolean
+  prompt_tokens: number
+  completion_tokens: number
   est_cost_usd: number
 }
 

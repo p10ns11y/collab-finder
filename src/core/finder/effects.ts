@@ -3,6 +3,7 @@ import { fromPromise } from '../result'
 import { requireConnection, validateBearerDraft } from '../security/credentials-policy'
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
+import { DEFAULT_CV_SUMMARY } from '../domain/finder'
 import type { FinderModel, PersistedSession } from './model'
 import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
@@ -192,10 +193,14 @@ export function opportunityTargetAnalyzeCmd(
   payload: { url?: string; pasted_jd?: string },
 ): Cmd<FinderMsg> {
   return (dispatch) => {
+    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
     const p = {
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: model.cvSummary || undefined,
+      cv_summary: cvSummary,
+    }
+    if (import.meta.env.DEV) {
+      console.debug('[finder] analyze_opportunity_target cv_summary chars:', cvSummary.length)
     }
     void fromPromise(ports.finder.analyzeOpportunityTarget(p), toAppError).then((result) => {
       if (!result.ok) {
@@ -254,11 +259,12 @@ export function opportunityTargetPrepCmd(
       }
     }
 
+    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
     const p = {
       opportunity_id: payload.opportunity_id,
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: model.cvSummary || undefined,
+      cv_summary: cvSummary,
       previous_fit,
     }
     void fromPromise(ports.finder.prepOpportunityTarget(p), toAppError).then((result) => {
@@ -479,13 +485,18 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
           const fit = JSON.parse(o.analysis_json)
           // Minimal shape guard (Issue 6) before dispatch; required fields per OpportunityTargetFit in domain/opportunity-target.ts
           if (fit && typeof fit.overall === 'number' && typeof fit.rationale === 'string' && Array.isArray(fit.gaps_must)) {
+            const jdStub = (o.jd_text || '').slice(0, 800)
             const analysis: OpportunityTargetAnalysisResult = {
               opportunity_id: o.id,
               fit,
-              // Note (Issue 8): for restores we populate a short JD excerpt as packet_preview because the original full CV packet the user had entered is not persisted in the opportunity row (by design — only analysis/prep artifacts are). Real fresh analyze paths always send the complete current CV packet the user has in the input.
-              // For restored opportunities we don't have the original CV packet that was sent.
-              // We use a short excerpt of the JD as a stand-in so the UI can still render the preview section.
-              packet_preview: (o.jd_text || '').slice(0, 800),
+              // Restored row: original CV not stored — preview is JD stub only (misleading label fixed in panel).
+              packet_preview: jdStub,
+              packet_preview_truncated: (o.jd_text || '').length > 800,
+              cv_chars_sent: 0,
+              cv_ipc_chars: 0,
+              cv_used_fallback: false,
+              prompt_tokens: 0,
+              completion_tokens: 0,
               est_cost_usd: 0,
             }
             dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
@@ -511,6 +522,12 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
           opportunity_id: o.id,
           fit: stubFit,
           packet_preview: '(restored — the original distilled CV packet that was sent is not stored; only the opportunity record remains)',
+          packet_preview_truncated: false,
+          cv_chars_sent: 0,
+          cv_ipc_chars: 0,
+          cv_used_fallback: false,
+          prompt_tokens: 0,
+          completion_tokens: 0,
           est_cost_usd: 0,
         }
         dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })

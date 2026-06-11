@@ -13,6 +13,39 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
 
+/// Matches `data/distillation/cv-packet-distilled.txt` (+ `queries.json` defaultCvSummary). Rust fallback when IPC omits cv_summary.
+const DEFAULT_CV_PACKET: &str = include_str!("../../data/distillation/cv-packet-distilled.txt");
+
+const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
+
+#[derive(Debug, Clone, Copy)]
+struct CvPacketResolved {
+    ipc_chars: u32,
+    used_fallback: bool,
+}
+
+fn resolve_cv_packet(cv_summary: Option<String>) -> (String, CvPacketResolved) {
+    let trimmed = cv_summary
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let ipc_chars = trimmed.as_ref().map(|s| s.chars().count() as u32).unwrap_or(0);
+    let used_fallback = trimmed.is_none();
+    let text = trimmed.unwrap_or_else(|| DEFAULT_CV_PACKET.to_string());
+    (
+        text,
+        CvPacketResolved {
+            ipc_chars,
+            used_fallback,
+        },
+    )
+}
+
+fn packet_preview_for(cv: &str) -> (String, bool) {
+    let truncated = cv.chars().count() > PACKET_PREVIEW_MAX_CHARS;
+    let preview = cv.chars().take(PACKET_PREVIEW_MAX_CHARS).collect();
+    (preview, truncated)
+}
+
 #[tauri::command]
 pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
     // Basic fetch + naive clean (no extra crates in v1)
@@ -62,7 +95,7 @@ pub(crate) async fn analyze_opportunity_target(
     pasted_jd: Option<String>,
     title: Option<String>,
     company: Option<String>,
-    cv_summary: Option<String>, // from UI model (populated from data/distillation defaultCvSummary / cv-packet-pruned)
+    cv_summary: Option<String>, // invoke key from JS: cvSummary (Tauri camelCase mapping)
 ) -> Result<OpportunityTargetAnalysisResult, String> {
     let jd = match (url.clone(), pasted_jd) {
         (_, Some(p)) if !p.trim().is_empty() => p,
@@ -73,13 +106,15 @@ pub(crate) async fn analyze_opportunity_target(
         _ => return Err("Provide either url or pasted_jd".into()),
     };
 
-    // The cv_summary passed from the UI is the *complete* distilled CV packet the user wants the model to see.
-    // It is sent verbatim (in full) inside the prompt. The user is responsible for distilling it to an
-    // appropriate length before hitting "Evaluate fit". No further skimming of this packet occurs.
-    // Fallback is only for safety if nothing was passed.
-    let cv = cv_summary.unwrap_or_else(|| {
-        "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.".to_string()
-    });
+    let (cv, cv_meta) = resolve_cv_packet(cv_summary);
+    let cv_chars_sent = cv.chars().count() as u32;
+    eprintln!(
+        "[ipc] analyze_opportunity_target cv_ipc_chars={} cv_used_fallback={} cv_chars_sent={} jd_chars={} (invoke cvSummary)",
+        cv_meta.ipc_chars,
+        cv_meta.used_fallback,
+        cv_chars_sent,
+        jd.chars().count()
+    );
 
     // Build a minimal system + user for structured fit
     let system = "You are an expert career fit analyst. Output ONLY valid JSON matching the provided schema. Be precise and cite phrases from the JD.";
@@ -132,14 +167,20 @@ pub(crate) async fn analyze_opportunity_target(
     };
 
     let cost = crate::xai::cost_from_usage(&usage);
+    let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
+    let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
+    let completion_tokens = usage.completion_tokens.unwrap_or(0);
 
     Ok(OpportunityTargetAnalysisResult {
         opportunity_id: run_id,
         fit: fit_json,
-        // We return a reasonably long prefix as the preview shown in the UI.
-    // The *full* cv string (the complete distilled packet the user provided)
-    // is included verbatim in the prompt sent to the model.
-    packet_preview: cv.chars().take(2000).collect(),
+        packet_preview,
+        packet_preview_truncated,
+        cv_chars_sent,
+        cv_ipc_chars: cv_meta.ipc_chars,
+        cv_used_fallback: cv_meta.used_fallback,
+        prompt_tokens,
+        completion_tokens,
         est_cost_usd: cost,
     })
 }
@@ -200,11 +241,13 @@ pub(crate) async fn prep_opportunity_target(
         );
     }
 
-    // Use the CV summary packet passed from the UI (the distilled one shown/edited in the prominent CvSummaryInput after the recent UI refactor).
-    // This ensures the "CV summary packet (from distillation)" is actually used in the Evaluate Fit + Prep (Slice C) flow.
-    let cv = cv_summary.unwrap_or_else(|| {
-        "Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).\nRust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient orchestration — relevant to on-device/local-first/agent infra today.\nPublic work: arch-machine (AI-ready workstations), premflow, Grok Dia, thepulimaangani, collab-finder.\nOpen to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen); remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).\nDifferentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in public with minimal hype.".to_string()
-    });
+    let (cv, cv_meta) = resolve_cv_packet(cv_summary);
+    eprintln!(
+        "[ipc] prep_opportunity_target cv_ipc_chars={} cv_used_fallback={} cv_chars_sent={} (invoke cvSummary)",
+        cv_meta.ipc_chars,
+        cv_meta.used_fallback,
+        cv.chars().count()
+    );
 
     // Slice C: incorporate previous fit analysis (gaps, rationale, recommended_action) when provided
     // by the frontend from the current opportunityTarget result after "Evaluate Fit".
@@ -293,7 +336,18 @@ pub struct OpportunityTargetPageResult {
 pub struct OpportunityTargetAnalysisResult {
     pub opportunity_id: i64,
     pub fit: Value,
+    /// Prefix of the CV packet included in the xAI user prompt (max `PACKET_PREVIEW_MAX_CHARS`).
     pub packet_preview: String,
+    /// True when `packet_preview` is shorter than the full CV sent in the prompt.
+    pub packet_preview_truncated: bool,
+    /// Character count of the full CV packet in the xAI prompt (not JD).
+    pub cv_chars_sent: u32,
+    /// Non-zero when `cv_summary` was present and non-empty over IPC (after trim).
+    pub cv_ipc_chars: u32,
+    /// True when IPC omitted/empty `cv_summary` and `DEFAULT_CV_PACKET` was used.
+    pub cv_used_fallback: bool,
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
     pub est_cost_usd: f64,
 }
 
@@ -444,4 +498,36 @@ fn extract_company_from_greenhouse_title(title: &str) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_cv_packet_uses_caller_text() {
+        let (cv, meta) = resolve_cv_packet(Some("  my cv packet  ".to_string()));
+        assert_eq!(cv, "my cv packet");
+        assert_eq!(meta.ipc_chars, 12);
+        assert!(!meta.used_fallback);
+    }
+
+    #[test]
+    fn resolve_cv_packet_fallback_when_missing_or_blank() {
+        let (_, meta) = resolve_cv_packet(None);
+        assert!(meta.used_fallback);
+        assert_eq!(meta.ipc_chars, 0);
+
+        let (_, meta) = resolve_cv_packet(Some("   \n  ".to_string()));
+        assert!(meta.used_fallback);
+        assert_eq!(meta.ipc_chars, 0);
+    }
+
+    #[test]
+    fn packet_preview_truncates_beyond_max() {
+        let long = "a".repeat(PACKET_PREVIEW_MAX_CHARS + 10);
+        let (preview, truncated) = packet_preview_for(&long);
+        assert!(truncated);
+        assert_eq!(preview.chars().count(), PACKET_PREVIEW_MAX_CHARS);
+    }
 }

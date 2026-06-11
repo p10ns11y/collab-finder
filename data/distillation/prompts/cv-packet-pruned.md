@@ -1,18 +1,20 @@
 # CV packet (pruned for xAI — do not send full cvdata.json)
 
-Use this block as `CV_PACKET` in analyze prompts until devprofile guard loads live CV.
+Canonical body: [`cv-packet-distilled.txt`](../cv-packet-distilled.txt) (also `defaultCvSummary` in `x-search/queries.json`).
+
+Sources: PDF CV (`peramanathan-sathyamoorthy-cv.pdf`) + featured projects (`public-projects-focused-flatten.json`).
+
+Use as `CV_PACKET` / Discover textarea default until devprofile guard loads live CV.
 
 ```
-Senior TS/React/Rust engineer. Oneflow: led frontend/platform (TS, React, Playwright, Zod migrations).
-Rust OSS and agentic desktop tools (Tauri, MVU UI, MCP-oriented design). 2016 thesis: energy-efficient
-orchestration — relevant to on-device/local-first/agent infra today.
-
-Public work: arch-machine (AI-ready workstations), premflow, elomaxz, thepulimaangani, collab-finder.
-Open to: staff/senior IC, AI/agent/inference roles, technical cofounder collabs. Based Sweden (citizen);
-remote/hybrid OK; selective relocation for SpaceXAI-tier impact (xAI division of SpaceX).
-
-Differentiators: official X agent resources in workflows, self-guarded autonomous tooling, ships in
-public with minimal hype.
+(See cv-packet-distilled.txt — ~5.4k chars / ~1.3k tokens; under 8k IPC preview cap.)
 ```
 
-Keep under ~400 tokens when combined with tweet + X skill excerpt.
+Budget: ~1.3k tokens CV + ~2k JD for Quick Target analyze. Full packet sent verbatim to xAI; `packet_preview` shows first 8000 chars. Re-sync after CV PDF or projects JSON changes:
+
+```bash
+# edit cv-packet-distilled.txt, then:
+node -e "const fs=require('fs');const t=fs.readFileSync('data/distillation/cv-packet-distilled.txt','utf8').trimEnd();const q=JSON.parse(fs.readFileSync('data/distillation/x-search/queries.json','utf8'));q.defaultCvSummary=t;fs.writeFileSync('data/distillation/x-search/queries.json',JSON.stringify(q,null,2)+'\n');"
+```
+
+Rust fallback: `include_str!(cv-packet-distilled.txt)` in `opportunity_target.rs`.

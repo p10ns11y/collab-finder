@@ -12,6 +12,20 @@ type Props = {
   onPrepRequested?: (opportunityId?: number) => void
 }
 
+function cv_chars_sent_label(
+  sent: number,
+  ipc: number | undefined,
+  fallback: boolean | undefined,
+  truncated: boolean | undefined,
+  promptTokens: number | undefined,
+): string {
+  const parts = [`sent=${sent}`, `ipc=${ipc ?? 0}`]
+  if (fallback) parts.push('DEFAULT_FALLBACK')
+  if (truncated) parts.push('preview_truncated')
+  if (promptTokens != null) parts.push(`prompt_tokens=${promptTokens}`)
+  return parts.join(' · ')
+}
+
 export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
   if (busy) {
     return (
@@ -55,6 +69,12 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
   const opportunityId = 'opportunity_id' in result ? result.opportunity_id : undefined
   const estCost = 'est_cost_usd' in result ? result.est_cost_usd : undefined
   const packetPreview = 'packet_preview' in result ? result.packet_preview : undefined
+  const cvCharsSent = 'cv_chars_sent' in result ? result.cv_chars_sent : undefined
+  const cvIpcChars = 'cv_ipc_chars' in result ? result.cv_ipc_chars : undefined
+  const cvUsedFallback = 'cv_used_fallback' in result ? result.cv_used_fallback : undefined
+  const previewTruncated = 'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
+  const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
+  const isRestoredHydrate = cvCharsSent === 0 && cvIpcChars === 0 && !cvUsedFallback && (estCost === 0 || estCost === undefined)
 
   return (
     <Card className="border-border-subtle shadow-glow">
@@ -70,6 +90,16 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
           {score >= 75 ? ' — Strong fit' : score >= 55 ? ' — Moderate fit — review gaps' : ' — Low fit — significant gaps'}
           {prep ? ' (prep generated)' : ''}
         </div>
+        {cvCharsSent !== undefined && !isRestoredHydrate && (
+          <div className="text-[10px] text-ink-faint font-mono">
+            CV grounding: {cv_chars_sent_label(cvCharsSent, cvIpcChars, cvUsedFallback, previewTruncated, promptTokens)}
+          </div>
+        )}
+        {isRestoredHydrate && (
+          <div className="text-[10px] text-warning font-mono">
+            Restored from DB — CV packet for the original analyze was not stored; re-run Evaluate fit to ground on current CV input.
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm">
@@ -194,11 +224,17 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
           )}
         </div>
 
-        {packetPreview && (
+        {packetPreview && !isRestoredHydrate && (
           <details className="text-[10px] text-ink-faint">
-            <summary className="cursor-pointer hover:text-ink">Full CV packet was sent (preview of what the model received)</summary>
-            <pre className="mt-1 p-2 bg-surface-2 rounded text-[9px] overflow-auto max-h-24 whitespace-pre-wrap">{packetPreview}</pre>
-            <div className="mt-1 text-[9px] text-ink-faint/70">The complete packet you have in the input above was included verbatim in the prompt.</div>
+            <summary className="cursor-pointer hover:text-ink">
+              CV packet sent to model (preview{previewTruncated ? ', truncated at 8000 chars' : ''})
+            </summary>
+            <pre className="mt-1 p-2 bg-surface-2 rounded text-[9px] overflow-auto max-h-48 whitespace-pre-wrap">{packetPreview}</pre>
+            <div className="mt-1 text-[9px] text-ink-faint/70">
+              {cvUsedFallback
+                ? 'cvSummary was missing/empty on invoke — distillation default was used (check cv_used_fallback in JSON).'
+                : `Full ${cvCharsSent ?? '—'} chars were in the prompt; preview shows ${packetPreview.length}${previewTruncated ? ' (first 8000)' : ''}.`}
+            </div>
           </details>
         )}
       </CardContent>

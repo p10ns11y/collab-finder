@@ -1,0 +1,53 @@
+AGENT CONTEXT PACKET v2026-06-11
+
+CORE IDENTITY
+Peramanathan Sathyamoorthy — Senior Software Engineer (9+ years). Swedish citizen + OCI holder. Focus: agentic desktop applications (Tauri + Rust + MVU), platform engineering, AI tooling, frontend leadership, reliable systems. Education: MSc Computer Science (Uppsala University); MSc Operations Research & Computer Applications (NIT Tiruchirappalli). GitHub: p10ns11y · Portfolio: https://peramanathan-sathyamoorthy-cv.vercel.app · Open: Staff/Senior IC in agent infrastructure, platform engineering, observability/reliability, AI tooling, or technical cofounder collaborations.
+
+KEY DIFFERENTIATORS
+Production-grade self-guarded autonomous agent tooling (CV sidecars, cost/fit gates, mutation protection). High-signal public OSS in agent infrastructure, LLM fundamentals education, and systems programming — minimal hype. Strong educator and team builder; mentored teams into self-organizing models. Research background in energy-efficient orchestration for resource-constrained systems — relevant to local-first and on-device agents.
+
+ONEFLOW AB — Stockholm (2017 – Dec 2024)
+
+Senior Software Engineer (Jan 2023 – Dec 2024)
+Systematic TypeScript adoption across legacy FlowType/JavaScript → 70% reduction in type-related errors. Custom JS→TypeScript migration automation preserving full git history (~200 hours saved). Unified distributed ACL permissions (owner/guest contexts) into single maintainable utility module.
+
+Engineering Team Lead (Oct 2021 – Dec 2022)
+Co-led JSON rich-text editor with legacy HTML integration → +60% user satisfaction. Full E2E transformation to Playwright (mob-testing prototype → complete suite rewrite). Mentored team into self-organizing model; hiring/onboarding; continuous improvement culture. Lightweight Zod-based data validation library.
+
+Full Stack Integration Engineer (Mar 2019 – Sep 2021)
+Founded Integration Team; established long-term processes. Multi-client Python/React integrations: HubSpot, SuperOffice, Microsoft Dynamics, Salesforce, Teamtailor. Stabilized and evolved Public API for robust third-party ecosystem.
+
+Core stack: TypeScript, React, Python, Playwright, Zod, Node/Express, Flask, MySQL.
+
+PUBLIC PROJECTS (featured OSS)
+
+Featured + recent
+devprofile | TypeScript, Next.js 16 | Modern portfolio: AI-powered Q&A, interactive document viewing, automated PDF CV; xAI/fusion-style agent patterns. Live: peramanathan-sathyamoorthy-cv.vercel.app · github.com/p10ns11y/devprofile
+collab-finder | Tauri, Rust, React, TypeScript | Personal agentic desktop dashboard: live X API + xAI for jobs/collabs/side hustles; guarded autonomous reactor, MCP, CV sidecars, cover letters, research packs. github.com/p10ns11y/collab-finder
+thepulimaangani | TypeScript, Rust, WASM, TanStack | Tamil classical grammar and poem prosody segmenter; Rust core + WebAssembly. Live: seiyul-alagi.vercel.app · github.com/p10ns11y/thepulimaangani
+agent-prompt-tuning-lab | JavaScript | Privacy-first Cursor agent transcript harvest → prompt-tuning datasets, reusable skills, rules, gold exemplars. github.com/p10ns11y/agent-prompt-tuning-lab
+selfie-sign-in-flow-using-v0-xAI | TypeScript, XState | Face-auth POC: multi-angle AWS Rekognition enrollment + complex state-machine UX. github.com/p10ns11y/selfie-sign-in-flow-using-v0-xAI
+
+Recent
+prototype-it-to-explain-itself | Python, PyTorch | Minimal runnable LLM education: char-level LSTM (~150k params), next-token prediction, temperature sampling, trainable minimal ReAct agent. github.com/p10ns11y/prototype-it-to-explain-itself
+skills | Shell | Curated agent skills library: orchestration, fusion/fission optimization, security, concurrent multi-agent development. github.com/p10ns11y/skills
+
+Featured
+premflow | C CLI (thecuriousts/premflow) | Distraction-free terminal workflow: notes, tasks, pomodoro, daily journal, search, stats.
+elomaxz | C, MVU | Hybrid Model-View-Update for systems programming: Elm-like clarity, Cmd/Effect, composition, high testability. github.com/p10ns11y/elomaxz
+arch-machine | Shell | Profile-based self-auditing Arch Linux installer: AI/ML-ready workstations, security audits, self-healing, agent-oriented tooling. github.com/p10ns11y/arch-machine
+
+AGENT-RELEVANT STRENGTHS
+Local-first and on-device agent patterns (Tauri, Rust, MVU, energy-efficient orchestration thinking). Prompt engineering, dataset generation, skill extraction from agent transcripts. Self-guarded reliable agent system design. Systems programming for agents (C MVU framework, security-focused tooling). Strong TypeScript/React leadership with rigorous Playwright testing culture.
+
+RESEARCH RELEVANCE
+MSc thesis and IEEE CloudCom 2015: Energy Efficiency as Orchestration Service for mobile IoT. Directly applicable to local-first agents, battery-aware systems, and efficient agent infrastructure.
+
+RECENT LEARNING
+Cilium AI/ML Security; HashiCorp Terraform Associate (O'Reilly Live); LangChain Chat with Your Data; Build LLM Apps with LangChain.js.
+
+TECH STACK (selected)
+Languages: TypeScript/JavaScript, Python, Rust, C, C++, Java, R, Erlang/Elixir. Frontend & desktop: React, Next.js, Remix, Astro, Solid-start, Tauri, Playwright, Vite, Esbuild, XState. Backend & API: Node/Express, Flask, Django, Eve, Connexion. Data & ML: MySQL, PostgreSQL, MongoDB, NumPy, Pandas, scikit-learn, PyTorch, LangChain. Infrastructure: AWS (EC2, S3, IAM), Vercel, Fly.io, Heroku, Netlify, Arch Linux tooling. Agentic & workflow: prompt engineering, agent transcript processing, self-guarded systems, Graphite stacking, WCAG, SEO.
+
+USAGE NOTE
+Optimized for agentic LLM context. Prioritizes high-signal information, recent agent-relevant work, and structured sections for retrieval and reasoning. Pair with cv-packet-distilled.txt for full career history (earlier roles, publications detail).
