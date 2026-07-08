@@ -90,6 +90,8 @@ export type FinderModel = {
   opportunityTargetUrl?: string
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
+  // Last proposal from "Propose these CV suggestions as sidecar" for display in the prep panel.
+  lastSidecarProposal?: { preview: string; sidecar_path: string }
 }
 
 export function initialFinderModel(): FinderModel {
@@ -153,5 +155,6 @@ export function initialFinderModel(): FinderModel {
     opportunityTarget: idle<OpportunityTargetResult>(),
     opportunityTargetUrl,
     lastActiveOppId,
+    lastSidecarProposal: undefined,
   }
 }

@@ -222,7 +222,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         {
           ...model,
           banner: null,
-          // Preview is returned by cmd and surfaced in pauses (and can be read from sidecar_path file). Button action fulfills AC.
+          lastSidecarProposal: { preview: msg.preview, sidecar_path: msg.sidecar_path },
           pauses: [...model.pauses, `CV sidecar proposed (${msg.suggestions_count} suggestions): ${msg.preview.slice(0, 180)}... [${msg.sidecar_path}]`],
         },
       ]
@@ -380,6 +380,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: idle(),
           opportunityTargetUrl: undefined,
+          lastSidecarProposal: undefined,
         },
       ]
 

@@ -174,7 +174,7 @@ function DevprofilePathPanel() {
     const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: draft.trim() })
     if (res.ok) {
       setDraft('')
-      setNotice('Saved. Restart or re-open Discover to use for next analyze/prep.')
+      setNotice('Saved. Will be used on next analyze/prep (no restart required).')
       await refresh()
     } else {
       setNotice(res.error?.message || 'Save failed')

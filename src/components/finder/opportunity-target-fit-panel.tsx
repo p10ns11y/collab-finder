@@ -11,6 +11,7 @@ type Props = {
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
   onProposeSidecar?: (opportunityId?: number) => void
+  lastSidecarProposal?: { preview: string; sidecar_path: string }
 }
 
 function cv_chars_sent_label(
@@ -27,7 +28,7 @@ function cv_chars_sent_label(
   return parts.join(' · ')
 }
 
-export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested, onProposeSidecar }: Props) {
+export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested, onProposeSidecar, lastSidecarProposal }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
@@ -233,6 +234,14 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
             </button>
           )}
         </div>
+
+        {lastSidecarProposal && (
+          <div className="mt-3 p-2 border border-accent/30 rounded text-[10px] bg-surface-1/50">
+            <div className="font-medium">CV Sidecar Proposal (sidecar-first, no master mutation)</div>
+            <pre className="whitespace-pre-wrap mt-1 max-h-32 overflow-auto text-ink-muted">{lastSidecarProposal.preview}</pre>
+            <div className="text-ink-faint mt-1 break-all">Saved to: {lastSidecarProposal.sidecar_path}</div>
+          </div>
+        )}
 
         {packetPreview && !isRestoredHydrate && (
           <details className="text-[10px] text-ink-faint">
