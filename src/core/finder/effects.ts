@@ -3,12 +3,12 @@ import { fromPromise } from '../result'
 import { requireConnection, validateBearerDraft } from '../security/credentials-policy'
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
-import { DEFAULT_CV_SUMMARY } from '../domain/finder'
 import type { FinderModel, PersistedSession } from './model'
 import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
+import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
 
 export type FinderPorts = {
   credentials: {
@@ -210,14 +210,16 @@ export function opportunityTargetAnalyzeCmd(
   payload: { url?: string; pasted_jd?: string },
 ): Cmd<FinderMsg> {
   return (dispatch) => {
-    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
+    // Use pure contract: empty/trimmed-to-empty becomes undefined so Rust can pick devprofile_path pruned or its DEFAULT.
+    // Never force DEFAULT_CV_SUMMARY at the IPC boundary.
+    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: cvSummary,
+      cv_summary: cvForIpc,
     }
     if (import.meta.env.DEV) {
-      console.debug('[finder] analyze_opportunity_target cv_summary chars:', cvSummary.length)
+      console.debug('[finder] analyze_opportunity_target cv_summary ipc:', cvForIpc ? cvForIpc.length : 'undefined')
     }
     void fromPromise(ports.finder.analyzeOpportunityTarget(p), toAppError).then((result) => {
       if (!result.ok) {
@@ -276,12 +278,12 @@ export function opportunityTargetPrepCmd(
       }
     }
 
-    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
+    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
       opportunity_id: payload.opportunity_id,
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: cvSummary,
+      cv_summary: cvForIpc,
       previous_fit,
     }
     void fromPromise(ports.finder.prepOpportunityTarget(p), toAppError).then((result) => {
@@ -499,69 +501,16 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
       dispatch({ type: 'OpportunityTargetUrlSet', url: o.source_url })
 
-      // Robust reconstruct for "exact prior state" (addresses partial rows, prep-only, parse fail, missing analysis_json).
-      // Use opp.fit_score for minimal fit stub when needed (so panel always shows score + rationale/gaps if available).
-      // Always try to ensure a fit precedes prep for the merge logic.
-      // Now prefers embedded cv packet metadata (see analyze_opportunity_target.rs persist) so restores carry
-      // real cv_chars_sent etc and the "CV packet for the original analyze was not stored" warning is suppressed.
+      // Robust reconstruct using the pure contract (moved to opportunity-target-ipc for testability and honest verify).
       let fitDispatched = false
-      if (o.analysis_json) {
-        try {
-          const parsed = JSON.parse(o.analysis_json)
-          // Support both legacy (inner fit or direct fit shape) and new full shape {fit, cv_*, packet_preview, ...}
-          const fit = parsed && typeof parsed === 'object' && 'fit' in parsed ? (parsed as any).fit : parsed
-          // Minimal shape guard (Issue 6) before dispatch; required fields per OpportunityTargetFit in domain/opportunity-target.ts
-          if (fit && typeof fit.overall === 'number' && typeof fit.rationale === 'string' && Array.isArray(fit.gaps_must)) {
-            const full = parsed && typeof parsed === 'object' ? (parsed as any) : {}
-            const hasCvMeta = typeof full.cv_chars_sent === 'number' || typeof full.cv_ipc_chars === 'number'
-            const analysis: OpportunityTargetAnalysisResult = {
-              opportunity_id: o.id,
-              fit,
-              packet_preview: typeof full.packet_preview === 'string' ? full.packet_preview : (o.jd_text || '').slice(0, 800),
-              packet_preview_truncated: typeof full.packet_preview_truncated === 'boolean' ? full.packet_preview_truncated : (o.jd_text || '').length > 800,
-              cv_chars_sent: typeof full.cv_chars_sent === 'number' ? full.cv_chars_sent : 0,
-              cv_ipc_chars: typeof full.cv_ipc_chars === 'number' ? full.cv_ipc_chars : 0,
-              cv_used_fallback: typeof full.cv_used_fallback === 'boolean' ? full.cv_used_fallback : false,
-              prompt_tokens: typeof full.prompt_tokens === 'number' ? full.prompt_tokens : 0,
-              completion_tokens: typeof full.completion_tokens === 'number' ? full.completion_tokens : 0,
-              est_cost_usd: typeof full.est_cost_usd === 'number' ? full.est_cost_usd : 0,
-            }
-            dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
-            fitDispatched = true
-            if (!hasCvMeta) {
-              console.warn('[finder] hydrate: legacy analysis_json without cv meta for id', id)
-            }
-          } else {
-            console.warn('[finder] hydrate: analysis_json present but invalid shape for id', id)
-          }
-        } catch {
-          console.warn('[finder] hydrate: malformed analysis_json for id', id)
-          /* fall through to stub if possible */
-        }
-      }
-      // Synthesize minimal fit stub from fit_score if no valid analysis_json (or parse failed) but we have a score.
-      // This ensures prep-only or partial rows still show a usable "Fit analysis" section with score on restore.
-      if (!fitDispatched && typeof o.fit_score === 'number') {
-        const stubFit = {
-          overall: o.fit_score,
-          rationale: 'Restored from prior opportunity record (no full analysis_json available).',
-          gaps_must: [],
-          recommended_action: 'Review prep artifacts or re-evaluate fit.',
-        }
-        const analysis: OpportunityTargetAnalysisResult = {
-          opportunity_id: o.id,
-          fit: stubFit,
-          packet_preview: '(restored — the original distilled CV packet that was sent is not stored; only the opportunity record remains)',
-          packet_preview_truncated: false,
-          cv_chars_sent: 0,
-          cv_ipc_chars: 0,
-          cv_used_fallback: false,
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          est_cost_usd: 0,
-        }
-        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
+      const reconstructed = reconstructAnalysisFromOpportunity(o)
+      if (reconstructed) {
+        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: reconstructed })
         fitDispatched = true
+      }
+      // If reconstruction produced a legacy stub (no cv meta), warn (the pure fn already produces the stub shape when needed).
+      if (fitDispatched && reconstructed && (reconstructed.cv_chars_sent === 0 && reconstructed.cv_ipc_chars === 0)) {
+        console.warn('[finder] hydrate: legacy/ stub analysis without cv meta for id', id)
       }
 
       if (o.prep_artifacts_json) {

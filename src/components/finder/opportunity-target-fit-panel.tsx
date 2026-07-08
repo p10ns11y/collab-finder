@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
+import { shouldShowRestoredCvWarning } from '../../core/domain/opportunity-target-ipc'
 
 type Props = {
   result: OpportunityTargetResult | null
@@ -76,7 +77,8 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
   const cvUsedFallback = 'cv_used_fallback' in result ? result.cv_used_fallback : undefined
   const previewTruncated = 'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
   const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
-  const isRestoredHydrate = cvCharsSent === 0 && cvIpcChars === 0 && !cvUsedFallback && (estCost === 0 || estCost === undefined)
+  // Use pure predicate (moved for testability + honest verify gate)
+  const isRestoredHydrate = result && 'cv_chars_sent' in result ? shouldShowRestoredCvWarning(result as any) : (cvCharsSent === 0 && cvIpcChars === 0 && !cvUsedFallback && (estCost === 0 || estCost === undefined))
 
   return (
     <Card className="border-border-subtle shadow-glow">

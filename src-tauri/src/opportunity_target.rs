@@ -106,7 +106,17 @@ fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
         out.push('\n');
     }
     if let Some(contact) = v.get("contact") {
-        out.push_str(&format!("CONTACT: {}\n", contact));
+        let contact_str = if let Some(s) = contact.as_str() {
+            s.to_string()
+        } else if let Some(obj) = contact.as_object() {
+            let mut s = String::new();
+            if let Some(g) = obj.get("github").and_then(|x| x.as_str()) { s.push_str(&format!("github={}", g)); }
+            if let Some(e) = obj.get("email").and_then(|x| x.as_str()) { if !s.is_empty() { s.push(' '); } s.push_str(&format!("email={}", e)); }
+            if s.is_empty() { contact.to_string() } else { s }
+        } else {
+            contact.to_string()
+        };
+        out.push_str(&format!("CONTACT: {}\n", contact_str));
     }
     if out.trim().is_empty() {
         return None;
@@ -768,7 +778,7 @@ mod tests {
     }
 
     #[test]
-    fn propose_sidecar_helper_writes_file_and_cvdata_hash_unchanged() {
+    fn propose_cv_sidecar_for_prep_cmd_path_writes_file_and_cvdata_hash_unchanged() {
         // Drives do_propose_cv_sidecar_for_prep (core of the shipped propose_cv_sidecar_for_prep cmd)
         // per verif step 5. Sets up DB opp row with cv_suggestions, calls the logic (the path propose_cv_sidecar_for_prep uses),
         // asserts sidecar written + cvdata bytes unchanged (pre/post hash around the call).
@@ -784,11 +794,9 @@ mod tests {
             "jd text", "prepped", Some(82), None, Some(prep_json), None
         ).expect("upsert opp with prep");
 
-        // Copy real cvdata for meaningful hash (before sidecar write from the propose path)
-        let real_cv = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
-        let cv_copy = tmp.join("cvdata_for_hash.json");
-        if let Ok(b) = std::fs::read(real_cv) { let _ = std::fs::write(&cv_copy, &b); }
-        let pre_bytes = std::fs::read(&cv_copy).unwrap_or_default();
+        // Hash the actual live cvdata (before the do_propose call)
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let pre_bytes = std::fs::read(live).unwrap_or_default();
 
         // harness so app_data_dir returns our tmp for the write in do_
         crate::app_dirs::test_harness::set(tmp.clone());
@@ -796,7 +804,7 @@ mod tests {
         // CALL THE SHIPPED PROPOSE PATH (do_ is what propose_cv_sidecar_for_prep delegates to after lock)
         let res = do_propose_cv_sidecar_for_prep(&store, id).expect("invoke propose path");
 
-        let post_bytes = std::fs::read(&cv_copy).unwrap_or_default();
+        let post_bytes = std::fs::read(live).unwrap_or_default();
         let sidecar_f = tmp.join("cv_proposals").join(format!("opp_{}", id)).join("cv-sidecar-proposal.json");
         let content = std::fs::read_to_string(&sidecar_f).unwrap_or_default();
 
@@ -808,6 +816,41 @@ mod tests {
         assert!(sidecar_f.exists());
 
         crate::app_dirs::test_harness::clear();
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn integration_real_devprofile_path_yields_live_strings() {
+        // Verif step 4: resolve with real sibling path yields packet containing live cvdata token.
+        let real = "/home/sustainableabundance/Work/personal/devprofile";
+        let (packet, meta) = resolve_cv_packet(None, Some(real.to_string()));
+        // Must contain a distinctive live string from the real cvdata (e.g. name)
+        assert!(packet.contains("Peramanathan") || packet.contains("Sathyamoorthy"), "live string from real devprofile cvdata");
+        assert!(!meta.used_fallback);
+    }
+
+    #[test]
+    fn integration_propose_leaves_live_cvdata_unchanged() {
+        // Verif step 5: call do_propose... (the logic behind the propose cmd) and hash the *actual* live cvdata before/after.
+        let tmp = std::env::temp_dir().join(format!("cf_propose_live_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let store = crate::db::SqliteStore::open_at(tmp.join("t.db")).expect("store");
+        let prep = r#"{"cv_suggestions":["truth-seeking AI","collab-finder"]}"#;
+        let id = store.upsert_opportunity("web", Some("u"), None, Some("t"), Some("c"), "jd", "prepped", Some(82), None, Some(prep), None).expect("ins");
+
+        // live cvdata
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let pre = std::fs::read(live).unwrap_or_default();
+
+        crate::app_dirs::test_harness::set(tmp.clone());
+        let _res = do_propose_cv_sidecar_for_prep(&store, id).expect("do propose on live path");
+        crate::app_dirs::test_harness::clear();
+
+        let post = std::fs::read(live).unwrap_or_default();
+        assert_eq!(pre, post, "live cvdata must be unchanged by propose sidecar");
+
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }
