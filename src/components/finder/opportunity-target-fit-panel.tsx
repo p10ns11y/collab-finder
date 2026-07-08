@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
 import { shouldShowRestoredCvWarning } from '../../core/domain/opportunity-target-ipc'
+import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 
 type Props = {
   result: OpportunityTargetResult | null
@@ -30,11 +31,22 @@ function cv_chars_sent_label(
 }
 
 export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested, onProposeSidecar, lastSidecarProposal }: Props) {
+  // All hooks must be called unconditionally at the top, before any early returns.
+  // (Fix for "Rendered more hooks than during the previous render")
+  const [modelLabel, setModelLabel] = React.useState('grok-4.5')
+  const [actionCopied, setActionCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    safeInvoke<string>('get_xai_model_cmd', {}).then(r => {
+      if (r.ok && r.value) setModelLabel(r.value)
+    }).catch(() => {})
+  }, [])
+
   if (busy) {
     return (
       <Card className="border-border-subtle">
         <CardHeader>
-          <CardTitle className="text-sm">Working with grok-4.3…</CardTitle>
+          <CardTitle className="text-sm">Working with {modelLabel}…</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-4 w-2/3 animate-pulse bg-surface-2 rounded" />
@@ -64,8 +76,6 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
     return null
   }
 
-  const [actionCopied, setActionCopied] = React.useState(false)
-
   const score = fit?.overall ?? 0
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
 
@@ -85,7 +95,7 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            { prep ? 'Fit analysis + Prep' : 'Fit analysis' } <span className="text-[10px] text-accent">grok-4.3</span>
+            { prep ? 'Fit analysis + Prep' : 'Fit analysis' } <span className="text-[10px] text-accent">{modelLabel}</span>
           </CardTitle>
           <Badge tone={tone}>{score}/100</Badge>
         </div>
@@ -148,7 +158,7 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
         {/* Slice C: Prep artifacts (letter, CV suggestions, research) */}
         { prep && (
           <div className="space-y-3 border-t border-border-subtle pt-3 mt-1">
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint">Prep pack (grok-4.3)</div>
+            <div className="text-[10px] uppercase tracking-wide text-ink-faint">Prep pack ({modelLabel})</div>
 
             {prep.cover_letter && (
               <div>
@@ -241,7 +251,7 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
           <div className="mt-3 p-2 border border-accent/30 rounded text-[10px] bg-surface-1/50">
             <div className="font-medium">CV Sidecar Proposal (sidecar-first, no master mutation)</div>
             <pre className="whitespace-pre-wrap mt-1 max-h-32 overflow-auto text-ink-muted">{lastSidecarProposal.preview}</pre>
-            <div className="text-ink-faint mt-1 break-all">Saved to: {lastSidecarProposal.sidecar_path}</div>
+            <div className="text-ink-faint mt-1">Sidecar artifact persisted (app-local cv_proposals/opp_XX/). Full FS path hidden; review via filesystem or future apply UI. (No master cvdata mutation.)</div>
           </div>
         )}
 

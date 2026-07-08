@@ -197,7 +197,7 @@ function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
     <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
       <div className="font-medium text-sm mb-2 flex items-center gap-2">
         🎯 Quick Target (URL or paste description)
-        <span className="text-[10px] text-accent">grok-4.3</span>
+        <span className="text-[10px] text-accent">grok</span>
       </div>
       <input
         value={url}

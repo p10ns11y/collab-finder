@@ -17,7 +17,7 @@
 //    - Commands: has_xai_key / get_xai_key_storage / set_xai_key / clear_xai_key
 //    - Internal: get_xai_key() (used only inside analyze/prep commands — NEVER on IPC wire)
 //    - Status: XaiKeyStorageStatus (shape mirrors Bearer* exactly for UI consistency)
-//    - Default model for this app: grok-4.3 (highest quality for CV+JD work). Pricing
+//    - Model is configurable (defaults to grok-4.5). Key enables the calls.
 //      for estimates: $1.25/M input, $2.50/M output (real costs from API usage fields).
 //
 // Shared invariants (apply to BOTH):
@@ -149,7 +149,7 @@ pub fn has_x_bearer() -> bool {
 // xAI KEY STORAGE (EXACT PARALLEL TO X BEARER — DO NOT REFACTOR TOGETHER)
 // ============================================================================
 //
-// This is the new secret for grok-4.3 calls (analysis, CV tailoring, cover letters,
+// This is the new secret for xAI calls (analysis, CV tailoring, cover letters,
 // prep packs, target fit). It uses the identical dual keyring + 0600 file pattern.
 //
 // Rules from the top STABILITY CONTRACT apply verbatim to this block too.

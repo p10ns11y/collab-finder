@@ -223,7 +223,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           banner: null,
           lastSidecarProposal: { preview: msg.preview, sidecar_path: msg.sidecar_path },
-          pauses: [...model.pauses, `CV sidecar proposed (${msg.suggestions_count} suggestions): ${msg.preview.slice(0, 180)}... [${msg.sidecar_path}]`],
+          pauses: [...model.pauses, `CV sidecar proposed (${msg.suggestions_count} suggestions) — sidecar artifact written (sidecar-first, no master mutation).`],
         },
       ]
     case 'CvSidecarProposeFailed':

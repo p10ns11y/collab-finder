@@ -69,6 +69,47 @@ pub(crate) fn set_devprofile_path_cmd(path: Option<String>) -> Result<(), String
     Ok(())
 }
 
+/// Simple persistent store for xAI model (plain text; not a secret).
+/// Mirrors devprofile_path pattern. Default is grok-4.5 (new release).
+/// Non-goals: no DB column for now.
+const DEFAULT_XAI_MODEL: &str = "grok-4.5";
+
+fn get_xai_model() -> String {
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("xai_model.txt");
+        if let Ok(s) = std::fs::read_to_string(p) {
+            let t = s.trim().to_string();
+            if !t.is_empty() {
+                return t;
+            }
+        }
+    }
+    DEFAULT_XAI_MODEL.to_string()
+}
+
+#[tauri::command]
+pub(crate) fn get_xai_model_cmd() -> Result<String, String> {
+    Ok(get_xai_model())
+}
+
+#[tauri::command]
+pub(crate) fn set_xai_model_cmd(model: Option<String>) -> Result<(), String> {
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("xai_model.txt");
+        if let Some(val) = &model {
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(&p, trimmed);
+                return Ok(());
+            }
+        }
+        // unset -> revert to default on next read
+        let _ = std::fs::remove_file(p);
+    }
+    Ok(())
+}
+
 /// Basic prune of devprofile cvdata.json into compact text for use as CV PACKET in xAI calls.
 /// Follows cv-promote-guard spirit (relevant sections) but minimal: name, one_liner, profile, recent roles + bullets, contact.
 /// Returns None on any read/parse error (caller falls back).
@@ -91,8 +132,11 @@ fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
         for w in work.iter().take(3) {
             let title = w.get("title").and_then(|vv| vv.as_str()).unwrap_or("");
             let company = w.get("company").and_then(|vv| vv.as_str()).unwrap_or("");
+            let start = w.get("start_date").and_then(|vv| vv.as_str()).unwrap_or("");
+            let end = w.get("end_date").and_then(|vv| vv.as_str()).unwrap_or("");
             if !title.is_empty() || !company.is_empty() {
-                out.push_str(&format!("- {} @ {}\n", title, company));
+                let date_part = if !start.is_empty() { format!(" ({} – {})", start, end) } else { String::new() };
+                out.push_str(&format!("- {} @ {}{}\n", title, company, date_part));
             }
             if let Some(resps) = w.get("responsibilities").and_then(|vv| vv.as_array()) {
                 for r in resps.iter().take(2) {
@@ -105,6 +149,21 @@ fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
         }
         out.push('\n');
     }
+    // Surface personal/OSS projects explicitly as "recent or hobby" to prevent the model
+    // from attributing the aggregate 9+ YOE industry experience to them.
+    if let Some(projs) = v.get("projects").and_then(|vv| vv.as_array()) {
+        out.push_str("SELECTED PERSONAL / OSS PROJECTS (recent or hobby unless a date is given):\n");
+        for p in projs.iter().take(4) {
+            if let Some(name) = p.get("name").and_then(|vv| vv.as_str()) {
+                let desc = p.get("description").and_then(|vv| vv.as_str()).unwrap_or("");
+                let short = if desc.len() > 90 { format!("{}...", &desc[..90]) } else { desc.to_string() };
+                let date = p.get("date").and_then(|vv| vv.as_str()).unwrap_or("");
+                let date_s = if !date.is_empty() { format!(" [{}]", date) } else { String::new() };
+                out.push_str(&format!("- {}{}: {}\n", name, date_s, short));
+            }
+        }
+        out.push('\n');
+    }
     if let Some(contact) = v.get("contact") {
         let contact_str = if let Some(s) = contact.as_str() {
             s.to_string()
@@ -112,11 +171,52 @@ fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
             let mut s = String::new();
             if let Some(g) = obj.get("github").and_then(|x| x.as_str()) { s.push_str(&format!("github={}", g)); }
             if let Some(e) = obj.get("email").and_then(|x| x.as_str()) { if !s.is_empty() { s.push(' '); } s.push_str(&format!("email={}", e)); }
+            if let Some(c) = obj.get("citizenship").and_then(|x| x.as_str()) { if !s.is_empty() { s.push(' '); } s.push_str(&format!("citizenship={}", c)); }
             if s.is_empty() { contact.to_string() } else { s }
         } else {
             contact.to_string()
         };
         out.push_str(&format!("CONTACT: {}\n", contact_str));
+    }
+
+    // Location / authorization transparency (critical for US onsite roles)
+    if let Some(home) = v.get("home") {
+        if let Some(obj) = home.as_object() {
+            let mut loc = String::new();
+            if let Some(l) = obj.get("location").and_then(|x| x.as_str()) { loc.push_str(l); }
+            if let Some(cl) = obj.get("current_location").and_then(|x| x.as_str()) { if !loc.is_empty() { loc.push_str(" / "); } loc.push_str(cl); }
+            if !loc.is_empty() {
+                out.push_str(&format!("CURRENT_LOCATION: {}\n", loc));
+            }
+        }
+    }
+
+    // Pull research / thesis highlights if present (energy-efficient orchestration is relevant)
+    if let Some(research) = v.get("research") {
+        if let Some(arr) = research.as_array() {
+            out.push_str("RESEARCH:\n");
+            for r in arr.iter().take(2) {
+                if let Some(s) = r.as_str() {
+                    out.push_str(&format!("- {}\n", s));
+                }
+            }
+            out.push('\n');
+        }
+    }
+
+    // Pull key differentiators or highlights when present (self-guarded tooling etc.)
+    if let Some(diff) = v.get("differentiators").or_else(|| v.get("highlights")) {
+        if let Some(arr) = diff.as_array() {
+            out.push_str("KEY DIFFERENTIATORS:\n");
+            for d in arr.iter().take(4) {
+                if let Some(s) = d.as_str() {
+                    out.push_str(&format!("- {}\n", s));
+                }
+            }
+            out.push('\n');
+        } else if let Some(s) = diff.as_str() {
+            out.push_str(&format!("KEY DIFFERENTIATORS: {}\n\n", s));
+        }
     }
     if out.trim().is_empty() {
         return None;
@@ -159,6 +259,7 @@ async fn structured_chat(
     user: &str,
     _schema_name: &str,
     _json_schema: Value,
+    _model: &str,
 ) -> Result<(Value, crate::xai::XaiUsage), String> {
     let is_fit = user.contains("Return fit analysis");
     if is_fit {
@@ -254,7 +355,7 @@ pub(crate) async fn run_analyze_opportunity_target(
         jd.chars().count()
     );
 
-    let system = "You are an expert career fit analyst. Output ONLY valid JSON matching the provided schema. Be precise and cite phrases from the JD.";
+    let system = "You are a precise, truth-seeking career fit analyst. Output ONLY valid JSON. Every claim about the candidate's experience or background must be directly supported by the CV PACKET. Do not invent timelines or attribute aggregate YOE to specific recent projects.";
     let user = format!(
         "CV PACKET (pruned):\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\nReturn fit analysis.",
         cv, jd
@@ -273,8 +374,9 @@ pub(crate) async fn run_analyze_opportunity_target(
         "additionalProperties": false
     });
 
+    let model = get_xai_model();
     let (fit_json, usage) =
-        structured_chat(system, &user, "target_fit_v1", schema).await?;
+        structured_chat(system, &user, "target_fit_v1", schema, &model).await?;
 
     let fit_score = fit_json.get("overall").and_then(|v| v.as_i64()).map(|i| i as i32);
 
@@ -379,9 +481,22 @@ pub(crate) async fn run_prep_opportunity_target(
             user.push_str(&format!( "PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n", fit ));
         }
     }
-    user.push_str("Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and (if the JD asks for it) a strong 80-120 word 'exceptional work' example.\nReturn JSON only.");
 
-    let system = "You are an expert application preparation assistant. Output ONLY valid JSON matching the schema. Produce concise, high-signal artifacts the candidate can use immediately. CV suggestions are proposals for sidecars only.";
+    // Strong grounding rules to prevent fabrication of timelines and experience depth.
+    // "9+ years" is aggregate industry experience. Agentic / Tauri / personal projects are recent.
+    user.push_str(
+r#"STRICT GROUNDING RULES (MUST FOLLOW — DO NOT VIOLATE):
+- Use ONLY facts, numbers, skills, project names, responsibilities, and claims that appear explicitly in the CANDIDATE CV PACKET above. Never invent or infer details.
+- "9+ years", "over 9 years", or similar always refers to the candidate's TOTAL professional software engineering INDUSTRY experience (day jobs + overall career). It does NOT apply to any specific technology, framework, or personal/OSS project unless the packet states a duration for it.
+- Personal, hobby, or OSS projects (collab-finder, prototype-*, etc.) listed without explicit multi-year dates or "production" language must be treated as recent personal/experimental work. Do NOT describe them as "9+ years building production-grade...", "multi-year production systems", or similar.
+- For the cover letter: write in professional first-person tone. Be factual and modest. Highlight concrete impacts from the listed RECENT WORK roles, education, and directly supported skills. Emphasize mission alignment using only language present in the packet or JD. Avoid hype, overclaiming depth, or fabricated timelines.
+- If a detail (timeline, "production-grade", specific responsibility) is not in the packet, do not include it. Prefer "experience with", "built", "contributed to" over exaggerated qualifiers.
+- Keep the cover letter concise (ideally 140-220 words) and high-signal.
+
+TASK: Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and (if the JD asks for it) a strong 80-120 word 'exceptional work' example.
+Return ONLY valid JSON."#);
+
+    let system = "You are a precise, truth-seeking application preparation assistant. Output ONLY valid JSON. Every claim in the cover letter must be directly supported by the provided CV PACKET. Never fabricate experience timelines, project depth, or production claims. CV suggestions are sidecar proposals only.";
 
     let schema = json!({
         "type": "object",
@@ -395,7 +510,8 @@ pub(crate) async fn run_prep_opportunity_target(
         "additionalProperties": false
     });
 
-    let (prep_json, usage) = structured_chat(system, &user, "target_prep_v1", schema).await?;
+    let model = get_xai_model();
+    let (prep_json, usage) = structured_chat(system, &user, "target_prep_v1", schema, &model).await?;
     let cost = crate::xai::cost_from_usage(&usage);
 
     // Return dummy id; caller (cmd or test) can persist if needed.
@@ -442,12 +558,28 @@ fn build_cv_sidecar_proposal(opp_id: i64, prep_artifacts_json: &str, dev_path: O
     if suggestions.is_empty() {
         return Err("no cv_suggestions".into());
     }
-    let mut preview_lines = vec![format!("Sidecar proposal for opportunity #{} (cv-promote-guard style, sidecar only)", opp_id)];
+    let mut preview_lines = vec![
+        format!("CV SIDECAR PROPOSAL for opportunity #{} (sidecar-first, no master mutation)", opp_id),
+        "Per cv-promote-guard: persisted proposal artifact only. Review + explicit confirm before any apply to devprofile master.".to_string(),
+    ];
+    if let Some(dp) = &dev_path {
+        // Safe display only (last segment); full path stays only inside the sidecar JSON artifact.
+        let safe = std::path::Path::new(dp)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("devprofile");
+        preview_lines.push(format!("grounded_on_devprofile: .../{}", safe));
+    }
+    preview_lines.push(format!("suggestions_count: {}  |  deltas prepared for sidecar apply", suggestions.len()));
+    preview_lines.push("".to_string());
+    preview_lines.push("Deltas (structured for cv-sidecar-proposal.json; distinct from raw prep suggestions):".to_string());
     let mut deltas: Vec<Value> = vec![];
     for (i, s) in suggestions.iter().enumerate() {
-        preview_lines.push(format!("{}. {}", i+1, s));
+        preview_lines.push(format!("{}. {}", i + 1, s));
         deltas.push(json!({ "index": i, "suggestion": s, "proposed_action": "add_or_update_in_cv" }));
     }
+    preview_lines.push("".to_string());
+    preview_lines.push("Artifact written to app-local cv_proposals/. No mutation to external cvdata.json.".to_string());
     let preview = preview_lines.join("\n");
     let sidecar_doc = json!({
         "opportunity_id": opp_id,
