@@ -1752,4 +1752,37 @@ mod tests {
         assert_eq!(o.prep_artifacts_json.as_deref(), Some("prep1"));
         assert_eq!(o.notes.as_deref(), Some("note1"));
     }
+
+    #[test]
+    fn upsert_and_get_opportunity_roundtrips_cv_packet_metadata_in_analysis_json() {
+        // Verifies AC1 / checklist item 1: analysis_json now embeds cv meta from analyze so restore can reconstruct non-zero cv_*.
+        let (_dir, store) = temp_store();
+        let url = Some("https://boards.greenhouse.io/xai/jobs/42");
+        let analysis_with_cv = r#"{"fit":{"overall":82,"rationale":"strong","gaps_must":[],"recommended_action":"apply"},"packet_preview":"CV...","packet_preview_truncated":false,"cv_chars_sent":1234,"cv_ipc_chars":1200,"cv_used_fallback":false,"prompt_tokens":500,"completion_tokens":120,"est_cost_usd":0.012}"#;
+        let id = store
+            .upsert_opportunity(
+                "web",
+                url,
+                None,
+                Some("Staff Engineer, AI Infra"),
+                Some("xAI"),
+                "JD text about truth-seeking AI agents...",
+                "analyzed",
+                Some(82),
+                Some(analysis_with_cv),
+                None,
+                None,
+            )
+            .unwrap();
+
+        let opps = store
+            .get_opportunities(&OpportunityFilter { id: Some(id), limit: Some(1), ..Default::default() })
+            .unwrap();
+        assert_eq!(opps.len(), 1);
+        let o = &opps[0];
+        let stored = o.analysis_json.as_ref().expect("analysis_json present");
+        assert!(stored.contains("cv_chars_sent\":1234"));
+        assert!(stored.contains("cv_used_fallback\":false"));
+        assert!(stored.contains("\"fit\""));
+    }
 }

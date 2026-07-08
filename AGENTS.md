@@ -6,6 +6,23 @@ User intervenes only when necessary. The system makes smart decisions with **sel
 
 This project uses a **connected agent skills system** (fission + fusion) + **official X Agent Resources** for exponential, high-value development.
 
+## Life OS Central Tracker (NEW — read first for "what to do")
+
+**~/life-os is now the center tracker of all projects** (including this one).
+
+- High-level status, `next_action`, `review_date`, progress, energy, Eisenhower (importance/urgency), and **session plans** live in:
+  - `~/life-os/Projects/collab-finder/Collab Finder.md`
+- **Always start a session here**:
+  1. Consult / update the life-os project note for scope of "what we are going to do in this session".
+  2. Do the work (using this AGENTS.md + `.agents/skills/` for the *how*).
+  3. Record outcome + cross-update the life-os note (energy, new next_action, review_date).
+- Cross links:
+  - life-os note links to source `AGENTS.md` + github for dev details.
+  - This file (and README) now refer back to life-os for tracking and planning.
+- Why: Single source of truth across the portfolio prevents drift. Agents and humans use the same view (Dashboard + Bases + this project card).
+
+When the user query says "update what we are going to do in this session", edit the life-os note **first**, then execute.
+
 ## Agent routing (canonical — read first)
 
 | If you are working on… | Read in order |
@@ -65,6 +82,7 @@ Also: **XMCP**, **Docs MCP**, **xurl** — see [docs/x-tools.md](docs/x-tools.md
 ## Agent Workflow (Triage + Self-Guards First)
 
 **Always triage first** (read `agent-orchestrator`):
+- Consult life-os project note (see "Life OS Central Tracker" above) to confirm the current `next_action` and session scope before coding. Update it on completion.
 - Single-shot (≤2 files, obvious): direct + verify (`pnpm build`, `cd src-tauri && cargo check && cargo test`; see [docs/SETUP.md](docs/SETUP.md) — `type-check`/`lint` scripts not in package.json yet). For anything touching Tauri commands, lib.rs, or data/secret paths, treat as "not single-shot" and run the full test + (ideally) manual credentials panel check.
 - Light: short bullets + implement.
 - Full: briefs, worktrees if multi-session, independent verification.

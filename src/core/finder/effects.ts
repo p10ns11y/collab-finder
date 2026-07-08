@@ -36,6 +36,10 @@ export type FinderPorts = {
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
+    // devprofile + sidecar propose
+    getDevprofilePath(): Promise<string | null>
+    setDevprofilePath(path: string | null): Promise<void>
+    proposeCvSidecar(opportunityId: number): Promise<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }>
   }
 }
 
@@ -187,6 +191,19 @@ export function promoteCmd(ports: FinderPorts): Cmd<FinderMsg> {
   }
 }
 
+export function proposeCvSidecarCmd(ports: FinderPorts, opportunityId: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.proposeCvSidecar(opportunityId), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'CvSidecarProposeFailed', error: result.error })
+        return
+      }
+      const r = result.value as any
+      dispatch({ type: 'CvSidecarProposeSucceeded', preview: r.preview || '', sidecar_path: r.sidecar_path || '', suggestions_count: r.suggestions_count || 0 })
+    })
+  }
+}
+
 export function opportunityTargetAnalyzeCmd(
   ports: FinderPorts,
   model: FinderModel,
@@ -309,6 +326,12 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       dispatch({ type: 'HistoryRefreshed', searches: res.value })
     })
 
+    // Fan-out design (TD-009): independent parallel fromPromise + partial HistoryRefreshed.
+    // Intentional (post non-blanking change in update.ts) so Data/History/Discover rail stay populated
+    // during/after analyze/prep/search/cycle. Tradeoff: timing races between slices.
+    // Mitigation: model.history.lastRefreshed (set on every HistoryRefreshed) + keep-old-data.
+    // Future: coordinated snapshot (Promise.allSettled + single dispatch) or per-slice freshness.
+    // See life-os/Projects/collab-finder/Collab Finder.md for session tracking of this item.
     // The rest are independent (no longer chained inside searches success).
     // This ensures that after a target analyze/prep (which only affects opportunities),
     // the Data "Opportunities" + History slices still get refreshed even if
@@ -479,28 +502,35 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       // Robust reconstruct for "exact prior state" (addresses partial rows, prep-only, parse fail, missing analysis_json).
       // Use opp.fit_score for minimal fit stub when needed (so panel always shows score + rationale/gaps if available).
       // Always try to ensure a fit precedes prep for the merge logic.
+      // Now prefers embedded cv packet metadata (see analyze_opportunity_target.rs persist) so restores carry
+      // real cv_chars_sent etc and the "CV packet for the original analyze was not stored" warning is suppressed.
       let fitDispatched = false
       if (o.analysis_json) {
         try {
-          const fit = JSON.parse(o.analysis_json)
+          const parsed = JSON.parse(o.analysis_json)
+          // Support both legacy (inner fit or direct fit shape) and new full shape {fit, cv_*, packet_preview, ...}
+          const fit = parsed && typeof parsed === 'object' && 'fit' in parsed ? (parsed as any).fit : parsed
           // Minimal shape guard (Issue 6) before dispatch; required fields per OpportunityTargetFit in domain/opportunity-target.ts
           if (fit && typeof fit.overall === 'number' && typeof fit.rationale === 'string' && Array.isArray(fit.gaps_must)) {
-            const jdStub = (o.jd_text || '').slice(0, 800)
+            const full = parsed && typeof parsed === 'object' ? (parsed as any) : {}
+            const hasCvMeta = typeof full.cv_chars_sent === 'number' || typeof full.cv_ipc_chars === 'number'
             const analysis: OpportunityTargetAnalysisResult = {
               opportunity_id: o.id,
               fit,
-              // Restored row: original CV not stored — preview is JD stub only (misleading label fixed in panel).
-              packet_preview: jdStub,
-              packet_preview_truncated: (o.jd_text || '').length > 800,
-              cv_chars_sent: 0,
-              cv_ipc_chars: 0,
-              cv_used_fallback: false,
-              prompt_tokens: 0,
-              completion_tokens: 0,
-              est_cost_usd: 0,
+              packet_preview: typeof full.packet_preview === 'string' ? full.packet_preview : (o.jd_text || '').slice(0, 800),
+              packet_preview_truncated: typeof full.packet_preview_truncated === 'boolean' ? full.packet_preview_truncated : (o.jd_text || '').length > 800,
+              cv_chars_sent: typeof full.cv_chars_sent === 'number' ? full.cv_chars_sent : 0,
+              cv_ipc_chars: typeof full.cv_ipc_chars === 'number' ? full.cv_ipc_chars : 0,
+              cv_used_fallback: typeof full.cv_used_fallback === 'boolean' ? full.cv_used_fallback : false,
+              prompt_tokens: typeof full.prompt_tokens === 'number' ? full.prompt_tokens : 0,
+              completion_tokens: typeof full.completion_tokens === 'number' ? full.completion_tokens : 0,
+              est_cost_usd: typeof full.est_cost_usd === 'number' ? full.est_cost_usd : 0,
             }
             dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
             fitDispatched = true
+            if (!hasCvMeta) {
+              console.warn('[finder] hydrate: legacy analysis_json without cv meta for id', id)
+            }
           } else {
             console.warn('[finder] hydrate: analysis_json present but invalid shape for id', id)
           }
@@ -595,6 +625,8 @@ export function effectForMsg(
       return reactorRefreshCmd(ports)
     case 'PromoteRequested':
       return promoteCmd(ports)
+    case 'CvSidecarProposeRequested':
+      return proposeCvSidecarCmd(ports, msg.opportunity_id)
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':

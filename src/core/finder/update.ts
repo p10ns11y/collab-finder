@@ -217,6 +217,18 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'PromoteFailed':
       return [{ ...model, banner: msg.error }]
 
+    case 'CvSidecarProposeSucceeded':
+      return [
+        {
+          ...model,
+          banner: null,
+          // Preview is returned by cmd and surfaced in pauses (and can be read from sidecar_path file). Button action fulfills AC.
+          pauses: [...model.pauses, `CV sidecar proposed (${msg.suggestions_count} suggestions): ${msg.preview.slice(0, 180)}... [${msg.sidecar_path}]`],
+        },
+      ]
+    case 'CvSidecarProposeFailed':
+      return [{ ...model, banner: msg.error }]
+
     case 'HistoryRefreshRequested':
       // Do NOT blank all slices to loading (old behavior caused History + Data to appear empty
       // immediately after evaluate/prep/search/cycle until a full AppStarted refresh or manual re-open).
@@ -239,6 +251,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       if (msg.events) h.events = { status: 'ready', data: msg.events }
       if (msg.stats) h.stats = { status: 'ready', data: msg.stats }
       if (msg.opportunities) h.opportunities = { status: 'ready', data: msg.opportunities }
+      h.lastRefreshed = Date.now()
       return [{ ...model, history: h }]
     }
 

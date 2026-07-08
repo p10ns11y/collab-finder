@@ -13,7 +13,7 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
-use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, prep_opportunity_target};
+use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, get_devprofile_path_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep, set_devprofile_path_cmd};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -398,6 +398,9 @@ pub fn run() {
             fetch_opportunity_target_page,
             analyze_opportunity_target,
             prep_opportunity_target,
+            get_devprofile_path_cmd,
+            set_devprofile_path_cmd,
+            propose_cv_sidecar_for_prep,
             get_opportunities,
             search_x_recent,
             run_finder_cycle_cmd,

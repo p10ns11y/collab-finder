@@ -150,6 +150,9 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             onPrepRequested={(opportunityId) =>
               dispatch({ type: 'OpportunityTargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
             }
+            onProposeSidecar={(opportunityId) => {
+              if (opportunityId) dispatch({ type: 'CvSidecarProposeRequested', opportunity_id: opportunityId })
+            }}
           />
         ) : !isDiscover ? (
           <>

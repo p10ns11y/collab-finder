@@ -90,3 +90,8 @@ export type FinderMsg =
   | { type: 'OpportunityTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }
   | { type: 'OpportunityTargetPrepSucceeded'; result: OpportunityTargetPrepResult }
   | { type: 'OpportunityTargetPrepFailed'; error: AppError }
+
+  // CV sidecar proposal from prep suggestions (sidecar-first, basic preview)
+  | { type: 'CvSidecarProposeRequested'; opportunity_id: number }
+  | { type: 'CvSidecarProposeSucceeded'; preview: string; sidecar_path: string; suggestions_count: number }
+  | { type: 'CvSidecarProposeFailed'; error: AppError }

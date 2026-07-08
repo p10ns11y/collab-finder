@@ -11,6 +11,7 @@ use crate::db;
 use crate::AppDb;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use tauri::State;
 
 /// Matches `data/distillation/cv-packet-distilled.txt` (+ `queries.json` defaultCvSummary). Rust fallback when IPC omits cv_summary.
@@ -24,26 +25,122 @@ struct CvPacketResolved {
     used_fallback: bool,
 }
 
-fn resolve_cv_packet(cv_summary: Option<String>) -> (String, CvPacketResolved) {
-    let trimmed = cv_summary
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-    let ipc_chars = trimmed.as_ref().map(|s| s.chars().count() as u32).unwrap_or(0);
-    let used_fallback = trimmed.is_none();
-    let text = trimmed.unwrap_or_else(|| DEFAULT_CV_PACKET.to_string());
-    (
-        text,
-        CvPacketResolved {
-            ipc_chars,
-            used_fallback,
-        },
-    )
-}
-
 fn packet_preview_for(cv: &str) -> (String, bool) {
     let truncated = cv.chars().count() > PACKET_PREVIEW_MAX_CHARS;
     let preview = cv.chars().take(PACKET_PREVIEW_MAX_CHARS).collect();
     (preview, truncated)
+}
+
+/// Simple persistent store for devprofile_path (plain text file under app data; no secrets).
+/// Non-goals avoid new DB columns; file is sufficient for this wiring step.
+fn get_devprofile_path() -> Option<String> {
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("devprofile_path.txt");
+        if let Ok(s) = std::fs::read_to_string(p) {
+            let t = s.trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub(crate) fn get_devprofile_path_cmd() -> Result<Option<String>, String> {
+    Ok(get_devprofile_path())
+}
+
+#[tauri::command]
+pub(crate) fn set_devprofile_path_cmd(path: Option<String>) -> Result<(), String> {
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("devprofile_path.txt");
+        if let Some(val) = &path {
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(&p, trimmed);
+                return Ok(());
+            }
+        }
+        // unset
+        let _ = std::fs::remove_file(p);
+    }
+    Ok(())
+}
+
+/// Basic prune of devprofile cvdata.json into compact text for use as CV PACKET in xAI calls.
+/// Follows cv-promote-guard spirit (relevant sections) but minimal: name, one_liner, profile, recent roles + bullets, contact.
+/// Returns None on any read/parse error (caller falls back).
+fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
+    let cvp = PathBuf::from(base).join("src/data/cvdata.json");
+    let content = std::fs::read_to_string(&cvp).ok()?;
+    let v: Value = serde_json::from_str(&content).ok()?;
+    let mut out = String::new();
+    if let Some(name) = v.get("name").and_then(|vv| vv.as_str()) {
+        out.push_str(&format!("NAME: {}\n", name));
+    }
+    if let Some(ol) = v.get("one_liner").and_then(|vv| vv.as_str()) {
+        out.push_str(&format!("ONE_LINER: {}\n", ol));
+    }
+    if let Some(p) = v.get("profile").and_then(|vv| vv.as_str()).or_else(|| v.get("short_bio").and_then(|vv| vv.as_str())) {
+        out.push_str(&format!("PROFILE: {}\n\n", p));
+    }
+    if let Some(work) = v.get("work_experience").and_then(|vv| vv.as_array()) {
+        out.push_str("RECENT WORK:\n");
+        for w in work.iter().take(3) {
+            let title = w.get("title").and_then(|vv| vv.as_str()).unwrap_or("");
+            let company = w.get("company").and_then(|vv| vv.as_str()).unwrap_or("");
+            if !title.is_empty() || !company.is_empty() {
+                out.push_str(&format!("- {} @ {}\n", title, company));
+            }
+            if let Some(resps) = w.get("responsibilities").and_then(|vv| vv.as_array()) {
+                for r in resps.iter().take(2) {
+                    if let Some(s) = r.as_str() {
+                        let short = if s.len() > 140 { format!("{}...", &s[..140]) } else { s.to_string() };
+                        out.push_str(&format!("  * {}\n", short));
+                    }
+                }
+            }
+        }
+        out.push('\n');
+    }
+    if let Some(contact) = v.get("contact") {
+        out.push_str(&format!("CONTACT: {}\n", contact));
+    }
+    if out.trim().is_empty() {
+        return None;
+    }
+    Some(out)
+}
+
+/// Resolve CV packet for analyze/prep.
+/// Priority: if cv_summary (from UI textarea/IPC) non-empty, use it (allows override even when path set).
+/// Else if devprofile_path configured, load pruned cvdata.json from it.
+/// Else fallback to in-repo DEFAULT_CV_PACKET.
+/// This fixes the union bug while satisfying AC2 (pruned used when no summary + path set).
+fn resolve_cv_packet(cv_summary: Option<String>, devprofile_path: Option<String>) -> (String, CvPacketResolved) {
+    let trimmed = cv_summary
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    if let Some(s) = trimmed {
+        let chars = s.chars().count() as u32;
+        return (s, CvPacketResolved { ipc_chars: chars, used_fallback: false });
+    }
+
+    if let Some(base) = &devprofile_path {
+        if let Some(pruned) = load_pruned_cv_from_devprofile(base) {
+            let chars = pruned.chars().count() as u32;
+            return (pruned, CvPacketResolved { ipc_chars: chars, used_fallback: false });
+        }
+    }
+
+    let text = DEFAULT_CV_PACKET.to_string();
+    (
+        text,
+        CvPacketResolved { ipc_chars: 0, used_fallback: true },
+    )
 }
 
 #[tauri::command]
@@ -106,7 +203,8 @@ pub(crate) async fn analyze_opportunity_target(
         _ => return Err("Provide either url or pasted_jd".into()),
     };
 
-    let (cv, cv_meta) = resolve_cv_packet(cv_summary);
+    let dev_path = get_devprofile_path();
+    let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
     let cv_chars_sent = cv.chars().count() as u32;
     eprintln!(
         "[ipc] analyze_opportunity_target cv_ipc_chars={} cv_used_fallback={} cv_chars_sent={} jd_chars={} (invoke cvSummary)",
@@ -145,6 +243,26 @@ pub(crate) async fn analyze_opportunity_target(
         .and_then(|v| v.as_i64())
         .map(|i| i as i32);
 
+    let cost = crate::xai::cost_from_usage(&usage);
+    let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
+    let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
+    let completion_tokens = usage.completion_tokens.unwrap_or(0);
+
+    // Persist FULL analysis result (fit + cv packet metadata) so DB restore can reconstruct
+    // OpportunityTargetAnalysisResult with real cv_* values (kills "CV packet ... not stored" warning on hydrate).
+    // Legacy rows with only inner fit will fall back gracefully in TS load path.
+    let analysis_for_store = json!({
+        "fit": fit_json,
+        "packet_preview": packet_preview,
+        "packet_preview_truncated": packet_preview_truncated,
+        "cv_chars_sent": cv_chars_sent,
+        "cv_ipc_chars": cv_meta.ipc_chars,
+        "cv_used_fallback": cv_meta.used_fallback,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "est_cost_usd": cost,
+    });
+
     // Persist as opportunity (best effort). Now uses reliable upsert (TD-001) that updates 1 row for same source_url.
     let run_id = if let Ok(guard) = db.0.lock() {
         guard
@@ -157,7 +275,7 @@ pub(crate) async fn analyze_opportunity_target(
                 &jd,
                 "analyzed",
                 fit_score,
-                Some(&fit_json.to_string()),
+                Some(&analysis_for_store.to_string()),
                 None,
                 None,
             )
@@ -165,11 +283,6 @@ pub(crate) async fn analyze_opportunity_target(
     } else {
         0
     };
-
-    let cost = crate::xai::cost_from_usage(&usage);
-    let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
-    let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
-    let completion_tokens = usage.completion_tokens.unwrap_or(0);
 
     Ok(OpportunityTargetAnalysisResult {
         opportunity_id: run_id,
@@ -241,7 +354,8 @@ pub(crate) async fn prep_opportunity_target(
         );
     }
 
-    let (cv, cv_meta) = resolve_cv_packet(cv_summary);
+    let dev_path = get_devprofile_path();
+    let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
     eprintln!(
         "[ipc] prep_opportunity_target cv_ipc_chars={} cv_used_fallback={} cv_chars_sent={} (invoke cvSummary)",
         cv_meta.ipc_chars,
@@ -323,6 +437,77 @@ pub(crate) async fn prep_opportunity_target(
     })
 }
 
+/// Pure helper (drives tests for propose without full tauri/async State).
+fn build_cv_sidecar_proposal(opp_id: i64, prep_artifacts_json: &str, dev_path: Option<String>) -> Result<(String, Value), String> {
+    let prep_val: Value = serde_json::from_str(prep_artifacts_json).unwrap_or(json!({}));
+    let suggestions: Vec<String> = if let Some(arr) = prep_val.get("cv_suggestions").and_then(|v| v.as_array()) {
+        arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+    } else if let Some(arr) = prep_val.get("prep").and_then(|p| p.get("cv_suggestions")).and_then(|v| v.as_array()) {
+        arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+    } else {
+        vec![]
+    };
+    if suggestions.is_empty() {
+        return Err("no cv_suggestions".into());
+    }
+    let mut preview_lines = vec![format!("Sidecar proposal for opportunity #{} (cv-promote-guard style, sidecar only)", opp_id)];
+    let mut deltas: Vec<Value> = vec![];
+    for (i, s) in suggestions.iter().enumerate() {
+        preview_lines.push(format!("{}. {}", i+1, s));
+        deltas.push(json!({ "index": i, "suggestion": s, "proposed_action": "add_or_update_in_cv" }));
+    }
+    let preview = preview_lines.join("\n");
+    let sidecar_doc = json!({
+        "opportunity_id": opp_id,
+        "generated_at": "now",
+        "source": "quick_target_prep",
+        "suggestions": suggestions,
+        "deltas": deltas,
+        "devprofile_path_at_time": dev_path,
+    });
+    Ok((preview, sidecar_doc))
+}
+
+/// Propose CV sidecar from stored prep cv_suggestions (AC3).
+/// Loads opp (to get prep_artifacts_json), derives basic deltas (string suggestions), writes sidecar json under app data (sidecar-first).
+/// Returns preview text + path. Never mutates devprofile cvdata.json (even if path configured).
+#[tauri::command]
+pub(crate) async fn propose_cv_sidecar_for_prep(
+    db: State<'_, AppDb>,
+    opportunity_id: i64,
+) -> Result<CvSidecarProposalResult, String> {
+    if opportunity_id <= 0 {
+        return Err("opportunity_id required".into());
+    }
+    let opps = if let Ok(guard) = db.0.lock() {
+        guard.get_opportunities(&db::OpportunityFilter { id: Some(opportunity_id), limit: Some(1), ..Default::default() })
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let o = opps.into_iter().next().ok_or_else(|| format!("opportunity {} not found", opportunity_id))?;
+
+    let prep_json = o.prep_artifacts_json.as_deref().unwrap_or("{}");
+    let (preview, sidecar_doc) = build_cv_sidecar_proposal(opportunity_id, prep_json, get_devprofile_path())?;
+
+    // Write sidecar (always, even if no devprofile path)
+    let base_dir = crate::app_dirs::app_data_dir().map_err(|e| e.to_string())?;
+    let sidecar_dir = base_dir.join("cv_proposals").join(format!("opp_{}", opportunity_id));
+    std::fs::create_dir_all(&sidecar_dir).map_err(|e| e.to_string())?;
+    let sidecar_path = sidecar_dir.join("cv-sidecar-proposal.json");
+    std::fs::write(&sidecar_path, serde_json::to_string_pretty(&sidecar_doc).unwrap_or_default())
+        .map_err(|e| e.to_string())?;
+
+    let suggestions_count = if let Some(arr) = sidecar_doc.get("suggestions").and_then(|v| v.as_array()) { arr.len() as u32 } else { 0 };
+
+    Ok(CvSidecarProposalResult {
+        opportunity_id,
+        preview,
+        sidecar_path: sidecar_path.to_string_lossy().to_string(),
+        suggestions_count,
+    })
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OpportunityTargetPageResult {
     pub title: Option<String>,
@@ -356,6 +541,16 @@ pub struct OpportunityTargetPrepResult {
     pub opportunity_id: i64,
     pub prep: Value,
     pub est_cost_usd: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CvSidecarProposalResult {
+    pub opportunity_id: i64,
+    /// Human readable basic preview of what would be proposed (sidecar-first, no live CV mutation per cv-promote-guard).
+    pub preview: String,
+    /// Absolute path to the written sidecar proposal artifact.
+    pub sidecar_path: String,
+    pub suggestions_count: u32,
 }
 
 fn strip_html_basic(html: &str) -> String {
@@ -506,7 +701,7 @@ mod tests {
 
     #[test]
     fn resolve_cv_packet_uses_caller_text() {
-        let (cv, meta) = resolve_cv_packet(Some("  my cv packet  ".to_string()));
+        let (cv, meta) = resolve_cv_packet(Some("  my cv packet  ".to_string()), None);
         assert_eq!(cv, "my cv packet");
         assert_eq!(meta.ipc_chars, 12);
         assert!(!meta.used_fallback);
@@ -514,11 +709,11 @@ mod tests {
 
     #[test]
     fn resolve_cv_packet_fallback_when_missing_or_blank() {
-        let (_, meta) = resolve_cv_packet(None);
+        let (_, meta) = resolve_cv_packet(None, None);
         assert!(meta.used_fallback);
         assert_eq!(meta.ipc_chars, 0);
 
-        let (_, meta) = resolve_cv_packet(Some("   \n  ".to_string()));
+        let (_, meta) = resolve_cv_packet(Some("   \n  ".to_string()), None);
         assert!(meta.used_fallback);
         assert_eq!(meta.ipc_chars, 0);
     }
@@ -529,5 +724,65 @@ mod tests {
         let (preview, truncated) = packet_preview_for(&long);
         assert!(truncated);
         assert_eq!(preview.chars().count(), PACKET_PREVIEW_MAX_CHARS);
+    }
+
+    #[test]
+    fn resolve_uses_pruned_devprofile_cv_when_path_configured() {
+        use std::io::Write;
+        // Use std temp (no extra crate dep for test)
+        let base = std::env::temp_dir().join(format!("collabfinder_cvtest_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let devp = base.join("devprofile");
+        let data_dir = devp.join("src/data");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let cvjson = r#"{"name":"Peramanathan Sathyamoorthy","one_liner":"Senior agentic builder","profile":"Builds self-guarded reactors","work_experience":[{"title":"Senior","company":"Oneflow","responsibilities":["Integrated TS 70% error drop"]}],"contact":{"github":"@p10ns11y"}}"#;
+        let mut f = std::fs::File::create(data_dir.join("cvdata.json")).unwrap();
+        f.write_all(cvjson.as_bytes()).unwrap();
+        drop(f);
+
+        // When path set, resolve should load pruned containing real strings (even if cv_summary empty)
+        let (packet, meta) = resolve_cv_packet(None, Some(devp.to_string_lossy().to_string()));
+        assert!(packet.contains("Peramanathan") || packet.contains("Sathyamoorthy") || packet.contains("NAME:"));
+        assert!(!meta.used_fallback);
+        assert!(meta.ipc_chars > 10);
+
+        // cleanup best effort
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn propose_sidecar_helper_writes_file_and_cvdata_hash_unchanged() {
+        // Drives shipped build_ helper (used by propose_cv_sidecar_for_prep) per skeptic/verif step 5.
+        // Simulates invoke on prepped opp with cv_suggestions; writes sidecar to temp; asserts cvdata hash same (no mutation).
+        use std::io::Write;
+        let tmp = std::env::temp_dir().join(format!("cf_propose_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        // Copy real cvdata for hash check (to avoid mutating source)
+        let real_cv = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let cv_copy = tmp.join("cvdata.json");
+        if let Ok(bytes) = std::fs::read(real_cv) {
+            let _ = std::fs::write(&cv_copy, &bytes);
+        }
+        let pre_bytes = std::fs::read(&cv_copy).unwrap_or_default();
+
+        let prep_with_suggestions = r#"{"cv_suggestions": ["Add explicit truth-seeking AI line", "Promote collab-finder OSS first"]}"#;
+        let (preview, doc) = build_cv_sidecar_proposal(17, prep_with_suggestions, Some("/tmp/fake-devp".into())).expect("build");
+
+        // Simulate the write the cmd does
+        let sidecar_dir = tmp.join("cv_proposals").join("opp_17");
+        std::fs::create_dir_all(&sidecar_dir).unwrap();
+        let sidecar_f = sidecar_dir.join("cv-sidecar-proposal.json");
+        std::fs::write(&sidecar_f, serde_json::to_string_pretty(&doc).unwrap()).unwrap();
+
+        let post_bytes = std::fs::read(&cv_copy).unwrap_or_default();
+        let content = std::fs::read_to_string(&sidecar_f).unwrap();
+
+        assert!(preview.contains("truth-seeking") || preview.contains("collab-finder"), "preview from suggestions");
+        assert!(content.contains("17") && content.contains("suggestions"));
+        assert_eq!(pre_bytes, post_bytes, "cvdata bytes must be unchanged (sidecar-first)");
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -10,6 +10,7 @@ type Props = {
   sourceUrl?: string
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
+  onProposeSidecar?: (opportunityId?: number) => void
 }
 
 function cv_chars_sent_label(
@@ -26,7 +27,7 @@ function cv_chars_sent_label(
   return parts.join(' · ')
 }
 
-export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested }: Props) {
+export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested, onProposeSidecar }: Props) {
   if (busy) {
     return (
       <Card className="border-border-subtle">
@@ -211,6 +212,15 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
               title="Generate (or regenerate) prep pack using current CV summary + prior fit analysis. Includes cover letter, CV suggestions (as sidecar proposals), research notes. Skipped for low-fit scores to avoid low-value xAI calls. Prep cost shown after generation."
             >
               {prep ? 'Regenerate prep' : 'Generate prep pack'}
+            </button>
+          )}
+          {onProposeSidecar && prep && opportunityId && (
+            <button
+              onClick={() => onProposeSidecar(opportunityId)}
+              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
+              title="Propose these CV suggestions as sidecar (per cv-promote-guard). Writes proposal artifact + returns basic preview. Does NOT mutate your devprofile cvdata.json."
+            >
+              Propose CV sidecar
             </button>
           )}
           {onClear && (

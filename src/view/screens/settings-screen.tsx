@@ -37,6 +37,10 @@ export function SettingsScreen({ view, dispatch }: Props) {
         <XaiKeyPanel />
       </div>
 
+      <div className="mt-4">
+        <DevprofilePathPanel />
+      </div>
+
       <div className="mt-6 space-y-4 text-xs">
         <details open>
           <summary className="cursor-pointer uppercase tracking-wide text-ink-faint mb-1 hover:text-ink">X search operators</summary>
@@ -141,6 +145,79 @@ function XaiKeyPanel() {
         <div className="mt-2 text-[10px] text-ink-faint">
           active: {status.active_source} • keyring: {status.keyring?.reachable ? 'reachable' : 'no'} • file: {status.file?.present ? 'yes' : 'no'}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Devprofile path config (for real CV grounding + sidecar proposals).
+ * Per plan checklist + skeptic fix: expose in Settings UI (not only manual txt).
+ * Uses direct safeInvoke (mirrors XaiKeyPanel).
+ */
+function DevprofilePathPanel() {
+  const [draft, setDraft] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [status, setStatus] = React.useState<string | null>(null)
+  const [notice, setNotice] = React.useState<string | null>(null)
+
+  const refresh = async () => {
+    const res = await safeInvoke<string | null>('get_devprofile_path_cmd', {})
+    if (res.ok) setStatus(res.value || null)
+  }
+
+  React.useEffect(() => { void refresh() }, [])
+
+  const save = async () => {
+    if (!draft.trim()) return
+    setBusy(true)
+    setNotice(null)
+    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: draft.trim() })
+    if (res.ok) {
+      setDraft('')
+      setNotice('Saved. Restart or re-open Discover to use for next analyze/prep.')
+      await refresh()
+    } else {
+      setNotice(res.error?.message || 'Save failed')
+    }
+    setBusy(false)
+  }
+
+  const clear = async () => {
+    setBusy(true)
+    await safeInvoke<void>('set_devprofile_path_cmd', { path: null })
+    await refresh()
+    setBusy(false)
+  }
+
+  return (
+    <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-medium text-sm">devprofile path (real CV for grounding)</div>
+        <div className="text-[10px] px-2 py-0.5 rounded border">{status ? 'Configured' : 'Using default/distilled'}</div>
+      </div>
+      <div className="text-[10px] text-ink-faint mb-2">
+        When set to ~/Work/personal/devprofile, Quick Target uses pruned cvdata.json for analyze/prep (textarea still overrides if provided). Sidecar proposals read it for deltas (no auto-write).
+      </div>
+
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="/home/.../devprofile or leave to use distilled"
+        className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1 text-sm font-mono"
+      />
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy || !draft.trim()} className="text-sm px-3 py-1 border rounded hover:border-accent/60 disabled:opacity-50">
+          Save path
+        </button>
+        {status && (
+          <button onClick={clear} disabled={busy} className="text-sm px-3 py-1 border rounded hover:border-accent/60">Clear</button>
+        )}
+        <button onClick={refresh} className="text-sm px-2 py-1 text-ink-faint">Refresh</button>
+      </div>
+      {notice && <div className="mt-1 text-xs text-ink-muted">{notice}</div>}
+      {status && (
+        <div className="mt-2 text-[10px] text-ink-faint break-all">current: {status}</div>
       )}
     </div>
   )

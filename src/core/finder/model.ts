@@ -61,6 +61,7 @@ export type HistorySlice = {
   events: AsyncState<Event[]>
   stats: AsyncState<DashboardStats | null>
   opportunities: AsyncState<Opportunity[]>
+  lastRefreshed: number | null  // epoch ms of last successful HistoryRefreshed (any slice) — helps diagnose races / freshness for Data/History/rail after prep (TD-009)
 }
 
 export type FinderModel = {
@@ -141,6 +142,7 @@ export function initialFinderModel(): FinderModel {
       events: idle(),
       stats: idle(),
       opportunities: idle(),
+      lastRefreshed: null,
     },
     activeScreen,
     lookup: idle(),
