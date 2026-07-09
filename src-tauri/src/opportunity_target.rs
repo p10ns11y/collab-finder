@@ -331,8 +331,8 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
 pub(crate) async fn run_analyze_opportunity_target(
     url: Option<String>,
     pasted_jd: Option<String>,
-    title: Option<String>,
-    company: Option<String>,
+    _title: Option<String>,
+    _company: Option<String>,
     cv_summary: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
     let jd = match (url.clone(), pasted_jd) {
@@ -377,8 +377,6 @@ pub(crate) async fn run_analyze_opportunity_target(
     let model = get_xai_model();
     let (fit_json, usage) =
         structured_chat(system, &user, "target_fit_v1", schema, &model).await?;
-
-    let fit_score = fit_json.get("overall").and_then(|v| v.as_i64()).map(|i| i as i32);
 
     let cost = crate::xai::cost_from_usage(&usage);
     let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
@@ -438,13 +436,12 @@ pub(crate) async fn run_prep_opportunity_target(
     opportunity_id: Option<i64>,
     url: Option<String>,
     pasted_jd: Option<String>,
-    title: Option<String>,
-    company: Option<String>,
+    _title: Option<String>,
+    _company: Option<String>,
     cv_summary: Option<String>,
     previous_fit: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
     let mut jd = String::new();
-    let mut effective_url = url.clone();
     if let Some(p) = &pasted_jd {
         if !p.trim().is_empty() {
             jd = p.clone();
@@ -454,12 +451,6 @@ pub(crate) async fn run_prep_opportunity_target(
         if let Some(u) = &url {
             let fetched = fetch_opportunity_target_page(u.clone()).await?;
             jd = fetched.cleaned_text;
-        }
-    }
-    if jd.is_empty() {
-        if let Some(oid) = opportunity_id {
-            // Note: for test path we usually pass pasted_jd or url; id load would require store.
-            // For the integration we pass pasted_jd, so this is fine.
         }
     }
     if jd.is_empty() {
