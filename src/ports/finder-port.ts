@@ -37,6 +37,8 @@ export type FinderPort = {
   analyzeOpportunityTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<OpportunityTargetAnalysisResult, AppError>>
   prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<OpportunityTargetPrepResult, AppError>>
   getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
+  /** Pipeline status only (applied/passed/archived/…) — no xAI. */
+  updateOpportunityStatus(id: number, status: string, notes?: string): Promise<Result<void, AppError>>
 
   // devprofile grounding config (AC2): when set, resolve_cv uses pruned cvdata.json from the path
   getDevprofilePath(): Promise<Result<string | null, AppError>>

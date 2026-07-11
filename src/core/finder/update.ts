@@ -229,6 +229,24 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'CvSidecarProposeFailed':
       return [{ ...model, banner: msg.error }]
 
+    case 'OpportunityStatusChangeRequested':
+      return [{ ...model, banner: null }]
+    case 'OpportunityStatusChangeSucceeded': {
+      // Optimistic patch of opportunities list so rail updates before history refresh returns.
+      const h = { ...model.history }
+      if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
+        h.opportunities = {
+          status: 'ready',
+          data: h.opportunities.data.map((o) =>
+            o.id === msg.id ? { ...o, status: msg.status } : o,
+          ),
+        }
+      }
+      return [{ ...model, history: h, banner: null }]
+    }
+    case 'OpportunityStatusChangeFailed':
+      return [{ ...model, banner: msg.error }]
+
     case 'HistoryRefreshRequested':
       // Do NOT blank all slices to loading (old behavior caused History + Data to appear empty
       // immediately after evaluate/prep/search/cycle until a full AppStarted refresh or manual re-open).

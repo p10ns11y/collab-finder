@@ -41,29 +41,34 @@ export function SettingsScreen({ view, dispatch }: Props) {
         <DevprofilePathPanel />
       </div>
 
-      <div className="mt-6 space-y-4 text-xs">
-        <details open>
-          <summary className="cursor-pointer uppercase tracking-wide text-ink-faint mb-1 hover:text-ink">X search operators</summary>
+      <div className="mt-6 space-y-3 text-xs">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">Advanced</div>
+        <details>
+          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">X search operators</summary>
           <p className="mb-1 text-ink-muted">
             <a href={operatorsDocUrl} target="_blank" rel="noreferrer" className="text-accent underline-offset-2 hover:underline">
               Official X API v2 docs
             </a>
           </p>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[10px] leading-relaxed text-ink-faint">
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
             {operatorsReference}
           </pre>
         </details>
 
-        <details open>
-          <summary className="cursor-pointer uppercase tracking-wide text-ink-faint mb-1 hover:text-ink">Strategy &amp; distillation (profile + apply)</summary>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[10px] leading-relaxed text-ink-faint">
+        <details>
+          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">Strategy &amp; distillation</summary>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
             {strategyReference}
           </pre>
         </details>
-      </div>
 
-      <div className="mt-8 text-[11px] text-ink-faint border-t border-border-subtle pt-4">
-        CV changes use sidecar + explicit confirm (cv-promote-guard). X via official resources. All paths have self-guards.
+        <details>
+          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">About</summary>
+          <p className="text-ink-faint leading-relaxed">
+            collab-finder is separate from your public devprofile. CV suggestions use sidecar-first propose
+            (no silent master write). Xplore uses official X agent patterns. Self-guards on high-stakes paths.
+          </p>
+        </details>
       </div>
     </div>
   )

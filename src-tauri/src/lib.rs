@@ -342,6 +342,23 @@ async fn get_opportunities(
         .map_err(|e| e.to_string())?
 }
 
+/// Pipeline status only (applied / passed / archived / …) — no xAI. Discover rail closure.
+#[tauri::command]
+async fn update_opportunity_status_cmd(
+    db: State<'_, AppDb>,
+    id: i64,
+    status: String,
+    notes: Option<String>,
+) -> Result<(), String> {
+    let allowed = ["new", "analyzed", "prepped", "applied", "passed", "archived"];
+    if !allowed.contains(&status.as_str()) {
+        return Err(format!("invalid status '{status}' (allowed: {})", allowed.join(", ")));
+    }
+    db.0.lock()
+        .map_err(|e| e.to_string())?
+        .update_opportunity_status(id, &status, notes.as_deref())
+}
+
 #[tauri::command]
 async fn search_past_tweets(
     db: State<'_, AppDb>,
@@ -404,6 +421,7 @@ pub fn run() {
             set_xai_model_cmd,
             propose_cv_sidecar_for_prep,
             get_opportunities,
+            update_opportunity_status_cmd,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,

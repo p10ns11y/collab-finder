@@ -61,6 +61,8 @@ export function createTauriFinderPort(): FinderPort {
         previousFit: payload.previous_fit,
       }),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
+    updateOpportunityStatus: (id, status, notes) =>
+      safeInvoke<void>('update_opportunity_status_cmd', { id, status, notes }),
     getDevprofilePath: () => safeInvoke<string | null>('get_devprofile_path_cmd', {}),
     setDevprofilePath: (p) => safeInvoke<void>('set_devprofile_path_cmd', { path: p }),
     proposeCvSidecar: (id) => safeInvoke('propose_cv_sidecar_for_prep', { opportunityId: id }),
@@ -147,6 +149,11 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async getOpportunities(filter?: OpportunityFilter) {
       const result = await port.getOpportunities(filter)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async updateOpportunityStatus(id: number, status: string, notes?: string) {
+      const result = await port.updateOpportunityStatus(id, status, notes)
       if (!result.ok) throw result.error
       return result.value
     },

@@ -17,13 +17,11 @@ export function FinderApp() {
   }, [dispatch])
 
   useEffect(() => {
+    // Only primary screens (Discover / Xplore / Settings). Orphan keys used to hit "Unknown screen".
     const SCREEN_BY_KEY: Record<string, FinderScreen> = {
       '1': 'discover',
-      '2': 'stats',
-      '3': 'history',
-      '4': 'data',
-      '5': 'lookup',
-      '6': 'settings',
+      '2': 'xplore',
+      '3': 'settings',
     }
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {

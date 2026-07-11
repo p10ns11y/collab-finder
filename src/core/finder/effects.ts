@@ -38,6 +38,7 @@ export type FinderPorts = {
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
+    updateOpportunityStatus(id: number, status: string, notes?: string): Promise<void>
     // devprofile + sidecar propose
     getDevprofilePath(): Promise<string | null>
     setDevprofilePath(path: string | null): Promise<void>
@@ -202,6 +203,23 @@ export function proposeCvSidecarCmd(ports: FinderPorts, opportunityId: number): 
       }
       const r = result.value as any
       dispatch({ type: 'CvSidecarProposeSucceeded', preview: r.preview || '', sidecar_path: r.sidecar_path || '', suggestions_count: r.suggestions_count || 0 })
+    })
+  }
+}
+
+export function updateOpportunityStatusCmd(
+  ports: FinderPorts,
+  id: number,
+  status: string,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.updateOpportunityStatus(id, status), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'OpportunityStatusChangeFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'OpportunityStatusChangeSucceeded', id, status })
+      dispatch({ type: 'HistoryRefreshRequested' })
     })
   }
 }
@@ -617,6 +635,8 @@ export function effectForMsg(
       return promoteCmd(ports)
     case 'CvSidecarProposeRequested':
       return proposeCvSidecarCmd(ports, msg.opportunity_id)
+    case 'OpportunityStatusChangeRequested':
+      return updateOpportunityStatusCmd(ports, msg.id, msg.status)
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':

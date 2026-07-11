@@ -5,6 +5,21 @@
   --font-sans: 'DM Sans Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
+  /* Golden ratio layout (φ ≈ 1.618) — minor ≈ 38.2%, major ≈ 61.8% */
+  --phi: 1.618;
+  --pane-minor: 38.2%;
+  --pane-major: 61.8%;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --text-caption: 0.6875rem; /* 11px */
+  --text-body-sm: 0.8125rem; /* 13px */
+  --text-body: 0.9375rem; /* 15px */
+  --rail-max: 16rem;
+
   --color-surface-0: #070709;
   --color-surface-1: #0e0e12;
   --color-surface-2: #14141a;
