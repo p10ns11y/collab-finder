@@ -46,6 +46,7 @@ ls .cursor/rules/*.mdc   # should list fusion-sage.mdc, agent-workflow.mdc, …
 
 Relevant rules in `.agents/rules/` today:
 - `fusion-sage.mdc` (alwaysApply: true) — synthesis + surplus for the agentic reactor.
+- `secrets-agent-safety.mdc` (alwaysApply: true) — never dump X/xAI secrets via secret-tool or cat.
 - `finder-reactor.mdc` — reactor, self-guards, pauses.
 - `tauri-agentic.mdc` — MCP exposure, Tauri command design for agents.
 - `agent-workflow.mdc`, `grep-before-edit.mdc`, `read-edit-lint.mdc` — dev process.

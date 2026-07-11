@@ -303,7 +303,8 @@ fn packet_preview_for(cv: &str) -> (String, bool) {
 
 /// Simple persistent store for devprofile_path (plain text file under app data; no secrets).
 /// Non-goals avoid new DB columns; file is sufficient for this wiring step.
-fn get_devprofile_path() -> Option<String> {
+/// Shared with FinderReactor promote path so Xplore "X insights note" sees Settings config.
+pub(crate) fn get_devprofile_path() -> Option<String> {
     if let Ok(dir) = crate::app_dirs::app_data_dir() {
         let p = dir.join("devprofile_path.txt");
         if let Ok(s) = std::fs::read_to_string(p) {

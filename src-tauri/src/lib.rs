@@ -13,7 +13,11 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
-use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, get_devprofile_path_cmd, get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep, set_devprofile_path_cmd, set_xai_model_cmd};
+use opportunity_target::{
+    analyze_opportunity_target, fetch_opportunity_target_page, get_devprofile_path,
+    get_devprofile_path_cmd, get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep,
+    set_devprofile_path_cmd, set_xai_model_cmd,
+};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -400,7 +404,8 @@ fn log_event(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppReactor(Mutex::new(FinderReactor::new(None))))
+        // Seed reactor from Settings store (same devprofile_path.txt as analyze/prep).
+        .manage(AppReactor(Mutex::new(FinderReactor::new(get_devprofile_path()))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
         .invoke_handler(tauri::generate_handler![
             // Credential commands (stability boundary — see above). Keep bearer + xai together.

@@ -437,7 +437,7 @@ function DevprofilePathPanel() {
     const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: draft.trim() })
     if (res.ok) {
       setDraft('')
-      setNotice('Saved. Will be used on next analyze/prep (no restart required).')
+      setNotice('Saved. Used by analyze/prep and Xplore promote (no restart required).')
       await refresh()
     } else {
       setNotice(res.error?.message || 'Save failed')

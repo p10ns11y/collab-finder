@@ -332,11 +332,22 @@ impl FinderReactor {
         Ok(self.complete_cycle(tweets, &cv_summary))
     }
 
+    /// Refresh path from Settings store (`devprofile_path.txt` via opportunity_target).
+    /// Source of truth for analyze/prep and Xplore promote — not the in-memory field alone.
+    pub fn sync_devprofile_path_from_settings(&mut self) {
+        if let Some(p) = crate::opportunity_target::get_devprofile_path() {
+            let pb = PathBuf::from(&p);
+            self.state.cv_path = Some(p);
+            self.devprofile_path = Some(pb);
+        }
+    }
+
     // MCP tool stub: promote (per cv-promote-guard)
     pub fn promote_insights(&mut self, lead_id: &str) -> Result<String, String> {
         // Always sidecar-first, diff, pause for confirm. Never direct write.
         // In real: load cvdata, generate patch, write sidecar in app_data, return preview.
-        // Use devprofile_path.
+        // Re-read Settings path each call so "Configured" in Settings is not ignored after app start.
+        self.sync_devprofile_path_from_settings();
         if let Some(path) = &self.devprofile_path {
             Ok(format!("Sidecar written for lead {}. Preview diff at {}/preps/... . Confirm to apply? (per cv-promote-guard)", lead_id, path.display()))
         } else {
@@ -396,12 +407,40 @@ mod tests {
 
     #[test]
     fn promote_requires_devprofile_path() {
+        // Isolate from developer's live ~/.local/share/.../devprofile_path.txt
+        struct HarnessGuard(std::path::PathBuf);
+        impl Drop for HarnessGuard {
+            fn drop(&mut self) {
+                crate::app_dirs::test_harness::clear();
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("cf_promote_devp_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let _g = HarnessGuard(tmp.clone());
+        crate::app_dirs::test_harness::set(tmp.clone());
+
         let mut reactor = FinderReactor::new(None);
-        assert!(reactor
-            .promote_insights("lead-1")
-            .unwrap()
-            .contains("Configure devprofile_path"));
+        assert!(
+            reactor
+                .promote_insights("lead-1")
+                .unwrap()
+                .contains("Configure devprofile_path"),
+            "without settings file, promote must ask to configure"
+        );
+
+        // Settings UI writes this file — promote must pick it up without restart.
+        std::fs::write(tmp.join("devprofile_path.txt"), "/tmp/devprofile-from-settings").unwrap();
+        let msg = reactor.promote_insights("lead-1").unwrap();
+        assert!(
+            msg.contains("Sidecar written") && msg.contains("devprofile-from-settings"),
+            "promote must sync from settings file, got: {msg}"
+        );
+
         let mut with_path = FinderReactor::new(Some("/tmp/devprofile".into()));
+        // Clear settings so constructor path is used (sync would overwrite if file present)
+        let _ = std::fs::remove_file(tmp.join("devprofile_path.txt"));
         assert!(with_path
             .promote_insights("lead-1")
             .unwrap()
