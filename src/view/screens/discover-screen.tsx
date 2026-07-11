@@ -67,7 +67,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
     <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
       {/* Left — φ minor (~38.2%) */}
       <div
-        className="w-full lg:min-w-[280px] lg:max-w-[min(420px,42%)] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-3"
+        className="w-full min-w-0 lg:min-w-[280px] lg:max-w-[min(420px,42%)] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-x-hidden overflow-y-auto p-3 lg:p-4 space-y-3"
         style={{ flex: '0 0 var(--pane-minor)' }}
       >
         {isDiscover && (

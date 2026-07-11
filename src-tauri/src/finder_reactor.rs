@@ -58,6 +58,25 @@ pub struct FinderReactor {
     pub devprofile_path: Option<PathBuf>,
 }
 
+/// Middle-ellipsis path for pause banners (avoids UI overflow on long home paths).
+fn shorten_path_for_ui(path: &str, max_chars: usize) -> String {
+    let n = path.chars().count();
+    if n <= max_chars {
+        return path.to_string();
+    }
+    let keep = max_chars.saturating_sub(1) / 2;
+    let start: String = path.chars().take(keep).collect();
+    let end: String = path
+        .chars()
+        .rev()
+        .take(keep)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    format!("{}…{}", start, end)
+}
+
 impl FinderReactor {
     pub fn new(devprofile_path: Option<String>) -> Self {
         let x_skill = Self::load_x_skill_context();
@@ -349,7 +368,13 @@ impl FinderReactor {
         // Re-read Settings path each call so "Configured" in Settings is not ignored after app start.
         self.sync_devprofile_path_from_settings();
         if let Some(path) = &self.devprofile_path {
-            Ok(format!("Sidecar written for lead {}. Preview diff at {}/preps/... . Confirm to apply? (per cv-promote-guard)", lead_id, path.display()))
+            // Short path tail for UI (full path still available via Settings / sidecar tools).
+            let display = path.display().to_string();
+            let short = shorten_path_for_ui(&display, 48);
+            Ok(format!(
+                "Sidecar ready for lead «{}» under {}/preps/… — confirm before apply (cv-promote-guard).",
+                lead_id, short
+            ))
         } else {
             Ok("Configure devprofile_path first. Sidecar only.".to_string())
         }
@@ -434,7 +459,7 @@ mod tests {
         std::fs::write(tmp.join("devprofile_path.txt"), "/tmp/devprofile-from-settings").unwrap();
         let msg = reactor.promote_insights("lead-1").unwrap();
         assert!(
-            msg.contains("Sidecar written") && msg.contains("devprofile-from-settings"),
+            msg.contains("Sidecar ready") && msg.contains("devprofile-from-settings"),
             "promote must sync from settings file, got: {msg}"
         );
 
@@ -444,7 +469,18 @@ mod tests {
         assert!(with_path
             .promote_insights("lead-1")
             .unwrap()
-            .contains("Sidecar written"));
+            .contains("Sidecar ready"));
+    }
+
+    #[test]
+    fn shorten_path_for_ui_ellipsis_long_home_paths() {
+        let long = "/home/sustainableabundance/Work/personal/devprofile";
+        let s = shorten_path_for_ui(long, 28);
+        assert!(s.chars().count() <= 28, "got {s}");
+        assert!(s.contains('…'), "expected ellipsis in {s}");
+        assert!(s.starts_with("/home") || s.starts_with("/hom"));
+        assert!(s.ends_with("devprofile") || s.ends_with("profile"));
+        assert_eq!(shorten_path_for_ui("/tmp/x", 48), "/tmp/x");
     }
 
     #[test]

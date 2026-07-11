@@ -209,7 +209,8 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           pauses: [
             ...model.pauses,
-            `CV promote: ${msg.message} (sidecar-first — confirm before live portfolio).`,
+            // Message from Rust already includes guard/confirm wording; avoid stacking long paths twice.
+            `CV promote: ${msg.message}`,
           ],
         },
       ]
