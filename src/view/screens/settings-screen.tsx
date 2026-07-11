@@ -1,9 +1,18 @@
 import * as React from 'react'
+import { KeyRound, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { CredentialsPanel } from '../../components/finder/credentials-panel'
+import { CredentialsStorageDetails } from '../../components/finder/credentials-storage-details'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
+import type { BearerStorageStatus } from '../../core/domain/credentials'
+import { activeSourceLabel } from '../../core/domain/credentials'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
 
 type Props = {
   view: FinderViewState
@@ -84,18 +93,19 @@ export function SettingsScreen({ view, dispatch }: Props) {
  * - Status enum prevents impossible states (e.g. saving while loading).
  * - Handlers dispatch; logic lives in reducer.
  */
-type XaiKeyStatus = any; // from get_xai_key_storage
+/** Mirrors Rust `XaiKeyStorageStatus` (same shape as bearer for UI reuse). */
+type XaiKeyStatus = BearerStorageStatus
 
-type XaiPanelStatus = 'idle' | 'loading' | 'saving-key' | 'clearing-key' | 'saving-model';
+type XaiPanelStatus = 'idle' | 'loading' | 'saving-key' | 'clearing-key' | 'saving-model'
 
 type XaiPanelState = {
-  keyStatus: XaiKeyStatus | null;
-  model: string;
-  keyDraft: string;
-  modelDraft: string;
-  panelStatus: XaiPanelStatus;
-  notice: string | null;
-};
+  keyStatus: XaiKeyStatus | null
+  model: string
+  keyDraft: string
+  modelDraft: string
+  panelStatus: XaiPanelStatus
+  notice: string | null
+}
 
 type XaiPanelAction =
   | { type: 'LOAD_START' }
@@ -110,7 +120,7 @@ type XaiPanelAction =
   | { type: 'SAVE_MODEL_START' }
   | { type: 'SAVE_MODEL_SUCCESS'; value: string }
   | { type: 'OPERATION_ERROR'; message: string }
-  | { type: 'CLEAR_NOTICE' };
+  | { type: 'CLEAR_NOTICE' }
 
 const initialXaiPanelState: XaiPanelState = {
   keyStatus: null,
@@ -151,13 +161,23 @@ function xaiPanelReducer(state: XaiPanelState, action: XaiPanelAction): XaiPanel
       return { ...state, panelStatus: 'saving-key', notice: null };
 
     case 'SAVE_KEY_SUCCESS':
-      return { ...state, panelStatus: 'idle', keyDraft: '', notice: 'Saved. Status will update on refresh.' };
+      return {
+        ...state,
+        panelStatus: 'idle',
+        keyDraft: '',
+        notice: 'Saved. Key is not kept in React state after save.',
+      }
 
     case 'CLEAR_KEY_START':
-      return { ...state, panelStatus: 'clearing-key', notice: null };
+      return { ...state, panelStatus: 'clearing-key', notice: null }
 
     case 'CLEAR_KEY_SUCCESS':
-      return { ...state, panelStatus: 'idle', keyStatus: null };
+      return {
+        ...state,
+        panelStatus: 'idle',
+        keyDraft: '',
+        notice: 'Disconnected. Analyze/prep will require a key again.',
+      }
 
     case 'SAVE_MODEL_START':
       return { ...state, panelStatus: 'saving-model', notice: null };
@@ -183,174 +203,214 @@ function xaiPanelReducer(state: XaiPanelState, action: XaiPanelAction): XaiPanel
 }
 
 function XaiKeyPanel() {
-  const [state, dispatch] = React.useReducer(xaiPanelReducer, initialXaiPanelState);
+  const [state, dispatch] = React.useReducer(xaiPanelReducer, initialXaiPanelState)
 
-  const { keyStatus, model, keyDraft, modelDraft, panelStatus, notice } = state;
+  const { keyStatus, model, keyDraft, modelDraft, panelStatus, notice } = state
 
-  // Derived (no extra state)
-  const connected = !!keyStatus?.connected;
-  const displayModel = model || 'grok-4.5';
-  const isBusy = panelStatus !== 'idle';
+  const connected = !!keyStatus?.connected
+  const displayModel = model || 'grok-4.5'
+  const isBusy = panelStatus !== 'idle'
+  const isChecking = panelStatus === 'loading'
+  const activeLabel = keyStatus ? activeSourceLabel(keyStatus.active_source) : null
 
-  // Mount: load both key storage and model (external Tauri sync — justified useEffect)
-  React.useEffect(() => {
-    dispatch({ type: 'LOAD_START' });
-
-    // Fire both loads; reducer coordinates the 'loading' phase
-    void safeInvoke<any>('get_xai_key_storage', {}).then((res) => {
-      if (res.ok) dispatch({ type: 'KEY_LOADED', value: res.value });
-    });
-
+  const refreshStatus = React.useCallback(() => {
+    dispatch({ type: 'LOAD_START' })
+    void safeInvoke<XaiKeyStatus>('get_xai_key_storage', {}).then((res) => {
+      if (res.ok) dispatch({ type: 'KEY_LOADED', value: res.value })
+      else dispatch({ type: 'KEY_LOADED', value: null })
+    })
     void safeInvoke<string>('get_xai_model_cmd', {}).then((res) => {
-      if (res.ok && res.value) dispatch({ type: 'MODEL_LOADED', value: res.value });
-    });
-  }, []);
+      if (res.ok && res.value) dispatch({ type: 'MODEL_LOADED', value: res.value })
+    })
+  }, [])
+
+  React.useEffect(() => {
+    refreshStatus()
+  }, [refreshStatus])
 
   const saveKey = async () => {
-    const trimmed = keyDraft.trim();
-    if (!trimmed) return;
+    const trimmed = keyDraft.trim()
+    if (!trimmed) return
 
-    dispatch({ type: 'SAVE_KEY_START' });
+    dispatch({ type: 'SAVE_KEY_START' })
 
-    const res = await safeInvoke<void>('set_xai_key', { key: trimmed });
+    const res = await safeInvoke<void>('set_xai_key', { key: trimmed })
     if (res.ok) {
-      dispatch({ type: 'SAVE_KEY_SUCCESS' });
-      // Refresh key status (single source of truth)
-      const s = await safeInvoke<any>('get_xai_key_storage', {});
-      if (s.ok) dispatch({ type: 'KEY_LOADED', value: s.value });
+      dispatch({ type: 'SAVE_KEY_SUCCESS' })
+      const s = await safeInvoke<XaiKeyStatus>('get_xai_key_storage', {})
+      if (s.ok) dispatch({ type: 'KEY_LOADED', value: s.value })
     } else {
-      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Save failed' });
+      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Save failed' })
     }
-  };
+  }
 
   const clearKey = async () => {
-    dispatch({ type: 'CLEAR_KEY_START' });
-    await safeInvoke<void>('clear_xai_key', {});
-    dispatch({ type: 'CLEAR_KEY_SUCCESS' });
-  };
+    dispatch({ type: 'CLEAR_KEY_START' })
+    const res = await safeInvoke<void>('clear_xai_key', {})
+    if (res.ok) {
+      dispatch({ type: 'CLEAR_KEY_SUCCESS' })
+      const s = await safeInvoke<XaiKeyStatus>('get_xai_key_storage', {})
+      if (s.ok) dispatch({ type: 'KEY_LOADED', value: s.value })
+      else dispatch({ type: 'KEY_LOADED', value: null })
+    } else {
+      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Disconnect failed' })
+    }
+  }
 
   const saveModel = async (val?: string) => {
-    const toSave = (val ?? modelDraft).trim();
-    if (!toSave) return;
+    const toSave = (val ?? modelDraft).trim()
+    if (!toSave) return
 
-    dispatch({ type: 'SAVE_MODEL_START' });
+    dispatch({ type: 'SAVE_MODEL_START' })
 
-    const res = await safeInvoke<void>('set_xai_model_cmd', { model: toSave });
+    const res = await safeInvoke<void>('set_xai_model_cmd', { model: toSave })
     if (res.ok) {
-      dispatch({ type: 'SAVE_MODEL_SUCCESS', value: toSave });
+      dispatch({ type: 'SAVE_MODEL_SUCCESS', value: toSave })
     } else {
-      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Failed to save model' });
+      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Failed to save model' })
     }
-  };
+  }
 
   const quickSetModel = (m: string) => {
-    dispatch({ type: 'SET_MODEL_DRAFT', draft: m });
-    void saveModel(m);
-  };
+    dispatch({ type: 'SET_MODEL_DRAFT', draft: m })
+    void saveModel(m)
+  }
 
   return (
-    <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
-      <div className="flex items-center justify-between mb-2">
-        <div className="font-medium text-sm">xAI Intelligence key ({displayModel})</div>
-        <div className="text-[10px] px-2 py-0.5 rounded border">{connected ? 'Connected' : 'Required'}</div>
-      </div>
-      <div className="text-[10px] text-ink-faint mb-2">
-        Used for target fit analysis, CV tailoring, cover letters. Stored the same way as your X bearer (keyring + file).
-      </div>
-
-      {!connected && (
-        <input
-          type="password"
-          value={keyDraft}
-          onChange={(e) => dispatch({ type: 'SET_KEY_DRAFT', draft: e.target.value })}
-          placeholder="xai-..."
-          className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1 text-sm font-mono"
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden />
+            xAI Intelligence
+          </CardTitle>
+          <CardDescription>
+            API key for fit analysis, CV tailoring, and cover letters. Stored in Rust (keyring +
+            file fallback) — never kept in React state after save. Model defaults to {displayModel}.
+          </CardDescription>
+        </div>
+        <Badge tone={connected ? 'success' : isChecking ? 'neutral' : 'warning'}>
+          {isChecking ? 'Checking…' : connected ? 'Connected' : 'Required'}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <CredentialsStorageDetails
+          storage={keyStatus}
+          checking={isChecking && !keyStatus}
+          readPurpose="Analyze/prep read the key from Rust only — never from this UI after save."
         />
-      )}
 
-      <div className="flex gap-2">
-        {!connected && (
-          <button
-            onClick={saveKey}
-            disabled={isBusy || !keyDraft.trim()}
-            className="text-sm px-3 py-1 border rounded hover:border-accent/60 disabled:opacity-50"
-          >
-            Save xAI key
-          </button>
+        {!connected && !isChecking && (
+          <div className="space-y-2">
+            <Label htmlFor="xai-key">xAI API key</Label>
+            <Input
+              id="xai-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Paste from console.x.ai → API keys"
+              value={keyDraft}
+              onChange={(e) => dispatch({ type: 'SET_KEY_DRAFT', draft: e.target.value })}
+              className="font-mono text-xs"
+            />
+          </div>
         )}
-        {connected && (
-          <button
-            onClick={clearKey}
-            disabled={isBusy}
-            className="text-sm px-3 py-1 border rounded hover:border-accent/60"
-          >
-            Disconnect xAI key
-          </button>
+
+        {connected && activeLabel && (
+          <p className="text-xs text-success">
+            Connected — analyze/prep use <strong className="font-medium">{activeLabel}</strong>.
+          </p>
         )}
-        <button
-          onClick={() => {
-            // Manual refresh of both (rare)
-            dispatch({ type: 'LOAD_START' });
-            void safeInvoke<any>('get_xai_key_storage', {}).then((r) => {
-              if (r.ok) dispatch({ type: 'KEY_LOADED', value: r.value });
-            });
-            void safeInvoke<string>('get_xai_model_cmd', {}).then((r) => {
-              if (r.ok && r.value) dispatch({ type: 'MODEL_LOADED', value: r.value });
-            });
-          }}
-          disabled={isBusy}
-          className="text-sm px-2 py-1 text-ink-faint"
-        >
-          Refresh status
-        </button>
-      </div>
 
-      {notice && <div className="mt-1 text-xs text-ink-muted">{notice}</div>}
+        <div className="flex flex-wrap gap-2">
+          {!connected && !isChecking && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void saveKey()}
+              disabled={isBusy || !keyDraft.trim()}
+            >
+              {panelStatus === 'saving-key' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : null}
+              Save credentials
+            </Button>
+          )}
+          {connected && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void clearKey()}
+              disabled={isBusy}
+            >
+              {panelStatus === 'clearing-key' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              )}
+              Disconnect
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={refreshStatus} disabled={isBusy}>
+            {isChecking ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            )}
+            Refresh status
+          </Button>
+        </div>
 
-      {keyStatus && (
-        <div className="mt-2 text-[10px] text-ink-faint">
-          active: {keyStatus.active_source} • keyring: {keyStatus.keyring?.reachable ? 'reachable' : 'no'} • file: {keyStatus.file?.present ? 'yes' : 'no'}
-        </div>
-      )}
+        {notice && <p className="text-xs text-ink-muted">{notice}</p>}
 
-      {/* Model selection / input — still in same panel for the "xAI Intelligence" group in the image */}
-      <div className="mt-3 pt-3 border-t border-border-subtle/60">
-        <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Model</div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            value={modelDraft}
-            onChange={(e) => dispatch({ type: 'SET_MODEL_DRAFT', draft: e.target.value })}
-            placeholder="grok-4.5"
-            className="flex-1 min-w-[140px] bg-surface-0 border border-border-subtle rounded px-2 py-1 text-sm font-mono"
-          />
-          <button
-            onClick={() => saveModel()}
-            disabled={isBusy || !modelDraft.trim()}
-            className="text-sm px-3 py-1 border rounded hover:border-accent/60 disabled:opacity-50"
-          >
-            Save model
-          </button>
-          <button
-            onClick={() => quickSetModel('grok-4.3')}
-            disabled={isBusy}
-            className="text-xs px-2 py-1 border rounded hover:border-accent/60"
-          >
-            grok-4.3
-          </button>
-          <button
-            onClick={() => quickSetModel('grok-4.5')}
-            disabled={isBusy}
-            className="text-xs px-2 py-1 border rounded hover:border-accent/60"
-          >
-            grok-4.5
-          </button>
+        <div className="space-y-2 border-t border-border-subtle pt-3">
+          <Label htmlFor="xai-model">Model</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="xai-model"
+              value={modelDraft}
+              onChange={(e) => dispatch({ type: 'SET_MODEL_DRAFT', draft: e.target.value })}
+              placeholder="grok-4.5"
+              className="min-w-[140px] flex-1 font-mono text-xs"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void saveModel()}
+              disabled={isBusy || !modelDraft.trim()}
+            >
+              {panelStatus === 'saving-model' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : null}
+              Save model
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => quickSetModel('grok-4.3')}
+              disabled={isBusy}
+            >
+              grok-4.3
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => quickSetModel('grok-4.5')}
+              disabled={isBusy}
+            >
+              grok-4.5
+            </Button>
+          </div>
+          <p className="text-[11px] text-ink-faint">
+            Current: <span className="font-mono text-ink-muted">{displayModel}</span>. Selection or
+            custom id supported. Takes effect on the next fit/prep call.
+          </p>
         </div>
-        <div className="mt-1 text-[9px] text-ink-faint">
-          Current: <span className="font-mono">{displayModel}</span>. Selection or custom input supported. Takes effect for the next fit/prep call.
-        </div>
-      </div>
-    </div>
-  );
+      </CardContent>
+    </Card>
+  )
 }
 
 /** Devprofile path config (for real CV grounding + sidecar proposals).

@@ -8,6 +8,11 @@ import { Badge } from '../ui/badge'
 type Props = {
   storage: BearerStorageStatus | null
   checking: boolean
+  /**
+   * What consumes this secret after save (shown in the storage explainer).
+   * Defaults to X search wording so the X connection panel stays unchanged.
+   */
+  readPurpose?: string
 }
 
 function Row({
@@ -29,7 +34,11 @@ function Row({
   )
 }
 
-export function CredentialsStorageDetails({ storage, checking }: Props) {
+export function CredentialsStorageDetails({
+  storage,
+  checking,
+  readPurpose = 'Searches read the token from Rust only — never from this UI after save.',
+}: Props) {
   if (checking) {
     return (
       <p className="rounded-lg border border-border-subtle bg-surface-elevated/40 px-3 py-2 text-[11px] text-ink-faint">
@@ -56,10 +65,10 @@ export function CredentialsStorageDetails({ storage, checking }: Props) {
       </div>
 
       <p className="text-[11px] text-ink-faint">
-        Searches read the token from Rust only — never from this UI after save. Save always writes
-        the file; keyring is best-effort. Active shows where reads come from: keyring when it has a
-        token, otherwise the file. If keyring save fails, stale keyring entries are cleared so the
-        file is used.
+        {readPurpose} Save always writes the file; keyring is best-effort. Active shows where
+        reads come from: keyring when it has a token, otherwise the file. If keyring save fails,
+        stale keyring entries are cleared so the file is used. Never print or paste secret values
+        into agent logs, terminals, or remote-control sessions.
       </p>
 
       <div className="space-y-1.5 rounded-md border border-border-subtle/80 bg-background/40 px-2.5 py-2">
