@@ -589,8 +589,15 @@ export function effectForMsg(
       const lastId = model.lastActiveOppId
       if (typeof lastId === 'number' && lastId > 0) {
         // Trigger the normal OpportunitySelected path (sets last, loads from DB via loadCmd which also does OpportunityTargetUrlSet for live model url, hydrates opportunityTarget + screen).
-        // (url for this auto path comes from the fetched opp or prior LS via initial model.)
-        appCmds.push((d) => d({ type: 'OpportunitySelected', id: lastId }))
+        // Prefer session URL so the panel external link is available before the DB round-trip returns.
+        const bootUrl = model.opportunityTargetUrl
+        appCmds.push((d) =>
+          d({
+            type: 'OpportunitySelected',
+            id: lastId,
+            ...(bootUrl ? { url: bootUrl } : {}),
+          }),
+        )
       }
       return appCmds.filter(Boolean) as Cmd<FinderMsg>[]
 
@@ -668,8 +675,14 @@ export function effectForMsg(
                     return undefined
                   }
                 })()
-          if (typeof wantId === 'number' && msg.opportunities.some((o) => o.id === wantId)) {
-            return (d) => d({ type: 'OpportunitySelected', id: wantId })
+          const match = typeof wantId === 'number' ? msg.opportunities.find((o) => o.id === wantId) : undefined
+          if (match) {
+            return (d) =>
+              d({
+                type: 'OpportunitySelected',
+                id: match.id,
+                url: match.source_url || undefined,
+              })
           }
         }
       }

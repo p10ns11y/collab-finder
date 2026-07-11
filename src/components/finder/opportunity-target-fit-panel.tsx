@@ -1,8 +1,10 @@
 import * as React from 'react'
+import { ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
 import { shouldShowRestoredCvWarning } from '../../core/domain/opportunity-target-ipc'
+import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 
 type Props = {
@@ -89,6 +91,8 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
   const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
   // Use pure predicate (moved for testability + honest verify gate)
   const isRestoredHydrate = result && 'cv_chars_sent' in result ? shouldShowRestoredCvWarning(result as any) : (cvCharsSent === 0 && cvIpcChars === 0 && !cvUsedFallback && (estCost === 0 || estCost === undefined))
+  const externalHref = normalizeOpportunityUrl(sourceUrl)
+  const externalLabel = displayOpportunityUrl(sourceUrl, 64)
 
   return (
     <Card className="border-border-subtle shadow-glow">
@@ -104,6 +108,20 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
           {score >= 75 ? ' — Strong fit' : score >= 55 ? ' — Moderate fit — review gaps' : ' — Low fit — significant gaps'}
           {prep ? ' (prep generated)' : ''}
         </div>
+        {externalHref ? (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs text-accent hover:underline font-mono break-all"
+            title={externalHref}
+          >
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{externalLabel || externalHref}</span>
+          </a>
+        ) : (
+          <div className="mt-1 text-[10px] text-ink-faint">No source URL stored for this opportunity (paste-only target).</div>
+        )}
         {cvCharsSent !== undefined && !isRestoredHydrate && (
           <div className="text-[10px] text-ink-faint font-mono">
             CV grounding: {cv_chars_sent_label(cvCharsSent, cvIpcChars, cvUsedFallback, previewTruncated, promptTokens)}
@@ -194,13 +212,16 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
 
         {/* Polish actions per feedback (Slice B) + Slice C prep trigger */}
         <div className="flex flex-wrap gap-2 pt-1">
-          {sourceUrl && (
-            <button
-              onClick={() => { try { window.open(sourceUrl, '_blank', 'noopener,noreferrer') } catch {} }}
-              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
+          {externalHref && (
+            <a
+              href={externalHref}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
             >
+              <ExternalLink className="h-3 w-3" aria-hidden />
               Open URL
-            </button>
+            </a>
           )}
           {fit?.recommended_action && (
             <button

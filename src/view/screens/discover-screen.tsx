@@ -1,10 +1,12 @@
 import * as React from 'react'
+import { ExternalLink } from 'lucide-react'
 import { DecisionPanel } from '../../components/finder/decision-panel'
 import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { TweetFeed } from '../../components/finder/tweet-feed'
 import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
+import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -36,7 +38,17 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const targetResult = targetState.status === 'ready' ? targetState.data : null
   const targetError = targetState.status === 'failed' ? (targetState.error?.message || String(targetState.error)) : null
   const showTarget = targetBusy || !!targetResult || !!targetError
-  const sourceUrl = model.opportunityTargetUrl
+  // Prefer live model URL; fall back to the selected opportunity row (boot restore sometimes
+  // hydrates fit before OpportunityTargetUrlSet lands, or session only had the id).
+  const selectedOppId =
+    targetResult && 'opportunity_id' in targetResult
+      ? targetResult.opportunity_id
+      : model.lastActiveOppId
+  const sourceUrl =
+    model.opportunityTargetUrl ||
+    (typeof selectedOppId === 'number'
+      ? historyOpportunities.find((o) => o.id === selectedOppId)?.source_url
+      : undefined)
 
   return (
     <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
@@ -70,20 +82,54 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                     model.lastActiveOppId === o.id &&
                     model.opportunityTarget &&
                     model.opportunityTarget.status !== 'idle'
+                  const href = normalizeOpportunityUrl(o.source_url)
+                  const label =
+                    o.title ||
+                    o.company ||
+                    displayOpportunityUrl(o.source_url, 36) ||
+                    'target'
                   return (
-                    <button
+                    <div
                       key={o.id}
-                      onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
-                      className={`w-full text-left px-2 py-1 rounded hover:bg-surface-2 border flex justify-between ${
+                      className={`flex items-stretch gap-1 rounded border ${
                         selected
                           ? 'border-accent/70 bg-accent/10 text-ink'
                           : 'border-border-subtle/50'
                       }`}
-                      title={`Load #${o.id} fit+prep (from DB, no xAI call)`}
                     >
-                      <span className="truncate pr-2">#{o.id} {o.title || o.source_url?.slice(0,40) || 'target'}</span>
-                      <span className="text-ink-faint shrink-0">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dispatch({
+                            type: 'OpportunitySelected',
+                            id: o.id,
+                            url: o.source_url || undefined,
+                          })
+                        }
+                        className="min-w-0 flex-1 text-left px-2 py-1 rounded hover:bg-surface-2 flex justify-between gap-2"
+                        title={`Load #${o.id} fit+prep (from DB, no xAI call)`}
+                      >
+                        <span className="truncate">
+                          <span className="font-mono text-accent/80">#{o.id}</span> {label}
+                        </span>
+                        <span className="text-ink-faint shrink-0">
+                          {o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}
+                        </span>
+                      </button>
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="shrink-0 px-2 inline-flex items-center text-ink-muted hover:text-accent border-l border-border-subtle/50"
+                          title={href}
+                          aria-label={`Open opportunity #${o.id} in browser`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                    </div>
                   )
                 })}
               </div>
@@ -96,7 +142,13 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           <button
             onClick={() => {
               const last = historyOpportunities[0]
-              if (last) dispatch({ type: 'OpportunitySelected', id: last.id })
+              if (last) {
+                dispatch({
+                  type: 'OpportunitySelected',
+                  id: last.id,
+                  url: last.source_url || undefined,
+                })
+              }
             }}
             className="w-full text-left px-3 py-1.5 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent flex items-center gap-2"
             title="Load the most recent opportunity from the rail (reuses stored analysis/prep without xAI)."

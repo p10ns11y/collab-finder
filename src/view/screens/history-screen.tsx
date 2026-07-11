@@ -104,6 +104,18 @@ export function HistoryScreen({ view, dispatch }: Props) {
                     {o.prep_artifacts_json && <Badge tone="success" className="text-[10px]">prepped</Badge>}
                     <span className="ml-auto">{new Date(o.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
+                  {o.source_url ? (
+                    <a
+                      href={o.source_url.startsWith('http') ? o.source_url : `https://${o.source_url}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="mt-1 inline-flex max-w-full items-center gap-1 font-mono text-[10px] text-accent hover:underline truncate"
+                      title={o.source_url}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {o.source_url.replace(/^https?:\/\//, '').slice(0, 56)}
+                    </a>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -111,7 +123,7 @@ export function HistoryScreen({ view, dispatch }: Props) {
                     // Only OpportunitySelected (let loadOpportunityCmd in effects own success-only ScreenChanged + hydrate/parse/*Succeeded).
                     // Matches Data rows (data-screen:180) + Resume (discover:60) exactly for consistent error UX (failure keeps user here + banner; no unconditional nav).
                     // Per review: avoids flip-to-Discover on getOpps fail / bad blob / edge (effects:428,436,480).
-                    dispatch({ type: 'OpportunitySelected', id: o.id })
+                    dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })
                   }}
                   className="shrink-0 rounded border border-border-default px-2 py-1 text-[10px] hover:border-accent/50 hover:text-accent"
                   title="Load this opportunity into Discover (exact stored fit+prep via 6a path; stays here + banner on load error)"

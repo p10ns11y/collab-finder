@@ -188,7 +188,21 @@ export function DataScreen({ view, dispatch }: Props) {
                     {o.prep_artifacts_json ? 'prepped' : o.status}
                   </Badge>
                 </td>
-                <td className="px-3 py-1.5 font-mono text-[10px] text-ink-faint truncate max-w-[30ch]" title={o.source_url || ''}>{o.source_url ? o.source_url.replace(/^https?:\/\//, '').slice(0, 50) : '—'}</td>
+                <td className="px-3 py-1.5 font-mono text-[10px] truncate max-w-[30ch]" title={o.source_url || ''}>
+                  {o.source_url ? (
+                    <a
+                      href={o.source_url.startsWith('http') ? o.source_url : `https://${o.source_url}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-accent hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {o.source_url.replace(/^https?:\/\//, '').slice(0, 50)}
+                    </a>
+                  ) : (
+                    <span className="text-ink-faint">—</span>
+                  )}
+                </td>
                 <td className="px-3 py-1.5 text-ink-muted">{new Date(o.last_updated).toLocaleString()}</td>
               </tr>
             ))}
