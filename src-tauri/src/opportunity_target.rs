@@ -17,7 +17,277 @@ use tauri::State;
 /// Matches `data/distillation/cv-packet-distilled.txt` (+ `queries.json` defaultCvSummary). Rust fallback when IPC omits cv_summary.
 const DEFAULT_CV_PACKET: &str = include_str!("../../data/distillation/cv-packet-distilled.txt");
 
+/// Compact dual-fit constraints (from curation/candidate-preferences.md extract).
+const CANDIDATE_CONSTRAINTS: &str =
+    include_str!("../../data/distillation/curation/candidate-constraints-compact.txt");
+
+/// Proof / exceptional-work variant bank (role-class mapping source of truth).
+const PROOF_VARIANTS_MD: &str =
+    include_str!("../../data/distillation/curation/proof-variants.md");
+
 const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
+
+const DEFAULT_PROOF_VARIANT_ID: &str = "EW-agent-collab-finder";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProofVariant {
+    pub id: String,
+    pub title: String,
+    pub body: String,
+}
+
+/// Dual-fit JSON schema for xAI structured analyze (`target_fit_v2`).
+/// Keeps legacy `overall` + gaps; adds reciprocal scores and role-side signals.
+pub(crate) fn dual_fit_json_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "overall": {"type": "integer", "minimum": 0, "maximum": 100},
+            "candidate_to_role": {"type": "integer", "minimum": 0, "maximum": 100},
+            "role_to_candidate": {"type": "integer", "minimum": 0, "maximum": 100},
+            "rationale": {"type": "string"},
+            "gaps_must": {"type": "array", "items": {"type": "string"}},
+            "gaps_nice": {"type": "array", "items": {"type": "string"}},
+            "role_concerns": {"type": "array", "items": {"type": "string"}},
+            "deal_breakers_triggered": {"type": "array", "items": {"type": "string"}},
+            "recommended_action": {"type": "string"}
+        },
+        "required": [
+            "overall",
+            "candidate_to_role",
+            "role_to_candidate",
+            "rationale",
+            "gaps_must",
+            "role_concerns",
+            "deal_breakers_triggered",
+            "recommended_action"
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Build analyze user prompt: CV + constraints + opportunity (dual-fit, not CV+JD only).
+pub(crate) fn build_analyze_user_prompt(cv: &str, jd: &str, constraints: &str) -> String {
+    format!(
+        r#"CV PACKET (pruned):
+{cv}
+
+CANDIDATE_CONSTRAINTS (dual-fit — "right for me", not only hireability):
+{constraints}
+
+OPPORTUNITY DESCRIPTION:
+{jd}
+
+DUAL-FIT RUBRIC:
+- candidate_to_role (0-100): can the candidate evidence the skills/experience for this role (from CV only)?
+- role_to_candidate (0-100): does this opportunity match CANDIDATE_CONSTRAINTS (modes, geo, family, culture, mission, comp, deal-breakers)?
+- overall: mutual fit — do NOT inflate overall when role_to_candidate is low (e.g. use min or conservative blend).
+- gaps_must / gaps_nice: candidate shortfalls vs the JD (what the candidate lacks).
+- role_concerns: ways the ROLE fails the candidate's constraints (geo, hours, culture, mode, money, type).
+- deal_breakers_triggered: hard stops from constraints when clearly evidenced (empty array if none).
+- recommended_action: must respect deal_breakers and low role_to_candidate (prefer pause/ignore over apply when right-fit fails).
+
+Return fit analysis."#,
+        cv = cv,
+        constraints = constraints.trim(),
+        jd = jd
+    )
+}
+
+/// Parse exceptional-work variants from proof-variants.md (`### EW-...` sections).
+pub(crate) fn parse_proof_variants(md: &str) -> Vec<ProofVariant> {
+    let mut out = Vec::new();
+    let mut cur_id: Option<String> = None;
+    let mut cur_title = String::new();
+    let mut body_lines: Vec<String> = Vec::new();
+
+    let flush = |id: &Option<String>,
+                 title: &str,
+                 body: &mut Vec<String>,
+                 out: &mut Vec<ProofVariant>| {
+        if let Some(id) = id {
+            let text = body
+                .iter()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !text.is_empty() {
+                out.push(ProofVariant {
+                    id: id.clone(),
+                    title: title.trim().to_string(),
+                    body: text,
+                });
+            }
+        }
+        body.clear();
+    };
+
+    for line in md.lines() {
+        if let Some(rest) = line.strip_prefix("### EW-") {
+            flush(&cur_id, &cur_title, &mut body_lines, &mut out);
+            // "agent-collab-finder — default for ..."
+            let full = format!("EW-{}", rest.trim());
+            let (id, title) = if let Some((i, t)) = full.split_once(" — ") {
+                (i.trim().to_string(), t.trim().to_string())
+            } else if let Some((i, t)) = full.split_once(" - ") {
+                (i.trim().to_string(), t.trim().to_string())
+            } else {
+                (full.clone(), full)
+            };
+            cur_id = Some(id);
+            cur_title = title;
+        } else if line.starts_with("## ") && !line.starts_with("### ") {
+            flush(&cur_id, &cur_title, &mut body_lines, &mut out);
+            cur_id = None;
+            cur_title.clear();
+        } else if cur_id.is_some() {
+            // Stop at proof-points table header if it appears mid-stream (shouldn't under ###)
+            if line.starts_with("| ID |") {
+                flush(&cur_id, &cur_title, &mut body_lines, &mut out);
+                cur_id = None;
+                cur_title.clear();
+            } else {
+                body_lines.push(line.to_string());
+            }
+        }
+    }
+    flush(&cur_id, &cur_title, &mut body_lines, &mut out);
+    out
+}
+
+/// Keyword heuristic: pick a proof variant for the JD from the curated bank.
+pub(crate) fn select_proof_variant(jd: &str, bank: &[ProofVariant]) -> ProofVariant {
+    let t = jd.to_lowercase();
+    let pick = |id: &str| -> Option<ProofVariant> {
+        bank.iter().find(|v| v.id == id).cloned()
+    };
+    let default = pick(DEFAULT_PROOF_VARIANT_ID).or_else(|| bank.first().cloned()).unwrap_or(ProofVariant {
+        id: DEFAULT_PROOF_VARIANT_ID.to_string(),
+        title: "default".into(),
+        body: String::new(),
+    });
+
+    // Order: more specific classes before generic agent default.
+    let rules: &[(&str, &[&str])] = &[
+        (
+            "EW-integrations-oneflow",
+            &[
+                "integration",
+                "integrations",
+                "crm",
+                "salesforce",
+                "hubspot",
+                "public api",
+                "third-party",
+                "webhook",
+            ],
+        ),
+        (
+            "EW-quality-ts-playwright",
+            &[
+                "playwright",
+                "e2e",
+                "end-to-end",
+                "type safety",
+                "typescript migration",
+                "test infrastructure",
+                "quality engineer",
+            ],
+        ),
+        (
+            "EW-lead-self-organizing",
+            &[
+                "engineering manager",
+                "team lead",
+                "tech lead",
+                "people manager",
+                "mentoring",
+                "hiring manager",
+            ],
+        ),
+        (
+            "EW-research-eeaas",
+            &[
+                "energy efficient",
+                "energy-efficient",
+                "local-first",
+                "world model",
+                "world models",
+                "orchestration service",
+                "resource-constrained",
+            ],
+        ),
+        (
+            "EW-systems-elomaxz",
+            &["mvu", "systems programming", "embedded ui", "desktop runtime"],
+        ),
+        (
+            "EW-ml-prototype-it",
+            &["pytorch", "train from scratch", "lstm", "educational ml"],
+        ),
+        (
+            "EW-agent-collab-finder",
+            &[
+                "spacexai",
+                "xai",
+                "spacex ai",
+                "agent",
+                "agentic",
+                "mcp",
+                "inference",
+                "grok",
+                "llm",
+                "multi-agent",
+            ],
+        ),
+    ];
+
+    for (id, kws) in rules {
+        if kws.iter().any(|k| t.contains(k)) {
+            if let Some(v) = pick(id) {
+                return v;
+            }
+        }
+    }
+    default
+}
+
+/// Build prep user prompt with selected exceptional-work variant grounding.
+pub(crate) fn build_prep_user_prompt(
+    cv: &str,
+    jd: &str,
+    previous_fit: Option<&str>,
+    variant: &ProofVariant,
+) -> String {
+    let mut user = format!("CANDIDATE CV PACKET:\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\n", cv, jd);
+    if let Some(fit) = previous_fit {
+        if !fit.trim().is_empty() {
+            user.push_str(&format!(
+                "PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n",
+                fit
+            ));
+        }
+    }
+    user.push_str(&format!(
+        "SELECTED_PROOF_VARIANT id={}\nTITLE: {}\nBODY (use as primary exceptional-work grounding; do not invent alternate flagship stories):\n{}\n\n",
+        variant.id, variant.title, variant.body
+    ));
+    user.push_str(
+        r#"STRICT GROUNDING RULES (MUST FOLLOW — DO NOT VIOLATE):
+- Use ONLY facts, numbers, skills, project names, responsibilities, and claims that appear explicitly in the CANDIDATE CV PACKET or SELECTED_PROOF_VARIANT above. Never invent or infer details.
+- "9+ years", "over 9 years", or similar always refers to the candidate's TOTAL professional software engineering INDUSTRY experience (day jobs + overall career). It does NOT apply to any specific technology, framework, or personal/OSS project unless the packet states a duration for it.
+- Personal, hobby, or OSS projects (collab-finder, prototype-*, etc.) listed without explicit multi-year dates or "production" language must be treated as recent personal/experimental work. Do NOT describe them as "9+ years building production-grade...", "multi-year production systems", or similar.
+- For the cover letter: write in professional first-person tone. Be factual and modest. Highlight concrete impacts from the listed RECENT WORK roles, education, and directly supported skills. Emphasize mission alignment using only language present in the packet or JD. Avoid hype, overclaiming depth, or fabricated timelines.
+- If a detail (timeline, "production-grade", specific responsibility) is not in the packet or selected variant, do not include it. Prefer "experience with", "built", "contributed to" over exaggerated qualifiers.
+- Keep the cover letter concise (ideally 140-220 words) and high-signal.
+- exceptional_work_example: prefer the SELECTED_PROOF_VARIANT body (tighten to 80-120 words if needed) rather than inventing a different flagship project.
+
+TASK: Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and a strong 80-120 word 'exceptional work' example grounded in the selected variant.
+Return ONLY valid JSON."#,
+    );
+    user
+}
 
 #[derive(Debug, Clone, Copy)]
 struct CvPacketResolved {
@@ -265,8 +535,13 @@ async fn structured_chat(
     if is_fit {
         let fit = json!({
             "overall": 82,
-            "rationale": "Strong alignment on agentic tooling and xAI mission from real CV data.",
+            "candidate_to_role": 85,
+            "role_to_candidate": 80,
+            "rationale": "Strong alignment on agentic tooling and xAI mission from real CV data; constraints allow SpaceXAI onsite + sponsorship.",
             "gaps_must": ["explicit truth-seeking affirmation"],
+            "gaps_nice": ["production inference at scale"],
+            "role_concerns": [],
+            "deal_breakers_triggered": [],
             "recommended_action": "Apply immediately with mission-aligned 100-word example."
         });
         Ok((fit, crate::xai::XaiUsage { prompt_tokens: Some(120), completion_tokens: Some(60), total_tokens: None }))
@@ -355,28 +630,13 @@ pub(crate) async fn run_analyze_opportunity_target(
         jd.chars().count()
     );
 
-    let system = "You are a precise, truth-seeking career fit analyst. Output ONLY valid JSON. Every claim about the candidate's experience or background must be directly supported by the CV PACKET. Do not invent timelines or attribute aggregate YOE to specific recent projects.";
-    let user = format!(
-        "CV PACKET (pruned):\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\nReturn fit analysis.",
-        cv, jd
-    );
-
-    let schema = json!({
-        "type": "object",
-        "properties": {
-            "overall": {"type": "integer", "minimum": 0, "maximum": 100},
-            "rationale": {"type": "string"},
-            "gaps_must": {"type": "array", "items": {"type": "string"}},
-            "gaps_nice": {"type": "array", "items": {"type": "string"}},
-            "recommended_action": {"type": "string"}
-        },
-        "required": ["overall", "rationale", "gaps_must", "recommended_action"],
-        "additionalProperties": false
-    });
+    let system = "You are a precise, truth-seeking dual-fit career analyst. Output ONLY valid JSON. Score both directions: candidate→role (can they do it, from CV only) and role→candidate (is it right for them, from CANDIDATE_CONSTRAINTS). Every claim about the candidate's experience must be supported by the CV PACKET. Do not invent timelines or attribute aggregate YOE to specific recent projects. Respect deal-breakers and low role_to_candidate when recommending actions.";
+    let user = build_analyze_user_prompt(&cv, &jd, CANDIDATE_CONSTRAINTS);
+    let schema = dual_fit_json_schema();
 
     let model = get_xai_model();
     let (fit_json, usage) =
-        structured_chat(system, &user, "target_fit_v1", schema, &model).await?;
+        structured_chat(system, &user, "target_fit_v2", schema, &model).await?;
 
     let cost = crate::xai::cost_from_usage(&usage);
     let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
@@ -466,28 +726,16 @@ pub(crate) async fn run_prep_opportunity_target(
         cv.chars().count()
     );
 
-    let mut user = format!( "CANDIDATE CV PACKET:\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\n", cv, jd );
-    if let Some(fit) = previous_fit {
-        if !fit.trim().is_empty() {
-            user.push_str(&format!( "PREVIOUS FIT ANALYSIS (from Evaluate Fit step):\n{}\n\n", fit ));
-        }
-    }
+    let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+    let variant = select_proof_variant(&jd, &bank);
+    let user = build_prep_user_prompt(
+        &cv,
+        &jd,
+        previous_fit.as_deref(),
+        &variant,
+    );
 
-    // Strong grounding rules to prevent fabrication of timelines and experience depth.
-    // "9+ years" is aggregate industry experience. Agentic / Tauri / personal projects are recent.
-    user.push_str(
-r#"STRICT GROUNDING RULES (MUST FOLLOW — DO NOT VIOLATE):
-- Use ONLY facts, numbers, skills, project names, responsibilities, and claims that appear explicitly in the CANDIDATE CV PACKET above. Never invent or infer details.
-- "9+ years", "over 9 years", or similar always refers to the candidate's TOTAL professional software engineering INDUSTRY experience (day jobs + overall career). It does NOT apply to any specific technology, framework, or personal/OSS project unless the packet states a duration for it.
-- Personal, hobby, or OSS projects (collab-finder, prototype-*, etc.) listed without explicit multi-year dates or "production" language must be treated as recent personal/experimental work. Do NOT describe them as "9+ years building production-grade...", "multi-year production systems", or similar.
-- For the cover letter: write in professional first-person tone. Be factual and modest. Highlight concrete impacts from the listed RECENT WORK roles, education, and directly supported skills. Emphasize mission alignment using only language present in the packet or JD. Avoid hype, overclaiming depth, or fabricated timelines.
-- If a detail (timeline, "production-grade", specific responsibility) is not in the packet, do not include it. Prefer "experience with", "built", "contributed to" over exaggerated qualifiers.
-- Keep the cover letter concise (ideally 140-220 words) and high-signal.
-
-TASK: Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and (if the JD asks for it) a strong 80-120 word 'exceptional work' example.
-Return ONLY valid JSON."#);
-
-    let system = "You are a precise, truth-seeking application preparation assistant. Output ONLY valid JSON. Every claim in the cover letter must be directly supported by the provided CV PACKET. Never fabricate experience timelines, project depth, or production claims. CV suggestions are sidecar proposals only.";
+    let system = "You are a precise, truth-seeking application preparation assistant. Output ONLY valid JSON. Every claim in the cover letter must be directly supported by the provided CV PACKET or SELECTED_PROOF_VARIANT. Never fabricate experience timelines, project depth, or production claims. Prefer the selected exceptional-work variant. CV suggestions are sidecar proposals only.";
 
     let schema = json!({
         "type": "object",
@@ -502,13 +750,20 @@ Return ONLY valid JSON."#);
     });
 
     let model = get_xai_model();
-    let (prep_json, usage) = structured_chat(system, &user, "target_prep_v1", schema, &model).await?;
+    let (mut prep_json, usage) = structured_chat(system, &user, "target_prep_v1", schema, &model).await?;
     let cost = crate::xai::cost_from_usage(&usage);
+
+    // Persist selector metadata with prep artifacts (restore/hydrate path).
+    if let Some(obj) = prep_json.as_object_mut() {
+        obj.insert("proof_variant_id".into(), json!(variant.id));
+        obj.insert("proof_variant_title".into(), json!(variant.title));
+    }
 
     // Return dummy id; caller (cmd or test) can persist if needed.
     Ok(OpportunityTargetPrepResult {
         opportunity_id: opportunity_id.unwrap_or(0),
         prep: prep_json,
+        proof_variant_id: variant.id,
         est_cost_usd: cost,
     })
 }
@@ -666,6 +921,9 @@ pub struct OpportunityTargetAnalysisResult {
 pub struct OpportunityTargetPrepResult {
     pub opportunity_id: i64,
     pub prep: Value,
+    /// Role-class exceptional-work variant id selected from curation/proof-variants.md.
+    #[serde(default)]
+    pub proof_variant_id: String,
     pub est_cost_usd: f64,
 }
 
@@ -824,6 +1082,164 @@ fn extract_company_from_greenhouse_title(title: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn analyze_user_prompt_injects_constraints_from_curation_artifact() {
+        let prompt = build_analyze_user_prompt("CV_BODY_HERE", "JD_BODY_HERE", CANDIDATE_CONSTRAINTS);
+        assert!(
+            prompt.contains("CANDIDATE_CONSTRAINTS"),
+            "must label constraints block"
+        );
+        assert!(
+            prompt.contains("CV_BODY_HERE") && prompt.contains("JD_BODY_HERE"),
+            "must include cv and jd"
+        );
+        // Content from real candidate-constraints-compact.txt (include_str of curation artifact)
+        assert!(
+            prompt.contains("GEO_HARD_NO") || prompt.contains("DEI"),
+            "must carry constraints content from preferences extract"
+        );
+        assert!(
+            prompt.contains("SpaceXAI") || prompt.contains("$576k"),
+            "must include SpaceXAI/comp signals from compact extract"
+        );
+        assert!(
+            prompt.contains("role_to_candidate") && prompt.contains("deal_breakers_triggered"),
+            "dual-fit rubric in prompt"
+        );
+        // Ensure not CV+JD only (constraints section present between or alongside)
+        assert!(prompt.contains(CANDIDATE_CONSTRAINTS.trim().lines().next().unwrap_or("CANDIDATE_CONSTRAINTS")));
+    }
+
+    #[test]
+    fn dual_fit_schema_has_reciprocal_and_role_side_fields() {
+        let schema = dual_fit_json_schema();
+        let props = schema.get("properties").expect("properties");
+        for key in [
+            "overall",
+            "candidate_to_role",
+            "role_to_candidate",
+            "gaps_must",
+            "gaps_nice",
+            "role_concerns",
+            "deal_breakers_triggered",
+            "recommended_action",
+            "rationale",
+        ] {
+            assert!(props.get(key).is_some(), "schema missing {key}");
+        }
+        let required = schema
+            .get("required")
+            .and_then(|v| v.as_array())
+            .expect("required array");
+        let req: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+        assert!(req.contains(&"candidate_to_role"));
+        assert!(req.contains(&"role_to_candidate"));
+        assert!(req.contains(&"role_concerns"));
+        assert!(req.contains(&"deal_breakers_triggered"));
+    }
+
+    #[test]
+    fn proof_variants_parse_from_real_bank_and_selector_maps_role_classes() {
+        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        assert!(
+            bank.len() >= 5,
+            "expected multiple EW variants from proof-variants.md, got {}",
+            bank.len()
+        );
+        assert!(
+            bank.iter().any(|v| v.id == "EW-agent-collab-finder"),
+            "agent variant must exist in bank"
+        );
+        assert!(
+            bank.iter().any(|v| v.id == "EW-integrations-oneflow"),
+            "integrations variant must exist"
+        );
+
+        let agent = select_proof_variant(
+            "SpaceXAI is hiring for agentic inference and Grok/MCP tooling",
+            &bank,
+        );
+        assert_eq!(agent.id, "EW-agent-collab-finder");
+        assert!(
+            agent.body.to_lowercase().contains("collab-finder"),
+            "agent body from bank"
+        );
+
+        let integ = select_proof_variant(
+            "Senior engineer for Salesforce HubSpot CRM integrations and public API platform",
+            &bank,
+        );
+        assert_eq!(integ.id, "EW-integrations-oneflow");
+        assert!(
+            integ.body.to_lowercase().contains("integration"),
+            "integrations body from bank"
+        );
+
+        let quality = select_proof_variant(
+            "We need Playwright E2E and TypeScript migration ownership",
+            &bank,
+        );
+        assert_eq!(quality.id, "EW-quality-ts-playwright");
+    }
+
+    #[test]
+    fn prep_user_prompt_includes_selected_variant_id_and_body() {
+        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        let v = select_proof_variant("xAI agent infrastructure role", &bank);
+        let prompt = build_prep_user_prompt("MY_CV", "THE_JD", Some(r#"{"overall":80}"#), &v);
+        assert!(prompt.contains("SELECTED_PROOF_VARIANT"));
+        assert!(prompt.contains(&v.id));
+        assert!(prompt.contains(&v.body.chars().take(40).collect::<String>()) || prompt.contains("collab-finder"));
+        assert!(prompt.contains("MY_CV") && prompt.contains("THE_JD"));
+        assert!(prompt.contains("PREVIOUS FIT ANALYSIS"));
+    }
+
+    #[test]
+    fn run_analyze_path_includes_constraints_in_prompt_via_stub_and_dual_fit_fields() {
+        // Drive shipped run_analyze_opportunity_target (stub structured_chat).
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let res = rt
+            .block_on(run_analyze_opportunity_target(
+                None,
+                Some("SpaceXAI staff engineer agent inference role remote optional".into()),
+                Some("Staff".into()),
+                Some("SpaceXAI".into()),
+                Some("PROFILE\nTest CV for dual-fit unit path with TypeScript and Rust.".into()),
+            ))
+            .expect("analyze");
+        // Dual-fit fields from stub (schema-aligned)
+        assert_eq!(res.fit.get("candidate_to_role").and_then(|v| v.as_i64()), Some(85));
+        assert_eq!(res.fit.get("role_to_candidate").and_then(|v| v.as_i64()), Some(80));
+        assert!(res.fit.get("role_concerns").and_then(|v| v.as_array()).is_some());
+        assert!(res
+            .fit
+            .get("deal_breakers_triggered")
+            .and_then(|v| v.as_array())
+            .is_some());
+        assert!(res.cv_chars_sent > 0);
+    }
+
+    #[test]
+    fn run_prep_path_selects_variant_and_embeds_id() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let res = rt
+            .block_on(run_prep_opportunity_target(
+                None,
+                None,
+                Some("Hiring for Salesforce and HubSpot CRM integrations public API".into()),
+                None,
+                None,
+                Some("PROFILE\nIntegration engineer CV.".into()),
+                Some(r#"{"overall":70,"candidate_to_role":72,"role_to_candidate":65}"#.into()),
+            ))
+            .expect("prep");
+        assert_eq!(res.proof_variant_id, "EW-integrations-oneflow");
+        assert_eq!(
+            res.prep.get("proof_variant_id").and_then(|v| v.as_str()),
+            Some("EW-integrations-oneflow")
+        );
+    }
 
     #[test]
     fn resolve_cv_packet_uses_caller_text() {

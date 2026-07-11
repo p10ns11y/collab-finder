@@ -121,6 +121,8 @@ export function OpportunityTargetFitPanel({
   if (!fit && !prep) return null
 
   const score = fit?.overall ?? 0
+  const candidateToRole = fit?.candidate_to_role
+  const roleToCandidate = fit?.role_to_candidate
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
   const opportunityId = 'opportunity_id' in result ? result.opportunity_id : undefined
   const estCost = 'est_cost_usd' in result ? result.est_cost_usd : undefined
@@ -131,6 +133,9 @@ export function OpportunityTargetFitPanel({
   const previewTruncated =
     'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
   const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
+  const proofVariantId =
+    ('proof_variant_id' in result && (result as { proof_variant_id?: string }).proof_variant_id) ||
+    prep?.proof_variant_id
   const isRestoredHydrate =
     result && 'cv_chars_sent' in result
       ? shouldShowRestoredCvWarning(result as any)
@@ -142,6 +147,8 @@ export function OpportunityTargetFitPanel({
   const externalHref = normalizeOpportunityUrl(sourceUrl)
   const externalLabel = displayOpportunityUrl(sourceUrl, 64)
   const statusNorm = normalizePipelineStatus(pipelineStatus)
+  const dealBreakers = fit?.deal_breakers_triggered ?? []
+  const roleConcerns = fit?.role_concerns ?? []
 
   const prepBlob = prep
     ? [
@@ -151,6 +158,7 @@ export function OpportunityTargetFitPanel({
         prep.research_notes && `## Research\n\n${prep.research_notes}`,
         prep.exceptional_work_example &&
           `## Exceptional work example\n\n${prep.exceptional_work_example}`,
+        proofVariantId && `## Proof variant\n\n${proofVariantId}`,
       ]
         .filter(Boolean)
         .join('\n\n')
@@ -167,12 +175,14 @@ export function OpportunityTargetFitPanel({
               {pipelineStatusLabel(statusNorm)}
             </Badge>
           </CardTitle>
-          <Badge tone={tone}>{score}/100</Badge>
+          <Badge tone={tone}>{score}/100 mutual</Badge>
         </div>
         <div className="text-[11px] text-ink-faint">
           #{opportunityId ?? '—'}
           {estCost != null ? ` · ~$${estCost.toFixed(4)}` : ''}
           {score >= 75 ? ' · Strong fit' : score >= 55 ? ' · Moderate — review gaps' : ' · Low fit'}
+          {candidateToRole != null ? ` · You→role ${candidateToRole}` : ''}
+          {roleToCandidate != null ? ` · Role→you ${roleToCandidate}` : ''}
         </div>
         {externalHref ? (
           <a
@@ -203,9 +213,34 @@ export function OpportunityTargetFitPanel({
           </div>
         )}
 
+        {(candidateToRole != null || roleToCandidate != null) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
+                You → role
+              </div>
+              <div className="text-sm font-medium text-ink">
+                {candidateToRole != null ? `${candidateToRole}/100` : '—'}
+              </div>
+              <div className="text-[10px] text-ink-faint mt-0.5">Can you do this job?</div>
+            </div>
+            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
+                Role → you
+              </div>
+              <div className="text-sm font-medium text-ink">
+                {roleToCandidate != null ? `${roleToCandidate}/100` : '—'}
+              </div>
+              <div className="text-[10px] text-ink-faint mt-0.5">Is this right for you?</div>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">Must address</div>
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+              Must address (you → role)
+            </div>
             {fit?.gaps_must && fit.gaps_must.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
                 {fit.gaps_must.map((g, i) => (
@@ -230,6 +265,44 @@ export function OpportunityTargetFitPanel({
           </div>
         </div>
 
+        {(candidateToRole != null ||
+          roleToCandidate != null ||
+          roleConcerns.length > 0 ||
+          dealBreakers.length > 0 ||
+          fit?.role_concerns != null ||
+          fit?.deal_breakers_triggered != null) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+                Role concerns (role → you)
+              </div>
+              {roleConcerns.length > 0 ? (
+                <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
+                  {roleConcerns.map((g, i) => (
+                    <li key={i}>{g}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-xs text-ink-faint">None flagged</div>
+              )}
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-warning mb-1">
+                Deal-breakers triggered
+              </div>
+              {dealBreakers.length > 0 ? (
+                <ul className="list-disc pl-4 text-xs space-y-0.5 text-warning">
+                  {dealBreakers.map((g, i) => (
+                    <li key={i}>{g}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-xs text-ink-faint">None</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {fit?.recommended_action && (
           <div className="pt-1 border-t border-border-subtle">
             <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
@@ -242,7 +315,14 @@ export function OpportunityTargetFitPanel({
         {prep && (
           <div className="space-y-2 border-t border-border-subtle pt-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[11px] uppercase tracking-wide text-ink-faint">Prep pack</div>
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint">
+                Prep pack
+                {proofVariantId ? (
+                  <span className="ml-2 font-mono normal-case tracking-normal text-accent">
+                    {proofVariantId}
+                  </span>
+                ) : null}
+              </div>
               {prepBlob && (
                 <button
                   type="button"

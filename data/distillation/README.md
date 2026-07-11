@@ -5,6 +5,9 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 | Path | Purpose |
 |------|---------|
 | [curation/profile-and-strategy.md](./curation/profile-and-strategy.md) | Positioning, geo priorities, platforms (non-X) |
+| [curation/candidate-preferences.md](./curation/candidate-preferences.md) | Dual-fit constraints (modes, geo, family, culture, deal-breakers, comp) |
+| [curation/candidate-constraints-compact.txt](./curation/candidate-constraints-compact.txt) | Compact extract **injected into analyze** (`include_str` in `opportunity_target.rs`) |
+| [curation/proof-variants.md](./curation/proof-variants.md) | Role-class exceptional-work bank; **prep selector** picks a variant by JD keywords |
 | [x-search/operators.md](./x-search/operators.md) | Valid v2 operators only — do not guess |
 | [x-search/queries.json](./x-search/queries.json) | Qualified search presets + default CV packet |
 | [cv-packet-distilled.txt](./cv-packet-distilled.txt) | General distilled CV (~6k chars; PDF + projects; synced to `queries.json` + Rust IPC fallback) |

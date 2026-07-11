@@ -1,0 +1,12 @@
+CANDIDATE_CONSTRAINTS v2026-07-11
+AUTH: Swedish citizen; Stockholm primary base; currently India >6mo stay. US: needs sponsorship — accept immediately for right role. OCI mention: Indian opportunities only.
+MODES: SpaceXAI/high-signal → onsite OK. Temp/contract → remote. Mid-size niche HW+SW slow-pace → hybrid.
+GEO_HARD_NO: DEI/woke-as-primary companies & countries with that as primary posture.
+GEO_SOFT: London only if safe/secure. JP/CH/SG/PL only if exceptional HW+SW (AI/robotics/med-tech) high-potential. Prefer Nordics/near Stockholm; decent offers elsewhere OK to clear debt. Non-US travel ≤~6h.
+FAMILY: Can relocate alone first, family later; weekends protected; open FT for great role.
+ROLE: FT first (SpaceXAI #1); collabs after FT; start IC; gradual healthy/wealthy growth OK if faster naturally.
+CULTURE_WANT: high energy, clear-headed human nature, high-signal.
+CULTURE_AVOID: groupism, personal attacks, bad politics, excessive rigidity.
+MISSION: physical-world ML (inference/training/vision/diffusion/world models); robotics/med-tech; Elon multi-planetary companies.
+COMP: SpaceXAI-tier FT TC $576k–$704k/yr (median $640k ±10%; base band ~$216k–$264k). Decent FT: save $5k–$10k USD/mo after tax+living (confirmed monthly). Contract floor $100/hr, target $125–$150/hr, stretch $150–$180 AI/ML. Equity desired. Nordics: use savings floor not US TC.
+PROOF: default EW-agent-collab-finder; variants + PP-* metrics in curation/proof-variants.md (user may tweak).

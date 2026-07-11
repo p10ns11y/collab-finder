@@ -1,7 +1,7 @@
 /** OpportunityTarget domain types for quick opportunity analysis (URL or pasted description) + prep.
  * Mirror the Rust wire types from src-tauri/src/opportunity_target.rs exactly:
  *   - OpportunityTargetAnalysisResult / OpportunityTargetPrepResult (top level from analyze_opportunity_target / prep_opportunity_target)
- *   - Inner fit report (from xAI structured schema in analyze)
+ *   - Inner fit report (from xAI structured schema in analyze) — dual-fit v2
  *   - Inner prep artifacts (from xAI structured schema in prep)
  * Opportunity row shape (from history + db) is related but separate (analysis_json/prep_artifacts_json strings).
  *
@@ -13,12 +13,21 @@
  * Per design PR2 / TD-006 + Key Decision 3.
  */
 
+/** Dual-fit report. New fields optional for backward-tolerant history restore. */
 export type OpportunityTargetFit = {
   overall: number
   rationale: string
   gaps_must: string[]
   gaps_nice?: string[]
   recommended_action: string
+  /** Candidate can do the role (from CV). */
+  candidate_to_role?: number
+  /** Role is right for the candidate (from constraints). */
+  role_to_candidate?: number
+  /** Ways the role fails candidate constraints. */
+  role_concerns?: string[]
+  /** Hard constraint violations when clearly evidenced. */
+  deal_breakers_triggered?: string[]
 }
 
 export type OpportunityTargetPrep = {
@@ -26,6 +35,9 @@ export type OpportunityTargetPrep = {
   cv_suggestions: string[]
   research_notes: string
   exceptional_work_example?: string
+  /** Embedded by Rust after variant selection (also on prep result top-level). */
+  proof_variant_id?: string
+  proof_variant_title?: string
 }
 
 export type OpportunityTargetAnalysisResult = {
@@ -52,6 +64,8 @@ export type OpportunityTargetAnalysisResult = {
 export type OpportunityTargetPrepResult = {
   opportunity_id: number
   prep: OpportunityTargetPrep
+  /** Role-class exceptional-work variant selected from proof-variants bank. */
+  proof_variant_id?: string
   est_cost_usd: number
 }
 
@@ -64,7 +78,7 @@ export type OpportunityTargetPrepResult = {
 export type OpportunityTargetResult =
   | OpportunityTargetAnalysisResult
   | OpportunityTargetPrepResult
-  | (OpportunityTargetAnalysisResult & { prep: OpportunityTargetPrep })
+  | (OpportunityTargetAnalysisResult & { prep: OpportunityTargetPrep; proof_variant_id?: string })
 
 /** Mirror of Rust OpportunityTargetPageResult (used by fetch_opportunity_target_page; mostly internal to backend today). */
 export type OpportunityTargetPageResult = {
@@ -73,4 +87,19 @@ export type OpportunityTargetPageResult = {
   cleaned_text: string
   original_len: number
   truncated: boolean
+}
+
+/** Compact previous_fit payload for prep IPC (includes dual-fit when present). */
+export function serializePreviousFitForPrep(fit: OpportunityTargetFit): string {
+  return JSON.stringify({
+    overall: fit.overall,
+    candidate_to_role: fit.candidate_to_role,
+    role_to_candidate: fit.role_to_candidate,
+    rationale: fit.rationale,
+    gaps_must: fit.gaps_must,
+    gaps_nice: fit.gaps_nice,
+    role_concerns: fit.role_concerns,
+    deal_breakers_triggered: fit.deal_breakers_triggered,
+    recommended_action: fit.recommended_action,
+  })
 }

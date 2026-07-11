@@ -8,6 +8,7 @@ import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
+import { serializePreviousFitForPrep } from '../domain/opportunity-target'
 import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
@@ -288,13 +289,7 @@ export function opportunityTargetPrepCmd(
       // SAFETY: cast only to consume the preserved carry data on loading arm (see update.ts SAFETY comments + design PR2 carry hack); 'in' narrowing used immediately after.
       const d = ot.data as OpportunityTargetResult
       if ('fit' in d && d.fit) {
-        previous_fit = JSON.stringify({
-          overall: d.fit.overall,
-          rationale: d.fit.rationale,
-          gaps_must: d.fit.gaps_must,
-          gaps_nice: d.fit.gaps_nice,
-          recommended_action: d.fit.recommended_action,
-        })
+        previous_fit = serializePreviousFitForPrep(d.fit)
       }
     }
 
@@ -568,9 +563,13 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
             parsed && typeof parsed === 'object' && 'prep' in parsed && (parsed as { prep?: unknown }).prep
               ? (parsed as { prep?: unknown }).prep
               : parsed
+          const prepObj = prepData as OpportunityTargetPrep
           const prepRes: OpportunityTargetPrepResult = {
             opportunity_id: (parsed as { opportunity_id?: number }).opportunity_id ?? o.id,
-            prep: prepData as OpportunityTargetPrep,
+            prep: prepObj,
+            proof_variant_id:
+              (parsed as { proof_variant_id?: string }).proof_variant_id ??
+              prepObj?.proof_variant_id,
             est_cost_usd: (parsed as { est_cost_usd?: number }).est_cost_usd ?? 0,
           }
           dispatch({ type: 'OpportunityTargetPrepSucceeded', result: prepRes })
