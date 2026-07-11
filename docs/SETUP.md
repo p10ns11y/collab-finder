@@ -113,6 +113,7 @@ Terminal (new observability log added for this exact problem):
 - A previous `set_x_bearer` hit a transient failure in `write_keyring` → the code intentionally did `clear_keyring()` to avoid shadowing the file (see `set_x_bearer` in `src-tauri/src/secrets.rs`).
 - Daemon was in a bad state (multiple `gnome-keyring-daemon --foreground` instances, one with a typo, Cursor also using the backend, etc.).
 - The entry was cleared during a buggy refactor window.
+- **`cargo test` wiped the live keyring** (fixed): secrets unit tests used to call `clear_keyring()` against the production username `x-bearer`. File fallback was already redirected via `app_dirs::test_harness`, but the Secret Service entry was shared with the running app — so after a test run, startup logged `active_source=None` / `keyring_present=false` / `file_present=false` even though xAI (`xai-key`) was untouched. Tests now use `x-bearer-test` / `xai-key-test`. If you still see `None` after that fix, re-**Save** the bearer once in Settings (the plaintext `x-bearer` file may also be gone).
 
 **Diagnostic commands that revealed the real state** (run in the same graphical session you launch the app from):
 

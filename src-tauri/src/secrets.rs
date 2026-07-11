@@ -27,6 +27,11 @@
 // - file_store.rs (bearer) and the new xai_key_store.rs are deliberately separate modules.
 // - app_data_dir is the single source of truth for both fallback files.
 // - The 8 credential commands (4+4) live together in lib.rs generate_handler!.
+// - TEST ISOLATION (critical): under `cfg!(test)`, keyring USER is `x-bearer-test` /
+//   `xai-key-test` (not the production `x-bearer` / `xai-key`). File fallback is already
+//   redirected via `app_dirs::test_harness`. Without this, `clear_keyring()` in TestDir
+//   Drop / `keyring_roundtrip_when_available` deletes the developer's live Secret Service
+//   entry and the next app launch reports `active_source=None` (seen 2026-07-09).
 // - After ANY edit here, to lib.rs credential registration, to either *store.rs, or to app_dirs.rs:
 //   MUST run `cd src-tauri && cargo test` (exercises both harnesses + keyring probes for both secrets).
 // - After change, run the app and verify BOTH the X Connection panel AND the new xAI Intelligence
@@ -77,7 +82,13 @@ use keyring::Error as KeyringError;
 use serde::Serialize;
 
 const SERVICE: &str = "collab-finder";
+/// Production Secret Service username. Tests MUST NOT use this — see `USER` below.
+#[cfg(not(test))]
 const USER: &str = "x-bearer";
+/// Isolated keyring username for unit/integration tests so `clear_keyring` cannot
+/// wipe the developer's live `x-bearer` entry (file store is already harness-scoped).
+#[cfg(test)]
+const USER: &str = "x-bearer-test";
 
 fn keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(SERVICE, USER).map_err(|e| e.to_string())
@@ -156,7 +167,11 @@ pub fn has_x_bearer() -> bool {
 // All xai functions are deliberately duplicated (not shared) to protect the bearer path.
 
 const XAI_SERVICE: &str = "collab-finder";
+#[cfg(not(test))]
 const XAI_USER: &str = "xai-key";
+/// Parallel test isolation for xAI keyring (same rationale as bearer `USER`).
+#[cfg(test)]
+const XAI_USER: &str = "xai-key-test";
 
 fn xai_keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(XAI_SERVICE, XAI_USER).map_err(|e| e.to_string())
@@ -689,5 +704,16 @@ mod tests {
             BearerActiveSource::Keyring
         );
         clear_keyring().expect("clear");
+    }
+
+    /// Guards the 2026-07-09 regression: `cargo test` wiped the live OS keyring
+    /// entry `collab-finder` / `x-bearer` because TestDir Drop called `clear_keyring()`
+    /// against the production username. File store was already harness-scoped; keyring was not.
+    #[test]
+    fn test_keyring_usernames_are_isolated_from_production() {
+        assert_eq!(USER, "x-bearer-test");
+        assert_eq!(XAI_USER, "xai-key-test");
+        assert_ne!(USER, "x-bearer");
+        assert_ne!(XAI_USER, "xai-key");
     }
 }

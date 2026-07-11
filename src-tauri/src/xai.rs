@@ -11,8 +11,8 @@ use serde_json::{json, Value};
 
 const XAI_BASE: &str = "https://api.x.ai/v1";
 
-/// Default when no xai_model.txt is present.
-const DEFAULT_XAI_MODEL: &str = "grok-4.5";
+// Default model lives in opportunity_target::get_xai_model (xai_model.txt + grok-4.5).
+// structured_chat takes an explicit model argument — do not reintroduce a unused default here.
 
 // Default pricing estimate (grok-4.x series). Real cost is always from the API "usage" response.
 const PRICE_INPUT_PER_M: f64 = 1.25;

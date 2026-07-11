@@ -244,7 +244,7 @@ async fn promote_lead(
     drop(guard);
 
     let _ = db.0.lock().map(|s| {
-        persist_promote_event(&s, &lead_id, &msg);
+        let _ = persist_promote_event(&s, &lead_id, &msg);
     });
 
     Ok(msg)
