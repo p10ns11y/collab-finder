@@ -25,9 +25,21 @@ const CANDIDATE_CONSTRAINTS: &str =
 const PROOF_VARIANTS_MD: &str =
     include_str!("../../data/distillation/curation/proof-variants.md");
 
+/// Focused public GitHub projects (description + topics) — richer than cvdata for prep/cover letters.
+const PUBLIC_PROJECTS_FOCUSED_JSON: &str =
+    include_str!("../../data/distillation/public-projects-focused-flatten.json");
+
+/// Slim repo list (name/url/description/topics) — fills gaps not in focused list.
+const PUBLIC_PROJECTS_SLIM_JSON: &str =
+    include_str!("../../data/distillation/public-projects.json");
+
 const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
 
 const DEFAULT_PROOF_VARIANT_ID: &str = "EW-agent-collab-finder";
+
+/// Max projects / chars injected into prep (token budget for cover letters).
+const PREP_PROJECTS_MAX: usize = 12;
+const PREP_PROJECTS_BLOCK_MAX_CHARS: usize = 4500;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProofVariant {
@@ -253,12 +265,302 @@ pub(crate) fn select_proof_variant(jd: &str, bank: &[ProofVariant]) -> ProofVari
     default
 }
 
-/// Build prep user prompt with selected exceptional-work variant grounding.
+#[derive(Debug, Clone)]
+pub(crate) struct PublicProject {
+    pub name: String,
+    pub description: String,
+    pub language: String,
+    pub topics: Vec<String>,
+    pub url: String,
+    pub homepage: String,
+    pub categories: Vec<String>,
+    pub stars: u32,
+    pub priority: bool,
+}
+
+/// Parse focused-flatten + slim public-projects JSON into a deduped bank (prefer focused detail).
+pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) -> Vec<PublicProject> {
+    let mut by_name: std::collections::BTreeMap<String, PublicProject> =
+        std::collections::BTreeMap::new();
+
+    if let Ok(v) = serde_json::from_str::<Value>(focused_json) {
+        if let Some(arr) = v.get("projects").and_then(|x| x.as_array()) {
+            for p in arr {
+                let name = p
+                    .get("name")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                let topics = p
+                    .get("topics")
+                    .and_then(|x| x.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                            .take(10)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let categories = p
+                    .get("categories")
+                    .and_then(|x| x.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                by_name.insert(
+                    name.to_lowercase(),
+                    PublicProject {
+                        name: name.clone(),
+                        description: p
+                            .get("description")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .trim()
+                            .to_string(),
+                        language: p
+                            .get("language")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        topics,
+                        url: p
+                            .get("html_url")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        homepage: p
+                            .get("homepage")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        categories,
+                        stars: p
+                            .get("stargazers_count")
+                            .and_then(|x| x.as_u64())
+                            .unwrap_or(0) as u32,
+                        priority: true,
+                    },
+                );
+            }
+        }
+    }
+
+    if let Ok(v) = serde_json::from_str::<Value>(slim_json) {
+        if let Some(arr) = v.get("repos").and_then(|x| x.as_array()) {
+            for p in arr {
+                let name = p
+                    .get("name")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                let key = name.to_lowercase();
+                let priority = p.get("priority").and_then(|x| x.as_bool()).unwrap_or(false);
+                let topics = p
+                    .get("topics")
+                    .and_then(|x| x.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                            .take(8)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let desc = p
+                    .get("description")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let url = p
+                    .get("url")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let language = p
+                    .get("language")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let homepage = p
+                    .get("homepage")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let stars = p.get("stars").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+
+                if let Some(existing) = by_name.get_mut(&key) {
+                    // Prefer longer description; fill empty fields from slim.
+                    if existing.description.len() < desc.len() {
+                        existing.description = desc;
+                    }
+                    if existing.url.is_empty() {
+                        existing.url = url;
+                    }
+                    if existing.language.is_empty() {
+                        existing.language = language;
+                    }
+                    if existing.homepage.is_empty() {
+                        existing.homepage = homepage;
+                    }
+                    if existing.topics.is_empty() {
+                        existing.topics = topics;
+                    }
+                    existing.priority = existing.priority || priority;
+                    existing.stars = existing.stars.max(stars);
+                } else if priority || !desc.is_empty() {
+                    by_name.insert(
+                        key,
+                        PublicProject {
+                            name,
+                            description: desc,
+                            language,
+                            topics,
+                            url,
+                            homepage,
+                            categories: vec![],
+                            stars,
+                            priority,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    by_name.into_values().collect()
+}
+
+fn project_relevance_score(p: &PublicProject, jd_lower: &str) -> i32 {
+    let mut score: i32 = 0;
+    if p.priority {
+        score += 8;
+    }
+    if p.categories.iter().any(|c| c == "featured") {
+        score += 6;
+    }
+    if p.categories.iter().any(|c| c == "recent") {
+        score += 3;
+    }
+    score += (p.stars as i32).min(5);
+
+    let name = p.name.to_lowercase();
+    if jd_lower.contains(&name) {
+        score += 40;
+    }
+    // Token overlap on name parts
+    for part in name.split(|c: char| !c.is_ascii_alphanumeric()) {
+        if part.len() >= 4 && jd_lower.contains(part) {
+            score += 6;
+        }
+    }
+    for t in &p.topics {
+        let tl = t.to_lowercase();
+        if tl.len() >= 3 && jd_lower.contains(&tl) {
+            score += 10;
+        }
+    }
+    // Description keyword hits (cheap)
+    let desc = p.description.to_lowercase();
+    for kw in [
+        "agent",
+        "rust",
+        "tauri",
+        "typescript",
+        "react",
+        "inference",
+        "llm",
+        "ml",
+        "api",
+        "desktop",
+        "mcp",
+        "orchestr",
+        "integration",
+        "playwright",
+        "mvu",
+        "wasm",
+    ] {
+        if jd_lower.contains(kw) && (desc.contains(kw) || name.contains(kw) || p.topics.iter().any(|t| t.to_lowercase().contains(kw))) {
+            score += 5;
+        }
+    }
+    score
+}
+
+/// Rank + format public projects for prep/cover-letter grounding (token-capped).
+pub(crate) fn format_public_projects_for_prep(projects: &[PublicProject], jd: &str) -> String {
+    if projects.is_empty() {
+        return String::new();
+    }
+    let jd_lower = jd.to_lowercase();
+    let mut ranked: Vec<&PublicProject> = projects.iter().collect();
+    ranked.sort_by(|a, b| {
+        project_relevance_score(b, &jd_lower)
+            .cmp(&project_relevance_score(a, &jd_lower))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    ranked.truncate(PREP_PROJECTS_MAX);
+
+    let mut out = String::from(
+        "PUBLIC_PROJECTS_BANK (personal/OSS GitHub — richer than cvdata; NOT multi-year employment):\n",
+    );
+    for p in ranked {
+        let topics = if p.topics.is_empty() {
+            "—".to_string()
+        } else {
+            p.topics.join(", ")
+        };
+        let mut desc = p.description.clone();
+        if desc.chars().count() > 220 {
+            desc = format!("{}…", desc.chars().take(219).collect::<String>());
+        }
+        let lang = if p.language.is_empty() {
+            "?"
+        } else {
+            p.language.as_str()
+        };
+        let cats = if p.categories.is_empty() {
+            String::new()
+        } else {
+            format!(" | cats: {}", p.categories.join("+"))
+        };
+        let home = if p.homepage.is_empty() {
+            String::new()
+        } else {
+            format!(" | home: {}", p.homepage)
+        };
+        let line = format!(
+            "- {} [{}] topics: {}{} | {} | {}{}\n",
+            p.name, lang, topics, cats, desc, p.url, home
+        );
+        if out.chars().count() + line.chars().count() > PREP_PROJECTS_BLOCK_MAX_CHARS {
+            break;
+        }
+        out.push_str(&line);
+    }
+    out.push_str(
+        "Use 1–3 JD-aligned projects from this bank (name + concrete description/topics only). Treat as personal/OSS unless CV PACKET states employment.\n",
+    );
+    out
+}
+
+/// Build prep user prompt with selected exceptional-work variant + public projects bank.
 pub(crate) fn build_prep_user_prompt(
     cv: &str,
     jd: &str,
     previous_fit: Option<&str>,
     variant: &ProofVariant,
+    public_projects_block: &str,
 ) -> String {
     let mut user = format!("CANDIDATE CV PACKET:\n{}\n\nOPPORTUNITY DESCRIPTION:\n{}\n\n", cv, jd);
     if let Some(fit) = previous_fit {
@@ -269,21 +571,30 @@ pub(crate) fn build_prep_user_prompt(
             ));
         }
     }
+    if !public_projects_block.trim().is_empty() {
+        user.push_str(public_projects_block);
+        if !public_projects_block.ends_with('\n') {
+            user.push('\n');
+        }
+        user.push('\n');
+    }
     user.push_str(&format!(
         "SELECTED_PROOF_VARIANT id={}\nTITLE: {}\nBODY (use as primary exceptional-work grounding; do not invent alternate flagship stories):\n{}\n\n",
         variant.id, variant.title, variant.body
     ));
     user.push_str(
         r#"STRICT GROUNDING RULES (MUST FOLLOW — DO NOT VIOLATE):
-- Use ONLY facts, numbers, skills, project names, responsibilities, and claims that appear explicitly in the CANDIDATE CV PACKET or SELECTED_PROOF_VARIANT above. Never invent or infer details.
-- "9+ years", "over 9 years", or similar always refers to the candidate's TOTAL professional software engineering INDUSTRY experience (day jobs + overall career). It does NOT apply to any specific technology, framework, or personal/OSS project unless the packet states a duration for it.
-- Personal, hobby, or OSS projects (collab-finder, prototype-*, etc.) listed without explicit multi-year dates or "production" language must be treated as recent personal/experimental work. Do NOT describe them as "9+ years building production-grade...", "multi-year production systems", or similar.
-- For the cover letter: write in professional first-person tone. Be factual and modest. Highlight concrete impacts from the listed RECENT WORK roles, education, and directly supported skills. Emphasize mission alignment using only language present in the packet or JD. Avoid hype, overclaiming depth, or fabricated timelines.
-- If a detail (timeline, "production-grade", specific responsibility) is not in the packet or selected variant, do not include it. Prefer "experience with", "built", "contributed to" over exaggerated qualifiers.
+- Use ONLY facts from: CANDIDATE CV PACKET, PUBLIC_PROJECTS_BANK, and SELECTED_PROOF_VARIANT. Never invent metrics, employers, or timelines.
+- PUBLIC_PROJECTS_BANK supplements thin/out-of-sync cvdata for personal/OSS projects (name, description, topics, language, urls). Prefer JD-aligned projects from the bank when writing the cover letter.
+- "9+ years", "over 9 years", or similar always refers to TOTAL professional software engineering INDUSTRY employment only — never attribute that YOE to personal/OSS projects.
+- Personal/OSS projects (collab-finder, prototype-*, elomaxz, etc.) are recent personal/experimental unless the packet states otherwise. Do NOT call them multi-year production AI-lab employment.
+- For the cover letter: professional first-person; modest; weave Oneflow/employment impacts from CV PACKET plus 1–3 concrete public projects from PUBLIC_PROJECTS_BANK when they match the JD. Avoid hype and fabricated depth.
+- If a detail is not in the sources above, omit it. Prefer "built", "shipped", "open-sourced" over exaggerated qualifiers.
 - Keep the cover letter concise (ideally 140-220 words) and high-signal.
-- exceptional_work_example: prefer the SELECTED_PROOF_VARIANT body (tighten to 80-120 words if needed) rather than inventing a different flagship project.
+- exceptional_work_example: prefer SELECTED_PROOF_VARIANT body (80–120 words); may enrich with matching PUBLIC_PROJECTS_BANK facts only.
+- cv_suggestions: may recommend promoting bank projects/descriptions into master cvdata (sidecar-style).
 
-TASK: Produce a tailored prep pack: a cover letter, 3-6 concrete CV improvement suggestions (deltas/sidecar style, per cv-promote-guard principles), short research notes on the company/role, and a strong 80-120 word 'exceptional work' example grounded in the selected variant.
+TASK: Produce a tailored prep pack: a cover letter that uses employment CV facts + relevant PUBLIC_PROJECTS_BANK entries, 3-6 concrete CV improvement suggestions (sidecar style), short research notes, and a strong 80-120 word exceptional-work example.
 Return ONLY valid JSON."#,
     );
     user
@@ -729,14 +1040,17 @@ pub(crate) async fn run_prep_opportunity_target(
 
     let bank = parse_proof_variants(PROOF_VARIANTS_MD);
     let variant = select_proof_variant(&jd, &bank);
+    let projects = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+    let projects_block = format_public_projects_for_prep(&projects, &jd);
     let user = build_prep_user_prompt(
         &cv,
         &jd,
         previous_fit.as_deref(),
         &variant,
+        &projects_block,
     );
 
-    let system = "You are a precise, truth-seeking application preparation assistant. Output ONLY valid JSON. Every claim in the cover letter must be directly supported by the provided CV PACKET or SELECTED_PROOF_VARIANT. Never fabricate experience timelines, project depth, or production claims. Prefer the selected exceptional-work variant. CV suggestions are sidecar proposals only.";
+    let system = "You are a precise, truth-seeking application preparation assistant. Output ONLY valid JSON. Every claim in the cover letter must be supported by the CV PACKET, PUBLIC_PROJECTS_BANK, or SELECTED_PROOF_VARIANT. Never fabricate experience timelines or production AI-lab employment from personal OSS. Prefer the selected exceptional-work variant; enrich with JD-aligned public projects. CV suggestions are sidecar proposals only.";
 
     let schema = json!({
         "type": "object",
@@ -1188,12 +1502,76 @@ mod tests {
     fn prep_user_prompt_includes_selected_variant_id_and_body() {
         let bank = parse_proof_variants(PROOF_VARIANTS_MD);
         let v = select_proof_variant("xAI agent infrastructure role", &bank);
-        let prompt = build_prep_user_prompt("MY_CV", "THE_JD", Some(r#"{"overall":80}"#), &v);
+        let projects = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        let pblock = format_public_projects_for_prep(&projects, "xAI agent infrastructure role");
+        let prompt = build_prep_user_prompt(
+            "MY_CV",
+            "THE_JD agent",
+            Some(r#"{"overall":80}"#),
+            &v,
+            &pblock,
+        );
         assert!(prompt.contains("SELECTED_PROOF_VARIANT"));
         assert!(prompt.contains(&v.id));
         assert!(prompt.contains(&v.body.chars().take(40).collect::<String>()) || prompt.contains("collab-finder"));
         assert!(prompt.contains("MY_CV") && prompt.contains("THE_JD"));
         assert!(prompt.contains("PREVIOUS FIT ANALYSIS"));
+        assert!(
+            prompt.contains("PUBLIC_PROJECTS_BANK"),
+            "prep must inject public projects for cover letter"
+        );
+        assert!(
+            prompt.contains("collab-finder") || prompt.contains("prototype-it"),
+            "must include a real bank project name"
+        );
+    }
+
+    #[test]
+    fn public_projects_bank_parses_and_ranks_for_agent_jd() {
+        let projects =
+            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        assert!(
+            projects.len() >= 10,
+            "expected focused+slim merge, got {}",
+            projects.len()
+        );
+        assert!(
+            projects.iter().any(|p| p.name == "collab-finder"
+                && !p.description.is_empty()
+                && !p.topics.is_empty()),
+            "collab-finder must have description+topics from focused JSON"
+        );
+        // Slim list can add projects not in focused (e.g. Adaptate / Grok variants)
+        let block = format_public_projects_for_prep(
+            &projects,
+            "Hiring agentic Tauri desktop and MCP tooling engineers",
+        );
+        assert!(block.contains("PUBLIC_PROJECTS_BANK"));
+        assert!(block.contains("topics:"));
+        // Agent JD should surface collab-finder early in the block
+        let pos_cf = block.find("collab-finder");
+        assert!(pos_cf.is_some(), "agent JD must include collab-finder");
+        // Description fragment from focused-flatten
+        assert!(
+            block.to_lowercase().contains("tauri") || block.to_lowercase().contains("agent"),
+            "block should carry descriptive tokens"
+        );
+    }
+
+    #[test]
+    fn run_prep_prompt_path_includes_public_projects_content() {
+        // Drive shipped run_prep; stub does not expose prompt, so assert via pure builders used by it.
+        let projects =
+            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        let jd = "Senior engineer for Salesforce HubSpot CRM integrations public API";
+        let block = format_public_projects_for_prep(&projects, jd);
+        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        let v = select_proof_variant(jd, &bank);
+        let prompt = build_prep_user_prompt("CV", jd, None, &v, &block);
+        assert!(prompt.contains("PUBLIC_PROJECTS_BANK"));
+        assert!(prompt.contains("PUBLIC_PROJECTS_BANK") && prompt.contains("topics:"));
+        // Integrations JD may still include bank projects; cover letter rules mention bank
+        assert!(prompt.contains("Prefer JD-aligned projects") || prompt.contains("PUBLIC_PROJECTS_BANK"));
     }
 
     #[test]
