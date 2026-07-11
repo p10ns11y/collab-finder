@@ -79,7 +79,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
       })),
       {
         id: 'promote',
-        label: 'X insights note (guarded — not CV apply)',
+        label: 'Log X insights note (audit only — not CV apply)',
         msg: { type: 'PromoteRequested' },
       },
       {

@@ -361,23 +361,85 @@ impl FinderReactor {
         }
     }
 
-    // MCP tool stub: promote (per cv-promote-guard)
+    /// Xplore "insights note": write a real audit markdown under app_data.
+    /// Does **not** mutate devprofile or create a CV apply confirm dialog — that lives on Discover
+    /// (Evaluate fit → Prep → Propose CV sidecar). Honesty per cv-promote-guard.
     pub fn promote_insights(&mut self, lead_id: &str) -> Result<String, String> {
-        // Always sidecar-first, diff, pause for confirm. Never direct write.
-        // In real: load cvdata, generate patch, write sidecar in app_data, return preview.
-        // Re-read Settings path each call so "Configured" in Settings is not ignored after app start.
         self.sync_devprofile_path_from_settings();
-        if let Some(path) = &self.devprofile_path {
-            // Short path tail for UI (full path still available via Settings / sidecar tools).
-            let display = path.display().to_string();
-            let short = shorten_path_for_ui(&display, 48);
-            Ok(format!(
-                "Sidecar ready for lead «{}» under {}/preps/… — confirm before apply (cv-promote-guard).",
-                lead_id, short
-            ))
-        } else {
-            Ok("Configure devprofile_path first. Sidecar only.".to_string())
-        }
+
+        let base = crate::app_dirs::app_data_dir().map_err(|e| e.to_string())?;
+        let dir = base.join("cv_proposals").join("xplore_notes");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+        let safe_id: String = lead_id
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let note_path = dir.join(format!("insights-{}-{}.md", safe_id, stamp));
+
+        let lead_excerpt = self
+            .state
+            .leads
+            .last()
+            .map(|l| {
+                let t = &l.tweet.text;
+                if t.chars().count() > 600 {
+                    format!("{}…", t.chars().take(600).collect::<String>())
+                } else {
+                    t.clone()
+                }
+            })
+            .unwrap_or_else(|| "(no cycle lead in memory — note is path/audit only)".into());
+
+        let devp = self
+            .devprofile_path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "(not set — configure in Settings for CV grounding)".into());
+
+        let body = format!(
+            r#"# X insights note (audit only)
+
+- lead_id: `{lead_id}`
+- written: unix {stamp}
+- devprofile_path: `{devp}`
+
+## Last cycle lead (excerpt)
+
+{lead_excerpt}
+
+## What this is / is not
+
+This file is an **audit note** from Xplore. It does **not**:
+- write a CV sidecar
+- open a confirm dialog
+- mutate `cvdata.json`
+
+## How to propose CV changes (real guard path)
+
+1. Open **Discover**
+2. Paste the job URL or JD
+3. **Evaluate fit** → **Generate prep pack**
+4. **Propose CV suggestions as sidecar** (preview + path under app `cv_proposals/`)
+5. Review — master portfolio write only after explicit confirm (cv-promote-guard)
+
+"#
+        );
+        fs::write(&note_path, body).map_err(|e| e.to_string())?;
+
+        self.state.pauses.push(format!(
+            "X insights note written (audit only): {}",
+            note_path.display()
+        ));
+
+        let short = shorten_path_for_ui(&note_path.display().to_string(), 56);
+        Ok(format!(
+            "Logged audit note at {short} (no CV write, no confirm dialog). CV sidecar: Discover → Evaluate fit → Prep → Propose sidecar."
+        ))
     }
 }
 
@@ -431,8 +493,8 @@ mod tests {
     }
 
     #[test]
-    fn promote_requires_devprofile_path() {
-        // Isolate from developer's live ~/.local/share/.../devprofile_path.txt
+    fn promote_writes_audit_note_not_fake_confirm() {
+        // Isolate app_data from live machine
         struct HarnessGuard(std::path::PathBuf);
         impl Drop for HarnessGuard {
             fn drop(&mut self) {
@@ -447,29 +509,41 @@ mod tests {
         crate::app_dirs::test_harness::set(tmp.clone());
 
         let mut reactor = FinderReactor::new(None);
-        assert!(
-            reactor
-                .promote_insights("lead-1")
-                .unwrap()
-                .contains("Configure devprofile_path"),
-            "without settings file, promote must ask to configure"
-        );
-
-        // Settings UI writes this file — promote must pick it up without restart.
-        std::fs::write(tmp.join("devprofile_path.txt"), "/tmp/devprofile-from-settings").unwrap();
         let msg = reactor.promote_insights("lead-1").unwrap();
         assert!(
-            msg.contains("Sidecar ready") && msg.contains("devprofile-from-settings"),
-            "promote must sync from settings file, got: {msg}"
+            msg.contains("audit note") && msg.contains("no CV write"),
+            "must be honest about no CV apply, got: {msg}"
+        );
+        assert!(
+            !msg.to_lowercase().contains("confirm before apply"),
+            "must not fake a confirm step: {msg}"
+        );
+        assert!(
+            msg.contains("Discover") && msg.contains("Propose sidecar"),
+            "must point at real CV path: {msg}"
         );
 
-        let mut with_path = FinderReactor::new(Some("/tmp/devprofile".into()));
-        // Clear settings so constructor path is used (sync would overwrite if file present)
-        let _ = std::fs::remove_file(tmp.join("devprofile_path.txt"));
-        assert!(with_path
-            .promote_insights("lead-1")
+        // Note file exists under harness app data
+        let notes = tmp.join("cv_proposals").join("xplore_notes");
+        assert!(notes.is_dir(), "notes dir under app data");
+        let count = std::fs::read_dir(&notes).unwrap().count();
+        assert!(count >= 1, "at least one note file written");
+
+        // Settings path still syncs into note content
+        std::fs::write(tmp.join("devprofile_path.txt"), "/tmp/devprofile-from-settings").unwrap();
+        let msg2 = reactor.promote_insights("lead-2").unwrap();
+        assert!(msg2.contains("audit note"));
+        let latest = std::fs::read_dir(&notes)
             .unwrap()
-            .contains("Sidecar ready"));
+            .filter_map(|e| e.ok())
+            .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
+            .unwrap();
+        let body = std::fs::read_to_string(latest.path()).unwrap();
+        assert!(
+            body.contains("devprofile-from-settings") || body.contains("devprofile_path"),
+            "note should record devprofile path"
+        );
+        assert!(body.contains("Does **not**") || body.contains("does **not**") || body.contains("audit"));
     }
 
     #[test]

@@ -41,10 +41,19 @@ export function DecisionPanel({ decision, onRerun, onPromote }: Props) {
           <Button variant="secondary" size="sm" onClick={onRerun}>
             Re-run
           </Button>
-          <Button variant="ghost" size="sm" onClick={onPromote}>
-            X insights note
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onPromote}
+            title="Writes an audit markdown under app data. Does not apply CV changes."
+          >
+            Log insights note
           </Button>
         </div>
+        <p className="text-[10px] leading-snug text-ink-faint">
+          Insights note = audit log only (no confirm dialog, no CV write). For real CV sidecar:
+          Discover → Evaluate fit → Prep → Propose sidecar.
+        </p>
       </CardContent>
     </Card>
   )

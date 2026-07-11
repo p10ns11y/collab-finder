@@ -207,10 +207,11 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [
         {
           ...model,
+          // Prefer a clear banner for the honest audit result (not a fake "confirm" pause).
+          banner: null,
           pauses: [
             ...model.pauses,
-            // Message from Rust already includes guard/confirm wording; avoid stacking long paths twice.
-            `CV promote: ${msg.message}`,
+            `X insights: ${msg.message}`,
           ],
         },
       ]
