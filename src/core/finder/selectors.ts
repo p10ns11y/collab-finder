@@ -37,6 +37,7 @@ export type FinderViewState = {
   historyStats: import('../domain/history').DashboardStats | null
   historyEvents: import('../domain/history').Event[]
   historyOpportunities: import('../domain/history').Opportunity[]
+  historyLastRefreshed: number | null  // for freshness / TD-009 race visibility in secondary views and debug
   // Screen + lookup projections
   activeScreen: FinderScreen
   lookupResults: import('../domain/finder').Tweet[]
@@ -44,6 +45,7 @@ export type FinderViewState = {
   selectedRunId: number | null
   selectedRun: import('../domain/history').SearchRunWithTweets | null
   hydrateTweet: import('../domain/finder').Tweet | null
+  lastSidecarProposal?: { preview: string; sidecar_path: string }
 }
 
 export function selectFinderView(model: FinderModel): FinderViewState {
@@ -90,11 +92,13 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     historyStats: h.stats.status === 'ready' ? h.stats.data : null,
     historyEvents: h.events.status === 'ready' ? h.events.data : [],
     historyOpportunities: h.opportunities.status === 'ready' ? h.opportunities.data : [],
+    historyLastRefreshed: h.lastRefreshed,
     activeScreen: model.activeScreen,
     lookupResults: model.lookup.status === 'ready' ? model.lookup.data : [],
     lookupBusy: model.lookup.status === 'loading',
     selectedRunId: model.selectedRunId,
     selectedRun: model.selectedRun.status === 'ready' ? model.selectedRun.data : null,
     hydrateTweet: model.hydrate.status === 'ready' ? model.hydrate.data : null,
+    lastSidecarProposal: model.lastSidecarProposal,
   }
 }

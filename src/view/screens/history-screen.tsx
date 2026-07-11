@@ -17,8 +17,10 @@ export function HistoryScreen({ view, dispatch }: Props) {
     historyPauses: pauses,
     historyStats: stats,
     historyOpportunities: opportunities = [],
+    historyLastRefreshed,
   } = view
   const hasData = searches.length > 0 || leads.length > 0 || pauses.length > 0 || opportunities.length > 0
+  const refreshedLabel = historyLastRefreshed ? new Date(historyLastRefreshed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -26,8 +28,9 @@ export function HistoryScreen({ view, dispatch }: Props) {
         <div>
           <div className="text-lg font-semibold tracking-tight flex items-center gap-2">
             <History className="h-4 w-4 text-ink-faint" /> History
+            {refreshedLabel && <span className="text-[10px] text-ink-faint font-normal ml-2">(refreshed {refreshedLabel})</span>}
           </div>
-          <p className="text-xs text-ink-faint">Timeline of runs, captured leads, and targets (persisted)</p>
+          <p className="text-xs text-ink-faint">Timeline of runs, captured leads, and targets (persisted) — lastRefreshed for TD-009 visibility</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'HistoryRefreshRequested' })}>
           <RefreshCw className="mr-1 h-3 w-3" /> Refresh

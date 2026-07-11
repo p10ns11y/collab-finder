@@ -37,4 +37,11 @@ export type FinderPort = {
   analyzeOpportunityTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<OpportunityTargetAnalysisResult, AppError>>
   prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<OpportunityTargetPrepResult, AppError>>
   getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
+
+  // devprofile grounding config (AC2): when set, resolve_cv uses pruned cvdata.json from the path
+  getDevprofilePath(): Promise<Result<string | null, AppError>>
+  setDevprofilePath(path: string | null): Promise<Result<void, AppError>>
+
+  // propose sidecar from prep cv_suggestions (AC3) - sidecar only + basic preview, no master mutation
+  proposeCvSidecar(opportunityId: number): Promise<Result<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }, AppError>>
 }

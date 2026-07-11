@@ -40,6 +40,7 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange }: Props) {
 
       <div className="mt-2 text-[10px] text-ink-faint">
         The complete text you put here is sent **in full** to the model for every analysis/prep (this is already your distilled packet). Also used by Xplore cycles. Edit anytime.
+        <br />Tip: State total YOE separately from recency of specific projects (e.g. "9+ years industry; recent personal agentic work"). The prep prompt now strongly enforces this to reduce fabrication.
       </div>
     </div>
   )

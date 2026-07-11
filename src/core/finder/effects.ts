@@ -3,12 +3,12 @@ import { fromPromise } from '../result'
 import { requireConnection, validateBearerDraft } from '../security/credentials-policy'
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
-import { DEFAULT_CV_SUMMARY } from '../domain/finder'
 import type { FinderModel, PersistedSession } from './model'
 import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
+import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
 
 export type FinderPorts = {
   credentials: {
@@ -36,6 +36,10 @@ export type FinderPorts = {
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
+    // devprofile + sidecar propose
+    getDevprofilePath(): Promise<string | null>
+    setDevprofilePath(path: string | null): Promise<void>
+    proposeCvSidecar(opportunityId: number): Promise<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }>
   }
 }
 
@@ -187,20 +191,35 @@ export function promoteCmd(ports: FinderPorts): Cmd<FinderMsg> {
   }
 }
 
+export function proposeCvSidecarCmd(ports: FinderPorts, opportunityId: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.proposeCvSidecar(opportunityId), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'CvSidecarProposeFailed', error: result.error })
+        return
+      }
+      const r = result.value as any
+      dispatch({ type: 'CvSidecarProposeSucceeded', preview: r.preview || '', sidecar_path: r.sidecar_path || '', suggestions_count: r.suggestions_count || 0 })
+    })
+  }
+}
+
 export function opportunityTargetAnalyzeCmd(
   ports: FinderPorts,
   model: FinderModel,
   payload: { url?: string; pasted_jd?: string },
 ): Cmd<FinderMsg> {
   return (dispatch) => {
-    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
+    // Use pure contract: empty/trimmed-to-empty becomes undefined so Rust can pick devprofile_path pruned or its DEFAULT.
+    // Never force DEFAULT_CV_SUMMARY at the IPC boundary.
+    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: cvSummary,
+      cv_summary: cvForIpc,
     }
     if (import.meta.env.DEV) {
-      console.debug('[finder] analyze_opportunity_target cv_summary chars:', cvSummary.length)
+      console.debug('[finder] analyze_opportunity_target cv_summary ipc:', cvForIpc ? cvForIpc.length : 'undefined')
     }
     void fromPromise(ports.finder.analyzeOpportunityTarget(p), toAppError).then((result) => {
       if (!result.ok) {
@@ -259,12 +278,12 @@ export function opportunityTargetPrepCmd(
       }
     }
 
-    const cvSummary = model.cvSummary.trim() || DEFAULT_CV_SUMMARY
+    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
       opportunity_id: payload.opportunity_id,
       url: payload.url,
       pasted_jd: payload.pasted_jd,
-      cv_summary: cvSummary,
+      cv_summary: cvForIpc,
       previous_fit,
     }
     void fromPromise(ports.finder.prepOpportunityTarget(p), toAppError).then((result) => {
@@ -309,6 +328,12 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       dispatch({ type: 'HistoryRefreshed', searches: res.value })
     })
 
+    // Fan-out design (TD-009): independent parallel fromPromise + partial HistoryRefreshed.
+    // Intentional (post non-blanking change in update.ts) so Data/History/Discover rail stay populated
+    // during/after analyze/prep/search/cycle. Tradeoff: timing races between slices.
+    // Mitigation: model.history.lastRefreshed (set on every HistoryRefreshed) + keep-old-data.
+    // Future: coordinated snapshot (Promise.allSettled + single dispatch) or per-slice freshness.
+    // See life-os/Projects/collab-finder/Collab Finder.md for session tracking of this item.
     // The rest are independent (no longer chained inside searches success).
     // This ensures that after a target analyze/prep (which only affects opportunities),
     // the Data "Opportunities" + History slices still get refreshed even if
@@ -476,62 +501,16 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
       dispatch({ type: 'OpportunityTargetUrlSet', url: o.source_url })
 
-      // Robust reconstruct for "exact prior state" (addresses partial rows, prep-only, parse fail, missing analysis_json).
-      // Use opp.fit_score for minimal fit stub when needed (so panel always shows score + rationale/gaps if available).
-      // Always try to ensure a fit precedes prep for the merge logic.
+      // Robust reconstruct using the pure contract (moved to opportunity-target-ipc for testability and honest verify).
       let fitDispatched = false
-      if (o.analysis_json) {
-        try {
-          const fit = JSON.parse(o.analysis_json)
-          // Minimal shape guard (Issue 6) before dispatch; required fields per OpportunityTargetFit in domain/opportunity-target.ts
-          if (fit && typeof fit.overall === 'number' && typeof fit.rationale === 'string' && Array.isArray(fit.gaps_must)) {
-            const jdStub = (o.jd_text || '').slice(0, 800)
-            const analysis: OpportunityTargetAnalysisResult = {
-              opportunity_id: o.id,
-              fit,
-              // Restored row: original CV not stored — preview is JD stub only (misleading label fixed in panel).
-              packet_preview: jdStub,
-              packet_preview_truncated: (o.jd_text || '').length > 800,
-              cv_chars_sent: 0,
-              cv_ipc_chars: 0,
-              cv_used_fallback: false,
-              prompt_tokens: 0,
-              completion_tokens: 0,
-              est_cost_usd: 0,
-            }
-            dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
-            fitDispatched = true
-          } else {
-            console.warn('[finder] hydrate: analysis_json present but invalid shape for id', id)
-          }
-        } catch {
-          console.warn('[finder] hydrate: malformed analysis_json for id', id)
-          /* fall through to stub if possible */
-        }
-      }
-      // Synthesize minimal fit stub from fit_score if no valid analysis_json (or parse failed) but we have a score.
-      // This ensures prep-only or partial rows still show a usable "Fit analysis" section with score on restore.
-      if (!fitDispatched && typeof o.fit_score === 'number') {
-        const stubFit = {
-          overall: o.fit_score,
-          rationale: 'Restored from prior opportunity record (no full analysis_json available).',
-          gaps_must: [],
-          recommended_action: 'Review prep artifacts or re-evaluate fit.',
-        }
-        const analysis: OpportunityTargetAnalysisResult = {
-          opportunity_id: o.id,
-          fit: stubFit,
-          packet_preview: '(restored — the original distilled CV packet that was sent is not stored; only the opportunity record remains)',
-          packet_preview_truncated: false,
-          cv_chars_sent: 0,
-          cv_ipc_chars: 0,
-          cv_used_fallback: false,
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          est_cost_usd: 0,
-        }
-        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: analysis })
+      const reconstructed = reconstructAnalysisFromOpportunity(o)
+      if (reconstructed) {
+        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: reconstructed })
         fitDispatched = true
+      }
+      // If reconstruction produced a legacy stub (no cv meta), warn (the pure fn already produces the stub shape when needed).
+      if (fitDispatched && reconstructed && (reconstructed.cv_chars_sent === 0 && reconstructed.cv_ipc_chars === 0)) {
+        console.warn('[finder] hydrate: legacy/ stub analysis without cv meta for id', id)
       }
 
       if (o.prep_artifacts_json) {
@@ -595,6 +574,8 @@ export function effectForMsg(
       return reactorRefreshCmd(ports)
     case 'PromoteRequested':
       return promoteCmd(ports)
+    case 'CvSidecarProposeRequested':
+      return proposeCvSidecarCmd(ports, msg.opportunity_id)
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':

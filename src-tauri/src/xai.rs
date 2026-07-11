@@ -1,19 +1,20 @@
-//! Minimal xAI client for collab-finder (grok-4.3 default).
+//! Minimal xAI client for collab-finder.
 //! Uses the official OpenAI-compatible endpoint with strict json_schema for structured outputs.
 //! All calls go through secrets::get_xai_key() — key never leaves Rust.
 //!
-//! Pricing (hardcoded for estimates; real costs from API usage):
-//!   grok-4.3: $1.25 / M input, $2.50 / M output
+//! Model is configurable via get/set_xai_model_cmd (defaults to grok-4.5).
+//! Pricing is estimated; real costs come from the API usage object.
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 const XAI_BASE: &str = "https://api.x.ai/v1";
-const DEFAULT_MODEL: &str = "grok-4.3";
 
-// Hardcoded for pre-flight estimates and UI (see plan).
-// Real incurred cost is always computed from the response "usage" object.
+/// Default when no xai_model.txt is present.
+const DEFAULT_XAI_MODEL: &str = "grok-4.5";
+
+// Default pricing estimate (grok-4.x series). Real cost is always from the API "usage" response.
 const PRICE_INPUT_PER_M: f64 = 1.25;
 const PRICE_OUTPUT_PER_M: f64 = 2.50;
 
@@ -53,11 +54,12 @@ pub async fn structured_chat(
     user: &str,
     schema_name: &str,
     json_schema: Value,
+    model: &str,
 ) -> Result<(Value, XaiUsage), String> {
     let key = crate::secrets::get_xai_key()?;
 
     let body = json!({
-        "model": DEFAULT_MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user}
