@@ -22,6 +22,8 @@ export type FinderMsg =
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
   | { type: 'CvSummaryLoaded'; cvSummary: string }
+  /** User-triggered: restore distilled default packet and heal localStorage cache. */
+  | { type: 'CvSummaryResetToDefaultRequested' }
   | { type: 'OpportunitySelected'; id: number; url?: string }
   | { type: 'OpportunityTargetUrlSet'; url?: string }
   | { type: 'PresetSelected'; query: string }

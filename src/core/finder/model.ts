@@ -6,6 +6,7 @@ import {
   type ReactorState,
   type Tweet,
 } from '../domain/finder'
+import { sanitizeCvPacket } from '../domain/cv-packet'
 import type {
   DashboardStats,
   Event,
@@ -98,13 +99,23 @@ export function initialFinderModel(): FinderModel {
   // Minimal sync load of persisted session (CV + last ids + screen + url) from localStorage for zero-flash restore.
   // localStorage is FE-owned fast cache for CV (per design Key Decision 1 + user OQ); DB owns durable opps.
   // AppStarted will still issue loadCvCmd + conditional OpportunitySelected for async target hydrate + consistency.
+  //
+  // IMPORTANT: CV and session are loaded in *separate* try/catch blocks.
+  // A corrupted CV string (CJK mojibake) used to throw later on session JSON.parse in the same
+  // try — but more commonly, parse failure on a garbled session aborted after cvSummary was already
+  // assigned to garbage, leaving Chinese-looking text and *no* lastActiveOppId restore.
   let cvSummary = DEFAULT_CV_SUMMARY
   let activeScreen: FinderScreen = 'discover'
   let lastActiveOppId: number | undefined = undefined
   let opportunityTargetUrl: string | undefined = undefined
   try {
     const savedCv = localStorage.getItem(CV_LS_KEY)
-    if (savedCv != null) cvSummary = savedCv
+    const { value } = sanitizeCvPacket(savedCv, DEFAULT_CV_SUMMARY)
+    cvSummary = value
+  } catch {
+    // ignore; keep DEFAULT_CV_SUMMARY
+  }
+  try {
     const sessRaw = localStorage.getItem(SESSION_LS_KEY)
     if (sessRaw) {
       const s = JSON.parse(sessRaw) as PersistedSession
@@ -114,7 +125,9 @@ export function initialFinderModel(): FinderModel {
       if (typeof s.lastActiveOppId === 'number' && s.lastActiveOppId > 0) {
         lastActiveOppId = s.lastActiveOppId
       }
-      if (s.opportunityTargetUrl) opportunityTargetUrl = s.opportunityTargetUrl
+      if (typeof s.opportunityTargetUrl === 'string' && s.opportunityTargetUrl.length > 0) {
+        opportunityTargetUrl = s.opportunityTargetUrl
+      }
     }
   } catch {
     // ignore; fall back to defaults (robustness for tampered/legacy LS)

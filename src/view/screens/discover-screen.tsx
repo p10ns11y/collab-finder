@@ -50,6 +50,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             onCvSummaryChange={(cvSummary) =>
               dispatch({ type: 'CvSummaryChanged', cvSummary })
             }
+            onResetToDefault={() => dispatch({ type: 'CvSummaryResetToDefaultRequested' })}
           />
         )}
 
@@ -64,17 +65,27 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               <div className="text-xs text-ink-faint">No opportunities yet. Paste URL or description below to analyze.</div>
             ) : (
               <div className="space-y-1 max-h-40 overflow-auto text-xs">
-                {historyOpportunities.slice(0, 8).map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
-                    className="w-full text-left px-2 py-1 rounded hover:bg-surface-2 border border-border-subtle/50 flex justify-between"
-                    title={`Load #${o.id} fit+prep (from DB, no xAI call)`}
-                  >
-                    <span>#{o.id} {o.title || o.source_url?.slice(0,40) || 'target'}</span>
-                    <span className="text-ink-faint">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
-                  </button>
-                ))}
+                {historyOpportunities.slice(0, 8).map((o) => {
+                  const selected =
+                    model.lastActiveOppId === o.id &&
+                    model.opportunityTarget &&
+                    model.opportunityTarget.status !== 'idle'
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
+                      className={`w-full text-left px-2 py-1 rounded hover:bg-surface-2 border flex justify-between ${
+                        selected
+                          ? 'border-accent/70 bg-accent/10 text-ink'
+                          : 'border-border-subtle/50'
+                      }`}
+                      title={`Load #${o.id} fit+prep (from DB, no xAI call)`}
+                    >
+                      <span className="truncate pr-2">#{o.id} {o.title || o.source_url?.slice(0,40) || 'target'}</span>
+                      <span className="text-ink-faint shrink-0">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
