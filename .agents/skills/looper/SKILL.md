@@ -329,31 +329,28 @@ Update the card on **every phase transition**. If you cannot name the phase, you
 
 ## Portable wiring
 
-### Cursor
+**Library canonical:** `~/Work/personal/skills/looper` (personal skills repo). This path is the **project-local vendor** for collab-finder.
 
-Canonical skill lives here. Local (gitignored) symlinks:
+### Cursor (this repo)
 
 ```bash
 mkdir -p .cursor/skills
 ln -sfn ../../.agents/skills/looper .cursor/skills/looper
-# optional discovery rule (canonical under .agents/rules/):
-# .cursor/rules → ../.agents/rules  (see .agents/README.md)
+# .cursor/rules → ../.agents/rules  (loads looper.mdc)
 ```
 
-Rule file: [../../rules/looper.mdc](../../rules/looper.mdc) (`alwaysApply: false` — load on loop/routing tasks).
+Rule file: [../../rules/looper.mdc](../../rules/looper.mdc) (`alwaysApply: false`).
 
 ### Grok Build / generic agents
 
 - Index entry in root `AGENTS.md` + `.agents/README.md`.
 - Activation phrases: “looper”, “structured loop”, “model routing”, “state machine agent loop”.
-- Optional: spawn subagents as **inner steps** with fixed handoff schema.
 
 ### Validation
 
-Structural contract test (no runtime agent required):
-
 ```bash
-node .agents/skills/looper/scripts/validate-skill.mjs
+node .agents/skills/looper/scripts/validate-skill.mjs   # project layout
+# library: node looper/scripts/validate-skill.mjs  (from skills repo root)
 ```
 
 ---

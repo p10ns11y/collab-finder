@@ -25,7 +25,7 @@ See root `AGENTS.md` for the full index (finder-reactor, x-agent-resources, cv-p
 
 | Skill (portable control) | Path | When |
 |--------------------------|------|------|
-| **looper** | [skills/looper/SKILL.md](skills/looper/SKILL.md) | Multi-step agent cycles, outer state machine, bounded inner steps, multi-model routing, HITL pause gates — composes with orchestrator/subagent/fusion; not domain finder logic |
+| **looper** | [skills/looper/SKILL.md](skills/looper/SKILL.md) | Multi-step agent cycles, outer state machine, bounded inner steps, multi-model routing, HITL pause gates — composes with orchestrator/subagent/fusion; not domain finder logic. **Library canonical:** `~/Work/personal/skills/looper` |
 | Cursor rule (optional) | [rules/looper.mdc](rules/looper.mdc) | Discovery when loop/routing signals fire (`alwaysApply: false`) |
 
 When adding a skill, update the index in root `AGENTS.md` and this file.
