@@ -58,6 +58,25 @@ pub struct FinderReactor {
     pub devprofile_path: Option<PathBuf>,
 }
 
+/// Middle-ellipsis path for pause banners (avoids UI overflow on long home paths).
+fn shorten_path_for_ui(path: &str, max_chars: usize) -> String {
+    let n = path.chars().count();
+    if n <= max_chars {
+        return path.to_string();
+    }
+    let keep = max_chars.saturating_sub(1) / 2;
+    let start: String = path.chars().take(keep).collect();
+    let end: String = path
+        .chars()
+        .rev()
+        .take(keep)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    format!("{}…{}", start, end)
+}
+
 impl FinderReactor {
     pub fn new(devprofile_path: Option<String>) -> Self {
         let x_skill = Self::load_x_skill_context();
@@ -332,16 +351,95 @@ impl FinderReactor {
         Ok(self.complete_cycle(tweets, &cv_summary))
     }
 
-    // MCP tool stub: promote (per cv-promote-guard)
-    pub fn promote_insights(&mut self, lead_id: &str) -> Result<String, String> {
-        // Always sidecar-first, diff, pause for confirm. Never direct write.
-        // In real: load cvdata, generate patch, write sidecar in app_data, return preview.
-        // Use devprofile_path.
-        if let Some(path) = &self.devprofile_path {
-            Ok(format!("Sidecar written for lead {}. Preview diff at {}/preps/... . Confirm to apply? (per cv-promote-guard)", lead_id, path.display()))
-        } else {
-            Ok("Configure devprofile_path first. Sidecar only.".to_string())
+    /// Refresh path from Settings store (`devprofile_path.txt` via opportunity_target).
+    /// Source of truth for analyze/prep and Xplore promote — not the in-memory field alone.
+    pub fn sync_devprofile_path_from_settings(&mut self) {
+        if let Some(p) = crate::opportunity_target::get_devprofile_path() {
+            let pb = PathBuf::from(&p);
+            self.state.cv_path = Some(p);
+            self.devprofile_path = Some(pb);
         }
+    }
+
+    /// Xplore "insights note": write a real audit markdown under app_data.
+    /// Does **not** mutate devprofile or create a CV apply confirm dialog — that lives on Discover
+    /// (Evaluate fit → Prep → Propose CV sidecar). Honesty per cv-promote-guard.
+    pub fn promote_insights(&mut self, lead_id: &str) -> Result<String, String> {
+        self.sync_devprofile_path_from_settings();
+
+        let base = crate::app_dirs::app_data_dir().map_err(|e| e.to_string())?;
+        let dir = base.join("cv_proposals").join("xplore_notes");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+        let safe_id: String = lead_id
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let note_path = dir.join(format!("insights-{}-{}.md", safe_id, stamp));
+
+        let lead_excerpt = self
+            .state
+            .leads
+            .last()
+            .map(|l| {
+                let t = &l.tweet.text;
+                if t.chars().count() > 600 {
+                    format!("{}…", t.chars().take(600).collect::<String>())
+                } else {
+                    t.clone()
+                }
+            })
+            .unwrap_or_else(|| "(no cycle lead in memory — note is path/audit only)".into());
+
+        let devp = self
+            .devprofile_path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "(not set — configure in Settings for CV grounding)".into());
+
+        let body = format!(
+            r#"# X insights note (audit only)
+
+- lead_id: `{lead_id}`
+- written: unix {stamp}
+- devprofile_path: `{devp}`
+
+## Last cycle lead (excerpt)
+
+{lead_excerpt}
+
+## What this is / is not
+
+This file is an **audit note** from Xplore. It does **not**:
+- write a CV sidecar
+- open a confirm dialog
+- mutate `cvdata.json`
+
+## How to propose CV changes (real guard path)
+
+1. Open **Discover**
+2. Paste the job URL or JD
+3. **Evaluate fit** → **Generate prep pack**
+4. **Propose CV suggestions as sidecar** (preview + path under app `cv_proposals/`)
+5. Review — master portfolio write only after explicit confirm (cv-promote-guard)
+
+"#
+        );
+        fs::write(&note_path, body).map_err(|e| e.to_string())?;
+
+        self.state.pauses.push(format!(
+            "X insights note written (audit only): {}",
+            note_path.display()
+        ));
+
+        let short = shorten_path_for_ui(&note_path.display().to_string(), 56);
+        Ok(format!(
+            "Logged audit note at {short} (no CV write, no confirm dialog). CV sidecar: Discover → Evaluate fit → Prep → Propose sidecar."
+        ))
     }
 }
 
@@ -395,17 +493,68 @@ mod tests {
     }
 
     #[test]
-    fn promote_requires_devprofile_path() {
+    fn promote_writes_audit_note_not_fake_confirm() {
+        // Isolate app_data from live machine
+        struct HarnessGuard(std::path::PathBuf);
+        impl Drop for HarnessGuard {
+            fn drop(&mut self) {
+                crate::app_dirs::test_harness::clear();
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("cf_promote_devp_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let _g = HarnessGuard(tmp.clone());
+        crate::app_dirs::test_harness::set(tmp.clone());
+
         let mut reactor = FinderReactor::new(None);
-        assert!(reactor
-            .promote_insights("lead-1")
+        let msg = reactor.promote_insights("lead-1").unwrap();
+        assert!(
+            msg.contains("audit note") && msg.contains("no CV write"),
+            "must be honest about no CV apply, got: {msg}"
+        );
+        assert!(
+            !msg.to_lowercase().contains("confirm before apply"),
+            "must not fake a confirm step: {msg}"
+        );
+        assert!(
+            msg.contains("Discover") && msg.contains("Propose sidecar"),
+            "must point at real CV path: {msg}"
+        );
+
+        // Note file exists under harness app data
+        let notes = tmp.join("cv_proposals").join("xplore_notes");
+        assert!(notes.is_dir(), "notes dir under app data");
+        let count = std::fs::read_dir(&notes).unwrap().count();
+        assert!(count >= 1, "at least one note file written");
+
+        // Settings path still syncs into note content
+        std::fs::write(tmp.join("devprofile_path.txt"), "/tmp/devprofile-from-settings").unwrap();
+        let msg2 = reactor.promote_insights("lead-2").unwrap();
+        assert!(msg2.contains("audit note"));
+        let latest = std::fs::read_dir(&notes)
             .unwrap()
-            .contains("Configure devprofile_path"));
-        let mut with_path = FinderReactor::new(Some("/tmp/devprofile".into()));
-        assert!(with_path
-            .promote_insights("lead-1")
-            .unwrap()
-            .contains("Sidecar written"));
+            .filter_map(|e| e.ok())
+            .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
+            .unwrap();
+        let body = std::fs::read_to_string(latest.path()).unwrap();
+        assert!(
+            body.contains("devprofile-from-settings") || body.contains("devprofile_path"),
+            "note should record devprofile path"
+        );
+        assert!(body.contains("Does **not**") || body.contains("does **not**") || body.contains("audit"));
+    }
+
+    #[test]
+    fn shorten_path_for_ui_ellipsis_long_home_paths() {
+        let long = "/home/sustainableabundance/Work/personal/devprofile";
+        let s = shorten_path_for_ui(long, 28);
+        assert!(s.chars().count() <= 28, "got {s}");
+        assert!(s.contains('…'), "expected ellipsis in {s}");
+        assert!(s.starts_with("/home") || s.starts_with("/hom"));
+        assert!(s.ends_with("devprofile") || s.ends_with("profile"));
+        assert_eq!(shorten_path_for_ui("/tmp/x", 48), "/tmp/x");
     }
 
     #[test]

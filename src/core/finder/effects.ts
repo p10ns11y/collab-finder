@@ -8,7 +8,10 @@ import { CV_LS_KEY, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
+import { serializePreviousFitForPrep } from '../domain/opportunity-target'
 import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
+import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
+import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 
 export type FinderPorts = {
   credentials: {
@@ -36,6 +39,7 @@ export type FinderPorts = {
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
+    updateOpportunityStatus(id: number, status: string, notes?: string): Promise<void>
     // devprofile + sidecar propose
     getDevprofilePath(): Promise<string | null>
     setDevprofilePath(path: string | null): Promise<void>
@@ -204,6 +208,23 @@ export function proposeCvSidecarCmd(ports: FinderPorts, opportunityId: number): 
   }
 }
 
+export function updateOpportunityStatusCmd(
+  ports: FinderPorts,
+  id: number,
+  status: string,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.updateOpportunityStatus(id, status), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'OpportunityStatusChangeFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'OpportunityStatusChangeSucceeded', id, status })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
 export function opportunityTargetAnalyzeCmd(
   ports: FinderPorts,
   model: FinderModel,
@@ -268,13 +289,7 @@ export function opportunityTargetPrepCmd(
       // SAFETY: cast only to consume the preserved carry data on loading arm (see update.ts SAFETY comments + design PR2 carry hack); 'in' narrowing used immediately after.
       const d = ot.data as OpportunityTargetResult
       if ('fit' in d && d.fit) {
-        previous_fit = JSON.stringify({
-          overall: d.fit.overall,
-          rationale: d.fit.rationale,
-          gaps_must: d.fit.gaps_must,
-          gaps_nice: d.fit.gaps_nice,
-          recommended_action: d.fit.recommended_action,
-        })
+        previous_fit = serializePreviousFitForPrep(d.fit)
       }
     }
 
@@ -441,6 +456,11 @@ function readPersistedCv(): string | null {
 }
 
 function persistCvToLocal(cv: string) {
+  // Never write obvious mojibake / CJK-garbage back into the cache (that permanently poisons boot).
+  if (!isPlausibleCvPacket(cv)) {
+    console.warn('[finder] persistCvToLocal skipped: CV packet failed plausibility check (possible encoding corruption)')
+    return
+  }
   try {
     localStorage.setItem(CV_LS_KEY, cv)
   } catch {
@@ -472,10 +492,33 @@ function persistSessionToLocal(partial: Partial<PersistedSession>) {
 
 export function loadCvFromLocalCmd(): Cmd<FinderMsg> {
   return (dispatch) => {
-    const v = readPersistedCv()
-    if (v != null) {
-      dispatch({ type: 'CvSummaryLoaded', cvSummary: v })
+    const raw = readPersistedCv()
+    if (raw == null) return
+    const { value, wasCorrupted } = sanitizeCvPacket(raw, DEFAULT_CV_SUMMARY)
+    if (wasCorrupted) {
+      console.warn(
+        '[finder] CV packet in localStorage looked corrupted (CJK/mojibake); restored distilled default and re-wrote cache',
+      )
+      // Heal the cache so the next boot does not flash garbage again.
+      try {
+        localStorage.setItem(CV_LS_KEY, value)
+      } catch {
+        /* ignore */
+      }
     }
+    dispatch({ type: 'CvSummaryLoaded', cvSummary: value })
+  }
+}
+
+/** Reset textarea + localStorage to the distilled default packet (user recovery control). */
+export function resetCvToDefaultCmd(): Cmd<FinderMsg> {
+  return (dispatch) => {
+    try {
+      localStorage.setItem(CV_LS_KEY, DEFAULT_CV_SUMMARY)
+    } catch {
+      console.warn('[finder] resetCvToDefault: localStorage write failed')
+    }
+    dispatch({ type: 'CvSummaryLoaded', cvSummary: DEFAULT_CV_SUMMARY })
   }
 }
 
@@ -520,9 +563,13 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
             parsed && typeof parsed === 'object' && 'prep' in parsed && (parsed as { prep?: unknown }).prep
               ? (parsed as { prep?: unknown }).prep
               : parsed
+          const prepObj = prepData as OpportunityTargetPrep
           const prepRes: OpportunityTargetPrepResult = {
             opportunity_id: (parsed as { opportunity_id?: number }).opportunity_id ?? o.id,
-            prep: prepData as OpportunityTargetPrep,
+            prep: prepObj,
+            proof_variant_id:
+              (parsed as { proof_variant_id?: string }).proof_variant_id ??
+              prepObj?.proof_variant_id,
             est_cost_usd: (parsed as { est_cost_usd?: number }).est_cost_usd ?? 0,
           }
           dispatch({ type: 'OpportunityTargetPrepSucceeded', result: prepRes })
@@ -548,20 +595,31 @@ export function effectForMsg(
   switch (msg.type) {
     case 'AppStarted':
       // Load creds + initial history for the dashboard.
-      // + CV from localStorage (CvSummaryLoaded) + conditional last opp hydrate via OpportunitySelected path
-      // (uses model.lastActiveOppId which initialFinderModel may have populated from LS for restore).
+      // + CV from localStorage (CvSummaryLoaded, with corruption heal) + conditional last opp hydrate
+      // via OpportunitySelected (model.lastActiveOppId from initialFinderModel / LS).
+      // History refresh also re-attempts restore if the first select raced or session was missing.
       const appCmds: (Cmd<FinderMsg> | undefined)[] = [
         credentialsCheckCmd(ports),
         historyRefreshCmd(ports),
         loadCvFromLocalCmd(),
       ]
       const lastId = model.lastActiveOppId
-      if (typeof lastId === 'number') {
+      if (typeof lastId === 'number' && lastId > 0) {
         // Trigger the normal OpportunitySelected path (sets last, loads from DB via loadCmd which also does OpportunityTargetUrlSet for live model url, hydrates opportunityTarget + screen).
-        // (url for this auto path comes from the fetched opp or prior LS via initial model.)
-        appCmds.push((d) => d({ type: 'OpportunitySelected', id: lastId }))
+        // Prefer session URL so the panel external link is available before the DB round-trip returns.
+        const bootUrl = model.opportunityTargetUrl
+        appCmds.push((d) =>
+          d({
+            type: 'OpportunitySelected',
+            id: lastId,
+            ...(bootUrl ? { url: bootUrl } : {}),
+          }),
+        )
       }
       return appCmds.filter(Boolean) as Cmd<FinderMsg>[]
+
+    case 'CvSummaryResetToDefaultRequested':
+      return resetCvToDefaultCmd()
     case 'CredentialsSaveRequested':
       return credentialsSaveCmd(ports, model)
     case 'CredentialsClearRequested':
@@ -576,6 +634,8 @@ export function effectForMsg(
       return promoteCmd(ports)
     case 'CvSidecarProposeRequested':
       return proposeCvSidecarCmd(ports, msg.opportunity_id)
+    case 'OpportunityStatusChangeRequested':
+      return updateOpportunityStatusCmd(ports, msg.id, msg.status)
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':
@@ -613,6 +673,39 @@ export function effectForMsg(
       return (/*dispatch*/) => {
         persistSessionToLocal({ lastActiveOppId: msg.result.opportunity_id })
       }
+
+    // After opportunities list arrives: if Discover has nothing selected but we know lastActiveOppId
+    // (or session had one), hydrate it. Covers boot races where the first OpportunitySelected failed
+    // or session restore only landed after history. Only when target is still idle (never clobber live work).
+    case 'HistoryRefreshed':
+      if (msg.opportunities && msg.opportunities.length > 0) {
+        const targetIdle = !model.opportunityTarget || model.opportunityTarget.status === 'idle'
+        if (targetIdle) {
+          const wantId =
+            typeof model.lastActiveOppId === 'number' && model.lastActiveOppId > 0
+              ? model.lastActiveOppId
+              : (() => {
+                  try {
+                    const s = readPersistedSession()
+                    return typeof s?.lastActiveOppId === 'number' && s.lastActiveOppId > 0
+                      ? s.lastActiveOppId
+                      : undefined
+                  } catch {
+                    return undefined
+                  }
+                })()
+          const match = typeof wantId === 'number' ? msg.opportunities.find((o) => o.id === wantId) : undefined
+          if (match) {
+            return (d) =>
+              d({
+                type: 'OpportunitySelected',
+                id: match.id,
+                url: match.source_url || undefined,
+              })
+          }
+        }
+      }
+      return undefined
 
     // Auto refresh history after successful ops (data now in DB).
     case 'SearchSucceeded':

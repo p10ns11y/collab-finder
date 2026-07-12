@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { selectFinderView } from '../core/finder/selectors'
+import { resolveShellHotkey } from '../core/domain/finder-keyboard'
 import { registerFinderDispatch } from '../runtime/global-errors'
 import { getFinderProgram } from '../runtime/finder-runtime'
 import { useProgram } from '../runtime/react/use-program'
 import { FinderAppView } from '../view/finder-app-view'
-import type { FinderScreen } from '../core/finder/model'
 
 /** React entry — wires MVU program to view. No domain logic. */
 export function FinderApp() {
@@ -12,29 +12,25 @@ export function FinderApp() {
   const { model, dispatch } = useProgram(program)
   const view = selectFinderView(model)
 
+  // External sync: global error bridge needs dispatch reference.
   useEffect(() => {
     registerFinderDispatch(dispatch)
   }, [dispatch])
 
+  // External sync: window keyboard shortcuts → MVU messages.
   useEffect(() => {
-    const SCREEN_BY_KEY: Record<string, FinderScreen> = {
-      '1': 'discover',
-      '2': 'stats',
-      '3': 'history',
-      '4': 'data',
-      '5': 'lookup',
-      '6': 'settings',
-    }
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
+      const action = resolveShellHotkey(e.key, {
+        meta: e.metaKey,
+        ctrl: e.ctrlKey,
+      })
+      if (action.kind === 'none') return
+      e.preventDefault()
+      if (action.kind === 'palette') {
         dispatch({ type: 'PaletteToggled' })
         return
       }
-      if ((e.metaKey || e.ctrlKey) && SCREEN_BY_KEY[e.key]) {
-        e.preventDefault()
-        dispatch({ type: 'ScreenChanged', screen: SCREEN_BY_KEY[e.key] })
-      }
+      dispatch({ type: 'ScreenChanged', screen: action.screen })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

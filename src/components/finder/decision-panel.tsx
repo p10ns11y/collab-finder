@@ -15,12 +15,18 @@ export function DecisionPanel({ decision, onRerun, onPromote }: Props) {
   return (
     <Card className={guarded ? 'ring-1 ring-warning/30' : undefined}>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <CardTitle>Latest decision</CardTitle>
-        <Badge tone={guarded ? 'warning' : 'success'}>
-          {decision.confidence}% confidence
-        </Badge>
+        <CardTitle className="text-sm">Cycle decision</CardTitle>
+        <div className="flex items-center gap-1.5">
+          <Badge tone="neutral" className="text-[10px]">
+            heuristic
+          </Badge>
+          <Badge tone={guarded ? 'warning' : 'success'}>{decision.confidence}%</Badge>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-[11px] text-ink-faint">
+          Xplore cycle scoring is local heuristics — not the same as Discover Evaluate fit (live xAI).
+        </p>
         <p className="text-sm">
           Action{' '}
           <span className="font-mono font-medium text-accent">{decision.action}</span>
@@ -33,12 +39,21 @@ export function DecisionPanel({ decision, onRerun, onPromote }: Props) {
         )}
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={onRerun}>
-            Re-run with tweak
+            Re-run
           </Button>
-          <Button variant="ghost" size="sm" onClick={onPromote}>
-            Promote insights (guarded)
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onPromote}
+            title="Writes an audit markdown under app data. Does not apply CV changes."
+          >
+            Log insights note
           </Button>
         </div>
+        <p className="text-[10px] leading-snug text-ink-faint">
+          Insights note = audit log only (no confirm dialog, no CV write). For real CV sidecar:
+          Discover → Evaluate fit → Prep → Propose sidecar.
+        </p>
       </CardContent>
     </Card>
   )

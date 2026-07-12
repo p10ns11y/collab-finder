@@ -60,24 +60,25 @@ export function FinderAppView({ view, dispatch }: Props) {
           <Header
             onOpenPalette={() => dispatch({ type: 'PaletteToggled' })}
             screenTitle={screenTitle}
+            xConnected={view.connectionFlow === 'connected'}
+            xChecking={view.connectionFlow === 'checking'}
+            pauseCount={
+              (view.historyStats?.total_pauses ?? 0) > 0
+                ? view.historyStats!.total_pauses
+                : model.pauses.length
+            }
+            targetBusy={model.opportunityTarget?.status === 'loading'}
           />
         }
-        footer={
-          <footer className="border-t border-border-subtle px-3 py-1.5 text-[10px] text-ink-faint bg-surface-1/60">
-            Separate from devprofile · CV via cv-promote-guard · X via official agent resources · self-guards on every path
-          </footer>
-        }
       >
-        {/* Global banner + active screen viewport */}
-        <div className="h-full flex flex-col overflow-hidden">
+        {/* Global banner + framed viewport (shared product surface) */}
+        <div className="flex h-full flex-col overflow-hidden p-3 pt-2">
           {banner && (
-            <div className="px-4 pt-2">
+            <div className="mb-2 shrink-0">
               <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />
             </div>
           )}
-          <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
-            {viewportContent}
-          </div>
+          <div className="ui-viewport min-h-0 flex-1">{viewportContent}</div>
         </div>
       </AppShell>
 

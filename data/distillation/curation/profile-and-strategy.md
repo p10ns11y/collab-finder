@@ -2,6 +2,8 @@
 
 Distilled from personal curation notes for collab-finder and SpaceXAI / analyze grounding.
 
+**Dual-fit constraints (modes, geo hard/soft, family, culture, deal-breakers):** see [candidate-preferences.md](./candidate-preferences.md). This file stays discovery-oriented; preferences file owns “is this right for me?”
+
 ## Positioning (one line)
 
 Swedish–Indian senior engineer: TS/React leadership (Oneflow), Rust OSS, energy-efficient / local-first / agentic systems since 2016 thesis; ships in public (arch-machine, premflow, Grok Dia, thepulimaangani).

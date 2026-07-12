@@ -1,8 +1,20 @@
 import * as React from 'react'
+import { Check, Copy, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
-import type { OpportunityTargetResult, OpportunityTargetFit, OpportunityTargetPrep } from '../../core/domain/opportunity-target'
+import { Button } from '../ui/button'
+import type {
+  OpportunityTargetResult,
+  OpportunityTargetFit,
+  OpportunityTargetPrep,
+} from '../../core/domain/opportunity-target'
 import { shouldShowRestoredCvWarning } from '../../core/domain/opportunity-target-ipc'
+import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
+import {
+  normalizePipelineStatus,
+  pipelineStatusLabel,
+  type PipelineStatus,
+} from '../../core/domain/opportunity-pipeline'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 
 type Props = {
@@ -10,36 +22,72 @@ type Props = {
   error: string | null
   busy: boolean
   sourceUrl?: string
+  pipelineStatus?: string
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
   onProposeSidecar?: (opportunityId?: number) => void
+  onStatusChange?: (id: number, status: PipelineStatus) => void
   lastSidecarProposal?: { preview: string; sidecar_path: string }
 }
 
-function cv_chars_sent_label(
-  sent: number,
-  ipc: number | undefined,
-  fallback: boolean | undefined,
-  truncated: boolean | undefined,
-  promptTokens: number | undefined,
-): string {
-  const parts = [`sent=${sent}`, `ipc=${ipc ?? 0}`]
-  if (fallback) parts.push('DEFAULT_FALLBACK')
-  if (truncated) parts.push('preview_truncated')
-  if (promptTokens != null) parts.push(`prompt_tokens=${promptTokens}`)
-  return parts.join(' · ')
+function PrepSection({
+  title,
+  children,
+  copyText,
+}: {
+  title: string
+  children: React.ReactNode
+  copyText?: string
+}) {
+  const [copied, setCopied] = React.useState(false)
+  return (
+    <div className="rounded-md border border-border-subtle/80 bg-surface-2/40">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border-subtle/60">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">{title}</div>
+        {copyText ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
+            onClick={() => {
+              navigator.clipboard?.writeText(copyText).then(() => {
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 1000)
+              }).catch(() => {})
+            }}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        ) : null}
+      </div>
+      <div className="p-2.5 text-xs text-ink-muted leading-relaxed">{children}</div>
+    </div>
+  )
 }
 
-export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onClear, onPrepRequested, onProposeSidecar, lastSidecarProposal }: Props) {
-  // All hooks must be called unconditionally at the top, before any early returns.
-  // (Fix for "Rendered more hooks than during the previous render")
+export function OpportunityTargetFitPanel({
+  result,
+  error,
+  busy,
+  sourceUrl,
+  pipelineStatus,
+  onClear,
+  onPrepRequested,
+  onProposeSidecar,
+  onStatusChange,
+  lastSidecarProposal,
+}: Props) {
   const [modelLabel, setModelLabel] = React.useState('grok-4.5')
   const [actionCopied, setActionCopied] = React.useState(false)
+  const [allCopied, setAllCopied] = React.useState(false)
+  const [showGrounding, setShowGrounding] = React.useState(false)
 
   React.useEffect(() => {
-    safeInvoke<string>('get_xai_model_cmd', {}).then(r => {
-      if (r.ok && r.value) setModelLabel(r.value)
-    }).catch(() => {})
+    safeInvoke<string>('get_xai_model_cmd', {})
+      .then((r) => {
+        if (r.ok && r.value) setModelLabel(r.value)
+      })
+      .catch(() => {})
   }, [])
 
   if (busy) {
@@ -67,80 +115,149 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
     )
   }
 
-  if (!result) {
-    return null
-  }
+  if (!result) return null
   const fit: OpportunityTargetFit | undefined = 'fit' in result ? result.fit : undefined
   const prep: OpportunityTargetPrep | undefined = 'prep' in result ? result.prep : undefined
-  if (!fit && !prep) {
-    return null
-  }
+  if (!fit && !prep) return null
 
   const score = fit?.overall ?? 0
+  const candidateToRole = fit?.candidate_to_role
+  const roleToCandidate = fit?.role_to_candidate
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
-
   const opportunityId = 'opportunity_id' in result ? result.opportunity_id : undefined
   const estCost = 'est_cost_usd' in result ? result.est_cost_usd : undefined
   const packetPreview = 'packet_preview' in result ? result.packet_preview : undefined
   const cvCharsSent = 'cv_chars_sent' in result ? result.cv_chars_sent : undefined
   const cvIpcChars = 'cv_ipc_chars' in result ? result.cv_ipc_chars : undefined
   const cvUsedFallback = 'cv_used_fallback' in result ? result.cv_used_fallback : undefined
-  const previewTruncated = 'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
+  const previewTruncated =
+    'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
   const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
-  // Use pure predicate (moved for testability + honest verify gate)
-  const isRestoredHydrate = result && 'cv_chars_sent' in result ? shouldShowRestoredCvWarning(result as any) : (cvCharsSent === 0 && cvIpcChars === 0 && !cvUsedFallback && (estCost === 0 || estCost === undefined))
+  const proofVariantId =
+    ('proof_variant_id' in result && (result as { proof_variant_id?: string }).proof_variant_id) ||
+    prep?.proof_variant_id
+  const isRestoredHydrate =
+    result && 'cv_chars_sent' in result
+      ? shouldShowRestoredCvWarning(result as any)
+      : cvCharsSent === 0 &&
+        cvIpcChars === 0 &&
+        !cvUsedFallback &&
+        (estCost === 0 || estCost === undefined)
+
+  const externalHref = normalizeOpportunityUrl(sourceUrl)
+  const externalLabel = displayOpportunityUrl(sourceUrl, 64)
+  const statusNorm = normalizePipelineStatus(pipelineStatus)
+  const dealBreakers = fit?.deal_breakers_triggered ?? []
+  const roleConcerns = fit?.role_concerns ?? []
+
+  const prepBlob = prep
+    ? [
+        prep.cover_letter && `## Cover letter\n\n${prep.cover_letter}`,
+        prep.cv_suggestions?.length &&
+          `## CV suggestions\n\n${prep.cv_suggestions.map((s) => `- ${s}`).join('\n')}`,
+        prep.research_notes && `## Research\n\n${prep.research_notes}`,
+        prep.exceptional_work_example &&
+          `## Exceptional work example\n\n${prep.exceptional_work_example}`,
+        proofVariantId && `## Proof variant\n\n${proofVariantId}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+    : ''
 
   return (
     <Card className="border-border-subtle shadow-glow">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 sticky top-0 z-10 bg-surface-1/95 backdrop-blur-sm border-b border-border-subtle/40">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            { prep ? 'Fit analysis + Prep' : 'Fit analysis' } <span className="text-[10px] text-accent">{modelLabel}</span>
+          <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
+            {prep ? 'Fit + prep' : 'Fit analysis'}
+            <span className="text-[10px] text-accent font-normal">{modelLabel}</span>
+            <Badge tone="neutral" className="text-[10px]">
+              {pipelineStatusLabel(statusNorm)}
+            </Badge>
           </CardTitle>
-          <Badge tone={tone}>{score}/100</Badge>
+          <Badge tone={tone}>{score}/100 mutual</Badge>
         </div>
-        <div className="text-[10px] text-ink-faint">
-          opportunity #{opportunityId ?? '—'} · ~${estCost?.toFixed(4) ?? '—'}
-          {score >= 75 ? ' — Strong fit' : score >= 55 ? ' — Moderate fit — review gaps' : ' — Low fit — significant gaps'}
-          {prep ? ' (prep generated)' : ''}
+        <div className="text-[11px] text-ink-faint">
+          #{opportunityId ?? '—'}
+          {estCost != null ? ` · ~$${estCost.toFixed(4)}` : ''}
+          {score >= 75 ? ' · Strong fit' : score >= 55 ? ' · Moderate — review gaps' : ' · Low fit'}
+          {candidateToRole != null ? ` · You→role ${candidateToRole}` : ''}
+          {roleToCandidate != null ? ` · Role→you ${roleToCandidate}` : ''}
         </div>
-        {cvCharsSent !== undefined && !isRestoredHydrate && (
-          <div className="text-[10px] text-ink-faint font-mono">
-            CV grounding: {cv_chars_sent_label(cvCharsSent, cvIpcChars, cvUsedFallback, previewTruncated, promptTokens)}
-          </div>
+        {externalHref ? (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs text-accent hover:underline font-mono break-all"
+            title={externalHref}
+          >
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{externalLabel || externalHref}</span>
+          </a>
+        ) : (
+          <div className="mt-1 text-[11px] text-ink-faint">Paste-only target (no source URL).</div>
         )}
         {isRestoredHydrate && (
-          <div className="text-[10px] text-warning font-mono">
-            Restored from DB — CV packet for the original analyze was not stored; re-run Evaluate fit to ground on current CV input.
+          <div className="mt-1 text-[11px] text-warning">
+            Restored from DB — re-run Evaluate fit to ground on current CV.
           </div>
         )}
       </CardHeader>
 
-      <CardContent className="space-y-3 text-sm">
+      <CardContent className="space-y-4 text-sm pt-3">
         {fit?.rationale && (
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Rationale</div>
-            <p className="text-ink-muted leading-relaxed">{fit.rationale}</p>
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">Rationale</div>
+            <p className="text-ink-muted leading-relaxed text-[13px]">{fit.rationale}</p>
+          </div>
+        )}
+
+        {(candidateToRole != null || roleToCandidate != null) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
+                You → role
+              </div>
+              <div className="text-sm font-medium text-ink">
+                {candidateToRole != null ? `${candidateToRole}/100` : '—'}
+              </div>
+              <div className="text-[10px] text-ink-faint mt-0.5">Can you do this job?</div>
+            </div>
+            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
+                Role → you
+              </div>
+              <div className="text-sm font-medium text-ink">
+                {roleToCandidate != null ? `${roleToCandidate}/100` : '—'}
+              </div>
+              <div className="text-[10px] text-ink-faint mt-0.5">Is this right for you?</div>
+            </div>
           </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Must address</div>
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+              Must address (you → role)
+            </div>
             {fit?.gaps_must && fit.gaps_must.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_must.map((g, i) => <li key={i}>{g}</li>)}
+                {fit.gaps_must.map((g, i) => (
+                  <li key={i}>{g}</li>
+                ))}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>
             )}
           </div>
-
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Nice to have</div>
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">Nice to have</div>
             {fit?.gaps_nice && fit.gaps_nice.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_nice.map((g, i) => <li key={i}>{g}</li>)}
+                {fit.gaps_nice.map((g, i) => (
+                  <li key={i}>{g}</li>
+                ))}
               </ul>
             ) : (
               <div className="text-xs text-ink-faint">None flagged</div>
@@ -148,62 +265,127 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
           </div>
         </div>
 
+        {(candidateToRole != null ||
+          roleToCandidate != null ||
+          roleConcerns.length > 0 ||
+          dealBreakers.length > 0 ||
+          fit?.role_concerns != null ||
+          fit?.deal_breakers_triggered != null) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+                Role concerns (role → you)
+              </div>
+              {roleConcerns.length > 0 ? (
+                <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
+                  {roleConcerns.map((g, i) => (
+                    <li key={i}>{g}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-xs text-ink-faint">None flagged</div>
+              )}
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-warning mb-1">
+                Deal-breakers triggered
+              </div>
+              {dealBreakers.length > 0 ? (
+                <ul className="list-disc pl-4 text-xs space-y-0.5 text-warning">
+                  {dealBreakers.map((g, i) => (
+                    <li key={i}>{g}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-xs text-ink-faint">None</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {fit?.recommended_action && (
           <div className="pt-1 border-t border-border-subtle">
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Recommended next step</div>
-            <p className="text-accent font-medium text-sm">{fit.recommended_action}</p>
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+              Recommended next step
+            </div>
+            <p className="text-accent font-medium text-sm leading-relaxed">{fit.recommended_action}</p>
           </div>
         )}
 
-        {/* Slice C: Prep artifacts (letter, CV suggestions, research) */}
-        { prep && (
-          <div className="space-y-3 border-t border-border-subtle pt-3 mt-1">
-            <div className="text-[10px] uppercase tracking-wide text-ink-faint">Prep pack ({modelLabel})</div>
-
+        {prep && (
+          <div className="space-y-2 border-t border-border-subtle pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint">
+                Prep pack
+                {proofVariantId ? (
+                  <span className="ml-2 font-mono normal-case tracking-normal text-accent">
+                    {proofVariantId}
+                  </span>
+                ) : null}
+              </div>
+              {prepBlob && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(prepBlob).then(() => {
+                      setAllCopied(true)
+                      window.setTimeout(() => setAllCopied(false), 1200)
+                    }).catch(() => {})
+                  }}
+                >
+                  {allCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {allCopied ? 'Copied all' : 'Copy all prep'}
+                </button>
+              )}
+            </div>
             {prep.cover_letter && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Cover letter</div>
-                <pre className="text-xs whitespace-pre-wrap bg-surface-2 p-2 rounded max-h-48 overflow-auto text-ink-muted">{prep.cover_letter}</pre>
-              </div>
+              <PrepSection title="Cover letter" copyText={prep.cover_letter}>
+                <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
+                  {prep.cover_letter}
+                </pre>
+              </PrepSection>
             )}
-
             {prep.cv_suggestions && prep.cv_suggestions.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">CV suggestions</div>
-                <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                  {prep.cv_suggestions.map((s, i) => <li key={i}>{s}</li>)}
+              <PrepSection
+                title="CV suggestions"
+                copyText={prep.cv_suggestions.map((s) => `- ${s}`).join('\n')}
+              >
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {prep.cv_suggestions.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
                 </ul>
-              </div>
+              </PrepSection>
             )}
-
             {prep.research_notes && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Research notes</div>
-                <p className="text-xs text-ink-muted whitespace-pre-wrap">{prep.research_notes}</p>
-              </div>
+              <PrepSection title="Research notes" copyText={prep.research_notes}>
+                <p className="whitespace-pre-wrap m-0">{prep.research_notes}</p>
+              </PrepSection>
             )}
-
             {prep.exceptional_work_example && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">Exceptional work example</div>
-                <p className="text-xs text-ink-muted whitespace-pre-wrap">{prep.exceptional_work_example}</p>
-              </div>
+              <PrepSection title="Exceptional work example" copyText={prep.exceptional_work_example}>
+                <p className="whitespace-pre-wrap m-0">{prep.exceptional_work_example}</p>
+              </PrepSection>
             )}
           </div>
         )}
 
-        {/* Polish actions per feedback (Slice B) + Slice C prep trigger */}
-        <div className="flex flex-wrap gap-2 pt-1">
-          {sourceUrl && (
-            <button
-              onClick={() => { try { window.open(sourceUrl, '_blank', 'noopener,noreferrer') } catch {} }}
-              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-border-subtle">
+          {externalHref && (
+            <a
+              href={externalHref}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 h-8 px-3 text-xs rounded-md border border-border-default bg-surface-3 text-ink hover:bg-surface-elevated"
             >
-              Open URL
-            </button>
+              <ExternalLink className="h-3 w-3" /> Open URL
+            </a>
           )}
           {fit?.recommended_action && (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
                 const text = fit.recommended_action || ''
                 if (text) {
@@ -213,60 +395,100 @@ export function OpportunityTargetFitPanel({ result, error, busy, sourceUrl, onCl
                   }).catch(() => {})
                 }
               }}
-              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
             >
-              {actionCopied ? 'Copied!' : 'Copy recommended action'}
-            </button>
+              {actionCopied ? 'Copied!' : 'Copy action'}
+            </Button>
           )}
           {onPrepRequested && result && (fit?.overall ?? 0) >= 45 && (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => onPrepRequested(opportunityId)}
-              className="px-2 py-1 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent"
-              title="Generate (or regenerate) prep pack using current CV summary + prior fit analysis. Includes cover letter, CV suggestions (as sidecar proposals), research notes. Skipped for low-fit scores to avoid low-value xAI calls. Prep cost shown after generation."
+              title={
+                estCost != null
+                  ? `Prior call ~$${estCost.toFixed(4)}; prep is an additional model call`
+                  : 'Generate prep pack (additional model call)'
+              }
             >
-              {prep ? 'Regenerate prep' : 'Generate prep pack'}
-            </button>
+              {prep ? 'Regenerate prep' : 'Generate prep'}
+            </Button>
           )}
           {onProposeSidecar && prep && opportunityId && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onProposeSidecar(opportunityId)}
-              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent"
-              title="Propose these CV suggestions as sidecar (per cv-promote-guard). Writes proposal artifact + returns basic preview. Does NOT mutate your devprofile cvdata.json."
+              title="Propose CV suggestions as sidecar (no master mutation)"
             >
               Propose CV sidecar
-            </button>
+            </Button>
+          )}
+          {onStatusChange && opportunityId != null && opportunityId > 0 && (
+            <div className="flex flex-wrap gap-1 items-center">
+              {(
+                [
+                  ['applied', 'Applied'],
+                  ['passed', 'Pass'],
+                  ['archived', 'Archive'],
+                  ['prepped', 'Prepped'],
+                ] as const
+              ).map(([st, label]) => (
+                <Button
+                  key={st}
+                  variant={statusNorm === st ? 'primary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2 text-[10px]"
+                  onClick={() => onStatusChange(opportunityId, st)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
           )}
           {onClear && (
-            <button
-              onClick={onClear}
-              className="px-2 py-1 text-xs rounded border border-border-default hover:border-accent/60 hover:text-accent ml-auto"
-              title="Dismiss this result so X results or empty state can show again"
-            >
-              Clear / evaluate another
-            </button>
+            <Button variant="ghost" size="sm" onClick={onClear} className="ml-auto">
+              Clear
+            </Button>
           )}
         </div>
 
         {lastSidecarProposal && (
-          <div className="mt-3 p-2 border border-accent/30 rounded text-[10px] bg-surface-1/50">
-            <div className="font-medium">CV Sidecar Proposal (sidecar-first, no master mutation)</div>
-            <pre className="whitespace-pre-wrap mt-1 max-h-32 overflow-auto text-ink-muted">{lastSidecarProposal.preview}</pre>
-            <div className="text-ink-faint mt-1">Sidecar artifact persisted (app-local cv_proposals/opp_XX/). Full FS path hidden; review via filesystem or future apply UI. (No master cvdata mutation.)</div>
+          <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">
+            <div className="font-medium text-xs">CV sidecar proposed (no master write)</div>
+            <pre className="whitespace-pre-wrap mt-1 max-h-28 overflow-auto text-ink-muted text-[11px]">
+              {lastSidecarProposal.preview}
+            </pre>
+            <div className="text-ink-faint mt-1">
+              Artifact under app-local cv_proposals/. Apply UI: review path only for now.
+            </div>
           </div>
         )}
 
-        {packetPreview && !isRestoredHydrate && (
-          <details className="text-[10px] text-ink-faint">
-            <summary className="cursor-pointer hover:text-ink">
-              CV packet sent to model (preview{previewTruncated ? ', truncated at 8000 chars' : ''})
-            </summary>
-            <pre className="mt-1 p-2 bg-surface-2 rounded text-[9px] overflow-auto max-h-48 whitespace-pre-wrap">{packetPreview}</pre>
-            <div className="mt-1 text-[9px] text-ink-faint/70">
-              {cvUsedFallback
-                ? 'cvSummary was missing/empty on invoke — distillation default was used (check cv_used_fallback in JSON).'
-                : `Full ${cvCharsSent ?? '—'} chars were in the prompt; preview shows ${packetPreview.length}${previewTruncated ? ' (first 8000)' : ''}.`}
-            </div>
-          </details>
+        {(cvCharsSent !== undefined || packetPreview) && !isRestoredHydrate && (
+          <div className="text-[11px]">
+            <button
+              type="button"
+              className="text-ink-faint hover:text-ink"
+              onClick={() => setShowGrounding((s) => !s)}
+            >
+              {showGrounding ? '▾' : '▸'} Technical details
+            </button>
+            {showGrounding && (
+              <div className="mt-1 space-y-1 text-ink-faint font-mono text-[10px]">
+                <div>
+                  CV: sent={cvCharsSent ?? '—'} · ipc={cvIpcChars ?? 0}
+                  {cvUsedFallback ? ' · DEFAULT_FALLBACK' : ''}
+                  {previewTruncated ? ' · preview_truncated' : ''}
+                  {promptTokens != null ? ` · tokens=${promptTokens}` : ''}
+                </div>
+                {packetPreview && (
+                  <pre className="p-2 bg-surface-2 rounded overflow-auto max-h-36 whitespace-pre-wrap">
+                    {packetPreview}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

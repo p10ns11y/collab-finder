@@ -1,10 +1,26 @@
 import * as React from 'react'
+import { ExternalLink } from 'lucide-react'
 import { DecisionPanel } from '../../components/finder/decision-panel'
 import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { TweetFeed } from '../../components/finder/tweet-feed'
 import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
+import { EmptyState } from '../../components/ui/empty-state'
+import { Button } from '../../components/ui/button'
+import { Chip } from '../../components/ui/chip'
+import { Panel } from '../../components/ui/panel'
+import { SectionLabel } from '../../components/ui/section-label'
+import { Input } from '../../components/ui/input'
+import { Textarea } from '../../components/ui/textarea'
+import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
+import { opportunityRailLabel } from '../../core/domain/opportunity-rail-label'
+import {
+  filterOpportunitiesForRail,
+  normalizePipelineStatus,
+  pipelineStatusLabel,
+  type PipelineFilter,
+} from '../../core/domain/opportunity-pipeline'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -14,161 +30,259 @@ type Props = {
   dispatch: Dispatch<FinderMsg>
 }
 
-/** Primary workspace (Discover screen): opportunity rail + quick target analyze/prep + (optionally) X controls.
- *  Right panel shows fit/prep results for the current target (or X feed on Xplore).
- *
- *  The product covers opportunities (roles, collabs, side hustles, community, etc.).
- *  "Discover" = manage/continue opportunities you've found (rail + quick target).
- *  "Xplore" = actively search X for new ones.
- *  CV context is global but emphasized in Discover for opportunity work.
+/**
+ * Discover = opportunity memory + quick target + fit/prep (hero right pane).
+ * Xplore = X hunt (same component, mode via activeScreen).
+ * Layout: φ split (~38% controls / ~62% results).
  */
 export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
   const historyOpportunities = view.historyOpportunities || []
-
   const isDiscover = view.activeScreen === 'discover'
 
-  // Current target state (target + targetUrl in model) for the quick analyze/prep flow.
-  // This applies to any opportunity type. Right panel priority.
   const targetState = model.opportunityTarget ?? { status: 'idle' as const }
   const targetBusy = targetState.status === 'loading'
   const targetResult = targetState.status === 'ready' ? targetState.data : null
-  const targetError = targetState.status === 'failed' ? (targetState.error?.message || String(targetState.error)) : null
+  const targetError =
+    targetState.status === 'failed' ? targetState.error?.message || String(targetState.error) : null
   const showTarget = targetBusy || !!targetResult || !!targetError
-  const sourceUrl = model.opportunityTargetUrl
+
+  const selectedOppId =
+    targetResult && 'opportunity_id' in targetResult
+      ? targetResult.opportunity_id
+      : model.lastActiveOppId
+  const selectedOpp =
+    typeof selectedOppId === 'number'
+      ? historyOpportunities.find((o) => o.id === selectedOppId)
+      : undefined
+  const sourceUrl = model.opportunityTargetUrl || selectedOpp?.source_url
+  const pipelineStatus = selectedOpp?.status
+
+  const [railFilter, setRailFilter] = React.useState<PipelineFilter>('active')
+  const [railQuery, setRailQuery] = React.useState('')
+  const [showAll, setShowAll] = React.useState(false)
+
+  const filtered = React.useMemo(
+    () => filterOpportunitiesForRail(historyOpportunities, railFilter, railQuery),
+    [historyOpportunities, railFilter, railQuery],
+  )
+  const railRows = showAll ? filtered : filtered.slice(0, 12)
 
   return (
-    <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
-      {/* Left: controls (scrollable) */}
-      <div className="w-full lg:w-[38%] xl:w-[34%] 2xl:w-[30%] lg:min-w-[320px] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-auto p-3 lg:p-4 space-y-4">
-
-        {/* CV context (emphasized for Discover / quick target + X flows). */}
+    <div className="flex h-full flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
+      {/* Left — φ minor (~38.2%) */}
+      <div
+        className="w-full min-w-0 space-y-3 overflow-x-hidden overflow-y-auto border-b border-border-subtle p-3 lg:min-w-[280px] lg:max-w-[min(420px,42%)] lg:border-b-0 lg:border-r lg:p-4"
+        style={{ flex: '0 0 var(--pane-minor)' }}
+      >
         {isDiscover && (
-          <CvSummaryInput
-            cvSummary={model.cvSummary}
-            onCvSummaryChange={(cvSummary) =>
-              dispatch({ type: 'CvSummaryChanged', cvSummary })
-            }
-          />
-        )}
+          <>
+            <Panel dense className="space-y-2.5">
+              <SectionLabel meta={`${filtered.length}/${historyOpportunities.length}`}>
+                Your opportunities
+              </SectionLabel>
 
-        {/* Your Opportunities rail (Discover screen; always visible list from opportunities - the "list is memory" per plan).
-           Click loads into panel (reuse OpportunitySelected + load from DB blobs, no new xAI).
-           This is the primary surface for managing/continuing opportunities (jobs, collabs, side hustles, community, etc.).
-           Optimistic updates via refresh after analyze/prep. */}
-        {isDiscover && (
-          <div className="border border-border-subtle rounded p-2">
-            <div className="text-[10px] text-ink-faint mb-1 tracking-wide">YOUR OPPORTUNITIES</div>
-            {historyOpportunities.length === 0 ? (
-              <div className="text-xs text-ink-faint">No opportunities yet. Paste URL or description below to analyze.</div>
-            ) : (
-              <div className="space-y-1 max-h-40 overflow-auto text-xs">
-                {historyOpportunities.slice(0, 8).map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })}
-                    className="w-full text-left px-2 py-1 rounded hover:bg-surface-2 border border-border-subtle/50 flex justify-between"
-                    title={`Load #${o.id} fit+prep (from DB, no xAI call)`}
-                  >
-                    <span>#{o.id} {o.title || o.source_url?.slice(0,40) || 'target'}</span>
-                    <span className="text-ink-faint">{o.fit_score ? `${o.fit_score}/100` : ''} {o.status === 'prepped' ? '✓' : ''}</span>
-                  </button>
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ['active', 'Active'],
+                    ['all', 'All'],
+                    ['prepped', 'Prepped'],
+                    ['applied', 'Applied'],
+                    ['passed', 'Passed'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <Chip key={id} active={railFilter === id} onClick={() => setRailFilter(id)}>
+                    {label}
+                  </Chip>
                 ))}
               </div>
-            )}
-          </div>
+
+              {historyOpportunities.length > 0 && (
+                <Input
+                  value={railQuery}
+                  onChange={(e) => setRailQuery(e.target.value)}
+                  placeholder="Filter title, host…"
+                  className="h-8 font-mono text-xs"
+                />
+              )}
+
+              {historyOpportunities.length === 0 ? (
+                <p className="ui-meta px-0.5">No opportunities yet. Add a URL or JD below.</p>
+              ) : railRows.length === 0 ? (
+                <p className="ui-meta px-0.5">No matches for this filter.</p>
+              ) : (
+                <div className="max-h-[var(--rail-max)] space-y-1 overflow-auto text-xs">
+                  {railRows.map((o) => {
+                    const selected =
+                      model.lastActiveOppId === o.id &&
+                      model.opportunityTarget &&
+                      model.opportunityTarget.status !== 'idle'
+                    const href = normalizeOpportunityUrl(o.source_url)
+                    const label = opportunityRailLabel({
+                      title: o.title,
+                      company: o.company,
+                      urlLabel: displayOpportunityUrl(o.source_url, 32),
+                    })
+                    const st = normalizePipelineStatus(o.status)
+                    return (
+                      <div
+                        key={o.id}
+                        className={`flex items-stretch gap-0.5 rounded-md border transition-colors ${
+                          selected
+                            ? 'border-accent/60 bg-accent-soft text-ink'
+                            : 'border-border-subtle/60 bg-surface-0/40'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            dispatch({
+                              type: 'OpportunitySelected',
+                              id: o.id,
+                              url: o.source_url || undefined,
+                            })
+                          }
+                          className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-2/80"
+                          title={`Load #${o.id} fit+prep (no xAI)`}
+                        >
+                          <div className="flex justify-between gap-2">
+                            <span className="truncate">
+                              <span className="font-mono text-accent/80">#{o.id}</span> {label}
+                            </span>
+                            <span className="ui-meta shrink-0 tabular-nums">
+                              {o.fit_score != null ? `${o.fit_score}` : '—'}
+                            </span>
+                          </div>
+                          <div className="ui-meta">{pipelineStatusLabel(st)}</div>
+                        </button>
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="inline-flex shrink-0 items-center border-l border-border-subtle/50 px-2 text-ink-muted hover:text-accent"
+                            title={href}
+                            aria-label={`Open opportunity #${o.id} in browser`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {filtered.length > 12 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((s) => !s)}
+                  className="w-full text-left text-xs text-accent hover:underline"
+                >
+                  {showAll ? 'Show fewer' : `Show all ${filtered.length}`}
+                </button>
+              )}
+            </Panel>
+
+            <CvSummaryInput
+              cvSummary={model.cvSummary}
+              onCvSummaryChange={(cvSummary) =>
+                dispatch({ type: 'CvSummaryChanged', cvSummary })
+              }
+              onResetToDefault={() => dispatch({ type: 'CvSummaryResetToDefaultRequested' })}
+            />
+
+            <QuickTarget
+              busy={targetBusy}
+              onAnalyzeRequested={(url, pasted_jd) =>
+                dispatch({ type: 'OpportunityTargetAnalyzeRequested', url, pasted_jd })
+              }
+            />
+          </>
         )}
 
-        {/* Resume last (Discover mode; kept for compatibility, rail above is the main) */}
-        {isDiscover && !showTarget && historyOpportunities.length > 0 && (
-          <button
-            onClick={() => {
-              const last = historyOpportunities[0]
-              if (last) dispatch({ type: 'OpportunitySelected', id: last.id })
-            }}
-            className="w-full text-left px-3 py-1.5 text-xs rounded border border-accent/60 hover:bg-accent/10 text-accent flex items-center gap-2"
-            title="Load the most recent opportunity from the rail (reuses stored analysis/prep without xAI)."
-          >
-            ↩ Resume last <span className="text-ink-faint">(#{historyOpportunities[0].id})</span>
-          </button>
-        )}
-
-        {/* Quick Target (Discover mode — analyze + prep for a specific opportunity URL/JD).
-           Results appear in the right panel. The flow works for any opportunity type. */}
-        {isDiscover && (
-          <QuickTarget
-            busy={targetBusy}
-            onAnalyzeRequested={(url, pasted_jd) =>
-              dispatch({ type: 'OpportunityTargetAnalyzeRequested', url, pasted_jd })
-            }
-          />
-        )}
-
-        {/* X search workspace only on Xplore screen.
-           "Xplore" is the mode to actively find new opportunities on X (search + autonomous cycle).
-           Discover is for working with opportunities you've found (rail, quick target analyze/prep).
-           Per plan: clean separation, no mode pollution. */}
         {!isDiscover && (
-          <SearchWorkspace
-            query={model.query}
-            busy={view.busy}
-            canSearch={view.canSearch}
-            canRunCycle={view.canRunCycle}
-            presets={view.presets}
-            onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
-            onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
-            onSearch={() => dispatch({ type: 'SearchRequested' })}
-            onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
-          />
+          <>
+            <SearchWorkspace
+              query={model.query}
+              busy={view.busy}
+              canSearch={view.canSearch}
+              canRunCycle={view.canRunCycle}
+              presets={view.presets}
+              onQueryChange={(query) => dispatch({ type: 'QueryChanged', query })}
+              onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
+              onSearch={() => dispatch({ type: 'SearchRequested' })}
+              onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
+            />
+            {!view.canSearch && (
+              <p className="ui-meta px-0.5">
+                X bearer required.{' '}
+                <button
+                  type="button"
+                  className="text-accent hover:underline"
+                  onClick={() => dispatch({ type: 'ScreenChanged', screen: 'settings' })}
+                >
+                  Open Settings
+                </button>
+              </p>
+            )}
+            {model.decision && (
+              <DecisionPanel
+                decision={model.decision}
+                onRerun={() => dispatch({ type: 'CycleRequested' })}
+                onPromote={() => dispatch({ type: 'PromoteRequested' })}
+              />
+            )}
+          </>
         )}
 
-        {/* DecisionPanel (cycle results) only on Xplore per plan split. */}
-        {!isDiscover && model.decision && (
-          <DecisionPanel
-            decision={model.decision}
-            onRerun={() => dispatch({ type: 'CycleRequested' })}
-            onPromote={() => dispatch({ type: 'PromoteRequested' })}
-          />
-        )}
-
-        {/* PauseLog kept for now (guards can apply to both flows); move to Xplore-only if desired later. */}
         <PauseLog pauses={model.pauses} />
       </div>
 
-      {/* Right: contextual results.
-         Discover: only opportunity fit/prep (or clean empty state). No X feed.
-         Xplore: X search results / cycle output (TweetFeed). */}
-      <div className="flex-1 min-h-0 overflow-auto p-3 lg:p-4">
-        {(isDiscover && showTarget) ? (
+      {/* Right — φ major (~61.8%) */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3 lg:p-5">
+        {isDiscover && showTarget ? (
           <OpportunityTargetFitPanel
             result={targetResult}
             error={targetError}
             busy={targetBusy}
             sourceUrl={sourceUrl}
+            pipelineStatus={pipelineStatus}
             onClear={() => dispatch({ type: 'OpportunityTargetCleared' })}
             onPrepRequested={(opportunityId) =>
-              dispatch({ type: 'OpportunityTargetPrepRequested', opportunity_id: opportunityId, url: sourceUrl })
+              dispatch({
+                type: 'OpportunityTargetPrepRequested',
+                opportunity_id: opportunityId,
+                url: sourceUrl,
+              })
             }
             onProposeSidecar={(opportunityId) => {
-              if (opportunityId) dispatch({ type: 'CvSidecarProposeRequested', opportunity_id: opportunityId })
+              if (opportunityId)
+                dispatch({ type: 'CvSidecarProposeRequested', opportunity_id: opportunityId })
             }}
+            onStatusChange={(id, status) =>
+              dispatch({ type: 'OpportunityStatusChangeRequested', id, status })
+            }
             lastSidecarProposal={view.lastSidecarProposal}
           />
         ) : !isDiscover ? (
-          <>
+          <div className="space-y-3">
             <TweetFeed tweets={view.tweets} />
             {!hasXResults && (
-              <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
-                No live X results yet.<br />Run a search or autonomous cycle using the controls on the left.
-              </div>
+              <EmptyState
+                title="No live X results yet"
+                description="Run a search or autonomous cycle on the left. Cycle decisions are heuristic until structured analyze is wired."
+              />
             )}
-          </>
-        ) : (
-          <div className="mt-8 rounded-lg border border-border-subtle bg-surface-1/60 p-6 text-center text-sm text-ink-faint">
-            No opportunity selected.<br />
-            Choose one from the YOUR OPPORTUNITIES rail on the left, or add a new one below.
           </div>
+        ) : (
+          <EmptyState
+            title="No opportunity selected"
+            description="Choose a row from Your opportunities, or evaluate a new target on the left."
+          />
         )}
       </div>
     </div>
@@ -180,52 +294,36 @@ type QuickTargetProps = {
   onAnalyzeRequested: (url?: string, pasted_jd?: string) => void
 }
 
-/** Quick Target input form (for any opportunity: role, collab, side hustle, community, etc.).
- *  The CV packet entered above is sent **verbatim/in full** to the model (the user is expected to have already
- *  distilled it to the right length and content). Dispatches MVU message; results render in right panel
- *  (OpportunityTargetFitPanel) via model.opportunityTarget.
- *  The same packet value is also available (read from model) for Xplore.
- *  No direct invoke — all I/O goes through effects/ports (per architecture).
- */
 function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
   const [url, setUrl] = React.useState('')
   const [pasted, setPasted] = React.useState('')
-
-  const canAnalyze = !busy && (url.trim() || pasted.trim())
+  const canAnalyze = !busy && !!(url.trim() || pasted.trim())
 
   return (
-    <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
-      <div className="font-medium text-sm mb-2 flex items-center gap-2">
-        🎯 Quick Target (URL or paste description)
-        <span className="text-[10px] text-accent">grok</span>
-      </div>
-      <input
+    <Panel className="space-y-2.5">
+      <SectionLabel meta={<span className="text-accent">evaluate</span>}>New target</SectionLabel>
+      <Input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://company.com/careers/opp-123 (optional)"
-        className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-accent/60"
+        placeholder="https://… job or collab URL"
+        className="h-8 font-mono text-xs"
       />
-      <textarea
+      <Textarea
         value={pasted}
         onChange={(e) => setPasted(e.target.value)}
-        placeholder="Paste the full description / JD here (recommended)"
-        rows={4}
-        className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1.5 text-sm focus:outline-none focus:border-accent/60"
+        placeholder="Or paste full description / JD"
+        rows={3}
+        className="min-h-[4.5rem] text-xs"
       />
-      <div>
-        <button
-          onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
-          disabled={!canAnalyze}
-          className="px-3 py-1.5 text-sm rounded border border-border-default hover:border-accent/60 disabled:opacity-50"
-        >
-          {busy ? 'Evaluating…' : 'Evaluate fit'}
-        </button>
-      </div>
-
-      <div className="mt-2 text-[10px] text-ink-faint">
-        The CV summary packet you enter above is sent **in full** to the model (it is already the distilled version you want the model to see). The same packet is also available for Xplore searches and prep generation. Results appear on the right. (Reopened opportunities from the rail restore the fit/prep without a new xAI call.)
-      </div>
-    </div>
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={!canAnalyze}
+        onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
+        className="w-full"
+      >
+        {busy ? 'Evaluating…' : 'Evaluate fit'}
+      </Button>
+    </Panel>
   )
 }
-

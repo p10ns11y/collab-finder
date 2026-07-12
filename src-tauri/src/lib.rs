@@ -13,7 +13,11 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
-use opportunity_target::{analyze_opportunity_target, fetch_opportunity_target_page, get_devprofile_path_cmd, get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep, set_devprofile_path_cmd, set_xai_model_cmd};
+use opportunity_target::{
+    analyze_opportunity_target, fetch_opportunity_target_page, get_devprofile_path,
+    get_devprofile_path_cmd, get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep,
+    set_devprofile_path_cmd, set_xai_model_cmd,
+};
 use std::sync::Mutex as StdMutex;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -342,6 +346,23 @@ async fn get_opportunities(
         .map_err(|e| e.to_string())?
 }
 
+/// Pipeline status only (applied / passed / archived / …) — no xAI. Discover rail closure.
+#[tauri::command]
+async fn update_opportunity_status_cmd(
+    db: State<'_, AppDb>,
+    id: i64,
+    status: String,
+    notes: Option<String>,
+) -> Result<(), String> {
+    let allowed = ["new", "analyzed", "prepped", "applied", "passed", "archived"];
+    if !allowed.contains(&status.as_str()) {
+        return Err(format!("invalid status '{status}' (allowed: {})", allowed.join(", ")));
+    }
+    db.0.lock()
+        .map_err(|e| e.to_string())?
+        .update_opportunity_status(id, &status, notes.as_deref())
+}
+
 #[tauri::command]
 async fn search_past_tweets(
     db: State<'_, AppDb>,
@@ -383,7 +404,8 @@ fn log_event(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppReactor(Mutex::new(FinderReactor::new(None))))
+        // Seed reactor from Settings store (same devprofile_path.txt as analyze/prep).
+        .manage(AppReactor(Mutex::new(FinderReactor::new(get_devprofile_path()))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
         .invoke_handler(tauri::generate_handler![
             // Credential commands (stability boundary — see above). Keep bearer + xai together.
@@ -404,6 +426,7 @@ pub fn run() {
             set_xai_model_cmd,
             propose_cv_sidecar_for_prep,
             get_opportunities,
+            update_opportunity_status_cmd,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,

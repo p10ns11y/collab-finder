@@ -1,47 +1,111 @@
+import * as React from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
+import { Button } from '../ui/button'
+import { isPlausibleCvPacket } from '../../core/domain/cv-packet'
+import {
+  cvPacketForceOpen,
+  cvPacketPanelOpen,
+  latchCvPacketUserOpen,
+} from '../../core/domain/cv-packet-panel-open'
 
 type Props = {
   cvSummary: string
   onCvSummaryChange: (s: string) => void
+  /** Restore distilled default + heal localStorage (optional; Discover wires this). */
+  onResetToDefault?: () => void
 }
 
 /**
- * Independent CV summary / context packet editor.
- *
- * This is *global application context* (sourced from data/distillation + eventually
- * cv-promote-guard), not a search-specific input. It is used by:
- * - X search / autonomous cycle (reactor)
- * - Quick Target (analyze + prep)
- *
- * It must remain always reachable and editable, even when search/cycle flows error,
- * are busy, or are not the current focus. Placing it inside SearchWorkspace caused
- * the exact recovery problem: errors in X paths made the grounding data hard to
- * inspect/fix without "restarting the search flow".
+ * Collapsible CV packet editor (global grounding for analyze/prep + Xplore).
+ * Force-open while empty/corrupt; sticky open after recovery (no auto-close mid-edit).
  */
-export function CvSummaryInput({ cvSummary, onCvSummaryChange }: Props) {
+export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault }: Props) {
+  const looksCorrupted = !isPlausibleCvPacket(cvSummary)
+  const forceOpen = cvPacketForceOpen(cvSummary, !looksCorrupted)
+
+  const [userOpen, setUserOpen] = React.useState(() => forceOpen)
+
+  // Latch while forced so clearing forceOpen mid-edit does not collapse (React adjust-on-render).
+  const latched = latchCvPacketUserOpen(forceOpen, userOpen)
+  if (latched !== userOpen) {
+    setUserOpen(latched)
+  }
+
+  const open = cvPacketPanelOpen(forceOpen, latched)
+
+  const preview = cvSummary.trim().split('\n').find((l) => l.trim()) || 'Empty packet'
+  const chars = cvSummary.length
+
   return (
-    <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
-      <div className="font-medium text-sm mb-2 flex items-center gap-2">
-        CV packet (your distilled version — sent in full)
-        <span className="text-[10px] text-accent">shared</span>
+    <div className="ui-panel overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (forceOpen) return
+            setUserOpen((o) => !o)
+          }}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-accent"
+          aria-expanded={open}
+          aria-disabled={forceOpen || undefined}
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+          )}
+          <span className="shrink-0 text-xs font-medium">CV packet</span>
+          <span className="shrink-0 text-accent ui-meta">shared</span>
+          {!open && (
+            <span className="truncate font-mono text-[11px] text-ink-faint" title={preview}>
+              {preview.slice(0, 48)}
+              {preview.length > 48 ? '…' : ''}
+            </span>
+          )}
+        </button>
+        <span className="ui-meta shrink-0 tabular-nums">{chars}</span>
+        {onResetToDefault && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onResetToDefault}
+            className="h-7 px-2 text-[10px]"
+            title="Replace with distilled default and heal localStorage"
+          >
+            Reset
+          </Button>
+        )}
       </div>
 
-      <Label htmlFor="cv-summary" className="sr-only">
-        CV packet (your distilled version — sent in full to the model)
-      </Label>
-      <Textarea
-        id="cv-summary"
-        value={cvSummary}
-        onChange={(e) => onCvSummaryChange(e.target.value)}
-        rows={3}
-        className="w-full bg-surface-0 border border-border-subtle rounded px-3 py-1.5 text-sm focus:outline-none focus:border-accent/60"
-      />
-
-      <div className="mt-2 text-[10px] text-ink-faint">
-        The complete text you put here is sent **in full** to the model for every analysis/prep (this is already your distilled packet). Also used by Xplore cycles. Edit anytime.
-        <br />Tip: State total YOE separately from recency of specific projects (e.g. "9+ years industry; recent personal agentic work"). The prep prompt now strongly enforces this to reduce fabrication.
-      </div>
+      {open && (
+        <div className="border-t border-border-subtle/60 px-3 pb-3 pt-2">
+          {looksCorrupted && (
+            <div className="mb-2 rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
+              Packet looks corrupted. Use <strong>Reset</strong> or paste your English packet.
+            </div>
+          )}
+          <Label htmlFor="cv-summary" className="sr-only">
+            CV packet sent in full to the model
+          </Label>
+          <Textarea
+            id="cv-summary"
+            value={cvSummary}
+            onChange={(e) => onCvSummaryChange(e.target.value)}
+            rows={5}
+            spellCheck={false}
+            title="Sent in full for analyze/prep. State total YOE separately from recency of specific projects."
+            className={`w-full rounded border bg-surface-0 px-3 py-1.5 font-mono text-xs leading-snug focus:border-accent/60 focus:outline-none ${
+              looksCorrupted ? 'border-warning/60' : 'border-border-subtle'
+            }`}
+          />
+          <p className="mt-1.5 text-[11px] text-ink-faint">
+            Sent in full for every analysis. Tip: total YOE ≠ recency of personal projects.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

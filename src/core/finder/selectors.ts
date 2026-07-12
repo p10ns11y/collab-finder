@@ -71,20 +71,22 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     paletteItems: [
       ...screenNavItems,
       { id: 'search', label: 'Search X (live)', msg: { type: 'SearchRequested' } },
-      { id: 'cycle', label: 'Run autonomous cycle (guarded)', msg: { type: 'CycleRequested' } },
+      { id: 'cycle', label: 'Run autonomous cycle (heuristic)', msg: { type: 'CycleRequested' } },
       ...SEARCH_PRESETS.filter((p) => p.tier === 'priority').map((p) => ({
         id: `preset-${p.id}`,
         label: `Query: ${p.label}`,
         msg: { type: 'PresetSelected' as const, query: p.query },
       })),
-      { id: 'promote', label: 'Promote insights (guarded)', msg: { type: 'PromoteRequested' } },
+      {
+        id: 'promote',
+        label: 'Log X insights note (audit only — not CV apply)',
+        msg: { type: 'PromoteRequested' },
+      },
       {
         id: 'state',
         label: 'Refresh reactor state',
         msg: { type: 'ReactorRefreshRequested' },
       },
-      { id: 'history-refresh', label: 'Refresh history dashboard', msg: { type: 'HistoryRefreshRequested' } },
-      { id: 'lookup-clear', label: 'Clear lookup results', msg: { type: 'LookupCleared' } },
     ],
     historySearches: h.searches.status === 'ready' ? h.searches.data : [],
     historyLeads: h.leads.status === 'ready' ? h.leads.data : [],

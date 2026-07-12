@@ -38,7 +38,7 @@ export function SearchWorkspace({
   onAutonomousCycle,
 }: Props) {
   return (
-    <Card className="shadow-glow">
+    <Card>
       <CardHeader>
         <CardTitle>Search workspace</CardTitle>
       </CardHeader>

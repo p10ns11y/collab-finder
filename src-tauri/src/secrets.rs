@@ -47,6 +47,9 @@
 //   The file fallback + heal + explicit clear-on-fail is what keeps things working.
 //
 // RULES (non-negotiable):
+// 0. NEVER log, println, or return secret material (bearer/key bytes). Status logs may
+//    include active_source / present / reachable only. Agents must not run `secret-tool search`
+//    or `cat` fallback files — see docs/secrets-agent-safety.md (cleartext dump risk).
 // 1. Treat the 8 credential commands + *StorageStatus types + the two error strings
 //    ("X bearer not configured..." and the equivalent for xAI) as public contracts.
 //    See docs/tauri-commands.md.

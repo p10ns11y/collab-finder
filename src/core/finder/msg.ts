@@ -22,6 +22,8 @@ export type FinderMsg =
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
   | { type: 'CvSummaryLoaded'; cvSummary: string }
+  /** User-triggered: restore distilled default packet and heal localStorage cache. */
+  | { type: 'CvSummaryResetToDefaultRequested' }
   | { type: 'OpportunitySelected'; id: number; url?: string }
   | { type: 'OpportunityTargetUrlSet'; url?: string }
   | { type: 'PresetSelected'; query: string }
@@ -95,3 +97,8 @@ export type FinderMsg =
   | { type: 'CvSidecarProposeRequested'; opportunity_id: number }
   | { type: 'CvSidecarProposeSucceeded'; preview: string; sidecar_path: string; suggestions_count: number }
   | { type: 'CvSidecarProposeFailed'; error: AppError }
+
+  // Pipeline status (applied / passed / archived) — local DB, no xAI
+  | { type: 'OpportunityStatusChangeRequested'; id: number; status: string }
+  | { type: 'OpportunityStatusChangeSucceeded'; id: number; status: string }
+  | { type: 'OpportunityStatusChangeFailed'; error: AppError }

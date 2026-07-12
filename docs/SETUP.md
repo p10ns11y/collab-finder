@@ -38,6 +38,10 @@ cd src-tauri && cargo test
 
 `cargo test` covers secrets, db, reactor, and query validation (no live X token required). `package.json` does not yet define `type-check`, `lint`, or `precommit` scripts.
 
+## Secrets safety (agents & remote control)
+
+**Never** dump secrets into terminals or agent logs. `secret-tool search service collab-finder` prints full key values. Do not `cat` `~/.local/share/collab-finder/x-bearer` or `xai-key`. Use Settings panels (status only) or see [secrets-agent-safety.md](./secrets-agent-safety.md). If a key was already logged, **rotate it** in the provider console.
+
 ## X Bearer credentials
 
 1. Create an app on the [X Developer Portal](https://developer.x.com/) and copy the **Bearer token** (app-only).

@@ -5,12 +5,17 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 | Path | Purpose |
 |------|---------|
 | [curation/profile-and-strategy.md](./curation/profile-and-strategy.md) | Positioning, geo priorities, platforms (non-X) |
+| [curation/candidate-preferences.md](./curation/candidate-preferences.md) | Dual-fit constraints (modes, geo, family, culture, deal-breakers, comp) |
+| [curation/candidate-constraints-compact.txt](./curation/candidate-constraints-compact.txt) | Compact extract **injected into analyze** (`include_str` in `opportunity_target.rs`) |
+| [curation/proof-variants.md](./curation/proof-variants.md) | Role-class exceptional-work bank; **prep selector** picks a variant by JD keywords |
 | [x-search/operators.md](./x-search/operators.md) | Valid v2 operators only — do not guess |
 | [x-search/queries.json](./x-search/queries.json) | Qualified search presets + default CV packet |
 | [cv-packet-distilled.txt](./cv-packet-distilled.txt) | General distilled CV (~6k chars; PDF + projects; synced to `queries.json` + Rust IPC fallback) |
 | [cv-packet-agent-distilled.txt](./cv-packet-agent-distilled.txt) | Agent-optimized context packet (MVU/Tauri/OSS focus; for reactor/MCP — not app default) |
 | [prompts/cv-packet-agent.md](./prompts/cv-packet-agent.md) | When to use agent vs general CV packet |
-| [public-projects.json](./public-projects.json) | Pruned public GitHub repos for CV/agent grounding (re-prune raw API dump via `scripts/prune-public-projects.mjs`) |
+| [public-projects.json](./public-projects.json) | Slim GitHub repos (name/url/description/topics) — **merged into prep/cover-letter** with focused-flatten |
+| [public-projects-focused-flatten.json](./public-projects-focused-flatten.json) | Featured projects with rich descriptions/topics — **primary source for prep PUBLIC_PROJECTS_BANK** |
+| [public-projects-focused.json](./public-projects-focused.json) / clean / full | Offline variants; full dump not loaded at runtime (too large) |
 | [prompts/xai-analyze-opportunity.md](./prompts/xai-analyze-opportunity.md) | Structured analyze template for reactor/xAI |
 | [prompts/cv-packet-pruned.md](./prompts/cv-packet-pruned.md) | Pruned CV grounding for prompts |
 
