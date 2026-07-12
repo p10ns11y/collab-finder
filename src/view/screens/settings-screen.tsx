@@ -3,8 +3,20 @@ import { KeyRound, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { CredentialsPanel } from '../../components/finder/credentials-panel'
 import { CredentialsStorageDetails } from '../../components/finder/credentials-storage-details'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
-import type { BearerStorageStatus } from '../../core/domain/credentials'
 import { activeSourceLabel } from '../../core/domain/credentials'
+import {
+  devprofilePanelReducer,
+  initialDevprofilePanelState,
+  isDevprofilePanelBusy,
+} from '../../core/domain/devprofile-path-panel'
+import {
+  displayXaiModel,
+  initialXaiPanelState,
+  isXaiPanelBusy,
+  isXaiPanelChecking,
+  type XaiKeyStatus,
+  xaiPanelReducer,
+} from '../../core/domain/xai-key-panel'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -92,134 +104,19 @@ export function SettingsScreen({ view, dispatch }: Props) {
   )
 }
 
-/** XaiKeyPanel — client component for xAI key + model config (Tauri direct invokes).
- *
- * Per react-client-expert + react-best-practices:
- * - Interconnected async UI (key status + model + drafts + busy phases + notices) uses a single useReducer + status enum.
- * - No scattered useState + useEffect soup for "forms".
- * - Derive connected/displayModel during render.
- * - Effects only for mount-time sync with external Tauri storage (justified).
- * - Status enum prevents impossible states (e.g. saving while loading).
- * - Handlers dispatch; logic lives in reducer.
+/**
+ * XaiKeyPanel — local Tauri form (not finder MVU).
+ * State machine: src/core/domain/xai-key-panel.ts. Effect only mounts external status sync.
  */
-/** Mirrors Rust `XaiKeyStorageStatus` (same shape as bearer for UI reuse). */
-type XaiKeyStatus = BearerStorageStatus
-
-type XaiPanelStatus = 'idle' | 'loading' | 'saving-key' | 'clearing-key' | 'saving-model'
-
-type XaiPanelState = {
-  keyStatus: XaiKeyStatus | null
-  model: string
-  keyDraft: string
-  modelDraft: string
-  panelStatus: XaiPanelStatus
-  notice: string | null
-}
-
-type XaiPanelAction =
-  | { type: 'LOAD_START' }
-  | { type: 'KEY_LOADED'; value: XaiKeyStatus | null }
-  | { type: 'MODEL_LOADED'; value: string }
-  | { type: 'SET_KEY_DRAFT'; draft: string }
-  | { type: 'SET_MODEL_DRAFT'; draft: string }
-  | { type: 'SAVE_KEY_START' }
-  | { type: 'SAVE_KEY_SUCCESS' }
-  | { type: 'CLEAR_KEY_START' }
-  | { type: 'CLEAR_KEY_SUCCESS' }
-  | { type: 'SAVE_MODEL_START' }
-  | { type: 'SAVE_MODEL_SUCCESS'; value: string }
-  | { type: 'OPERATION_ERROR'; message: string }
-  | { type: 'CLEAR_NOTICE' }
-
-const initialXaiPanelState: XaiPanelState = {
-  keyStatus: null,
-  model: 'grok-4.5',
-  keyDraft: '',
-  modelDraft: 'grok-4.5',
-  panelStatus: 'idle',
-  notice: null,
-};
-
-function xaiPanelReducer(state: XaiPanelState, action: XaiPanelAction): XaiPanelState {
-  switch (action.type) {
-    case 'LOAD_START':
-      return { ...state, panelStatus: 'loading', notice: null };
-
-    case 'KEY_LOADED':
-      return {
-        ...state,
-        keyStatus: action.value,
-        panelStatus: state.panelStatus === 'loading' ? 'idle' : state.panelStatus,
-      };
-
-    case 'MODEL_LOADED':
-      return {
-        ...state,
-        model: action.value || 'grok-4.5',
-        modelDraft: action.value || 'grok-4.5',
-        panelStatus: state.panelStatus === 'loading' ? 'idle' : state.panelStatus,
-      };
-
-    case 'SET_KEY_DRAFT':
-      return { ...state, keyDraft: action.draft };
-
-    case 'SET_MODEL_DRAFT':
-      return { ...state, modelDraft: action.draft };
-
-    case 'SAVE_KEY_START':
-      return { ...state, panelStatus: 'saving-key', notice: null };
-
-    case 'SAVE_KEY_SUCCESS':
-      return {
-        ...state,
-        panelStatus: 'idle',
-        keyDraft: '',
-        notice: 'Saved. Key is not kept in React state after save.',
-      }
-
-    case 'CLEAR_KEY_START':
-      return { ...state, panelStatus: 'clearing-key', notice: null }
-
-    case 'CLEAR_KEY_SUCCESS':
-      return {
-        ...state,
-        panelStatus: 'idle',
-        keyDraft: '',
-        notice: 'Disconnected. Analyze/prep will require a key again.',
-      }
-
-    case 'SAVE_MODEL_START':
-      return { ...state, panelStatus: 'saving-model', notice: null };
-
-    case 'SAVE_MODEL_SUCCESS':
-      return {
-        ...state,
-        panelStatus: 'idle',
-        model: action.value,
-        modelDraft: action.value,
-        notice: `Model set to ${action.value}. Used on next analyze/prep.`,
-      };
-
-    case 'OPERATION_ERROR':
-      return { ...state, panelStatus: 'idle', notice: action.message };
-
-    case 'CLEAR_NOTICE':
-      return { ...state, notice: null };
-
-    default:
-      return state;
-  }
-}
-
 function XaiKeyPanel() {
   const [state, dispatch] = React.useReducer(xaiPanelReducer, initialXaiPanelState)
 
   const { keyStatus, model, keyDraft, modelDraft, panelStatus, notice } = state
 
   const connected = !!keyStatus?.connected
-  const displayModel = model || 'grok-4.5'
-  const isBusy = panelStatus !== 'idle'
-  const isChecking = panelStatus === 'loading'
+  const displayModel = displayXaiModel(model)
+  const isBusy = isXaiPanelBusy(panelStatus)
+  const isChecking = isXaiPanelChecking(panelStatus)
   const activeLabel = keyStatus ? activeSourceLabel(keyStatus.active_source) : null
 
   const refreshStatus = React.useCallback(() => {
@@ -422,43 +319,42 @@ function XaiKeyPanel() {
   )
 }
 
-/** Devprofile path config (for real CV grounding + sidecar proposals).
- * Per plan checklist + skeptic fix: expose in Settings UI (not only manual txt).
- * Uses direct safeInvoke (mirrors XaiKeyPanel).
+/**
+ * Devprofile path — status-enum reducer (no busy/error boolean soup).
+ * Pure machine: src/core/domain/devprofile-path-panel.ts
  */
 function DevprofilePathPanel() {
-  const [draft, setDraft] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
-  const [status, setStatus] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
+  const [state, dispatch] = React.useReducer(devprofilePanelReducer, initialDevprofilePanelState)
+  const { draft, configuredPath, status, notice } = state
+  const busy = isDevprofilePanelBusy(status)
 
-  const refresh = async () => {
-    const res = await safeInvoke<string | null>('get_devprofile_path_cmd', {})
-    if (res.ok) setStatus(res.value || null)
-  }
+  const refresh = React.useCallback(() => {
+    dispatch({ type: 'LOAD_START' })
+    void safeInvoke<string | null>('get_devprofile_path_cmd', {}).then((res) => {
+      if (res.ok) dispatch({ type: 'LOAD_SUCCESS', path: res.value || null })
+      else dispatch({ type: 'LOAD_SUCCESS', path: null })
+    })
+  }, [])
 
-  React.useEffect(() => { void refresh() }, [])
+  // External Tauri sync on mount only.
+  React.useEffect(() => {
+    refresh()
+  }, [refresh])
 
   const save = async () => {
-    if (!draft.trim()) return
-    setBusy(true)
-    setNotice(null)
-    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: draft.trim() })
-    if (res.ok) {
-      setDraft('')
-      setNotice('Saved. Used by analyze/prep and Xplore promote (no restart required).')
-      await refresh()
-    } else {
-      setNotice(res.error?.message || 'Save failed')
-    }
-    setBusy(false)
+    const path = draft.trim()
+    if (!path) return
+    dispatch({ type: 'SAVE_START' })
+    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path })
+    if (res.ok) dispatch({ type: 'SAVE_SUCCESS', path })
+    else dispatch({ type: 'SAVE_ERROR', message: res.error?.message || 'Save failed' })
   }
 
   const clear = async () => {
-    setBusy(true)
-    await safeInvoke<void>('set_devprofile_path_cmd', { path: null })
-    await refresh()
-    setBusy(false)
+    dispatch({ type: 'CLEAR_START' })
+    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: null })
+    if (res.ok) dispatch({ type: 'CLEAR_SUCCESS' })
+    else dispatch({ type: 'CLEAR_ERROR', message: res.error?.message || 'Clear failed' })
   }
 
   return (
@@ -471,32 +367,38 @@ function DevprofilePathPanel() {
             (textarea still overrides). Sidecar proposals read it for deltas — no auto-write.
           </CardDescription>
         </div>
-        <Badge tone={status ? 'success' : 'neutral'}>
-          {status ? 'Configured' : 'Default / distilled'}
+        <Badge tone={configuredPath ? 'success' : 'neutral'}>
+          {configuredPath ? 'Configured' : 'Default / distilled'}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
         <Input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => dispatch({ type: 'SET_DRAFT', draft: e.target.value })}
           placeholder="/home/…/devprofile or leave to use distilled"
           className="font-mono text-xs"
         />
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={save} disabled={busy || !draft.trim()}>
+          <Button size="sm" onClick={() => void save()} disabled={busy || !draft.trim()}>
+            {status === 'saving' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : null}
             Save path
           </Button>
-          {status && (
-            <Button size="sm" variant="ghost" onClick={clear} disabled={busy}>
+          {configuredPath && (
+            <Button size="sm" variant="ghost" onClick={() => void clear()} disabled={busy}>
+              {status === 'clearing' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : null}
               Clear
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={refresh}>
+          <Button size="sm" variant="ghost" onClick={refresh} disabled={busy}>
             Refresh
           </Button>
         </div>
         {notice && <p className="text-xs text-ink-muted">{notice}</p>}
-        {status && <p className="ui-meta break-all">current: {status}</p>}
+        {configuredPath && <p className="ui-meta break-all">current: {configuredPath}</p>}
       </CardContent>
     </Card>
   )

@@ -4,6 +4,11 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Button } from '../ui/button'
 import { isPlausibleCvPacket } from '../../core/domain/cv-packet'
+import {
+  cvPacketForceOpen,
+  cvPacketPanelOpen,
+  latchCvPacketUserOpen,
+} from '../../core/domain/cv-packet-panel-open'
 
 type Props = {
   cvSummary: string
@@ -14,16 +19,21 @@ type Props = {
 
 /**
  * Collapsible CV packet editor (global grounding for analyze/prep + Xplore).
- * Collapsed by default when the packet looks valid — expand to edit.
+ * Force-open while empty/corrupt; sticky open after recovery (no auto-close mid-edit).
  */
 export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault }: Props) {
   const looksCorrupted = !isPlausibleCvPacket(cvSummary)
-  const empty = !cvSummary.trim()
-  const [open, setOpen] = React.useState(looksCorrupted || empty)
+  const forceOpen = cvPacketForceOpen(cvSummary, !looksCorrupted)
 
-  React.useEffect(() => {
-    if (looksCorrupted || empty) setOpen(true)
-  }, [looksCorrupted, empty])
+  const [userOpen, setUserOpen] = React.useState(() => forceOpen)
+
+  // Latch while forced so clearing forceOpen mid-edit does not collapse (React adjust-on-render).
+  const latched = latchCvPacketUserOpen(forceOpen, userOpen)
+  if (latched !== userOpen) {
+    setUserOpen(latched)
+  }
+
+  const open = cvPacketPanelOpen(forceOpen, latched)
 
   const preview = cvSummary.trim().split('\n').find((l) => l.trim()) || 'Empty packet'
   const chars = cvSummary.length
@@ -33,9 +43,13 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault 
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            if (forceOpen) return
+            setUserOpen((o) => !o)
+          }}
           className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-accent"
           aria-expanded={open}
+          aria-disabled={forceOpen || undefined}
         >
           {open ? (
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
@@ -67,9 +81,9 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault 
       </div>
 
       {open && (
-        <div className="px-3 pb-3 border-t border-border-subtle/60 pt-2">
+        <div className="border-t border-border-subtle/60 px-3 pb-3 pt-2">
           {looksCorrupted && (
-            <div className="mb-2 text-[11px] text-warning border border-warning/40 bg-warning/10 rounded px-2 py-1.5">
+            <div className="mb-2 rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
               Packet looks corrupted. Use <strong>Reset</strong> or paste your English packet.
             </div>
           )}
@@ -83,7 +97,7 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault 
             rows={5}
             spellCheck={false}
             title="Sent in full for analyze/prep. State total YOE separately from recency of specific projects."
-            className={`w-full bg-surface-0 border rounded px-3 py-1.5 text-xs font-mono leading-snug focus:outline-none focus:border-accent/60 ${
+            className={`w-full rounded border bg-surface-0 px-3 py-1.5 font-mono text-xs leading-snug focus:border-accent/60 focus:outline-none ${
               looksCorrupted ? 'border-warning/60' : 'border-border-subtle'
             }`}
           />

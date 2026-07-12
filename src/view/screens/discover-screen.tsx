@@ -14,6 +14,7 @@ import { SectionLabel } from '../../components/ui/section-label'
 import { Input } from '../../components/ui/input'
 import { Textarea } from '../../components/ui/textarea'
 import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
+import { opportunityRailLabel } from '../../core/domain/opportunity-rail-label'
 import {
   filterOpportunitiesForRail,
   normalizePipelineStatus,
@@ -119,11 +120,11 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                       model.opportunityTarget &&
                       model.opportunityTarget.status !== 'idle'
                     const href = normalizeOpportunityUrl(o.source_url)
-                    const label =
-                      o.title ||
-                      o.company ||
-                      displayOpportunityUrl(o.source_url, 32) ||
-                      'target'
+                    const label = opportunityRailLabel({
+                      title: o.title,
+                      company: o.company,
+                      urlLabel: displayOpportunityUrl(o.source_url, 32),
+                    })
                     const st = normalizePipelineStatus(o.status)
                     return (
                       <div
