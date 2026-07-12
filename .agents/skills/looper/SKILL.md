@@ -13,7 +13,7 @@ description: >-
 
 **Mission:** Keep the agentic loop for creativity and adaptation, but give it a **deterministic skeleton** — an outer state machine (or statechart) with DAG-style inner steps, hard exit conditions, review gates, and multi-model routing. Agents that only “Thought → Action → Observation → repeat” stay brittle; this skill is the control layer that makes loops **auditable, bounded, and high-value**.
 
-**Thesis (portable):** Raw ReAct is implicit (state in prompt history), weak on exit/retry/cancel, and hard to visualize or audit. Production agents wrap the creative loop in:
+**Thesis (portable):** Raw ReAct is implicit (state in prompt history), weak on exit/retry/cancel, and hard to visualize or audit — see [@Peramanathan on structured loops over raw ReAct](https://x.com/Peramanathan/status/2067890630345494578). Production agents wrap the creative loop in:
 
 1. **Outer control flow** — named phases, transitions, checkpoints, human-in-the-loop.
 2. **Inner bounded steps** — finite sub-workflows / DAGs with clear done, retry, cancel.
@@ -357,7 +357,8 @@ node .agents/skills/looper/scripts/validate-skill.mjs   # project layout
 
 ## Reference
 
-- Design thesis: structured loops (outer state machine + inner DAGs + gates) over raw ReAct — portable agent practice, not a vendor lock-in.
+- **Design thesis (X):** [@Peramanathan](https://x.com/Peramanathan/status/2067890630345494578) — ReAct-style loops are powerful but brittle (implicit state, weak exit/retry, hard to audit); production agents wrap the creative loop in an outer state machine / cyclic graph + bounded inner DAGs, plans, review gates, and sub-agents. Keep the loop for adaptation; give it a deterministic skeleton. Thread: https://x.com/Peramanathan/status/2067890630345494578
+- Design thesis (portable summary): structured loops (outer state machine + inner DAGs + gates) over raw ReAct — portable agent practice, not a vendor lock-in.
 - Templates: [references/loop-card.md](references/loop-card.md)
 
 **Build agents that loop with a skeleton — creativity inside the edges, never instead of them.**
