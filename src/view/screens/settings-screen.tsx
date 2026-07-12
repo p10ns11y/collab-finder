@@ -13,6 +13,8 @@ import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
+import { PageHeader } from '../../components/ui/page-header'
+import { SectionLabel } from '../../components/ui/section-label'
 
 type Props = {
   view: FinderViewState
@@ -23,11 +25,11 @@ export function SettingsScreen({ view, dispatch }: Props) {
   const { model, operatorsDocUrl, operatorsReference, strategyReference, connectionFlow } = view
 
   return (
-    <div className="h-full overflow-auto p-4 max-w-3xl mx-auto">
-      <div className="mb-4">
-        <div className="text-lg font-semibold tracking-tight">Settings</div>
-        <p className="text-xs text-ink-faint">Connection, storage, and reference materials</p>
-      </div>
+    <div className="mx-auto h-full max-w-3xl overflow-auto p-4 lg:p-6">
+      <PageHeader
+        title="Settings"
+        description="Connection, storage, and reference materials for the reactor."
+      />
 
       <CredentialsPanel
         flow={connectionFlow}
@@ -50,30 +52,37 @@ export function SettingsScreen({ view, dispatch }: Props) {
         <DevprofilePathPanel />
       </div>
 
-      <div className="mt-6 space-y-3 text-xs">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">Advanced</div>
-        <details>
-          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">X search operators</summary>
+      <div className="mt-8 space-y-3 text-xs">
+        <SectionLabel>Advanced</SectionLabel>
+        <details className="ui-panel p-3">
+          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">X search operators</summary>
           <p className="mb-1 text-ink-muted">
-            <a href={operatorsDocUrl} target="_blank" rel="noreferrer" className="text-accent underline-offset-2 hover:underline">
+            <a
+              href={operatorsDocUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline-offset-2 hover:underline"
+            >
               Official X API v2 docs
             </a>
           </p>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
             {operatorsReference}
           </pre>
         </details>
 
-        <details>
-          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">Strategy &amp; distillation</summary>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
+        <details className="ui-panel p-3">
+          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">
+            Strategy &amp; distillation
+          </summary>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
             {strategyReference}
           </pre>
         </details>
 
-        <details>
-          <summary className="cursor-pointer text-ink-muted mb-1 hover:text-ink">About</summary>
-          <p className="text-ink-faint leading-relaxed">
+        <details className="ui-panel p-3">
+          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">About</summary>
+          <p className="leading-relaxed text-ink-faint">
             collab-finder is separate from your public devprofile. CV suggestions use sidecar-first propose
             (no silent master write). Xplore uses official X agent patterns. Self-guards on high-stakes paths.
           </p>
@@ -453,36 +462,43 @@ function DevprofilePathPanel() {
   }
 
   return (
-    <div className="border border-border-subtle rounded p-4 bg-surface-1/40">
-      <div className="flex items-center justify-between mb-2">
-        <div className="font-medium text-sm">devprofile path (real CV for grounding)</div>
-        <div className="text-[10px] px-2 py-0.5 rounded border">{status ? 'Configured' : 'Using default/distilled'}</div>
-      </div>
-      <div className="text-[10px] text-ink-faint mb-2">
-        When set to ~/Work/personal/devprofile, Quick Target uses pruned cvdata.json for analyze/prep (textarea still overrides if provided). Sidecar proposals read it for deltas (no auto-write).
-      </div>
-
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="/home/.../devprofile or leave to use distilled"
-        className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-3 py-1 text-sm font-mono"
-      />
-
-      <div className="flex gap-2">
-        <button onClick={save} disabled={busy || !draft.trim()} className="text-sm px-3 py-1 border rounded hover:border-accent/60 disabled:opacity-50">
-          Save path
-        </button>
-        {status && (
-          <button onClick={clear} disabled={busy} className="text-sm px-3 py-1 border rounded hover:border-accent/60">Clear</button>
-        )}
-        <button onClick={refresh} className="text-sm px-2 py-1 text-ink-faint">Refresh</button>
-      </div>
-      {notice && <div className="mt-1 text-xs text-ink-muted">{notice}</div>}
-      {status && (
-        <div className="mt-2 text-[10px] text-ink-faint break-all">current: {status}</div>
-      )}
-    </div>
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>devprofile path</CardTitle>
+          <CardDescription>
+            Real CV for grounding. When set, Quick Target uses pruned cvdata.json for analyze/prep
+            (textarea still overrides). Sidecar proposals read it for deltas — no auto-write.
+          </CardDescription>
+        </div>
+        <Badge tone={status ? 'success' : 'neutral'}>
+          {status ? 'Configured' : 'Default / distilled'}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="/home/…/devprofile or leave to use distilled"
+          className="font-mono text-xs"
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={save} disabled={busy || !draft.trim()}>
+            Save path
+          </Button>
+          {status && (
+            <Button size="sm" variant="ghost" onClick={clear} disabled={busy}>
+              Clear
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={refresh}>
+            Refresh
+          </Button>
+        </div>
+        {notice && <p className="text-xs text-ink-muted">{notice}</p>}
+        {status && <p className="ui-meta break-all">current: {status}</p>}
+      </CardContent>
+    </Card>
   )
 }
 

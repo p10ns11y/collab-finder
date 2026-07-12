@@ -21,7 +21,12 @@ Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body
 
 ## Core + Project Skills
 
-See root `AGENTS.md` for the full index (finder-reactor, x-agent-resources, cv-promote-guard, tauri-agentic, plus portable ai-optimization, fusion-sage, bdd-strategizer, agent-orchestrator, git-worktrees, etc.).
+See root `AGENTS.md` for the full index (finder-reactor, x-agent-resources, cv-promote-guard, tauri-agentic, plus portable ai-optimization, fusion-sage, bdd-strategizer, agent-orchestrator, **looper**, git-worktrees, etc.).
+
+| Skill (portable control) | Path | When |
+|--------------------------|------|------|
+| **looper** | [skills/looper/SKILL.md](skills/looper/SKILL.md) | Multi-step agent cycles, outer state machine, bounded inner steps, multi-model routing, HITL pause gates — composes with orchestrator/subagent/fusion; not domain finder logic |
+| Cursor rule (optional) | [rules/looper.mdc](rules/looper.mdc) | Discovery when loop/routing signals fire (`alwaysApply: false`) |
 
 When adding a skill, update the index in root `AGENTS.md` and this file.
 
@@ -49,6 +54,7 @@ Relevant rules in `.agents/rules/` today:
 - `secrets-agent-safety.mdc` (alwaysApply: true) — never dump X/xAI secrets via secret-tool or cat.
 - `finder-reactor.mdc` — reactor, self-guards, pauses.
 - `tauri-agentic.mdc` — MCP exposure, Tauri command design for agents.
+- `looper.mdc` (alwaysApply: false) — structured loops, multi-model routing, HITL gates over raw ReAct.
 - `agent-workflow.mdc`, `grep-before-edit.mdc`, `read-edit-lint.mdc` — dev process.
 
 ## Agent skills (`.cursor/skills/`)
@@ -59,7 +65,7 @@ Per-skill symlinks (not the whole `skills` folder):
 ln -sfn ../../.agents/skills/<skill-name> .cursor/skills/<skill-name>
 ```
 
-Example: `tauri-ipc-debug`, `finder-reactor`, `fusion-sage`.
+Example: `tauri-ipc-debug`, `finder-reactor`, `fusion-sage`, `looper`.
 
 ## X Agent Resources Integration
 

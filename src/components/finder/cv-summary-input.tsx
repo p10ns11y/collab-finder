@@ -29,7 +29,7 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault 
   const chars = cvSummary.length
 
   return (
-    <div className="border border-border-subtle rounded-lg bg-surface-1/40 overflow-hidden">
+    <div className="ui-panel overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
@@ -42,16 +42,16 @@ export function CvSummaryInput({ cvSummary, onCvSummaryChange, onResetToDefault 
           ) : (
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
           )}
-          <span className="text-xs font-medium shrink-0">CV packet</span>
-          <span className="text-[10px] text-accent shrink-0">shared</span>
+          <span className="shrink-0 text-xs font-medium">CV packet</span>
+          <span className="shrink-0 text-accent ui-meta">shared</span>
           {!open && (
-            <span className="truncate text-[11px] text-ink-faint font-mono" title={preview}>
+            <span className="truncate font-mono text-[11px] text-ink-faint" title={preview}>
               {preview.slice(0, 48)}
               {preview.length > 48 ? '…' : ''}
             </span>
           )}
         </button>
-        <span className="text-[10px] text-ink-faint tabular-nums shrink-0">{chars}</span>
+        <span className="ui-meta shrink-0 tabular-nums">{chars}</span>
         {onResetToDefault && (
           <Button
             type="button"

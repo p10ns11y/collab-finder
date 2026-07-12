@@ -8,6 +8,11 @@ import { TweetFeed } from '../../components/finder/tweet-feed'
 import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Button } from '../../components/ui/button'
+import { Chip } from '../../components/ui/chip'
+import { Panel } from '../../components/ui/panel'
+import { SectionLabel } from '../../components/ui/section-label'
+import { Input } from '../../components/ui/input'
+import { Textarea } from '../../components/ui/textarea'
 import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
 import {
   filterOpportunitiesForRail,
@@ -64,26 +69,20 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const railRows = showAll ? filtered : filtered.slice(0, 12)
 
   return (
-    <div className="flex h-full flex-col lg:flex-row overflow-hidden bg-surface-0">
+    <div className="flex h-full flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
       {/* Left — φ minor (~38.2%) */}
       <div
-        className="w-full min-w-0 lg:min-w-[280px] lg:max-w-[min(420px,42%)] border-b lg:border-b-0 lg:border-r border-border-subtle overflow-x-hidden overflow-y-auto p-3 lg:p-4 space-y-3"
+        className="w-full min-w-0 space-y-3 overflow-x-hidden overflow-y-auto border-b border-border-subtle p-3 lg:min-w-[280px] lg:max-w-[min(420px,42%)] lg:border-b-0 lg:border-r lg:p-4"
         style={{ flex: '0 0 var(--pane-minor)' }}
       >
         {isDiscover && (
           <>
-            {/* Rail first — list is memory */}
-            <div className="border border-border-subtle rounded-lg bg-surface-1/40 p-2.5">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-                  Your opportunities
-                </div>
-                <span className="text-[10px] text-ink-faint tabular-nums">
-                  {filtered.length}/{historyOpportunities.length}
-                </span>
-              </div>
+            <Panel dense className="space-y-2.5">
+              <SectionLabel meta={`${filtered.length}/${historyOpportunities.length}`}>
+                Your opportunities
+              </SectionLabel>
 
-              <div className="flex flex-wrap gap-1 mb-2">
+              <div className="flex flex-wrap gap-1">
                 {(
                   [
                     ['active', 'Active'],
@@ -93,38 +92,27 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                     ['passed', 'Passed'],
                   ] as const
                 ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setRailFilter(id)}
-                    className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
-                      railFilter === id
-                        ? 'border-accent/60 bg-accent/10 text-accent'
-                        : 'border-border-subtle text-ink-faint hover:text-ink'
-                    }`}
-                  >
+                  <Chip key={id} active={railFilter === id} onClick={() => setRailFilter(id)}>
                     {label}
-                  </button>
+                  </Chip>
                 ))}
               </div>
 
               {historyOpportunities.length > 0 && (
-                <input
+                <Input
                   value={railQuery}
                   onChange={(e) => setRailQuery(e.target.value)}
                   placeholder="Filter title, host…"
-                  className="w-full mb-2 bg-surface-0 border border-border-subtle rounded px-2 py-1 text-[11px] font-mono focus:outline-none focus:border-accent/60"
+                  className="h-8 font-mono text-xs"
                 />
               )}
 
               {historyOpportunities.length === 0 ? (
-                <p className="text-xs text-ink-faint px-0.5">
-                  No opportunities yet. Add a URL or JD below.
-                </p>
+                <p className="ui-meta px-0.5">No opportunities yet. Add a URL or JD below.</p>
               ) : railRows.length === 0 ? (
-                <p className="text-xs text-ink-faint px-0.5">No matches for this filter.</p>
+                <p className="ui-meta px-0.5">No matches for this filter.</p>
               ) : (
-                <div className="space-y-1 max-h-[var(--rail-max)] overflow-auto text-xs">
+                <div className="max-h-[var(--rail-max)] space-y-1 overflow-auto text-xs">
                   {railRows.map((o) => {
                     const selected =
                       model.lastActiveOppId === o.id &&
@@ -140,10 +128,10 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                     return (
                       <div
                         key={o.id}
-                        className={`flex items-stretch gap-0.5 rounded-md border ${
+                        className={`flex items-stretch gap-0.5 rounded-md border transition-colors ${
                           selected
-                            ? 'border-accent/70 bg-accent/10 text-ink'
-                            : 'border-border-subtle/50'
+                            ? 'border-accent/60 bg-accent-soft text-ink'
+                            : 'border-border-subtle/60 bg-surface-0/40'
                         }`}
                       >
                         <button
@@ -155,25 +143,25 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                               url: o.source_url || undefined,
                             })
                           }
-                          className="min-w-0 flex-1 text-left px-2 py-1.5 rounded-md hover:bg-surface-2 flex flex-col gap-0.5"
+                          className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-2/80"
                           title={`Load #${o.id} fit+prep (no xAI)`}
                         >
                           <div className="flex justify-between gap-2">
                             <span className="truncate">
                               <span className="font-mono text-accent/80">#{o.id}</span> {label}
                             </span>
-                            <span className="text-ink-faint shrink-0 tabular-nums">
+                            <span className="ui-meta shrink-0 tabular-nums">
                               {o.fit_score != null ? `${o.fit_score}` : '—'}
                             </span>
                           </div>
-                          <div className="text-[10px] text-ink-faint">{pipelineStatusLabel(st)}</div>
+                          <div className="ui-meta">{pipelineStatusLabel(st)}</div>
                         </button>
                         {href ? (
                           <a
                             href={href}
                             target="_blank"
                             rel="noreferrer noopener"
-                            className="shrink-0 px-2 inline-flex items-center text-ink-muted hover:text-accent border-l border-border-subtle/50"
+                            className="inline-flex shrink-0 items-center border-l border-border-subtle/50 px-2 text-ink-muted hover:text-accent"
                             title={href}
                             aria-label={`Open opportunity #${o.id} in browser`}
                             onClick={(e) => e.stopPropagation()}
@@ -191,12 +179,12 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowAll((s) => !s)}
-                  className="mt-1.5 w-full text-[10px] text-accent hover:underline"
+                  className="w-full text-left text-xs text-accent hover:underline"
                 >
                   {showAll ? 'Show fewer' : `Show all ${filtered.length}`}
                 </button>
               )}
-            </div>
+            </Panel>
 
             <CvSummaryInput
               cvSummary={model.cvSummary}
@@ -229,7 +217,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
             />
             {!view.canSearch && (
-              <p className="text-[11px] text-ink-faint px-0.5">
+              <p className="ui-meta px-0.5">
                 X bearer required.{' '}
                 <button
                   type="button"
@@ -254,7 +242,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       </div>
 
       {/* Right — φ major (~61.8%) */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-auto p-3 lg:p-5">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3 lg:p-5">
         {isDiscover && showTarget ? (
           <OpportunityTargetFitPanel
             result={targetResult}
@@ -280,7 +268,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             lastSidecarProposal={view.lastSidecarProposal}
           />
         ) : !isDiscover ? (
-          <>
+          <div className="space-y-3">
             <TweetFeed tweets={view.tweets} />
             {!hasXResults && (
               <EmptyState
@@ -288,7 +276,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                 description="Run a search or autonomous cycle on the left. Cycle decisions are heuristic until structured analyze is wired."
               />
             )}
-          </>
+          </div>
         ) : (
           <EmptyState
             title="No opportunity selected"
@@ -311,23 +299,20 @@ function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
   const canAnalyze = !busy && !!(url.trim() || pasted.trim())
 
   return (
-    <div className="border border-border-subtle rounded-lg p-3 bg-surface-1/40 space-y-2">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium">New target</span>
-        <span className="text-[10px] text-accent">evaluate</span>
-      </div>
-      <input
+    <Panel className="space-y-2.5">
+      <SectionLabel meta={<span className="text-accent">evaluate</span>}>New target</SectionLabel>
+      <Input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="https://… job or collab URL"
-        className="w-full bg-surface-0 border border-border-subtle rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent/60"
+        className="h-8 font-mono text-xs"
       />
-      <textarea
+      <Textarea
         value={pasted}
         onChange={(e) => setPasted(e.target.value)}
         placeholder="Or paste full description / JD"
         rows={3}
-        className="w-full bg-surface-0 border border-border-subtle rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent/60 resize-y"
+        className="min-h-[4.5rem] text-xs"
       />
       <Button
         variant="primary"
@@ -338,6 +323,6 @@ function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
       >
         {busy ? 'Evaluating…' : 'Evaluate fit'}
       </Button>
-    </div>
+    </Panel>
   )
 }

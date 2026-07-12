@@ -34,6 +34,7 @@ When the user query says "update what we are going to do in this session", edit 
 | **Secrets in agent sessions** | **NEVER** run `secret-tool search/lookup`, `cat` of `x-bearer`/`xai-key`, or log raw tokens. Status metadata only. See [docs/secrets-agent-safety.md](docs/secrets-agent-safety.md). Rotate keys if a transcript may have dumped them. |
 | **CV promote / devprofile** | [.agents/skills/cv-promote-guard/SKILL.md](.agents/skills/cv-promote-guard/SKILL.md) |
 | **Architecture / milestones** | [docs/agentic-architecture.md](docs/agentic-architecture.md) |
+| **Loop management / multi-model routing / structured agent cycles** | [.agents/skills/looper/SKILL.md](.agents/skills/looper/SKILL.md) (+ optional rule [.agents/rules/looper.mdc](.agents/rules/looper.mdc)) |
 | **Setup / run / verify** | [docs/SETUP.md](docs/SETUP.md) |
 
 **X snapshots:** upstream changes frequently — vendored copies live under `.agents/x-resources/`; refresh with [.agents/x-resources/refresh.sh](.agents/x-resources/refresh.sh) (see README). Do not treat stale `skill.md` as law if the live API disagrees.
@@ -76,6 +77,7 @@ Also: **XMCP**, **Docs MCP**, **xurl** — see [docs/x-tools.md](docs/x-tools.md
 | Token-efficient prompts for xAI (CV packet + X posts + X skill.md + opportunity context) | `ai-optimization` (with project reference) |
 | BDD/TDD for autonomous features (self-guards, decision logic, MCP contracts) | `bdd-strategizer` |
 | Orchestration (briefs for sub-features, verify-before-merge, iterative agent waves) | `agent-orchestrator` |
+| Loop management, multi-model routing, structured agent cycles (outer state machine over raw ReAct) | `looper` |
 | Git worktrees for concurrent agent dev of reactor parts | `git-worktrees` + `concurrent-cli-agents` |
 | Supply chain, deps (Tauri, pnpm, Rust crates, MCP), audits | `fix-dependency-security`, `audit-allow-builds`, `supply-chain-harden` |
 | Splitting work into reviewable units | `split-to-prs` |

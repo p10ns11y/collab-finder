@@ -71,16 +71,14 @@ export function FinderAppView({ view, dispatch }: Props) {
           />
         }
       >
-        {/* Global banner + active screen viewport */}
-        <div className="h-full flex flex-col overflow-hidden">
+        {/* Global banner + framed viewport (shared product surface) */}
+        <div className="flex h-full flex-col overflow-hidden p-3 pt-2">
           {banner && (
-            <div className="px-4 pt-2">
+            <div className="mb-2 shrink-0">
               <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />
             </div>
           )}
-          <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
-            {viewportContent}
-          </div>
+          <div className="ui-viewport min-h-0 flex-1">{viewportContent}</div>
         </div>
       </AppShell>
 
