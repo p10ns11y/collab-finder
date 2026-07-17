@@ -46,6 +46,15 @@ export type FinderViewState = {
   selectedRun: import('../domain/history').SearchRunWithTweets | null
   hydrateTweet: import('../domain/finder').Tweet | null
   lastSidecarProposal?: { preview: string; sidecar_path: string }
+  lastApplicationPackExport?: {
+    opportunity_id: number
+    pack_dir: string
+    pack_slug?: string
+    company?: string | null
+    title?: string | null
+    files: string[]
+    file_count: number
+  }
 }
 
 export function selectFinderView(model: FinderModel): FinderViewState {
@@ -102,5 +111,6 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     selectedRun: model.selectedRun.status === 'ready' ? model.selectedRun.data : null,
     hydrateTweet: model.hydrate.status === 'ready' ? model.hydrate.data : null,
     lastSidecarProposal: model.lastSidecarProposal,
+    lastApplicationPackExport: model.lastApplicationPackExport,
   }
 }

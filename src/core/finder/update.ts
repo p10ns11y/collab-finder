@@ -231,6 +231,31 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'CvSidecarProposeFailed':
       return [{ ...model, banner: msg.error }]
 
+    case 'ApplicationPackExportRequested':
+      return [{ ...model, banner: null }]
+    case 'ApplicationPackExportSucceeded':
+      return [
+        {
+          ...model,
+          banner: null,
+          lastApplicationPackExport: {
+            opportunity_id: msg.opportunity_id,
+            pack_dir: msg.pack_dir,
+            pack_slug: msg.pack_slug,
+            company: msg.company,
+            title: msg.title,
+            files: msg.files,
+            file_count: msg.file_count,
+          },
+          pauses: [
+            ...model.pauses,
+            `Application pack exported (${msg.file_count} files) → ${msg.pack_slug || msg.pack_dir}`,
+          ],
+        },
+      ]
+    case 'ApplicationPackExportFailed':
+      return [{ ...model, banner: msg.error }]
+
     case 'OpportunityStatusChangeRequested':
       return [{ ...model, banner: null }]
     case 'OpportunityStatusChangeSucceeded': {
@@ -401,6 +426,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           opportunityTarget: idle(),
           opportunityTargetUrl: undefined,
           lastSidecarProposal: undefined,
+          lastApplicationPackExport: undefined,
         },
       ]
 

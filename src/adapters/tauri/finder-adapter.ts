@@ -66,6 +66,8 @@ export function createTauriFinderPort(): FinderPort {
     getDevprofilePath: () => safeInvoke<string | null>('get_devprofile_path_cmd', {}),
     setDevprofilePath: (p) => safeInvoke<void>('set_devprofile_path_cmd', { path: p }),
     proposeCvSidecar: (id) => safeInvoke('propose_cv_sidecar_for_prep', { opportunityId: id }),
+    exportApplicationPack: (id) =>
+      safeInvoke('export_application_pack', { opportunityId: id }),
   }
 }
 
@@ -169,6 +171,11 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async proposeCvSidecar(opportunityId: number) {
       const result = await port.proposeCvSidecar(opportunityId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async exportApplicationPack(opportunityId: number) {
+      const result = await port.exportApplicationPack(opportunityId)
       if (!result.ok) throw result.error
       return result.value
     },

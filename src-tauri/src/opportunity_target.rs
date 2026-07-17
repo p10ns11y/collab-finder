@@ -1252,6 +1252,495 @@ pub struct CvSidecarProposalResult {
     pub suggestions_count: u32,
 }
 
+/// Result of materializing a durable application pack from stored prep (no xAI).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApplicationPackExportResult {
+    pub opportunity_id: i64,
+    /// Absolute path to the pack directory under app-local application_packs/.
+    pub pack_dir: String,
+    /// Human-readable folder slug: `{company}-{title}-{YYYY-MM-DD}`.
+    pub pack_slug: String,
+    pub company: Option<String>,
+    pub title: Option<String>,
+    /// Relative file names written (e.g. cover-letter.md).
+    pub files: Vec<String>,
+    /// Number of non-empty content files written (excludes empty skips).
+    pub file_count: u32,
+}
+
+/// Identity used for pack folder naming and manifest (pure / serializable).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ApplicationPackIdentity {
+    pub opportunity_id: i64,
+    pub company: String,
+    pub title: String,
+    /// Calendar date `YYYY-MM-DD` (from opportunity last_updated or export day).
+    pub date: String,
+    /// Folder stem: `{company}-{title}-{date}` slugified.
+    pub slug: String,
+    /// Board URL when known (Greenhouse, etc.).
+    pub source_url: Option<String>,
+    /// External job id (e.g. Greenhouse `…/jobs/4956028007`) or `opp{id}` fallback.
+    /// Devprofile apply CV filenames: `{name}-{role}-{job_id}.pdf`.
+    pub job_id: String,
+}
+
+/// Unwrap stored prep blob: either bare prep fields or `{ "prep": { ... } }`.
+fn prep_value_from_artifacts(prep_artifacts_json: &str) -> Result<Value, String> {
+    let root: Value = serde_json::from_str(prep_artifacts_json).map_err(|e| format!("invalid prep JSON: {e}"))?;
+    if root.get("cover_letter").is_some()
+        || root.get("cv_suggestions").is_some()
+        || root.get("research_notes").is_some()
+    {
+        return Ok(root);
+    }
+    if let Some(p) = root.get("prep").cloned() {
+        return Ok(p);
+    }
+    Ok(root)
+}
+
+/// Pure builder: prep artifacts JSON → ordered (filename, content) pairs.
+/// Same function the export command and unit tests use — no FS, no DB.
+/// Produces cover-letter.md, cv-suggestions.md, research-notes.md, exceptional-work.md,
+/// optional proof-variant.txt, and manifest.json when any content exists.
+///
+/// When `identity` is provided, `manifest.json` includes company/title/date/slug/opportunity_id
+/// so devprofile can name apply CVs meaningfully.
+pub(crate) fn build_application_pack_files(
+    prep_artifacts_json: &str,
+    identity: Option<&ApplicationPackIdentity>,
+) -> Result<Vec<(String, String)>, String> {
+    let prep = prep_value_from_artifacts(prep_artifacts_json)?;
+    let mut files: Vec<(String, String)> = Vec::new();
+
+    if let Some(letter) = prep.get("cover_letter").and_then(|v| v.as_str()) {
+        let t = letter.trim();
+        if !t.is_empty() {
+            files.push((
+                "cover-letter.md".into(),
+                format!("# Cover letter\n\n{t}\n"),
+            ));
+        }
+    }
+
+    if let Some(arr) = prep.get("cv_suggestions").and_then(|v| v.as_array()) {
+        let lines: Vec<String> = arr
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| format!("- {s}"))
+            .collect();
+        if !lines.is_empty() {
+            files.push((
+                "cv-suggestions.md".into(),
+                format!("# CV suggestions (sidecar-style; do not auto-apply)\n\n{}\n", lines.join("\n")),
+            ));
+        }
+    }
+
+    if let Some(notes) = prep.get("research_notes").and_then(|v| v.as_str()) {
+        let t = notes.trim();
+        if !t.is_empty() {
+            files.push((
+                "research-notes.md".into(),
+                format!("# Research notes\n\n{t}\n"),
+            ));
+        }
+    }
+
+    if let Some(ew) = prep
+        .get("exceptional_work_example")
+        .and_then(|v| v.as_str())
+    {
+        let t = ew.trim();
+        if !t.is_empty() {
+            files.push((
+                "exceptional-work.md".into(),
+                format!("# Exceptional work example\n\n{t}\n"),
+            ));
+        }
+    }
+
+    if let Some(pid) = prep.get("proof_variant_id").and_then(|v| v.as_str()) {
+        let t = pid.trim();
+        if !t.is_empty() {
+            files.push(("proof-variant.txt".into(), format!("{t}\n")));
+        }
+    }
+
+    if files.is_empty() {
+        return Err("prep has no exportable artifacts (need cover_letter, cv_suggestions, research_notes, or exceptional_work_example)".into());
+    }
+
+    let mut manifest = json!({
+        "schema": "application_pack_v1",
+        "files": files.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
+        "source": "stored_prep_artifacts",
+        "note": "Durable pack for offline apply. Does not mutate external devprofile cvdata.json.",
+    });
+    if let Some(id) = identity {
+        if let Some(obj) = manifest.as_object_mut() {
+            obj.insert("opportunity_id".into(), json!(id.opportunity_id));
+            obj.insert("company".into(), json!(id.company));
+            obj.insert("title".into(), json!(id.title));
+            obj.insert("date".into(), json!(id.date));
+            obj.insert("slug".into(), json!(id.slug));
+            obj.insert("job_id".into(), json!(id.job_id));
+            if let Some(ref url) = id.source_url {
+                obj.insert("source_url".into(), json!(url));
+            }
+            // Hint for generators: person name is applied in devprofile (cvdata).
+            // Final file: `{name}-{role}-{job_id}.pdf`.
+            obj.insert("cv_filename_rule".into(), json!("name-role-id.pdf"));
+            obj.insert(
+                "cv_filename_role_id_suffix".into(),
+                json!(format!(
+                    "{}-{}.pdf",
+                    slugify_pack_segment(&id.title),
+                    slugify_pack_segment(&id.job_id)
+                )),
+            );
+        }
+    }
+    files.push((
+        "manifest.json".into(),
+        serde_json::to_string_pretty(&manifest).unwrap_or_else(|_| "{}".into()),
+    ));
+
+    Ok(files)
+}
+
+/// Lowercase ASCII slug segment: alnum runs joined by single hyphens.
+pub(crate) fn slugify_pack_segment(s: &str) -> String {
+    let mut out = String::new();
+    let mut prev_hyphen = false;
+    for ch in s.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+            prev_hyphen = false;
+        } else if !out.is_empty() && !prev_hyphen {
+            out.push('-');
+            prev_hyphen = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    // Cap length so paths stay readable.
+    let capped: String = out.chars().take(48).collect();
+    let capped = capped.trim_end_matches('-').to_string();
+    if capped.is_empty() {
+        "unknown".into()
+    } else {
+        capped
+    }
+}
+
+/// `{company}-{title}-{YYYY-MM-DD}` (each segment slugified).
+pub(crate) fn application_pack_slug(company: &str, title: &str, date: &str) -> String {
+    format!(
+        "{}-{}-{}",
+        slugify_pack_segment(company),
+        slugify_pack_segment(title),
+        slugify_pack_segment(date)
+    )
+}
+
+/// Numeric job id from board URLs: `…/jobs/4956028007` or `?gh_jid=…`.
+pub(crate) fn job_id_from_source_url(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    if let Some(pos) = lower.find("/jobs/") {
+        let after = &url[pos + "/jobs/".len()..];
+        let id: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+    for key in ["gh_jid=", "job_id="] {
+        if let Some(pos) = lower.find(key) {
+            let after = &url[pos + key.len()..];
+            let id: String = after
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if !id.is_empty() {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+/// Greenhouse board from URL path: `…greenhouse.io/{board}/jobs/…`.
+pub(crate) fn company_from_greenhouse_url(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    let markers = ["greenhouse.io/", "boards.greenhouse.io/"];
+    for m in markers {
+        if let Some(pos) = lower.find(m) {
+            let after = &url[pos + m.len()..];
+            let board = after
+                .split(|c| c == '/' || c == '?' || c == '#')
+                .next()
+                .unwrap_or("")
+                .trim();
+            if !board.is_empty()
+                && board != "jobs"
+                && board != "embed"
+                && board.len() < 64
+            {
+                return Some(board.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Infer role title + company from JD blob / Greenhouse title patterns when DB fields empty.
+pub(crate) fn infer_title_company_from_jd(jd: &str) -> (Option<String>, Option<String>) {
+    let head: String = jd.chars().take(400).collect();
+    let lower = head.to_lowercase();
+
+    // "Job Application for {Title} at {Company}"
+    if let Some(idx) = lower.find("job application for ") {
+        let rest = &head[idx + "job application for ".len()..];
+        let rest_l = rest.to_lowercase();
+        let cut = rest_l
+            .find("back to")
+            .or_else(|| rest_l.find('\n'))
+            .unwrap_or(rest.len().min(160));
+        let phrase = rest[..cut].trim();
+        if let Some(at) = phrase.to_lowercase().rfind(" at ") {
+            let title = phrase[..at].trim();
+            let company = phrase[at + 4..].trim();
+            if !title.is_empty() && !company.is_empty() {
+                return (Some(title.to_string()), Some(company.to_string()));
+            }
+        }
+    }
+
+    // "Exceptional Software Engineer at xAI" early in cleaned text
+    if let Some(at) = lower.find(" at ") {
+        if at > 3 && at < 80 {
+            let before = head[..at].trim();
+            // strip leading noise like "Back to jobs"
+            let title = before
+                .rsplit(|c: char| c == '\n' || c == '>' )
+                .next()
+                .unwrap_or(before)
+                .trim();
+            let after = &head[at + 4..];
+            let company = after
+                .split(|c: char| c == '\n' || c == '|' || c == '(' || c == ',' || c.is_ascii_whitespace() && after.len() > 40)
+                .next()
+                .unwrap_or("")
+                .trim();
+            // Prefer short company tokens
+            let company_tok = company.split_whitespace().next().unwrap_or(company);
+            if title.len() > 3
+                && title.len() < 80
+                && company_tok.len() > 1
+                && company_tok.len() < 40
+                && !title.to_lowercase().starts_with("http")
+            {
+                return (Some(title.to_string()), Some(company_tok.to_string()));
+            }
+        }
+    }
+
+    (None, None)
+}
+
+fn date_yyyy_mm_dd_from_last_updated(last_updated: &str) -> String {
+    let t = last_updated.trim();
+    if t.len() >= 10 && t.as_bytes()[4] == b'-' && t.as_bytes()[7] == b'-' {
+        return t[..10].to_string();
+    }
+    // Fallback: today UTC-ish via chrono-less local date from system
+    use std::time::SystemTime;
+    let secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    // Rough UTC date — good enough for folder naming if last_updated missing.
+    // Prefer not pulling chrono if not already a dep; use last_updated path in practice.
+    let days = secs / 86400;
+    // 1970-01-01 + days — minimal civil date (algorithm from Howard Hinnant)
+    let z = days as i64 + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{:04}-{:02}-{:02}", y, m, d)
+}
+
+/// Resolve pack identity from opportunity row (DB fields → URL → JD → opp{id} fallbacks).
+pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> ApplicationPackIdentity {
+    let mut company = o
+        .company
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let mut title = o
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    if company.is_none() {
+        if let Some(url) = o.source_url.as_deref() {
+            company = company_from_greenhouse_url(url);
+        }
+    }
+
+    if title.is_none() || company.is_none() {
+        let (jt, jc) = infer_title_company_from_jd(&o.jd_text);
+        if title.is_none() {
+            title = jt;
+        }
+        if company.is_none() {
+            company = jc;
+        }
+    }
+
+    // Clean Greenhouse page-title noise: "Job Application for X at Y | Greenhouse"
+    if let Some(t) = title.clone() {
+        let lower = t.to_lowercase();
+        if let Some(prefix_at) = lower.find("job application for ") {
+            let rest = &t[prefix_at + "job application for ".len()..];
+            if let Some(at) = rest.to_lowercase().rfind(" at ") {
+                let role = rest[..at].trim();
+                let co = rest[at + 4..]
+                    .split(|c: char| c == '|' || c == '-' || c == '(')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                if !role.is_empty() {
+                    title = Some(role.to_string());
+                }
+                if company.is_none() && !co.is_empty() {
+                    company = Some(co.to_string());
+                }
+            }
+        }
+    }
+
+    let company = company.unwrap_or_else(|| format!("opp{}", o.id));
+    let title = title.unwrap_or_else(|| "role".into());
+    let date = date_yyyy_mm_dd_from_last_updated(&o.last_updated);
+    let slug = application_pack_slug(&company, &title, &date);
+    let source_url = o
+        .source_url
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let job_id = source_url
+        .as_deref()
+        .and_then(job_id_from_source_url)
+        .unwrap_or_else(|| format!("opp{}", o.id));
+
+    ApplicationPackIdentity {
+        opportunity_id: o.id,
+        company,
+        title,
+        date,
+        slug,
+        source_url,
+        job_id,
+    }
+}
+
+/// Deterministic pack dir under app data: `application_packs/{company}-{title}-{date}/`.
+pub(crate) fn application_pack_dir_for(base_dir: &std::path::Path, slug: &str) -> PathBuf {
+    base_dir.join("application_packs").join(slug)
+}
+
+/// Core of export_application_pack: load stored prep, build files, write under app-local
+/// `application_packs/{company}-{title}-{date}/`, record path in opportunity notes.
+/// Never touches cvdata.json.
+pub(crate) fn do_export_application_pack(
+    store: &db::SqliteStore,
+    opportunity_id: i64,
+) -> Result<ApplicationPackExportResult, String> {
+    if opportunity_id <= 0 {
+        return Err("opportunity_id required".into());
+    }
+    let opps = store
+        .get_opportunities(&db::OpportunityFilter {
+            id: Some(opportunity_id),
+            limit: Some(1),
+            ..Default::default()
+        })
+        .unwrap_or_default();
+    let o = opps
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("opportunity {opportunity_id} not found"))?;
+
+    let prep_json = o
+        .prep_artifacts_json
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "opportunity has no prep_artifacts_json — generate prep first".to_string())?;
+
+    let identity = resolve_application_pack_identity(&o);
+    let pack_files = build_application_pack_files(prep_json, Some(&identity))?;
+
+    let base_dir = crate::app_dirs::app_data_dir().map_err(|e| e.to_string())?;
+    let pack_dir = application_pack_dir_for(&base_dir, &identity.slug);
+    std::fs::create_dir_all(&pack_dir).map_err(|e| e.to_string())?;
+
+    let mut written: Vec<String> = Vec::new();
+    for (name, content) in &pack_files {
+        let path = pack_dir.join(name);
+        std::fs::write(&path, content).map_err(|e| format!("write {name}: {e}"))?;
+        written.push(name.clone());
+    }
+
+    // Recoverable path in notes; keep existing pipeline status (typically prepped).
+    let notes = format!(
+        "export_path={} pack_slug={}",
+        pack_dir.display(),
+        identity.slug
+    );
+    let _ = store.update_opportunity_status(opportunity_id, &o.status, Some(&notes));
+
+    Ok(ApplicationPackExportResult {
+        opportunity_id,
+        pack_dir: pack_dir.to_string_lossy().to_string(),
+        pack_slug: identity.slug.clone(),
+        company: Some(identity.company),
+        title: Some(identity.title),
+        file_count: written.len() as u32,
+        files: written,
+    })
+}
+
+/// Export durable application pack from stored prep (no xAI). Files under app-local
+/// `application_packs/{company}-{title}-{date}/`. Never mutates external cvdata.json.
+#[tauri::command]
+pub(crate) async fn export_application_pack(
+    db: State<'_, AppDb>,
+    opportunity_id: i64,
+) -> Result<ApplicationPackExportResult, String> {
+    if let Ok(guard) = db.0.lock() {
+        do_export_application_pack(&*guard, opportunity_id)
+    } else {
+        Err("lock failed".into())
+    }
+}
+
 fn strip_html_basic(html: &str) -> String {
     // Extremely basic tag stripper for v1. Good enough to get text for LLM.
     let mut out = String::new();
@@ -1809,6 +2298,269 @@ mod tests {
         assert!(std::path::Path::new(&res.sidecar_path).exists(), "sidecar written by cmd");
 
         crate::app_dirs::test_harness::clear();
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn build_application_pack_files_from_representative_prep() {
+        let prep = r#"{
+            "cover_letter": "Dear hiring team, I bring Tauri + agentic systems experience.",
+            "cv_suggestions": ["Lead with collab-finder OSS", "Add truth-seeking AI line"],
+            "research_notes": "Company ships agents; emphasize self-guards.",
+            "exceptional_work_example": "Built collab-finder with MVU + xAI prep packs.",
+            "proof_variant_id": "EW-agent-collab-finder"
+        }"#;
+        let files = build_application_pack_files(prep, None).expect("builder");
+        let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"cover-letter.md"), "must include cover letter");
+        assert!(names.contains(&"cv-suggestions.md"));
+        assert!(names.contains(&"research-notes.md"));
+        assert!(names.contains(&"exceptional-work.md"));
+        assert!(names.contains(&"proof-variant.txt"));
+        assert!(names.contains(&"manifest.json"));
+        let letter = files
+            .iter()
+            .find(|(n, _)| n == "cover-letter.md")
+            .map(|(_, c)| c.as_str())
+            .unwrap_or("");
+        assert!(
+            letter.contains("Tauri + agentic"),
+            "cover letter content must flow from prep JSON"
+        );
+        assert!(!letter.trim().is_empty());
+    }
+
+    #[test]
+    fn build_application_pack_files_unwraps_nested_prep() {
+        let wrapped = r#"{"prep":{"cover_letter":"Nested letter body with substance.","research_notes":"Notes."},"opportunity_id":9}"#;
+        let files = build_application_pack_files(wrapped, None).expect("nested");
+        let letter = files
+            .iter()
+            .find(|(n, _)| n == "cover-letter.md")
+            .map(|(_, c)| c.clone())
+            .unwrap_or_default();
+        assert!(letter.contains("Nested letter body"));
+    }
+
+    #[test]
+    fn application_pack_slug_is_company_title_date() {
+        assert_eq!(
+            application_pack_slug("xAI", "Exceptional Software Engineer", "2026-07-17"),
+            "xai-exceptional-software-engineer-2026-07-17"
+        );
+        assert_eq!(slugify_pack_segment("  Foo & Bar!! "), "foo-bar");
+    }
+
+    #[test]
+    fn company_from_greenhouse_url_reads_board() {
+        assert_eq!(
+            company_from_greenhouse_url(
+                "https://job-boards.greenhouse.io/xai/jobs/4956028007"
+            )
+            .as_deref(),
+            Some("xai")
+        );
+    }
+
+    #[test]
+    fn infer_title_company_from_jd_greenhouse_prefix() {
+        let jd = "Job Application for Exceptional Software Engineer at xAIBack to jobsExceptional…";
+        let (t, c) = infer_title_company_from_jd(jd);
+        assert_eq!(t.as_deref(), Some("Exceptional Software Engineer"));
+        assert_eq!(c.as_deref(), Some("xAI"));
+    }
+
+    #[test]
+    fn resolve_identity_falls_back_from_url_and_jd_when_db_empty() {
+        let o = crate::db::Opportunity {
+            id: 17,
+            kind: "web".into(),
+            source_url: Some(
+                "https://job-boards.greenhouse.io/xai/jobs/4956028007".into(),
+            ),
+            source_ref: None,
+            title: None,
+            company: None,
+            jd_text: "Job Application for Exceptional Software Engineer at xAIBack to jobs…".into(),
+            status: "prepped".into(),
+            fit_score: Some(85),
+            analysis_json: None,
+            prep_artifacts_json: None,
+            last_updated: "2026-07-17 13:38:28".into(),
+            notes: None,
+        };
+        let id = resolve_application_pack_identity(&o);
+        assert_eq!(id.slug, "xai-exceptional-software-engineer-2026-07-17");
+        assert_eq!(id.date, "2026-07-17");
+        assert_eq!(id.opportunity_id, 17);
+        assert_eq!(id.job_id, "4956028007");
+        assert!(id.source_url.as_deref().unwrap_or("").contains("4956028007"));
+    }
+
+    #[test]
+    fn job_id_from_source_url_greenhouse() {
+        assert_eq!(
+            job_id_from_source_url(
+                "https://job-boards.greenhouse.io/xai/jobs/4956028007"
+            )
+            .as_deref(),
+            Some("4956028007")
+        );
+    }
+
+    #[test]
+    fn do_export_application_pack_writes_files_and_does_not_touch_cvdata() {
+        struct HarnessGuard(std::path::PathBuf);
+        impl Drop for HarnessGuard {
+            fn drop(&mut self) {
+                crate::app_dirs::test_harness::clear();
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("cf_export_pack_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let _guard = HarnessGuard(tmp.clone());
+        crate::app_dirs::test_harness::set(tmp.clone());
+
+        let store = crate::db::SqliteStore::open_at(tmp.join("export.db")).expect("store");
+        let prep = r#"{
+            "cover_letter": "Dear team, durable pack export test letter for application.",
+            "cv_suggestions": ["Promote agentic Tauri work"],
+            "research_notes": "Role values self-guarded agents.",
+            "exceptional_work_example": "Shipped collab-finder prep + export path."
+        }"#;
+        let id = store
+            .upsert_opportunity(
+                "web",
+                Some("https://example.com/jobs/export-1"),
+                None,
+                Some("Staff Engineer"),
+                Some("ExampleCo"),
+                "jd about agents",
+                "prepped",
+                Some(88),
+                None,
+                Some(prep),
+                None,
+            )
+            .expect("upsert");
+
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let pre_cv = std::fs::read(live).unwrap_or_default();
+
+        // Drive shipped export core (same path as export_application_pack cmd after lock).
+        let res = do_export_application_pack(&store, id).expect("export");
+
+        let post_cv = std::fs::read(live).unwrap_or_default();
+        assert_eq!(pre_cv, post_cv, "export must never write master cvdata.json");
+
+        assert_eq!(res.opportunity_id, id);
+        assert!(
+            res.pack_dir.contains("application_packs")
+                && res.pack_dir.contains("exampleco")
+                && res.pack_dir.contains("staff-engineer"),
+            "pack_dir should be under application_packs/{{company}}-{{title}}-{{date}}, got {}",
+            res.pack_dir
+        );
+        assert!(
+            res.pack_slug.contains("exampleco") && res.pack_slug.contains("staff-engineer"),
+            "pack_slug should be company-title-date, got {}",
+            res.pack_slug
+        );
+        assert_eq!(res.company.as_deref(), Some("ExampleCo"));
+        assert_eq!(res.title.as_deref(), Some("Staff Engineer"));
+        assert!(res.file_count >= 4, "expect multiple artifacts + manifest");
+        assert!(res.files.iter().any(|f| f == "cover-letter.md"));
+
+        let letter_path = std::path::Path::new(&res.pack_dir).join("cover-letter.md");
+        let letter_body = std::fs::read_to_string(&letter_path).expect("read letter");
+        assert!(
+            letter_body.contains("durable pack export test letter"),
+            "cover-letter.md must contain real prep content"
+        );
+        assert!(!letter_body.trim().is_empty());
+
+        let manifest_path = std::path::Path::new(&res.pack_dir).join("manifest.json");
+        let manifest_body = std::fs::read_to_string(&manifest_path).expect("manifest");
+        assert!(
+            manifest_body.contains(&res.pack_slug) && manifest_body.contains("\"slug\""),
+            "manifest must include slug for apply CV naming"
+        );
+
+        // notes recoverability
+        let opps = store
+            .get_opportunities(&crate::db::OpportunityFilter {
+                id: Some(id),
+                limit: Some(1),
+                ..Default::default()
+            })
+            .expect("get");
+        let notes = opps[0].notes.as_deref().unwrap_or("");
+        assert!(
+            notes.contains("export_path=")
+                && notes.contains(&res.pack_dir)
+                && notes.contains("pack_slug="),
+            "notes must record export_path + pack_slug for hydrate recoverability"
+        );
+        // pipeline status preserved
+        assert_eq!(opps[0].status, "prepped");
+    }
+
+    #[test]
+    fn update_opportunity_status_prepped_to_applied_persists() {
+        let tmp = std::env::temp_dir().join(format!("cf_status_applied_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let store = crate::db::SqliteStore::open_at(tmp.join("s.db")).expect("store");
+        let prep = r#"{"cover_letter":"x"}"#;
+        let id = store
+            .upsert_opportunity(
+                "web",
+                Some("https://example.com/applied"),
+                None,
+                Some("Role"),
+                Some("Co"),
+                "jd",
+                "prepped",
+                Some(80),
+                None,
+                Some(prep),
+                None,
+            )
+            .expect("ins");
+
+        store
+            .update_opportunity_status(id, "applied", Some("submitted via company form"))
+            .expect("status");
+
+        let opps = store
+            .get_opportunities(&crate::db::OpportunityFilter {
+                id: Some(id),
+                limit: Some(1),
+                ..Default::default()
+            })
+            .expect("get");
+        assert_eq!(opps.len(), 1);
+        assert_eq!(opps[0].status, "applied");
+        assert_eq!(
+            opps[0].notes.as_deref(),
+            Some("submitted via company form")
+        );
+
+        // list path used by get_opportunities / rail
+        let listed = store
+            .get_opportunities(&crate::db::OpportunityFilter {
+                status: Some("applied".into()),
+                limit: Some(50),
+                ..Default::default()
+            })
+            .expect("list applied");
+        assert!(
+            listed.iter().any(|o| o.id == id && o.status == "applied"),
+            "applied row must appear in status filter list"
+        );
+
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

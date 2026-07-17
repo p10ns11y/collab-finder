@@ -98,6 +98,20 @@ export type FinderMsg =
   | { type: 'CvSidecarProposeSucceeded'; preview: string; sidecar_path: string; suggestions_count: number }
   | { type: 'CvSidecarProposeFailed'; error: AppError }
 
+  // Durable application pack export (prep JSON → app-local files, no xAI)
+  | { type: 'ApplicationPackExportRequested'; opportunity_id: number }
+  | {
+      type: 'ApplicationPackExportSucceeded'
+      opportunity_id: number
+      pack_dir: string
+      pack_slug?: string
+      company?: string | null
+      title?: string | null
+      files: string[]
+      file_count: number
+    }
+  | { type: 'ApplicationPackExportFailed'; error: AppError }
+
   // Pipeline status (applied / passed / archived) — local DB, no xAI
   | { type: 'OpportunityStatusChangeRequested'; id: number; status: string }
   | { type: 'OpportunityStatusChangeSucceeded'; id: number; status: string }
