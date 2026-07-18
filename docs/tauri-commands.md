@@ -1,6 +1,6 @@
 # Tauri command contract
 
-The desktop shell exposes **25 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
+The desktop shell exposes **26 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
@@ -67,6 +67,9 @@ Implemented in `src-tauri/src/opportunity_target.rs`. Adapter: `finder-adapter.t
 | `fetch_opportunity_target_page` | `{ url: string }` | `OpportunityTargetPageResult` | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. Basic Greenhouse title/company extraction for prefill. |
 | `analyze_opportunity_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `OpportunityTargetAnalysisResult` | Live xAI structured fit (`target_fit_v1`). Persists to `opportunities` (status `analyzed`). Uses CV summary from Discover textarea. |
 | `prep_opportunity_target` | `{ opportunity_id?, url?, pasted_jd?, title?, company?, cv_summary?, previous_fit? }` | `OpportunityTargetPrepResult` | Live xAI prep pack (`target_prep_v1`: cover letter, cv_suggestions, research_notes, optional exceptional_work_example). Updates row to `prepped`. `previous_fit` carries Evaluate Fit JSON from the panel. |
+| `export_application_pack` | `{ opportunity_id }` | `ApplicationPackExportResult` | Pure materialization from stored prep (no xAI). Writes pack files under app-local `application_packs/{company}-{title}-{YYYY-MM-DD}/` (slugified; falls back from URL/JD when DB title/company empty). `manifest.json` includes `slug`, `company`, `title`, `date`, `opportunity_id`, `cv_filename`. Result also has `pack_slug`. Notes: `export_path=` + `pack_slug=`. Never mutates external `cvdata.json`. |
+| `propose_cv_sidecar_for_prep` | `{ opportunity_id }` | `CvSidecarProposalResult` | Sidecar-only proposal under `cv_proposals/opp_{id}/`. |
+| `update_opportunity_status_cmd` | `{ id, status, notes? }` | `void` | Pipeline status only (`new`/`analyzed`/`prepped`/`applied`/`passed`/`archived`) — no xAI. |
 | `get_opportunities` | `{ id?, q?, status?, limit? }` | `Opportunity[]` | SQLite read for rail, Data tables, and hydrate-by-id (`loadOpportunityCmd`). `id` filter pushed to SQL (TD-002). |
 
 `OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `src/core/domain/opportunity-target.ts`.

@@ -93,6 +93,16 @@ export type FinderModel = {
   lastActiveOppId?: number
   // Last proposal from "Propose these CV suggestions as sidecar" for display in the prep panel.
   lastSidecarProposal?: { preview: string; sidecar_path: string }
+  // Last durable application pack export (files under application_packs/{company}-{title}-{date}/).
+  lastApplicationPackExport?: {
+    opportunity_id: number
+    pack_dir: string
+    pack_slug?: string
+    company?: string | null
+    title?: string | null
+    files: string[]
+    file_count: number
+  }
 }
 
 export function initialFinderModel(): FinderModel {
@@ -169,5 +179,6 @@ export function initialFinderModel(): FinderModel {
     opportunityTargetUrl,
     lastActiveOppId,
     lastSidecarProposal: undefined,
+    lastApplicationPackExport: undefined,
   }
 }

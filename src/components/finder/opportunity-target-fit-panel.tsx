@@ -26,8 +26,18 @@ type Props = {
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
   onProposeSidecar?: (opportunityId?: number) => void
+  onExportPack?: (opportunityId?: number) => void
   onStatusChange?: (id: number, status: PipelineStatus) => void
   lastSidecarProposal?: { preview: string; sidecar_path: string }
+  lastApplicationPackExport?: {
+    opportunity_id: number
+    pack_dir: string
+    pack_slug?: string
+    company?: string | null
+    title?: string | null
+    files: string[]
+    file_count: number
+  }
 }
 
 function PrepSection({
@@ -74,8 +84,10 @@ export function OpportunityTargetFitPanel({
   onClear,
   onPrepRequested,
   onProposeSidecar,
+  onExportPack,
   onStatusChange,
   lastSidecarProposal,
+  lastApplicationPackExport,
 }: Props) {
   const [modelLabel, setModelLabel] = React.useState('grok-4.5')
   const [actionCopied, setActionCopied] = React.useState(false)
@@ -413,6 +425,16 @@ export function OpportunityTargetFitPanel({
               {prep ? 'Regenerate prep' : 'Generate prep'}
             </Button>
           )}
+          {onExportPack && prep && opportunityId && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onExportPack(opportunityId)}
+              title="Write durable application pack files under app-local application_packs/ (no xAI, no CV mutation)"
+            >
+              Export pack
+            </Button>
+          )}
           {onProposeSidecar && prep && opportunityId && (
             <Button
               variant="ghost"
@@ -451,6 +473,26 @@ export function OpportunityTargetFitPanel({
             </Button>
           )}
         </div>
+
+        {lastApplicationPackExport &&
+          opportunityId != null &&
+          lastApplicationPackExport.opportunity_id === opportunityId && (
+            <div className="p-2.5 border border-success/30 rounded-md text-[11px] bg-surface-1/50">
+              <div className="font-medium text-xs">
+                Application pack exported ({lastApplicationPackExport.file_count} files)
+                {lastApplicationPackExport.pack_slug
+                  ? ` — ${lastApplicationPackExport.pack_slug}`
+                  : ''}
+              </div>
+              <div className="mt-1 font-mono text-[10px] text-ink-muted break-all">
+                {lastApplicationPackExport.pack_dir}
+              </div>
+              <div className="text-ink-faint mt-1">
+                {lastApplicationPackExport.files.join(', ')} — durable files for offline apply; master
+                CV not modified.
+              </div>
+            </div>
+          )}
 
         {lastSidecarProposal && (
           <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">

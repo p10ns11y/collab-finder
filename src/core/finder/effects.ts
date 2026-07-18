@@ -44,6 +44,15 @@ export type FinderPorts = {
     getDevprofilePath(): Promise<string | null>
     setDevprofilePath(path: string | null): Promise<void>
     proposeCvSidecar(opportunityId: number): Promise<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }>
+    exportApplicationPack(opportunityId: number): Promise<{
+      opportunity_id: number
+      pack_dir: string
+      pack_slug: string
+      company?: string | null
+      title?: string | null
+      files: string[]
+      file_count: number
+    }>
   }
 }
 
@@ -204,6 +213,29 @@ export function proposeCvSidecarCmd(ports: FinderPorts, opportunityId: number): 
       }
       const r = result.value as any
       dispatch({ type: 'CvSidecarProposeSucceeded', preview: r.preview || '', sidecar_path: r.sidecar_path || '', suggestions_count: r.suggestions_count || 0 })
+    })
+  }
+}
+
+export function exportApplicationPackCmd(ports: FinderPorts, opportunityId: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.exportApplicationPack(opportunityId), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'ApplicationPackExportFailed', error: result.error })
+        return
+      }
+      const r = result.value
+      dispatch({
+        type: 'ApplicationPackExportSucceeded',
+        opportunity_id: r.opportunity_id,
+        pack_dir: r.pack_dir || '',
+        pack_slug: r.pack_slug || undefined,
+        company: r.company ?? null,
+        title: r.title ?? null,
+        files: r.files || [],
+        file_count: r.file_count || 0,
+      })
+      dispatch({ type: 'HistoryRefreshRequested' })
     })
   }
 }
@@ -634,6 +666,8 @@ export function effectForMsg(
       return promoteCmd(ports)
     case 'CvSidecarProposeRequested':
       return proposeCvSidecarCmd(ports, msg.opportunity_id)
+    case 'ApplicationPackExportRequested':
+      return exportApplicationPackCmd(ports, msg.opportunity_id)
     case 'OpportunityStatusChangeRequested':
       return updateOpportunityStatusCmd(ports, msg.id, msg.status)
     case 'OpportunityTargetAnalyzeRequested':

@@ -46,4 +46,20 @@ export type FinderPort = {
 
   // propose sidecar from prep cv_suggestions (AC3) - sidecar only + basic preview, no master mutation
   proposeCvSidecar(opportunityId: number): Promise<Result<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }, AppError>>
+
+  /** Materialize durable application pack files from stored prep (no xAI). App-local application_packs/{company}-{title}-{date}/. */
+  exportApplicationPack(opportunityId: number): Promise<
+    Result<
+      {
+        opportunity_id: number
+        pack_dir: string
+        pack_slug: string
+        company?: string | null
+        title?: string | null
+        files: string[]
+        file_count: number
+      },
+      AppError
+    >
+  >
 }

@@ -263,10 +263,15 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               if (opportunityId)
                 dispatch({ type: 'CvSidecarProposeRequested', opportunity_id: opportunityId })
             }}
+            onExportPack={(opportunityId) => {
+              if (opportunityId)
+                dispatch({ type: 'ApplicationPackExportRequested', opportunity_id: opportunityId })
+            }}
             onStatusChange={(id, status) =>
               dispatch({ type: 'OpportunityStatusChangeRequested', id, status })
             }
             lastSidecarProposal={view.lastSidecarProposal}
+            lastApplicationPackExport={view.lastApplicationPackExport}
           />
         ) : !isDiscover ? (
           <div className="space-y-3">
