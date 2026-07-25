@@ -1,7 +1,8 @@
 {
   "profile": "collab-finder",
-  "source_drafts": "/home/sustainableabundance/Work/personal/agent-prompt-tuning-lab/data/distill/20260725-153622/drafts",
+  "source_drafts": "~/Work/personal/agent-prompt-tuning-lab/data/distill/20260725-153622/drafts",
   "installed_at": "2026-07-25T16:36:10.808Z",
+  "domain_review": "CV/opportunity domain — no trim needed; all distill install content kept",
   "workflows": [
     "opportunity-cv-generation-flow",
     "cv-apply-pack-workflow",
