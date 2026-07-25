@@ -1,0 +1,22 @@
+{
+  "profile": "collab-finder",
+  "source_drafts": "/home/sustainableabundance/Work/personal/agent-prompt-tuning-lab/data/distill/20260725-153622/drafts",
+  "installed_at": "2026-07-25T16:36:10.808Z",
+  "workflows": [
+    "opportunity-cv-generation-flow",
+    "cv-apply-pack-workflow",
+    "cv-packet-enrichment-and-fit",
+    "distill-candidate-profile-for-opportunity-matching"
+  ],
+  "skills": [
+    "setup-application-pack-symlink",
+    "finalize-apply-cv-export",
+    "enrich-cover-letter-with-projects",
+    "inject-constraints-into-prep",
+    "slugify-pack-and-cv-names",
+    "select-apply-specific-projects"
+  ],
+  "rules": [
+    "pack-slug-naming.mdc"
+  ]
+}
