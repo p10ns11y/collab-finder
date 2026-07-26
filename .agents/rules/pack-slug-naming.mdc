@@ -1,0 +1,15 @@
+---
+description: Name pack folders and CV files as company-title-date with job_id fallback
+alwaysApply: false
+---
+
+# pack-slug-naming
+
+Name pack folders and CV files as company-title-date with job_id fallback
+
+## Constraints
+
+- read opportunity metadata
+- search_replace manifest and export logic
+
+Evidence: turn 7 + turn 8 narrative
