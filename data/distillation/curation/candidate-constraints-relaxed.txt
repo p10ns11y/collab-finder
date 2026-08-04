@@ -1,0 +1,10 @@
+CANDIDATE_CONSTRAINTS_RELAXED v2026-08-03
+MODE: RELAXED — simple fitness (relevant experience vs role). Not dual-fit mission scoring.
+AUTH: Swedish citizen; Stockholm primary base; currently India >6mo stay. US: needs sponsorship for US roles — surface honestly in rationale when relevant; do not invent authorization.
+FAMILY: Weekends protected for family (note only; not a veto for scoring hireability).
+FOCUS: Score how well the candidate's CV evidence matches the role's required skills and responsibilities.
+DO_NOT: Require physical-world ML, robotics, world models, or Elon multi-planetary mission alignment.
+DO_NOT: Tank score solely because role is not SpaceXAI-tier comp or not AI-lab production.
+SOFT_PREFS (mention in rationale if relevant; do not dominate score): high-signal culture; clear communication; Nordics/remote/hybrid flexibility when stated.
+COMP: Optional note underpay or exceptional pay in rationale — not a hard reject for fitness.
+PROOF: Prep may use proof-variants separately; fitness is experience match only.

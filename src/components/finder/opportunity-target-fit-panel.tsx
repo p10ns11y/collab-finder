@@ -16,6 +16,12 @@ import {
   type PipelineStatus,
 } from '../../core/domain/opportunity-pipeline'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
+import {
+  canRequestPrepBundle,
+  isRelaxedFitMode,
+  parseFitMode,
+  type FitMode,
+} from '../../core/domain/fit-mode'
 
 type Props = {
   result: OpportunityTargetResult | null
@@ -23,10 +29,13 @@ type Props = {
   busy: boolean
   sourceUrl?: string
   pipelineStatus?: string
+  /** Current settings mode (fallback when result has no fit_mode). */
+  fitMode?: FitMode
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
   onProposeSidecar?: (opportunityId?: number) => void
   onExportPack?: (opportunityId?: number) => void
+  onGenerateApplyCv?: (opportunityId?: number) => void
   onStatusChange?: (id: number, status: PipelineStatus) => void
   lastSidecarProposal?: { preview: string; sidecar_path: string }
   lastApplicationPackExport?: {
@@ -37,6 +46,14 @@ type Props = {
     title?: string | null
     files: string[]
     file_count: number
+  }
+  lastApplyCv?: {
+    opportunity_id: number
+    pack_slug: string
+    pack_dir: string
+    pdf_path: string
+    flat_pdf_path?: string | null
+    submit_pdf_path?: string | null
   }
 }
 
@@ -81,13 +98,16 @@ export function OpportunityTargetFitPanel({
   busy,
   sourceUrl,
   pipelineStatus,
+  fitMode: fitModeProp,
   onClear,
   onPrepRequested,
   onProposeSidecar,
   onExportPack,
+  onGenerateApplyCv,
   onStatusChange,
   lastSidecarProposal,
   lastApplicationPackExport,
+  lastApplyCv,
 }: Props) {
   const [modelLabel, setModelLabel] = React.useState('grok-4.5')
   const [actionCopied, setActionCopied] = React.useState(false)
@@ -132,10 +152,23 @@ export function OpportunityTargetFitPanel({
   const prep: OpportunityTargetPrep | undefined = 'prep' in result ? result.prep : undefined
   if (!fit && !prep) return null
 
+  const resultMode =
+    'fit_mode' in result && typeof (result as { fit_mode?: string }).fit_mode === 'string'
+      ? (result as { fit_mode?: string }).fit_mode
+      : undefined
+  const activeMode = parseFitMode(resultMode ?? fitModeProp)
+  const relaxed = isRelaxedFitMode(activeMode)
+
   const score = fit?.overall ?? 0
   const candidateToRole = fit?.candidate_to_role
   const roleToCandidate = fit?.role_to_candidate
   const tone = score >= 75 ? 'success' : score >= 55 ? 'accent' : 'warning'
+  const showDualFit = !relaxed && (candidateToRole != null || roleToCandidate != null)
+  const canPrep = canRequestPrepBundle({
+    fitMode: activeMode,
+    overall: fit?.overall,
+    candidateToRole: fit?.candidate_to_role,
+  })
   const opportunityId = 'opportunity_id' in result ? result.opportunity_id : undefined
   const estCost = 'est_cost_usd' in result ? result.est_cost_usd : undefined
   const packetPreview = 'packet_preview' in result ? result.packet_preview : undefined
@@ -181,20 +214,23 @@ export function OpportunityTargetFitPanel({
       <CardHeader className="pb-2 sticky top-0 z-10 bg-surface-1/95 backdrop-blur-sm border-b border-border-subtle/40">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-            {prep ? 'Fit + prep' : 'Fit analysis'}
+            {prep ? (relaxed ? 'Fitness + prep' : 'Fit + prep') : relaxed ? 'Fitness' : 'Fit analysis'}
             <span className="text-[10px] text-accent font-normal">{modelLabel}</span>
             <Badge tone="neutral" className="text-[10px]">
               {pipelineStatusLabel(statusNorm)}
             </Badge>
+            <Badge tone={relaxed ? 'accent' : 'neutral'} className="text-[10px]">
+              {relaxed ? 'relaxed' : 'strict'}
+            </Badge>
           </CardTitle>
-          <Badge tone={tone}>{score}/100 mutual</Badge>
+          <Badge tone={tone}>{score}/100 {relaxed ? 'fitness' : 'mutual'}</Badge>
         </div>
         <div className="text-[11px] text-ink-faint">
           #{opportunityId ?? '—'}
           {estCost != null ? ` · ~$${estCost.toFixed(4)}` : ''}
-          {score >= 75 ? ' · Strong fit' : score >= 55 ? ' · Moderate — review gaps' : ' · Low fit'}
-          {candidateToRole != null ? ` · You→role ${candidateToRole}` : ''}
-          {roleToCandidate != null ? ` · Role→you ${roleToCandidate}` : ''}
+          {score >= 75 ? ' · Strong match' : score >= 55 ? ' · Moderate — review gaps' : ' · Low match'}
+          {showDualFit && candidateToRole != null ? ` · You→role ${candidateToRole}` : ''}
+          {showDualFit && roleToCandidate != null ? ` · Role→you ${roleToCandidate}` : ''}
         </div>
         {externalHref ? (
           <a
@@ -225,7 +261,7 @@ export function OpportunityTargetFitPanel({
           </div>
         )}
 
-        {(candidateToRole != null || roleToCandidate != null) && (
+        {showDualFit && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
               <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
@@ -251,7 +287,7 @@ export function OpportunityTargetFitPanel({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
-              Must address (you → role)
+              {relaxed ? 'Gaps to address' : 'Must address (you → role)'}
             </div>
             {fit?.gaps_must && fit.gaps_must.length > 0 ? (
               <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
@@ -277,12 +313,11 @@ export function OpportunityTargetFitPanel({
           </div>
         </div>
 
-        {(candidateToRole != null ||
-          roleToCandidate != null ||
-          roleConcerns.length > 0 ||
-          dealBreakers.length > 0 ||
-          fit?.role_concerns != null ||
-          fit?.deal_breakers_triggered != null) && (
+        {showDualFit &&
+          (roleConcerns.length > 0 ||
+            dealBreakers.length > 0 ||
+            fit?.role_concerns != null ||
+            fit?.deal_breakers_triggered != null) && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
@@ -411,7 +446,7 @@ export function OpportunityTargetFitPanel({
               {actionCopied ? 'Copied!' : 'Copy action'}
             </Button>
           )}
-          {onPrepRequested && result && (fit?.overall ?? 0) >= 45 && (
+          {onPrepRequested && result && canPrep && (
             <Button
               variant="primary"
               size="sm"
@@ -419,20 +454,12 @@ export function OpportunityTargetFitPanel({
               title={
                 estCost != null
                   ? `Prior call ~$${estCost.toFixed(4)}; prep is an additional model call`
-                  : 'Generate prep pack (additional model call)'
+                  : relaxed
+                    ? 'Generate preparation bundle (additional model call)'
+                    : 'Generate prep pack (additional model call)'
               }
             >
-              {prep ? 'Regenerate prep' : 'Generate prep'}
-            </Button>
-          )}
-          {onExportPack && prep && opportunityId && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => onExportPack(opportunityId)}
-              title="Write durable application pack files under app-local application_packs/ (no xAI, no CV mutation)"
-            >
-              Export pack
+              {prep ? 'Regenerate prep' : relaxed ? 'Prepare bundle' : 'Generate prep'}
             </Button>
           )}
           {onProposeSidecar && prep && opportunityId && (
@@ -443,6 +470,26 @@ export function OpportunityTargetFitPanel({
               title="Propose CV suggestions as sidecar (no master mutation)"
             >
               Propose CV sidecar
+            </Button>
+          )}
+          {onGenerateApplyCv && prep && opportunityId && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onGenerateApplyCv(opportunityId)}
+              title="One-click: re-export pack + run devprofile generate-apply-cv (PDF only; no master cvdata write). Export pack alone is optional."
+            >
+              Generate apply CV
+            </Button>
+          )}
+          {onExportPack && prep && opportunityId && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onExportPack(opportunityId)}
+              title="Optional: write pack files only (no PDF). Generate apply CV already exports first."
+            >
+              Export pack only
             </Button>
           )}
           {onStatusChange && opportunityId != null && opportunityId > 0 && (
@@ -474,26 +521,6 @@ export function OpportunityTargetFitPanel({
           )}
         </div>
 
-        {lastApplicationPackExport &&
-          opportunityId != null &&
-          lastApplicationPackExport.opportunity_id === opportunityId && (
-            <div className="p-2.5 border border-success/30 rounded-md text-[11px] bg-surface-1/50">
-              <div className="font-medium text-xs">
-                Application pack exported ({lastApplicationPackExport.file_count} files)
-                {lastApplicationPackExport.pack_slug
-                  ? ` — ${lastApplicationPackExport.pack_slug}`
-                  : ''}
-              </div>
-              <div className="mt-1 font-mono text-[10px] text-ink-muted break-all">
-                {lastApplicationPackExport.pack_dir}
-              </div>
-              <div className="text-ink-faint mt-1">
-                {lastApplicationPackExport.files.join(', ')} — durable files for offline apply; master
-                CV not modified.
-              </div>
-            </div>
-          )}
-
         {lastSidecarProposal && (
           <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">
             <div className="font-medium text-xs">CV sidecar proposed (no master write)</div>
@@ -502,6 +529,58 @@ export function OpportunityTargetFitPanel({
             </pre>
             <div className="text-ink-faint mt-1">
               Artifact under app-local cv_proposals/. Apply UI: review path only for now.
+            </div>
+          </div>
+        )}
+
+        {lastApplicationPackExport &&
+          lastApplicationPackExport.opportunity_id === opportunityId && (
+            <div className="p-2.5 border border-border-subtle rounded-md text-[11px] bg-surface-1/50">
+              <div className="font-medium text-xs">
+                Application pack
+                {lastApplicationPackExport.file_count > 0
+                  ? ` (${lastApplicationPackExport.file_count} files)`
+                  : lastApplicationPackExport.files?.length
+                    ? ` (${lastApplicationPackExport.files.length} files)`
+                    : ''}
+                {lastApplicationPackExport.pack_slug
+                  ? ` — ${lastApplicationPackExport.pack_slug}`
+                  : ''}
+              </div>
+              <div className="font-mono text-ink-muted mt-1 break-all">
+                {lastApplicationPackExport.pack_dir}
+              </div>
+              {(lastApplicationPackExport.files?.length ?? 0) > 0 ? (
+                <div className="text-ink-faint mt-1">
+                  {lastApplicationPackExport.files.join(', ')} — durable offline pack; master
+                  cvdata untouched. Prefer <strong>Generate apply CV</strong> for the PDF (exports
+                  automatically).
+                </div>
+              ) : (
+                <div className="text-warning mt-1">
+                  No file list in UI — if the folder is empty, run Generate prep then Generate apply
+                  CV (one-click export + PDF).
+                </div>
+              )}
+            </div>
+          )}
+
+        {lastApplyCv && lastApplyCv.opportunity_id === opportunityId && (
+          <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">
+            <div className="font-medium text-xs">Apply CV PDF ready (no master write)</div>
+            <div className="font-mono text-ink-muted mt-1 break-all">{lastApplyCv.pdf_path}</div>
+            {lastApplyCv.flat_pdf_path ? (
+              <div className="font-mono text-ink-faint mt-0.5 break-all">
+                Flat: {lastApplyCv.flat_pdf_path}
+              </div>
+            ) : null}
+            {lastApplyCv.submit_pdf_path ? (
+              <div className="font-mono text-ink-faint mt-0.5 break-all">
+                Submit: {lastApplyCv.submit_pdf_path}
+              </div>
+            ) : null}
+            <div className="text-ink-faint mt-1">
+              From devprofile generate-apply-cv · pack {lastApplyCv.pack_slug}
             </div>
           </div>
         )}

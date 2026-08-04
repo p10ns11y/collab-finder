@@ -12,6 +12,7 @@ import type {
   SearchRunWithTweets,
 } from '../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../core/domain/opportunity-target'
+import type { HireBoardFilter, HireBoardLead } from '../core/domain/hire-board'
 import type { Result } from '../core/result'
 import type { AppError } from '../core/error'
 
@@ -40,6 +41,16 @@ export type FinderPort = {
   /** Pipeline status only (applied/passed/archived/…) — no xAI. */
   updateOpportunityStatus(id: number, status: string, notes?: string): Promise<Result<void, AppError>>
 
+  /** Public hire sheet → ranked ephemeral leads (no bulk DB write). */
+  fetchHireBoard(filter?: HireBoardFilter): Promise<Result<HireBoardLead[], AppError>>
+  /** Persist one lead as Opportunity status=new (URL dedup). */
+  selectHireBoardLead(payload: {
+    company: string
+    location?: string
+    career_url: string
+    thread_url?: string
+  }): Promise<Result<Opportunity, AppError>>
+
   // devprofile grounding config (AC2): when set, resolve_cv uses pruned cvdata.json from the path
   getDevprofilePath(): Promise<Result<string | null, AppError>>
   setDevprofilePath(path: string | null): Promise<Result<void, AppError>>
@@ -47,7 +58,7 @@ export type FinderPort = {
   // propose sidecar from prep cv_suggestions (AC3) - sidecar only + basic preview, no master mutation
   proposeCvSidecar(opportunityId: number): Promise<Result<{ opportunity_id: number; preview: string; sidecar_path: string; suggestions_count: number }, AppError>>
 
-  /** Materialize durable application pack files from stored prep (no xAI). App-local application_packs/{company}-{title}-{date}/. */
+  /** Durable pack files under app-local application_packs/ (no xAI, no CV mutation). */
   exportApplicationPack(opportunityId: number): Promise<
     Result<
       {
@@ -58,6 +69,27 @@ export type FinderPort = {
         title?: string | null
         files: string[]
         file_count: number
+      },
+      AppError
+    >
+  >
+
+  /**
+   * Export pack if needed + spawn devprofile generate-apply-cv.
+   * PDF only — never mutates master cvdata.json.
+   */
+  generateApplyCv(opportunityId: number): Promise<
+    Result<
+      {
+        opportunity_id: number
+        pack_slug: string
+        pack_dir: string
+        pdf_path: string
+        flat_pdf_path?: string | null
+        submit_pdf_path?: string | null
+        stdout_tail?: string
+        export_files?: string[]
+        export_file_count?: number
       },
       AppError
     >

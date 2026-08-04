@@ -256,6 +256,44 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'ApplicationPackExportFailed':
       return [{ ...model, banner: msg.error }]
 
+    case 'GenerateApplyCvRequested':
+      return [{ ...model, banner: null }]
+    case 'GenerateApplyCvSucceeded': {
+      const exportFiles = msg.export_files ?? model.lastApplicationPackExport?.files ?? []
+      const exportCount =
+        msg.export_file_count ??
+        (exportFiles.length > 0 ? exportFiles.length : model.lastApplicationPackExport?.file_count ?? 0)
+      return [
+        {
+          ...model,
+          banner: null,
+          lastApplyCv: {
+            opportunity_id: msg.opportunity_id,
+            pack_slug: msg.pack_slug,
+            pack_dir: msg.pack_dir,
+            pdf_path: msg.pdf_path,
+            flat_pdf_path: msg.flat_pdf_path,
+            submit_pdf_path: msg.submit_pdf_path,
+          },
+          lastApplicationPackExport: {
+            opportunity_id: msg.opportunity_id,
+            pack_dir: msg.pack_dir,
+            pack_slug: msg.pack_slug,
+            company: model.lastApplicationPackExport?.company ?? null,
+            title: model.lastApplicationPackExport?.title ?? null,
+            files: exportFiles,
+            file_count: exportCount,
+          },
+          pauses: [
+            ...model.pauses,
+            `Apply CV: pack ${msg.pack_slug || 'ok'} (${exportCount} files) → PDF ${msg.pdf_path}`,
+          ],
+        },
+      ]
+    }
+    case 'GenerateApplyCvFailed':
+      return [{ ...model, banner: msg.error }]
+
     case 'OpportunityStatusChangeRequested':
       return [{ ...model, banner: null }]
     case 'OpportunityStatusChangeSucceeded': {
@@ -427,6 +465,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           opportunityTargetUrl: undefined,
           lastSidecarProposal: undefined,
           lastApplicationPackExport: undefined,
+          lastApplyCv: undefined,
         },
       ]
 
@@ -478,6 +517,82 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: { status: 'failed', error: msg.error },
           banner: msg.error,
+        },
+      ]
+
+    case 'HireBoardQChanged':
+      return [{ ...model, hireBoardQ: msg.q }]
+    case 'HireBoardGeoToggled': {
+      const set = new Set(model.hireBoardGeo)
+      if (set.has(msg.tag)) set.delete(msg.tag)
+      else set.add(msg.tag)
+      return [{ ...model, hireBoardGeo: [...set] }]
+    }
+    case 'HireBoardRefreshRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          hireBoard: { status: 'loading' },
+        },
+      ]
+    case 'HireBoardRefreshSucceeded':
+      return [{ ...model, hireBoard: { status: 'ready', data: msg.leads } }]
+    case 'HireBoardRefreshFailed':
+      return [
+        {
+          ...model,
+          hireBoard: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+    case 'HireBoardSelectRequested':
+      return [{ ...model, banner: null }]
+    case 'HireBoardSelectSucceeded': {
+      const h = { ...model.history }
+      if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
+        const exists = h.opportunities.data.some((o) => o.id === msg.opportunity.id)
+        h.opportunities = {
+          status: 'ready',
+          data: exists
+            ? h.opportunities.data.map((o) => (o.id === msg.opportunity.id ? msg.opportunity : o))
+            : [msg.opportunity, ...h.opportunities.data],
+        }
+      }
+      return [
+        {
+          ...model,
+          history: h,
+          lastActiveOppId: msg.opportunity.id,
+          opportunityTargetUrl: msg.opportunity.source_url || model.opportunityTargetUrl,
+          hireBoard:
+            model.hireBoard.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: model.hireBoard.data.map((l) =>
+                    l.career_url === msg.opportunity.source_url ||
+                    l.company === msg.opportunity.company
+                      ? {
+                          ...l,
+                          already_in_db: true,
+                          opportunity_id: msg.opportunity.id,
+                        }
+                      : l,
+                  ),
+                }
+              : model.hireBoard,
+        },
+      ]
+    }
+    case 'HireBoardSelectFailed':
+      return [{ ...model, banner: msg.error }]
+    case 'HireBoardEvaluateRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          opportunityTargetUrl: msg.lead.career_url || model.opportunityTargetUrl,
+          opportunityTarget: { status: 'loading' },
         },
       ]
 

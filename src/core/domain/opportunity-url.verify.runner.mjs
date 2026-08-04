@@ -30,6 +30,11 @@ assert(
     'https://job-boards.greenhouse.io/xai/jobs/1',
   'bare host/path gets https://',
 )
+assert(
+  normalizeOpportunityUrl('jobs.qred.com/jobs/7931564-fullstack-developer-typescript') ===
+    'https://jobs.qred.com/jobs/7931564-fullstack-developer-typescript',
+  'qred bare host/path gets https:// (builder-error paste case)',
+)
 assert(normalizeOpportunityUrl('not a url') === null, 'non-url prose -> null')
 
 const shown = displayOpportunityUrl(job, 40)

@@ -10,6 +10,7 @@ import type {
   SearchRunWithTweets,
 } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrepResult } from '../domain/opportunity-target'
+import type { HireBoardLead } from '../domain/hire-board'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -112,7 +113,34 @@ export type FinderMsg =
     }
   | { type: 'ApplicationPackExportFailed'; error: AppError }
 
+  // One-click apply CV PDF via devprofile generate-apply-cv (no master CV mutation)
+  | { type: 'GenerateApplyCvRequested'; opportunity_id: number }
+  | {
+      type: 'GenerateApplyCvSucceeded'
+      opportunity_id: number
+      pack_slug: string
+      pack_dir: string
+      pdf_path: string
+      flat_pdf_path?: string | null
+      submit_pdf_path?: string | null
+      stdout_tail?: string
+      export_files?: string[]
+      export_file_count?: number
+    }
+  | { type: 'GenerateApplyCvFailed'; error: AppError }
+
   // Pipeline status (applied / passed / archived) — local DB, no xAI
   | { type: 'OpportunityStatusChangeRequested'; id: number; status: string }
   | { type: 'OpportunityStatusChangeSucceeded'; id: number; status: string }
   | { type: 'OpportunityStatusChangeFailed'; error: AppError }
+
+  // Hire board (sheet skim → Select/Evaluate)
+  | { type: 'HireBoardQChanged'; q: string }
+  | { type: 'HireBoardGeoToggled'; tag: string }
+  | { type: 'HireBoardRefreshRequested' }
+  | { type: 'HireBoardRefreshSucceeded'; leads: HireBoardLead[] }
+  | { type: 'HireBoardRefreshFailed'; error: AppError }
+  | { type: 'HireBoardSelectRequested'; lead: HireBoardLead }
+  | { type: 'HireBoardSelectSucceeded'; opportunity: Opportunity }
+  | { type: 'HireBoardSelectFailed'; error: AppError }
+  | { type: 'HireBoardEvaluateRequested'; lead: HireBoardLead }

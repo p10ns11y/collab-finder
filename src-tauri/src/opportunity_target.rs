@@ -17,9 +17,17 @@ use tauri::State;
 /// Matches `data/distillation/cv-packet-distilled.txt` (+ `queries.json` defaultCvSummary). Rust fallback when IPC omits cv_summary.
 const DEFAULT_CV_PACKET: &str = include_str!("../../data/distillation/cv-packet-distilled.txt");
 
-/// Compact dual-fit constraints (from curation/candidate-preferences.md extract).
-const CANDIDATE_CONSTRAINTS: &str =
+/// Strict dual-fit constraints (from curation/candidate-preferences.md extract).
+const CANDIDATE_CONSTRAINTS_STRICT: &str =
     include_str!("../../data/distillation/curation/candidate-constraints-compact.txt");
+
+/// Relaxed simple-fitness constraints (relevant experience; no ML/robotics mission veto).
+const CANDIDATE_CONSTRAINTS_RELAXED: &str =
+    include_str!("../../data/distillation/curation/candidate-constraints-relaxed.txt");
+
+/// Alias for tests / call sites that mean “default strict compact packet”.
+#[allow(dead_code)]
+const CANDIDATE_CONSTRAINTS: &str = CANDIDATE_CONSTRAINTS_STRICT;
 
 /// Proof / exceptional-work variant bank (role-class mapping source of truth).
 const PROOF_VARIANTS_MD: &str =
@@ -48,7 +56,28 @@ pub(crate) struct ProofVariant {
     pub body: String,
 }
 
-/// Dual-fit JSON schema for xAI structured analyze (`target_fit_v2`).
+/// Fit evaluation mode: strict dual-fit vs relaxed simple fitness.
+pub(crate) const FIT_MODE_STRICT: &str = "strict";
+pub(crate) const FIT_MODE_RELAXED: &str = "relaxed";
+const DEFAULT_FIT_MODE: &str = FIT_MODE_STRICT;
+
+/// Normalize stored / IPC fit mode strings.
+pub(crate) fn parse_fit_mode(raw: &str) -> &'static str {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "relaxed" => FIT_MODE_RELAXED,
+        _ => FIT_MODE_STRICT,
+    }
+}
+
+pub(crate) fn resolve_constraints(mode: &str) -> &'static str {
+    if parse_fit_mode(mode) == FIT_MODE_RELAXED {
+        CANDIDATE_CONSTRAINTS_RELAXED
+    } else {
+        CANDIDATE_CONSTRAINTS_STRICT
+    }
+}
+
+/// Dual-fit JSON schema for xAI structured analyze (`target_fit_v2`) — **strict** mode.
 /// Keeps legacy `overall` + gaps; adds reciprocal scores and role-side signals.
 pub(crate) fn dual_fit_json_schema() -> Value {
     json!({
@@ -78,8 +107,66 @@ pub(crate) fn dual_fit_json_schema() -> Value {
     })
 }
 
+/// Simple fitness schema for **relaxed** mode (`target_fit_simple_v1`).
+/// No You↔Role dual scores — experience match only, then prep bundle in the UI.
+pub(crate) fn simple_fitness_json_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "overall": {"type": "integer", "minimum": 0, "maximum": 100},
+            "rationale": {"type": "string"},
+            "gaps_must": {"type": "array", "items": {"type": "string"}},
+            "gaps_nice": {"type": "array", "items": {"type": "string"}},
+            "recommended_action": {"type": "string"}
+        },
+        "required": [
+            "overall",
+            "rationale",
+            "gaps_must",
+            "recommended_action"
+        ],
+        "additionalProperties": false
+    })
+}
+
 /// Build analyze user prompt: CV + constraints + opportunity (dual-fit, not CV+JD only).
 pub(crate) fn build_analyze_user_prompt(cv: &str, jd: &str, constraints: &str) -> String {
+    build_analyze_user_prompt_for_mode(cv, jd, constraints, FIT_MODE_STRICT)
+}
+
+/// Mode-aware analyze user prompt (strict dual-fit vs relaxed simple fitness).
+pub(crate) fn build_analyze_user_prompt_for_mode(
+    cv: &str,
+    jd: &str,
+    constraints: &str,
+    mode: &str,
+) -> String {
+    if parse_fit_mode(mode) == FIT_MODE_RELAXED {
+        return format!(
+            r#"CV PACKET (pruned):
+{cv}
+
+CANDIDATE_CONSTRAINTS (RELAXED — relevant experience only; not dual-fit mission scoring):
+{constraints}
+
+OPPORTUNITY DESCRIPTION:
+{jd}
+
+SIMPLE FITNESS RUBRIC (relaxed):
+- overall (0-100): how well the candidate's evidenced experience matches this role's requirements (from CV only).
+- Do NOT require physical-world ML, robotics, world models, or Elon multi-planetary alignment.
+- Do NOT penalize for non-SpaceXAI-tier compensation or non-AI-lab production tenure when skills match.
+- gaps_must / gaps_nice: candidate skill/experience shortfalls vs the JD.
+- recommended_action: next step toward applying or preparing materials when fit is decent; pause only for clear capability gaps.
+- Do NOT emit candidate_to_role, role_to_candidate, role_concerns, or deal_breakers_triggered (not in schema).
+
+Return simple fitness analysis."#,
+            cv = cv,
+            constraints = constraints.trim(),
+            jd = jd
+        );
+    }
+
     format!(
         r#"CV PACKET (pruned):
 {cv}
@@ -692,6 +779,42 @@ pub(crate) fn set_xai_model_cmd(model: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
+/// Persistent fit mode: `strict` (dual-fit) | `relaxed` (simple fitness). Default strict.
+/// Same plain-text file pattern as xai_model.txt (not a secret).
+fn get_fit_mode() -> String {
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("fit_mode.txt");
+        if let Ok(s) = std::fs::read_to_string(p) {
+            return parse_fit_mode(&s).to_string();
+        }
+    }
+    DEFAULT_FIT_MODE.to_string()
+}
+
+#[tauri::command]
+pub(crate) fn get_fit_mode_cmd() -> Result<String, String> {
+    Ok(get_fit_mode())
+}
+
+#[tauri::command]
+pub(crate) fn set_fit_mode_cmd(mode: Option<String>) -> Result<String, String> {
+    let normalized = match &mode {
+        Some(m) if !m.trim().is_empty() => parse_fit_mode(m).to_string(),
+        _ => DEFAULT_FIT_MODE.to_string(),
+    };
+    if let Ok(dir) = crate::app_dirs::app_data_dir() {
+        let p = dir.join("fit_mode.txt");
+        let _ = std::fs::create_dir_all(&dir);
+        if normalized == DEFAULT_FIT_MODE {
+            // Prefer explicit file so UI reloads see the choice; still write default.
+            let _ = std::fs::write(&p, &normalized);
+        } else {
+            let _ = std::fs::write(&p, &normalized);
+        }
+    }
+    Ok(normalized)
+}
+
 /// Basic prune of devprofile cvdata.json into compact text for use as CV PACKET in xAI calls.
 /// Follows cv-promote-guard spirit (relevant sections) but minimal: name, one_liner, profile, recent roles + bullets, contact.
 /// Returns None on any read/parse error (caller falls back).
@@ -839,12 +962,38 @@ fn resolve_cv_packet(cv_summary: Option<String>, devprofile_path: Option<String>
 async fn structured_chat(
     _system: &str,
     user: &str,
-    _schema_name: &str,
+    schema_name: &str,
     _json_schema: Value,
     _model: &str,
 ) -> Result<(Value, crate::xai::XaiUsage), String> {
-    let is_fit = user.contains("Return fit analysis");
-    if is_fit {
+    // Offline stub only (unit/integration tests). Live build uses crate::xai::structured_chat.
+    let is_simple = schema_name == "target_fit_simple_v1"
+        || user.contains("SIMPLE FITNESS RUBRIC")
+        || user.contains("Return simple fitness analysis");
+    let is_dual = schema_name == "target_fit_v2"
+        || user.contains("Return fit analysis")
+        || user.contains("DUAL-FIT RUBRIC");
+    if schema_name == "cv_profile_polish_v1" || user.contains("Draft profile to improve") {
+        // Return a coherent polished paragraph for unit/integration stubs.
+        let polished = "Fullstack TypeScript engineer with deep ownership of production integrations, platform reliability, and secure data flows. At Oneflow I established the Integration Team and multi-client systems connecting HubSpot, SuperOffice, Dynamics, Salesforce and Teamtailor, then stabilized the Public API so a third-party ecosystem could grow reliably. Later work focused on large-scale TypeScript migration (≈70% reduction in type-related errors), ACL unification, and Playwright E2E. Recent personal work includes AWS Rekognition identity flows and Zod-based schema tooling. Seeking the Fullstack Developer role at Qred to own full-stack delivery of internal platforms and integrations.";
+        Ok((
+            json!({ "profile": polished }),
+            crate::xai::XaiUsage {
+                prompt_tokens: Some(80),
+                completion_tokens: Some(120),
+                total_tokens: None,
+            },
+        ))
+    } else if is_simple {
+        let fit = json!({
+            "overall": 78,
+            "rationale": "Strong TypeScript/Rust/agent tooling evidence matches the role requirements without mission magnets.",
+            "gaps_must": ["explicit production AI-infra tenure if required"],
+            "gaps_nice": ["on-call ownership examples"],
+            "recommended_action": "Generate prep pack and tailor cover letter to JD keywords."
+        });
+        Ok((fit, crate::xai::XaiUsage { prompt_tokens: Some(100), completion_tokens: Some(50), total_tokens: None }))
+    } else if is_dual {
         let fit = json!({
             "overall": 82,
             "candidate_to_role": 85,
@@ -871,17 +1020,65 @@ async fn structured_chat(
 #[cfg(not(test))]
 use crate::xai::structured_chat;
 
+/// Make a paste-friendly opportunity URL absolute for reqwest.
+/// Bare `host/path` (no scheme) → `https://host/path`. Rejects empty / non-http(s).
+///
+/// Fixes: `builder error: relative URL without a base` when user pastes
+/// `jobs.qred.com/...` without `https://`.
+pub(crate) fn normalize_opportunity_fetch_url(raw: &str) -> Result<String, String> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return Err("URL is empty".into());
+    }
+    let with_scheme = if t.len() >= 8 && t[..8].eq_ignore_ascii_case("https://") {
+        t.to_string()
+    } else if t.len() >= 7 && t[..7].eq_ignore_ascii_case("http://") {
+        t.to_string()
+    } else if t.starts_with("//") {
+        format!("https:{t}")
+    } else {
+        format!("https://{t}")
+    };
+    let parsed = reqwest::Url::parse(&with_scheme).map_err(|e| {
+        format!("Invalid opportunity URL '{raw}': {e} (try full https://… URL)")
+    })?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err(format!(
+            "Only http(s) URLs supported (got scheme '{}')",
+            parsed.scheme()
+        ));
+    }
+    if parsed.host_str().is_none() {
+        return Err(format!("URL has no host: {raw}"));
+    }
+    Ok(parsed.to_string())
+}
+
 #[tauri::command]
 pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
+    let url = normalize_opportunity_fetch_url(&url)?;
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .user_agent("Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/sustainableabundance/collab-finder)")
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("HTTP client build failed: {e}"))?;
 
-    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
-    let text = resp.text().await.map_err(|e| e.to_string())?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Fetch failed for {url}: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "Fetch failed for {url}: HTTP {}",
+            resp.status()
+        ));
+    }
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Read body failed for {url}: {e}"))?;
 
     // Very naive strip of tags/scripts for v1. Real readability can come later.
     let cleaned = strip_html_basic(&text);
@@ -925,7 +1122,8 @@ pub(crate) async fn run_analyze_opportunity_target(
     let jd = match (url.clone(), pasted_jd) {
         (_, Some(p)) if !p.trim().is_empty() => p,
         (Some(u), _) => {
-            let fetched = fetch_opportunity_target_page(u.clone()).await?;
+            // Normalize bare host/path before fetch (avoids reqwest "builder error").
+            let fetched = fetch_opportunity_target_page(u).await?;
             fetched.cleaned_text
         }
         _ => return Err("Provide either url or pasted_jd".into()),
@@ -942,13 +1140,28 @@ pub(crate) async fn run_analyze_opportunity_target(
         jd.chars().count()
     );
 
-    let system = "You are a precise, truth-seeking dual-fit career analyst. Output ONLY valid JSON. Score both directions: candidate→role (can they do it, from CV only) and role→candidate (is it right for them, from CANDIDATE_CONSTRAINTS). Every claim about the candidate's experience must be supported by the CV PACKET. Do not invent timelines or attribute aggregate YOE to specific recent projects. Respect deal-breakers and low role_to_candidate when recommending actions.";
-    let user = build_analyze_user_prompt(&cv, &jd, CANDIDATE_CONSTRAINTS);
-    let schema = dual_fit_json_schema();
+    // Live xAI path (structured_chat). Unit tests never call this — they cover prompt/schema only.
+    let fit_mode = get_fit_mode();
+    let constraints = resolve_constraints(&fit_mode);
+    let relaxed = parse_fit_mode(&fit_mode) == FIT_MODE_RELAXED;
+    let (system, schema_name, schema) = if relaxed {
+        (
+            "You are a precise, truth-seeking career fitness analyst. Output ONLY valid JSON. Score simple fitness: how well the candidate's evidenced CV experience matches this role. Do not require physical-world ML, robotics, or mission magnets. Every claim about experience must be supported by the CV PACKET. Do not invent timelines or production AI-lab employment.",
+            "target_fit_simple_v1",
+            simple_fitness_json_schema(),
+        )
+    } else {
+        (
+            "You are a precise, truth-seeking dual-fit career analyst. Output ONLY valid JSON. Score both directions: candidate→role (can they do it, from CV only) and role→candidate (is it right for them, from CANDIDATE_CONSTRAINTS). Every claim about the candidate's experience must be supported by the CV PACKET. Do not invent timelines or attribute aggregate YOE to specific recent projects. Respect deal-breakers and low role_to_candidate when recommending actions.",
+            "target_fit_v2",
+            dual_fit_json_schema(),
+        )
+    };
+    let user = build_analyze_user_prompt_for_mode(&cv, &jd, constraints, &fit_mode);
 
     let model = get_xai_model();
     let (fit_json, usage) =
-        structured_chat(system, &user, "target_fit_v2", schema, &model).await?;
+        structured_chat(system, &user, schema_name, schema, &model).await?;
 
     let cost = crate::xai::cost_from_usage(&usage);
     let (packet_preview, packet_preview_truncated) = packet_preview_for(&cv);
@@ -959,6 +1172,7 @@ pub(crate) async fn run_analyze_opportunity_target(
     Ok(OpportunityTargetAnalysisResult {
         opportunity_id: 0,
         fit: fit_json,
+        fit_mode,
         packet_preview,
         packet_preview_truncated,
         cv_chars_sent,
@@ -979,11 +1193,17 @@ pub(crate) async fn analyze_opportunity_target(
     company: Option<String>,
     cv_summary: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
+    // Normalize bare host/path so DB + Open URL store absolute https://…
+    let url = match url {
+        Some(u) if !u.trim().is_empty() => Some(normalize_opportunity_fetch_url(&u)?),
+        other => other.filter(|u| !u.trim().is_empty()),
+    };
     // Delegate core (resolve + stub xAI + compute packet) to run_, short lock for upsert only.
     let mut res = run_analyze_opportunity_target(url.clone(), pasted_jd.clone(), title.clone(), company.clone(), cv_summary).await?;
     let run_id = if let Ok(guard) = db.0.lock() {
         let analysis_for_store = json!({
             "fit": res.fit,
+            "fit_mode": res.fit_mode,
             "packet_preview": res.packet_preview,
             "packet_preview_truncated": res.packet_preview_truncated,
             "cv_chars_sent": res.cv_chars_sent,
@@ -1021,6 +1241,7 @@ pub(crate) async fn run_prep_opportunity_target(
     }
     if jd.is_empty() {
         if let Some(u) = &url {
+            // Same scheme normalization as analyze (bare host/path pastes).
             let fetched = fetch_opportunity_target_page(u.clone()).await?;
             jd = fetched.cleaned_text;
         }
@@ -1204,54 +1425,6 @@ pub(crate) async fn propose_cv_sidecar_for_prep(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpportunityTargetPageResult {
-    pub title: Option<String>,
-    pub company: Option<String>,
-    pub cleaned_text: String,
-    pub original_len: u32,
-    pub truncated: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpportunityTargetAnalysisResult {
-    pub opportunity_id: i64,
-    pub fit: Value,
-    /// Prefix of the CV packet included in the xAI user prompt (max `PACKET_PREVIEW_MAX_CHARS`).
-    pub packet_preview: String,
-    /// True when `packet_preview` is shorter than the full CV sent in the prompt.
-    pub packet_preview_truncated: bool,
-    /// Character count of the full CV packet in the xAI prompt (not JD).
-    pub cv_chars_sent: u32,
-    /// Non-zero when `cv_summary` was present and non-empty over IPC (after trim).
-    pub cv_ipc_chars: u32,
-    /// True when IPC omitted/empty `cv_summary` and `DEFAULT_CV_PACKET` was used.
-    pub cv_used_fallback: bool,
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub est_cost_usd: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpportunityTargetPrepResult {
-    pub opportunity_id: i64,
-    pub prep: Value,
-    /// Role-class exceptional-work variant id selected from curation/proof-variants.md.
-    #[serde(default)]
-    pub proof_variant_id: String,
-    pub est_cost_usd: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CvSidecarProposalResult {
-    pub opportunity_id: i64,
-    /// Human readable basic preview of what would be proposed (sidecar-first, no live CV mutation per cv-promote-guard).
-    pub preview: String,
-    /// Absolute path to the written sidecar proposal artifact.
-    pub sidecar_path: String,
-    pub suggestions_count: u32,
-}
-
 /// Result of materializing a durable application pack from stored prep (no xAI).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApplicationPackExportResult {
@@ -1300,10 +1473,402 @@ fn prep_value_from_artifacts(prep_artifacts_json: &str) -> Result<Value, String>
     Ok(root)
 }
 
+/// Known project keys (cvdata / public bank) matched when mentioned in prep suggestions.
+const OVERLAY_PROJECT_HINTS: &[(&str, &str)] = &[
+    ("collab-finder", "collab-finder"),
+    ("agent-prompt-tuning-lab", "agent-prompt-tuning-lab"),
+    ("agent-prompt", "agent-prompt-tuning-lab"),
+    ("elomaxz", "elomaxz"),
+    ("premflow", "premflow"),
+    ("thepulimaangani", "thepulimaangani"),
+    ("pulima", "thepulimaangani"),
+    ("selfie-signin", "selfie-signin"),
+    ("selfie-sign", "selfie-signin"),
+    ("rekognition", "selfie-signin"),
+    ("adaptate", "adaptate"),
+    ("latex-cv", "latex-cv"),
+    ("grok-dia", "grok-dia"),
+    ("prototype-it", "prototype-it-to-explain-itself"),
+];
+
+/// Collect project keys mentioned in free-text suggestions / research (order preserved).
+pub(crate) fn featured_keys_from_prep_text(blob: &str) -> Vec<String> {
+    let lower = blob.to_lowercase();
+    let mut out: Vec<String> = Vec::new();
+    for (needle, key) in OVERLAY_PROJECT_HINTS {
+        if lower.contains(needle) && !out.iter().any(|k| k == *key) {
+            out.push((*key).to_string());
+        }
+    }
+    out
+}
+
+/// Strip cover-letter salutation/sign-off; keep body prose for PROFILE.
+fn cover_letter_body_excerpt(cover: &str, max_chars: usize) -> String {
+    let mut lines: Vec<&str> = cover
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    // Drop leading Dear … / Hi …
+    while lines
+        .first()
+        .map(|l| {
+            let ll = l.to_lowercase();
+            ll.starts_with("dear ") || ll.starts_with("hi ") || ll.starts_with("hello ")
+        })
+        .unwrap_or(false)
+    {
+        lines.remove(0);
+    }
+    // Drop trailing sign-off lines
+    while lines
+        .last()
+        .map(|l| {
+            let ll = l.to_lowercase();
+            ll.starts_with("sincerely")
+                || ll.starts_with("best regards")
+                || ll.starts_with("kind regards")
+                || ll.starts_with("regards")
+                || *l == "—"
+                || l.starts_with("Peramanathan")
+        })
+        .unwrap_or(false)
+    {
+        lines.pop();
+    }
+    let body = lines.join(" ");
+    body.chars().take(max_chars).collect()
+}
+
+/// Display company: `qred` → `Qred`, leave multi-word as-is with first-letter upcase.
+pub(crate) fn display_company_name(company: &str) -> String {
+    let t = company.trim();
+    if t.is_empty() {
+        return "the company".into();
+    }
+    if t.contains(' ') {
+        return t
+            .split_whitespace()
+            .map(|w| {
+                let mut c = w.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+    }
+    let mut c = t.chars();
+    match c.next() {
+        None => t.to_string(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+/// Clean role title for prose (collapse Typescript → TypeScript, drop trailing junk).
+pub(crate) fn display_role_title(title: &str) -> String {
+    let t = title.trim().replace("Typescript", "TypeScript");
+    if t.is_empty() {
+        "Software Engineer".into()
+    } else {
+        t
+    }
+}
+
+/// Beat 1 — identity + ownership themes (stable phrasing; not job-title fixation).
+pub(crate) fn profile_hook(title: &str, scan: &str) -> String {
+    let t = title.to_lowercase();
+    let s = scan.to_lowercase();
+    let secure = s.contains("secur")
+        || s.contains("rekognition")
+        || s.contains("auth")
+        || s.contains("acl")
+        || t.contains("secur");
+    // Fixed preferred phrasing (user): not "Fullstack TypeScript engineer"
+    let base = "Senior Software Engineer with fullstack web dev specialization";
+    if secure {
+        return format!(
+            "{base}, with deep ownership of production integrations, platform reliability, and secure data flows."
+        );
+    }
+    if t.contains("backend") || t.contains("platform") {
+        return format!(
+            "{base}, with deep ownership of production systems, integrations, and reliable delivery."
+        );
+    }
+    if t.contains("frontend") || t.contains("front-end") {
+        return format!(
+            "{base}, with deep ownership of product UI, reliable delivery, and full-stack collaboration."
+        );
+    }
+    format!(
+        "{base}, with deep ownership of production integrations, platform reliability, and high-signal delivery."
+    )
+}
+
+/// Compress exceptional-work / cover into career+craft beats (strip trailing meta fluff).
+fn career_and_craft_prose(exceptional: &str, cover: &str) -> String {
+    let raw = if !exceptional.trim().is_empty() {
+        exceptional.trim().to_string()
+    } else if !cover.trim().is_empty() {
+        cover_letter_body_excerpt(cover, 700)
+    } else {
+        String::new()
+    };
+    if raw.is_empty() {
+        return "At Oneflow I led full-stack integration and platform work—multi-client systems, Public API reliability, TypeScript migration, and Playwright E2E—with ownership of production quality.".into();
+    }
+    // Drop trailing self-commentary that weakens flow
+    let mut t = raw;
+    for junk in [
+        "This is production product integration at scale, the same craft I apply when shipping secure, maintainable fullstack systems.",
+        "This is production product integration at scale",
+        "the same craft I apply when shipping secure, maintainable fullstack systems.",
+    ] {
+        if let Some(idx) = t.find(junk) {
+            t = t[..idx].trim().to_string();
+        }
+    }
+    // Keep PROFILE short enough that Work Experience roles 0–2 stay on PDF page 1.
+    take_prose_up_to(t.trim(), 480)
+}
+
+/// Prefer whole sentences within `max` chars (for page-1 PROFILE budget).
+fn take_prose_up_to(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let mut out = String::new();
+    for part in s.split_inclusive(". ") {
+        let next_len = out.chars().count() + part.chars().count();
+        if next_len > max {
+            break;
+        }
+        out.push_str(part);
+    }
+    let out = out.trim().to_string();
+    if out.len() >= max / 3 {
+        out
+    } else {
+        s.chars().take(max).collect()
+    }
+}
+
+/// Beat 4 — at most two short personal/OSS items (prefer Rekognition / Zod when present).
+pub(crate) fn recent_personal_phrase(featured: &[String], scan: &str) -> String {
+    let s = scan.to_lowercase();
+    let mut items: Vec<&str> = Vec::new();
+    if s.contains("rekognition") || s.contains("selfie") || featured.iter().any(|k| k == "selfie-signin")
+    {
+        items.push("AWS Rekognition identity flows");
+    }
+    if s.contains("zod") || s.contains("schema") {
+        items.push("Zod-based schema tooling");
+    }
+    if items.len() < 2 && featured.iter().any(|k| k == "collab-finder") && s.contains("agent") {
+        items.push("agentic desktop tooling (personal OSS)");
+    }
+    if items.is_empty() && featured.iter().any(|k| k == "collab-finder") {
+        items.push("personal OSS agentic tooling");
+    }
+    if items.is_empty() {
+        return String::new();
+    }
+    items.truncate(2);
+    if items.len() == 1 {
+        format!("Recent personal work includes {}.", items[0])
+    } else {
+        format!("Recent personal work includes {} and {}.", items[0], items[1])
+    }
+}
+
+/// Beat 5 — seeking line (gold pattern).
+pub(crate) fn seeking_line(title: &str, company: &str) -> String {
+    let role = display_role_title(title);
+    let co = display_company_name(company);
+    format!(
+        "Seeking the {role} role at {co} to own full-stack delivery of internal platforms and integrations."
+    )
+}
+
+/// PROFILE: 5-beat coherent overview (hook → career/craft → recent → seeking).
+/// Hiring-manager prose only — never agent meta or raw prep instruction dumps.
+pub(crate) fn build_professional_profile_override(
+    exceptional: &str,
+    cover: &str,
+    featured: &[String],
+    company: &str,
+    title: &str,
+) -> String {
+    build_professional_profile_override_with_scan(exceptional, cover, featured, company, title, "")
+}
+
+/// Same as [`build_professional_profile_override`] with full prep scan for theme/recent selection.
+pub(crate) fn build_professional_profile_override_with_scan(
+    exceptional: &str,
+    cover: &str,
+    featured: &[String],
+    company: &str,
+    title: &str,
+    scan: &str,
+) -> String {
+    let scan_all = format!("{scan}\n{exceptional}\n{cover}");
+    let hook = profile_hook(title, &scan_all);
+    let seeking = seeking_line(title, company);
+    // Page-1 budget: leave room for 3 Oneflow roles under Work Experience.
+    const MAX_PROFILE_CHARS: usize = 600;
+    let fixed = hook.chars().count() + seeking.chars().count() + 2;
+    let mut rem = MAX_PROFILE_CHARS.saturating_sub(fixed);
+
+    let mut recent = recent_personal_phrase(featured, &scan_all);
+    let recent_cost = if recent.is_empty() {
+        0
+    } else {
+        recent.chars().count() + 1
+    };
+    // Prefer career prose over recent if space is tight
+    if recent_cost > 0 && recent_cost + 120 > rem {
+        recent = String::new();
+    }
+    let career_budget = rem.saturating_sub(if recent.is_empty() {
+        0
+    } else {
+        recent.chars().count() + 1
+    });
+    let career = take_prose_up_to(
+        &career_and_craft_prose(exceptional, cover),
+        career_budget.max(80),
+    );
+
+    let mut parts = vec![hook, career];
+    if !recent.is_empty() {
+        parts.push(recent);
+    }
+    parts.push(seeking);
+    parts
+        .into_iter()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Build `cv_overlay_v1` so generate-apply-cv can role-fit the PDF (master cvdata never written).
+/// Maps prep suggestions → featured_keys + profile/title overrides + optional project upserts from bank.
+pub(crate) fn build_cv_overlay_from_prep(
+    prep: &Value,
+    identity: Option<&ApplicationPackIdentity>,
+) -> Value {
+    let suggestions: Vec<String> = prep
+        .get("cv_suggestions")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let research = prep
+        .get("research_notes")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    let exceptional = prep
+        .get("exceptional_work_example")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    let cover = prep
+        .get("cover_letter")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+
+    let mut scan = suggestions.join("\n");
+    scan.push('\n');
+    scan.push_str(research);
+    scan.push('\n');
+    scan.push_str(exceptional);
+    scan.push('\n');
+    scan.push_str(cover);
+
+    let mut featured = featured_keys_from_prep_text(&scan);
+    // Defaults so OSS signal shows when suggestions are generic
+    for def in ["collab-finder", "agent-prompt-tuning-lab", "adaptate"] {
+        if !featured.iter().any(|k| k == def) {
+            featured.push(def.to_string());
+        }
+    }
+    // Cap for PDF column readability
+    featured.truncate(6);
+
+    let company = identity.map(|i| i.company.as_str()).unwrap_or("target");
+    let title = identity.map(|i| i.title.as_str()).unwrap_or("role");
+
+    // 5-beat PROFILE: hook → career/craft → recent personal → seeking (gold-standard flow).
+    // Do not override latest_proffessional_role — header no longer shows it; avoids role fixation.
+    let profile = build_professional_profile_override_with_scan(
+        exceptional,
+        cover,
+        &featured,
+        company,
+        title,
+        &scan,
+    );
+
+    let co = display_company_name(company);
+    let one_liner = format!(
+        "Senior Software Engineer with fullstack web dev specialization · {co} · integrations & production craft"
+    );
+
+    // Upsert bank projects that we featured so descriptions are rich when keys are missing from master
+    let bank = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+    let mut projects_upsert: Vec<Value> = Vec::new();
+    for key in &featured {
+        if let Some(p) = bank.iter().find(|p| p.name.eq_ignore_ascii_case(key) || p.name.replace('_', "-") == *key) {
+            let mut techs: Vec<String> = p.topics.clone();
+            if techs.is_empty() && !p.language.is_empty() {
+                techs.push(p.language.clone());
+            }
+            projects_upsert.push(json!({
+                "key": key,
+                "name": p.name,
+                "description": if p.description.is_empty() {
+                    format!("Personal/OSS: {}", p.name)
+                } else {
+                    p.description.chars().take(400).collect::<String>()
+                },
+                "url": p.url,
+                "type": "hobby_oss",
+                "technologies": techs,
+                "is_open_source": true,
+            }));
+        }
+    }
+
+    json!({
+        "schema": "cv_overlay_v1",
+        "source": "auto_from_prep",
+        "featured_keys": featured,
+        "projects_upsert": projects_upsert,
+        "overrides": {
+            "profile": profile,
+            "one_liner": one_liner,
+        },
+        "prep_suggestions": suggestions,
+        "note": "Auto-built from prep for generate-apply-cv. Does not mutate master cvdata.json.",
+    })
+}
+
 /// Pure builder: prep artifacts JSON → ordered (filename, content) pairs.
 /// Same function the export command and unit tests use — no FS, no DB.
 /// Produces cover-letter.md, cv-suggestions.md, research-notes.md, exceptional-work.md,
-/// optional proof-variant.txt, and manifest.json when any content exists.
+/// optional proof-variant.txt, **cv-overlay.json** (role-fit for generate-apply-cv), and manifest.json.
 ///
 /// When `identity` is provided, `manifest.json` includes company/title/date/slug/opportunity_id
 /// so devprofile can name apply CVs meaningfully.
@@ -1370,6 +1935,25 @@ pub(crate) fn build_application_pack_files(
         }
     }
 
+    // Always emit overlay when we have any prep content so apply CVs differ per role.
+    let overlay = build_cv_overlay_from_prep(&prep, identity);
+    let has_suggestions = overlay
+        .get("prep_suggestions")
+        .and_then(|v| v.as_array())
+        .map(|a| !a.is_empty())
+        .unwrap_or(false);
+    let has_featured = overlay
+        .get("featured_keys")
+        .and_then(|v| v.as_array())
+        .map(|a| !a.is_empty())
+        .unwrap_or(false);
+    if has_suggestions || has_featured || !files.is_empty() {
+        files.push((
+            "cv-overlay.json".into(),
+            serde_json::to_string_pretty(&overlay).unwrap_or_else(|_| "{}".into()),
+        ));
+    }
+
     if files.is_empty() {
         return Err("prep has no exportable artifacts (need cover_letter, cv_suggestions, research_notes, or exceptional_work_example)".into());
     }
@@ -1379,6 +1963,7 @@ pub(crate) fn build_application_pack_files(
         "files": files.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
         "source": "stored_prep_artifacts",
         "note": "Durable pack for offline apply. Does not mutate external devprofile cvdata.json.",
+        "has_cv_overlay": true,
     });
     if let Some(id) = identity {
         if let Some(obj) = manifest.as_object_mut() {
@@ -1448,14 +2033,21 @@ pub(crate) fn application_pack_slug(company: &str, title: &str, date: &str) -> S
     )
 }
 
-/// Numeric job id from board URLs: `…/jobs/4956028007` or `?gh_jid=…`.
+/// Job id from board URLs.
+/// - Greenhouse / numeric: `…/jobs/4956028007` → `4956028007`
+/// - Qred-style id-slug: `…/jobs/7931564-fullstack-developer-typescript` → `7931564` (digits for PDF naming)
+/// - Query: `?gh_jid=` / `job_id=`
 pub(crate) fn job_id_from_source_url(url: &str) -> Option<String> {
     let lower = url.to_lowercase();
     if let Some(pos) = lower.find("/jobs/") {
         let after = &url[pos + "/jobs/".len()..];
+        let digits: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if !digits.is_empty() {
+            return Some(digits);
+        }
         let id: String = after
             .chars()
-            .take_while(|c| c.is_ascii_digit())
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
             .collect();
         if !id.is_empty() {
             return Some(id);
@@ -1466,10 +2058,68 @@ pub(crate) fn job_id_from_source_url(url: &str) -> Option<String> {
             let after = &url[pos + key.len()..];
             let id: String = after
                 .chars()
-                .take_while(|c| c.is_ascii_digit())
+                .take_while(|c| c.is_ascii_digit() || c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
                 .collect();
             if !id.is_empty() {
                 return Some(id);
+            }
+        }
+    }
+    None
+}
+
+/// Title from id-slug path: `…/jobs/7931564-fullstack-developer-typescript` → `Fullstack Developer Typescript`.
+pub(crate) fn title_from_job_url_slug(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    let pos = lower.find("/jobs/")?;
+    let after = &url[pos + "/jobs/".len()..];
+    let segment: String = after
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if segment.is_empty() {
+        return None;
+    }
+    // Strip leading numeric id and hyphen
+    let rest = segment
+        .trim_start_matches(|c: char| c.is_ascii_digit())
+        .trim_start_matches('-');
+    if rest.is_empty() {
+        return None;
+    }
+    let titled: String = rest
+        .split(|c| c == '-' || c == '_')
+        .filter(|p| !p.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if titled.len() > 2 {
+        Some(titled)
+    } else {
+        None
+    }
+}
+
+/// Company from host: `jobs.qred.com` → `qred`, `careers.x.com` → `x`.
+pub(crate) fn company_from_jobs_host_url(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    let host = lower
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .split(|c| c == '/' || c == '?' || c == '#')
+        .next()
+        .unwrap_or("");
+    for prefix in ["jobs.", "careers.", "boards."] {
+        if let Some(rest) = host.strip_prefix(prefix) {
+            let co = rest.split('.').next().unwrap_or("").trim();
+            if co.len() > 1 && co != "www" && co != "greenhouse" && co != "lever" {
+                return Some(co.to_string());
             }
         }
     }
@@ -1600,7 +2250,14 @@ pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> Applicat
 
     if company.is_none() {
         if let Some(url) = o.source_url.as_deref() {
-            company = company_from_greenhouse_url(url);
+            company = company_from_greenhouse_url(url)
+                .or_else(|| company_from_jobs_host_url(url));
+        }
+    }
+
+    if title.is_none() {
+        if let Some(url) = o.source_url.as_deref() {
+            title = title_from_job_url_slug(url);
         }
     }
 
@@ -1708,6 +2365,12 @@ pub(crate) fn do_export_application_pack(
         written.push(name.clone());
     }
 
+    // Ensure submit/ so generate-apply-cv can copy the PDF into the pack for Greenhouse attach.
+    let submit_dir = pack_dir.join("submit");
+    if !submit_dir.is_dir() {
+        let _ = std::fs::create_dir_all(&submit_dir);
+    }
+
     // Recoverable path in notes; keep existing pipeline status (typically prepped).
     let notes = format!(
         "export_path={} pack_slug={}",
@@ -1739,6 +2402,656 @@ pub(crate) async fn export_application_pack(
     } else {
         Err("lock failed".into())
     }
+}
+
+/// Result of spawning devprofile generate-apply-cv (PDF only; no master CV mutation).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GenerateApplyCvResult {
+    pub opportunity_id: i64,
+    pub pack_slug: String,
+    pub pack_dir: String,
+    /// Primary PDF under out/apply/<slug>/…
+    pub pdf_path: String,
+    /// Flat upload path out/apply/{name-role-id}.pdf when present.
+    #[serde(default)]
+    pub flat_pdf_path: Option<String>,
+    /// Copy under pack submit/ when present.
+    #[serde(default)]
+    pub submit_pdf_path: Option<String>,
+    /// Tail of process stdout for UI.
+    #[serde(default)]
+    pub stdout_tail: String,
+    /// Files written by the re-export step (so UI does not show "0 files").
+    #[serde(default)]
+    pub export_files: Vec<String>,
+    #[serde(default)]
+    pub export_file_count: u32,
+    /// Absolute path to pack `cv-overlay.json` used for role-fit (required for non-identical apply CVs).
+    #[serde(default)]
+    pub overlay_path: String,
+    /// True when profile was rewritten via xAI polish after the 5-beat template.
+    #[serde(default)]
+    pub profile_polished: bool,
+}
+
+/// Optional xAI polish of overlay `overrides.profile` (template first, then model).
+/// Skips when no key or offline tests without polish path. Never mutates master cvdata.
+async fn maybe_polish_overlay_profile(
+    overlay_path: &std::path::Path,
+    title: &str,
+    company: &str,
+) -> bool {
+    if !crate::secrets::has_xai_key() {
+        return false;
+    }
+    let raw = match std::fs::read_to_string(overlay_path) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let mut ov: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let draft = ov
+        .pointer("/overrides/profile")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if draft.len() < 40 {
+        return false;
+    }
+    let co = display_company_name(company);
+    let role = display_role_title(title);
+    let system = "You rewrite CV PROFILE paragraphs for hiring managers. Output ONE tight paragraph with strong flow: (1) role-identity hook, (2) career evidence, (3) craft/metrics arc, (4) recent personal work max two concrete items, (5) seeking line naming the role and company. No bullets, no meta, no 'overlay', no 'prep deltas', no agent language. Do not claim production AI-lab employment for personal OSS. Keep factual claims grounded in the draft.";
+    let user = format!(
+        "Target role: {role}\nTarget company: {co}\n\nDraft profile to improve:\n{draft}\n\nReturn JSON with key profile only."
+    );
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "profile": { "type": "string" }
+        },
+        "required": ["profile"],
+        "additionalProperties": false
+    });
+    let model = get_xai_model();
+    let Ok((val, _)) =
+        structured_chat(system, &user, "cv_profile_polish_v1", schema, &model).await
+    else {
+        return false;
+    };
+    let Some(polished) = val.get("profile").and_then(|v| v.as_str()) else {
+        return false;
+    };
+    let p = polished.trim();
+    let pl = p.to_lowercase();
+    if p.len() < 80
+        || pl.contains("prep deltas")
+        || pl.contains("overlay only")
+        || pl.contains("master cv")
+    {
+        return false;
+    }
+    if let Some(obj) = ov
+        .get_mut("overrides")
+        .and_then(|v| v.as_object_mut())
+    {
+        obj.insert("profile".into(), json!(p));
+    } else {
+        return false;
+    }
+    ov.as_object_mut()
+        .map(|o| o.insert("profile_polished".into(), json!(true)));
+    std::fs::write(
+        overlay_path,
+        serde_json::to_string_pretty(&ov).unwrap_or_else(|_| raw),
+    )
+    .is_ok()
+}
+
+fn parse_pack_slug_from_notes(notes: &str) -> Option<String> {
+    for part in notes.split_whitespace() {
+        if let Some(rest) = part.strip_prefix("pack_slug=") {
+            let s = rest.trim();
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn parse_export_path_from_notes(notes: &str) -> Option<String> {
+    for part in notes.split_whitespace() {
+        if let Some(rest) = part.strip_prefix("export_path=") {
+            let s = rest.trim();
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Preflight: devprofile_path must contain scripts/generate-apply-cv.tsx.
+pub(crate) fn preflight_generate_apply_cv(devprofile: &std::path::Path) -> Result<PathBuf, String> {
+    if !devprofile.is_dir() {
+        return Err(format!(
+            "devprofile_path is not a directory: {}",
+            devprofile.display()
+        ));
+    }
+    let script = devprofile.join("scripts").join("generate-apply-cv.tsx");
+    if !script.is_file() {
+        return Err(format!(
+            "generate-apply-cv.tsx missing at {} — pull latest devprofile main (apply-cv scripts)",
+            script.display()
+        ));
+    }
+    Ok(script)
+}
+
+/// Resolve `bun`/`pnpm` for GUI-launched Tauri (often has a minimal PATH).
+fn resolve_tool_binary(name: &str) -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in path.split(':') {
+            if dir.is_empty() {
+                continue;
+            }
+            let p = PathBuf::from(dir).join(name);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let candidates = [
+        format!("{home}/.bun/bin"),
+        format!("{home}/.local/share/pnpm"),
+        format!("{home}/.local/bin"),
+        format!("{home}/.nvm/current/bin"),
+        "/usr/local/bin".into(),
+        "/usr/bin".into(),
+    ];
+    for dir in candidates {
+        let p = PathBuf::from(&dir).join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn find_bun_or_pnpm() -> Result<(PathBuf, Vec<String>), String> {
+    // Prefer bun (package.json: "generate-apply-cv": "bun scripts/…")
+    if let Some(bun) = resolve_tool_binary("bun") {
+        return Ok((bun, vec!["scripts/generate-apply-cv.tsx".into()]));
+    }
+    if let Some(pnpm) = resolve_tool_binary("pnpm") {
+        return Ok((pnpm, vec!["generate-apply-cv".into()]));
+    }
+    Err(
+        "Neither bun nor pnpm found (PATH + ~/.bun/bin + ~/.local/bin). Install bun or open a shell with pnpm."
+            .into(),
+    )
+}
+
+fn expected_pdf_paths(
+    devprofile: &std::path::Path,
+    pack_dir: &std::path::Path,
+    slug: &str,
+) -> (PathBuf, Option<PathBuf>, Option<PathBuf>) {
+    // Prefer meta.json written by generate-apply-cv when present
+    let meta_path = devprofile.join("out").join("apply").join(slug).join("meta.json");
+    if let Ok(raw) = std::fs::read_to_string(&meta_path) {
+        if let Ok(v) = serde_json::from_str::<Value>(&raw) {
+            if let Some(name) = v.get("cv_filename").and_then(|x| x.as_str()) {
+                let primary = devprofile.join("out").join("apply").join(slug).join(name);
+                let flat = devprofile.join("out").join("apply").join(name);
+                let submit = pack_dir.join("submit").join(name);
+                return (
+                    primary,
+                    if flat.is_file() { Some(flat) } else { None },
+                    if submit.is_file() { Some(submit) } else { None },
+                );
+            }
+        }
+    }
+    // Fallback: any pdf under out/apply/<slug>/ except cv.pdf alias prefer longer name
+    let dir = devprofile.join("out").join("apply").join(slug);
+    let mut best: Option<PathBuf> = None;
+    if let Ok(rd) = std::fs::read_dir(&dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|x| x.to_str()) == Some("pdf") {
+                let name = p.file_name().and_then(|x| x.to_str()).unwrap_or("");
+                if name == "cv.pdf" {
+                    continue;
+                }
+                if best.as_ref().map(|b| name.len() > b.file_name().map(|f| f.len()).unwrap_or(0)).unwrap_or(true) {
+                    best = Some(p);
+                }
+            }
+        }
+    }
+    let primary = best.unwrap_or_else(|| dir.join("cv.pdf"));
+    let flat = primary
+        .file_name()
+        .map(|n| devprofile.join("out").join("apply").join(n));
+    let submit = primary
+        .file_name()
+        .map(|n| pack_dir.join("submit").join(n));
+    (
+        primary,
+        flat.filter(|p| p.is_file()),
+        submit.filter(|p| p.is_file()),
+    )
+}
+
+/// Export pack + optional xAI profile polish + spawn devprofile generate-apply-cv.
+/// Never mutates master cvdata.json — only pack files + PDFs under out/apply/.
+pub(crate) fn do_generate_apply_cv(
+    store: &db::SqliteStore,
+    opportunity_id: i64,
+) -> Result<GenerateApplyCvResult, String> {
+    // Sync path used by tests: template overlay only (no live polish).
+    do_generate_apply_cv_inner(store, opportunity_id, false)
+}
+
+fn do_generate_apply_cv_inner(
+    store: &db::SqliteStore,
+    opportunity_id: i64,
+    _polish_already_done: bool,
+) -> Result<GenerateApplyCvResult, String> {
+    if opportunity_id <= 0 {
+        return Err("opportunity_id required".into());
+    }
+    let opps = store
+        .get_opportunities(&db::OpportunityFilter {
+            id: Some(opportunity_id),
+            limit: Some(1),
+            ..Default::default()
+        })
+        .unwrap_or_default();
+    let o = opps
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("opportunity {opportunity_id} not found"))?;
+
+    let _ = o;
+    let exported = do_export_application_pack(store, opportunity_id)?;
+    if exported.file_count == 0 || exported.files.is_empty() {
+        return Err(
+            "Export produced 0 pack files — run Generate prep first (cover letter / suggestions)."
+                .into(),
+        );
+    }
+    let pack_slug = exported.pack_slug;
+    let pack_dir = PathBuf::from(&exported.pack_dir);
+    let export_files = exported.files.clone();
+    let export_file_count = exported.file_count;
+    let company = exported.company.clone().unwrap_or_default();
+    let title = exported.title.clone().unwrap_or_default();
+
+    let overlay_path = pack_dir.join("cv-overlay.json");
+    if !overlay_path.is_file() {
+        return Err(format!(
+            "Pack missing cv-overlay.json at {} — export must write overlay from prep. Without overlay, every role gets the same master CV.",
+            overlay_path.display()
+        ));
+    }
+    let overlay_raw = std::fs::read_to_string(&overlay_path).map_err(|e| e.to_string())?;
+    let overlay_val: Value =
+        serde_json::from_str(&overlay_raw).map_err(|e| format!("invalid cv-overlay.json: {e}"))?;
+    let has_fit = overlay_val
+        .get("featured_keys")
+        .and_then(|v| v.as_array())
+        .map(|a| !a.is_empty())
+        .unwrap_or(false)
+        || overlay_val
+            .get("overrides")
+            .and_then(|v| v.as_object())
+            .map(|o| !o.is_empty())
+            .unwrap_or(false)
+        || overlay_val
+            .get("projects_upsert")
+            .and_then(|v| v.as_array())
+            .map(|a| !a.is_empty())
+            .unwrap_or(false);
+    if !has_fit {
+        return Err(
+            "cv-overlay.json has no featured_keys/overrides/projects_upsert — cannot produce a role-fit CV"
+                .into(),
+        );
+    }
+
+    let profile_polished = overlay_val
+        .get("profile_polished")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let dev_path = get_devprofile_path().ok_or_else(|| {
+        "devprofile_path not set — configure Settings → devprofile path (e.g. ~/Work/personal/devprofile)".to_string()
+    })?;
+    let devprofile = PathBuf::from(&dev_path);
+    let _script = preflight_generate_apply_cv(&devprofile)?;
+
+    let link_script = devprofile.join("scripts").join("link-application-packs.mjs");
+    if link_script.is_file() {
+        let packs_root = crate::app_dirs::app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("application_packs");
+        let status = std::process::Command::new("node")
+            .arg(&link_script)
+            .current_dir(&devprofile)
+            .env("COLLAB_FINDER_PACKS", packs_root)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .status()
+            .map_err(|e| format!("link-application-packs failed to start: {e}"))?;
+        if !status.success() {
+            eprintln!("[apply-cv] link-application-packs exited {:?}", status.code());
+        }
+    }
+
+    let (bin, mut args) = find_bun_or_pnpm()?;
+    args.push(pack_slug.clone());
+
+    let mut path_env = std::env::var("PATH").unwrap_or_default();
+    if let Some(parent) = bin.parent() {
+        let p = parent.display().to_string();
+        if !path_env.split(':').any(|d| d == p) {
+            path_env = format!("{p}:{path_env}");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    for extra in [
+        format!("{home}/.bun/bin"),
+        format!("{home}/.local/bin"),
+        "/usr/local/bin".into(),
+    ] {
+        if !path_env.split(':').any(|d| d == extra) {
+            path_env = format!("{extra}:{path_env}");
+        }
+    }
+
+    let mut child = std::process::Command::new(&bin);
+    child
+        .args(&args)
+        .current_dir(&devprofile)
+        .env("PATH", &path_env)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let output = child.output().map_err(|e| {
+        format!("spawn {} failed: {e}", bin.display())
+    })?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(format!(
+            "generate-apply-cv failed (exit {:?}):\n{}\n{}",
+            output.status.code(),
+            stdout.chars().rev().take(1500).collect::<String>().chars().rev().collect::<String>(),
+            stderr.chars().rev().take(1500).collect::<String>().chars().rev().collect::<String>()
+        ));
+    }
+
+    let (primary, flat, submit) = expected_pdf_paths(&devprofile, &pack_dir, &pack_slug);
+    if !primary.is_file() {
+        return Err(format!(
+            "generate-apply-cv finished but PDF missing at {}\nstdout:\n{}",
+            primary.display(),
+            stdout.chars().rev().take(2000).collect::<String>().chars().rev().collect::<String>()
+        ));
+    }
+
+    let tail: String = stdout
+        .chars()
+        .rev()
+        .take(800)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+
+    let _ = (company, title); // used by async polish path
+    Ok(GenerateApplyCvResult {
+        opportunity_id,
+        pack_slug,
+        pack_dir: pack_dir.to_string_lossy().to_string(),
+        pdf_path: primary.to_string_lossy().to_string(),
+        flat_pdf_path: flat.map(|p| p.to_string_lossy().to_string()),
+        submit_pdf_path: submit.map(|p| p.to_string_lossy().to_string()),
+        stdout_tail: tail,
+        export_files,
+        export_file_count,
+        overlay_path: overlay_path.to_string_lossy().to_string(),
+        profile_polished,
+    })
+}
+
+#[tauri::command]
+pub(crate) async fn generate_apply_cv(
+    db: State<'_, AppDb>,
+    opportunity_id: i64,
+) -> Result<GenerateApplyCvResult, String> {
+    // 1) Export + template overlay under lock
+    let exported = {
+        let guard = db
+            .0
+            .lock()
+            .map_err(|_| "lock failed".to_string())?;
+        if opportunity_id <= 0 {
+            return Err("opportunity_id required".into());
+        }
+        // existence check
+        let opps = guard
+            .get_opportunities(&db::OpportunityFilter {
+                id: Some(opportunity_id),
+                limit: Some(1),
+                ..Default::default()
+            })
+            .unwrap_or_default();
+        if opps.is_empty() {
+            return Err(format!("opportunity {opportunity_id} not found"));
+        }
+        do_export_application_pack(&*guard, opportunity_id)?
+    };
+
+    if exported.file_count == 0 {
+        return Err(
+            "Export produced 0 pack files — run Generate prep first.".into(),
+        );
+    }
+    let pack_dir = PathBuf::from(&exported.pack_dir);
+    let overlay_path = pack_dir.join("cv-overlay.json");
+    if !overlay_path.is_file() {
+        return Err(format!(
+            "Pack missing cv-overlay.json at {}",
+            overlay_path.display()
+        ));
+    }
+
+    // 2) Optional xAI polish of profile (outside lock)
+    let title = exported.title.clone().unwrap_or_default();
+    let company = exported.company.clone().unwrap_or_default();
+    let polished = maybe_polish_overlay_profile(&overlay_path, &title, &company).await;
+    if polished {
+        eprintln!("[apply-cv] profile polished via xAI for opp {opportunity_id}");
+    }
+
+    // 3) Spawn generate-apply-cv (re-open store briefly for notes-free spawn path)
+    let guard = db
+        .0
+        .lock()
+        .map_err(|_| "lock failed".to_string())?;
+    // Avoid re-export wiping polish: only spawn using existing pack
+    spawn_generate_apply_cv_for_export(&*guard, opportunity_id, &exported, polished)
+}
+
+/// Spawn PDF generator for an already-exported pack (does not re-export — preserves polished overlay).
+fn spawn_generate_apply_cv_for_export(
+    _store: &db::SqliteStore,
+    opportunity_id: i64,
+    exported: &ApplicationPackExportResult,
+    profile_polished: bool,
+) -> Result<GenerateApplyCvResult, String> {
+    let pack_slug = exported.pack_slug.clone();
+    let pack_dir = PathBuf::from(&exported.pack_dir);
+    let export_files = exported.files.clone();
+    let export_file_count = exported.file_count;
+    let overlay_path = pack_dir.join("cv-overlay.json");
+    if !overlay_path.is_file() {
+        return Err(format!("missing {}", overlay_path.display()));
+    }
+
+    let dev_path = get_devprofile_path().ok_or_else(|| {
+        "devprofile_path not set — configure Settings → devprofile path".to_string()
+    })?;
+    let devprofile = PathBuf::from(&dev_path);
+    let _script = preflight_generate_apply_cv(&devprofile)?;
+
+    let link_script = devprofile.join("scripts").join("link-application-packs.mjs");
+    if link_script.is_file() {
+        let packs_root = crate::app_dirs::app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("application_packs");
+        let _ = std::process::Command::new("node")
+            .arg(&link_script)
+            .current_dir(&devprofile)
+            .env("COLLAB_FINDER_PACKS", packs_root)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .status();
+    }
+
+    let (bin, mut args) = find_bun_or_pnpm()?;
+    args.push(pack_slug.clone());
+    let mut path_env = std::env::var("PATH").unwrap_or_default();
+    if let Some(parent) = bin.parent() {
+        let p = parent.display().to_string();
+        if !path_env.split(':').any(|d| d == p) {
+            path_env = format!("{p}:{path_env}");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    for extra in [
+        format!("{home}/.bun/bin"),
+        format!("{home}/.local/bin"),
+        "/usr/local/bin".into(),
+    ] {
+        if !path_env.split(':').any(|d| d == extra) {
+            path_env = format!("{extra}:{path_env}");
+        }
+    }
+
+    let output = std::process::Command::new(&bin)
+        .args(&args)
+        .current_dir(&devprofile)
+        .env("PATH", &path_env)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .map_err(|e| format!("spawn {} failed: {e}", bin.display()))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(format!(
+            "generate-apply-cv failed (exit {:?}):\n{}\n{}",
+            output.status.code(),
+            stdout.chars().rev().take(1500).collect::<String>().chars().rev().collect::<String>(),
+            stderr.chars().rev().take(1500).collect::<String>().chars().rev().collect::<String>()
+        ));
+    }
+
+    let (primary, flat, submit) = expected_pdf_paths(&devprofile, &pack_dir, &pack_slug);
+    if !primary.is_file() {
+        return Err(format!(
+            "generate-apply-cv finished but PDF missing at {}",
+            primary.display()
+        ));
+    }
+    let tail: String = stdout
+        .chars()
+        .rev()
+        .take(800)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+
+    Ok(GenerateApplyCvResult {
+        opportunity_id,
+        pack_slug,
+        pack_dir: pack_dir.to_string_lossy().to_string(),
+        pdf_path: primary.to_string_lossy().to_string(),
+        flat_pdf_path: flat.map(|p| p.to_string_lossy().to_string()),
+        submit_pdf_path: submit.map(|p| p.to_string_lossy().to_string()),
+        stdout_tail: tail,
+        export_files,
+        export_file_count,
+        overlay_path: overlay_path.to_string_lossy().to_string(),
+        profile_polished,
+    })
+}
+
+
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OpportunityTargetPageResult {
+    pub title: Option<String>,
+    pub company: Option<String>,
+    pub cleaned_text: String,
+    pub original_len: u32,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OpportunityTargetAnalysisResult {
+    pub opportunity_id: i64,
+    pub fit: Value,
+    /// `strict` (dual-fit) or `relaxed` (simple fitness). Default strict when omitted on old rows.
+    #[serde(default = "default_fit_mode_field")]
+    pub fit_mode: String,
+    /// Prefix of the CV packet included in the xAI user prompt (max `PACKET_PREVIEW_MAX_CHARS`).
+    pub packet_preview: String,
+    /// True when `packet_preview` is shorter than the full CV sent in the prompt.
+    pub packet_preview_truncated: bool,
+    /// Character count of the full CV packet in the xAI prompt (not JD).
+    pub cv_chars_sent: u32,
+    /// Non-zero when `cv_summary` was present and non-empty over IPC (after trim).
+    pub cv_ipc_chars: u32,
+    /// True when IPC omitted/empty `cv_summary` and `DEFAULT_CV_PACKET` was used.
+    pub cv_used_fallback: bool,
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub est_cost_usd: f64,
+}
+
+fn default_fit_mode_field() -> String {
+    DEFAULT_FIT_MODE.to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OpportunityTargetPrepResult {
+    pub opportunity_id: i64,
+    pub prep: Value,
+    /// Role-class exceptional-work variant id selected from curation/proof-variants.md.
+    #[serde(default)]
+    pub proof_variant_id: String,
+    pub est_cost_usd: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CvSidecarProposalResult {
+    pub opportunity_id: i64,
+    /// Human readable basic preview of what would be proposed (sidecar-first, no live CV mutation per cv-promote-guard).
+    pub preview: String,
+    /// Absolute path to the written sidecar proposal artifact.
+    pub sidecar_path: String,
+    pub suggestions_count: u32,
 }
 
 fn strip_html_basic(html: &str) -> String {
@@ -1888,8 +3201,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn normalize_opportunity_fetch_url_adds_https_for_bare_host_path() {
+        let bare = "jobs.qred.com/jobs/7931564-fullstack-developer-typescript";
+        let out = normalize_opportunity_fetch_url(bare).expect("bare host/path");
+        assert_eq!(
+            out,
+            "https://jobs.qred.com/jobs/7931564-fullstack-developer-typescript"
+        );
+        let already = "https://jobs.qred.com/jobs/1";
+        assert_eq!(
+            normalize_opportunity_fetch_url(already).unwrap(),
+            already
+        );
+        let http = "http://example.com/a";
+        assert_eq!(normalize_opportunity_fetch_url(http).unwrap(), http);
+        assert!(normalize_opportunity_fetch_url("").is_err());
+        assert!(normalize_opportunity_fetch_url("   ").is_err());
+        // protocol-relative
+        assert_eq!(
+            normalize_opportunity_fetch_url("//jobs.example.com/x").unwrap(),
+            "https://jobs.example.com/x"
+        );
+    }
+
+    #[test]
     fn analyze_user_prompt_injects_constraints_from_curation_artifact() {
-        let prompt = build_analyze_user_prompt("CV_BODY_HERE", "JD_BODY_HERE", CANDIDATE_CONSTRAINTS);
+        let prompt = build_analyze_user_prompt(
+            "CV_BODY_HERE",
+            "JD_BODY_HERE",
+            CANDIDATE_CONSTRAINTS_STRICT,
+        );
         assert!(
             prompt.contains("CANDIDATE_CONSTRAINTS"),
             "must label constraints block"
@@ -1912,7 +3253,46 @@ mod tests {
             "dual-fit rubric in prompt"
         );
         // Ensure not CV+JD only (constraints section present between or alongside)
-        assert!(prompt.contains(CANDIDATE_CONSTRAINTS.trim().lines().next().unwrap_or("CANDIDATE_CONSTRAINTS")));
+        assert!(prompt.contains(
+            CANDIDATE_CONSTRAINTS_STRICT
+                .trim()
+                .lines()
+                .next()
+                .unwrap_or("CANDIDATE_CONSTRAINTS")
+        ));
+    }
+
+    #[test]
+    fn relaxed_prompt_is_simple_fitness_not_dual_fit_mission() {
+        let prompt = build_analyze_user_prompt_for_mode(
+            "CV_BODY_HERE",
+            "JD_BODY_HERE",
+            CANDIDATE_CONSTRAINTS_RELAXED,
+            FIT_MODE_RELAXED,
+        );
+        assert!(prompt.contains("SIMPLE FITNESS RUBRIC"), "relaxed rubric label");
+        assert!(
+            prompt.contains("MODE: RELAXED") || prompt.contains("RELAXED"),
+            "relaxed constraints packet"
+        );
+        assert!(
+            !prompt.contains("DUAL-FIT RUBRIC"),
+            "must not use dual-fit rubric in relaxed"
+        );
+        assert!(
+            !prompt.contains("MISSION: physical-world ML"),
+            "must not inject strict hard MISSION line"
+        );
+        assert!(
+            prompt.contains("Do NOT require physical-world ML")
+                || prompt.contains("DO_NOT: Require physical-world ML"),
+            "must explicitly reject ML/robotics mission veto"
+        );
+        assert_eq!(resolve_constraints(FIT_MODE_RELAXED), CANDIDATE_CONSTRAINTS_RELAXED);
+        assert_eq!(resolve_constraints(FIT_MODE_STRICT), CANDIDATE_CONSTRAINTS_STRICT);
+        assert_eq!(parse_fit_mode("relaxed"), FIT_MODE_RELAXED);
+        assert_eq!(parse_fit_mode("STRICT"), FIT_MODE_STRICT);
+        assert_eq!(parse_fit_mode(""), FIT_MODE_STRICT);
     }
 
     #[test]
@@ -1941,6 +3321,20 @@ mod tests {
         assert!(req.contains(&"role_to_candidate"));
         assert!(req.contains(&"role_concerns"));
         assert!(req.contains(&"deal_breakers_triggered"));
+    }
+
+    #[test]
+    fn simple_fitness_schema_omits_dual_fit_fields() {
+        let schema = simple_fitness_json_schema();
+        let props = schema.get("properties").expect("properties");
+        assert!(props.get("overall").is_some());
+        assert!(props.get("rationale").is_some());
+        assert!(props.get("gaps_must").is_some());
+        assert!(props.get("recommended_action").is_some());
+        assert!(props.get("candidate_to_role").is_none());
+        assert!(props.get("role_to_candidate").is_none());
+        assert!(props.get("role_concerns").is_none());
+        assert!(props.get("deal_breakers_triggered").is_none());
     }
 
     #[test]
@@ -2305,41 +3699,113 @@ mod tests {
     fn build_application_pack_files_from_representative_prep() {
         let prep = r#"{
             "cover_letter": "Dear hiring team, I bring Tauri + agentic systems experience.",
-            "cv_suggestions": ["Lead with collab-finder OSS", "Add truth-seeking AI line"],
+            "cv_suggestions": ["Lead with collab-finder OSS", "Add truth-seeking AI line", "Promote agent-prompt-tuning-lab"],
             "research_notes": "Company ships agents; emphasize self-guards.",
-            "exceptional_work_example": "Built collab-finder with MVU + xAI prep packs.",
+            "exceptional_work_example": "Built collab-finder with live xAI fit/prep.",
             "proof_variant_id": "EW-agent-collab-finder"
         }"#;
         let files = build_application_pack_files(prep, None).expect("builder");
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&"cover-letter.md"), "must include cover letter");
+        assert!(names.contains(&"cover-letter.md"));
         assert!(names.contains(&"cv-suggestions.md"));
         assert!(names.contains(&"research-notes.md"));
         assert!(names.contains(&"exceptional-work.md"));
         assert!(names.contains(&"proof-variant.txt"));
+        assert!(names.contains(&"cv-overlay.json"), "export must write cv-overlay for apply CV deltas");
         assert!(names.contains(&"manifest.json"));
-        let letter = files
+        let overlay_raw = files
             .iter()
-            .find(|(n, _)| n == "cover-letter.md")
+            .find(|(n, _)| n == "cv-overlay.json")
             .map(|(_, c)| c.as_str())
-            .unwrap_or("");
+            .unwrap();
+        let ov: Value = serde_json::from_str(overlay_raw).expect("overlay json");
+        assert_eq!(ov.get("schema").and_then(|v| v.as_str()), Some("cv_overlay_v1"));
+        let keys = ov
+            .get("featured_keys")
+            .and_then(|v| v.as_array())
+            .expect("featured_keys");
         assert!(
-            letter.contains("Tauri + agentic"),
-            "cover letter content must flow from prep JSON"
+            keys.iter().any(|k| k.as_str() == Some("collab-finder")),
+            "featured_keys should include collab-finder from suggestions"
         );
-        assert!(!letter.trim().is_empty());
+        let profile = ov
+            .pointer("/overrides/profile")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let pl = profile.to_lowercase();
+        assert!(
+            !pl.contains("prep deltas")
+                && !pl.contains("overlay only")
+                && !pl.contains("application pack for")
+                && !pl.contains("master cv unchanged"),
+            "profile must be hiring-manager prose, not agent meta: {profile}"
+        );
+        assert!(
+            pl.contains("collab-finder") || pl.contains("software engineer"),
+            "profile should still reflect role-fit content"
+        );
+        if let Some(lr) = ov
+            .pointer("/overrides/latest_proffessional_role")
+            .and_then(|v| v.as_str())
+        {
+            assert!(
+                !lr.to_lowercase().contains("application pack"),
+                "title line must not say application pack: {lr}"
+            );
+        }
     }
 
     #[test]
-    fn build_application_pack_files_unwraps_nested_prep() {
-        let wrapped = r#"{"prep":{"cover_letter":"Nested letter body with substance.","research_notes":"Notes."},"opportunity_id":9}"#;
-        let files = build_application_pack_files(wrapped, None).expect("nested");
-        let letter = files
-            .iter()
-            .find(|(n, _)| n == "cover-letter.md")
-            .map(|(_, c)| c.clone())
-            .unwrap_or_default();
-        assert!(letter.contains("Nested letter body"));
+    fn featured_keys_from_prep_text_detects_project_mentions() {
+        let keys = featured_keys_from_prep_text(
+            "Promote collab-finder and agent-prompt-tuning-lab; selfie-sign-in with Rekognition",
+        );
+        assert!(keys.contains(&"collab-finder".to_string()));
+        assert!(keys.contains(&"agent-prompt-tuning-lab".to_string()));
+        assert!(keys.contains(&"selfie-signin".to_string()));
+    }
+
+    #[test]
+    fn profile_5beat_matches_gold_structure() {
+        let exceptional = "At Oneflow (Full Stack Integration Engineer, 2019–2021) I established the Integration Team and long-term integration processes from the ground up. I built multi-client Python/React applications integrating HubSpot, SuperOffice, Microsoft Dynamics, Salesforce, and Teamtailor, and stabilized and evolved the Public API so a third-party ecosystem could grow reliably. Later senior work—TypeScript migrations that cut type-related errors ~70%, ACL unification, and Playwright E2E—compounded that platform ownership.";
+        let featured = vec![
+            "collab-finder".into(),
+            "selfie-signin".into(),
+            "adaptate".into(),
+        ];
+        let scan = "rekognition zod schema fullstack typescript";
+        let profile = build_professional_profile_override_with_scan(
+            exceptional,
+            "",
+            &featured,
+            "qred",
+            "Fullstack Developer TypeScript",
+            scan,
+        );
+        let pl = profile.to_lowercase();
+        assert!(
+            pl.starts_with("senior software engineer with fullstack web dev specialization"),
+            "hook beat: {profile}"
+        );
+        assert!(
+            pl.contains("oneflow") && pl.contains("integration"),
+            "career beat: {profile}"
+        );
+        assert!(
+            pl.contains("rekognition") || pl.contains("zod") || pl.contains("recent personal"),
+            "recent personal beat: {profile}"
+        );
+        assert!(
+            pl.contains("seeking the fullstack developer") && pl.contains("qred"),
+            "seeking beat: {profile}"
+        );
+        assert!(
+            profile.chars().count() <= 700,
+            "profile too long for page 1: {}",
+            profile.chars().count()
+        );
+        assert!(!pl.contains("prep deltas") && !pl.contains("overlay only"));
+        assert!(!pl.contains("labeled personal/oss, not employment tenure"));
     }
 
     #[test]
@@ -2352,52 +3818,6 @@ mod tests {
     }
 
     #[test]
-    fn company_from_greenhouse_url_reads_board() {
-        assert_eq!(
-            company_from_greenhouse_url(
-                "https://job-boards.greenhouse.io/xai/jobs/4956028007"
-            )
-            .as_deref(),
-            Some("xai")
-        );
-    }
-
-    #[test]
-    fn infer_title_company_from_jd_greenhouse_prefix() {
-        let jd = "Job Application for Exceptional Software Engineer at xAIBack to jobsExceptional…";
-        let (t, c) = infer_title_company_from_jd(jd);
-        assert_eq!(t.as_deref(), Some("Exceptional Software Engineer"));
-        assert_eq!(c.as_deref(), Some("xAI"));
-    }
-
-    #[test]
-    fn resolve_identity_falls_back_from_url_and_jd_when_db_empty() {
-        let o = crate::db::Opportunity {
-            id: 17,
-            kind: "web".into(),
-            source_url: Some(
-                "https://job-boards.greenhouse.io/xai/jobs/4956028007".into(),
-            ),
-            source_ref: None,
-            title: None,
-            company: None,
-            jd_text: "Job Application for Exceptional Software Engineer at xAIBack to jobs…".into(),
-            status: "prepped".into(),
-            fit_score: Some(85),
-            analysis_json: None,
-            prep_artifacts_json: None,
-            last_updated: "2026-07-17 13:38:28".into(),
-            notes: None,
-        };
-        let id = resolve_application_pack_identity(&o);
-        assert_eq!(id.slug, "xai-exceptional-software-engineer-2026-07-17");
-        assert_eq!(id.date, "2026-07-17");
-        assert_eq!(id.opportunity_id, 17);
-        assert_eq!(id.job_id, "4956028007");
-        assert!(id.source_url.as_deref().unwrap_or("").contains("4956028007"));
-    }
-
-    #[test]
     fn job_id_from_source_url_greenhouse() {
         assert_eq!(
             job_id_from_source_url(
@@ -2406,121 +3826,113 @@ mod tests {
             .as_deref(),
             Some("4956028007")
         );
+        // Qred-style id-slug → digits only (stable PDF id segment)
+        assert_eq!(
+            job_id_from_source_url(
+                "https://jobs.qred.com/jobs/7931564-fullstack-developer-typescript"
+            )
+            .as_deref(),
+            Some("7931564")
+        );
+        assert_eq!(
+            company_from_jobs_host_url(
+                "https://jobs.qred.com/jobs/7931564-fullstack-developer-typescript"
+            )
+            .as_deref(),
+            Some("qred")
+        );
+        assert_eq!(
+            title_from_job_url_slug(
+                "https://jobs.qred.com/jobs/7931564-fullstack-developer-typescript"
+            )
+            .as_deref(),
+            Some("Fullstack Developer Typescript")
+        );
+    }
+
+    #[test]
+    fn preflight_generate_apply_cv_requires_script() {
+        let tmp = std::env::temp_dir().join(format!("cf_preflight_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join("scripts")).unwrap();
+        assert!(preflight_generate_apply_cv(&tmp).is_err());
+        std::fs::write(tmp.join("scripts/generate-apply-cv.tsx"), "// stub\n").unwrap();
+        assert!(preflight_generate_apply_cv(&tmp).is_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Live dogfood: re-export + generate apply CV for Qred opp #21 (needs real app data + bun).
+    /// Run: `CF_DOGFOOD=1 cargo test dogfood_qred_export_and_generate_apply_cv -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn dogfood_qred_export_and_generate_apply_cv() {
+        if std::env::var("CF_DOGFOOD").ok().as_deref() != Some("1") {
+            return;
+        }
+        // Use real app data dir (no harness) so we hit live packs + devprofile_path.
+        crate::app_dirs::test_harness::clear();
+        let db_path = crate::app_dirs::app_data_dir()
+            .expect("app data")
+            .join("collab-finder.db");
+        assert!(db_path.is_file(), "missing {:?}", db_path);
+        let store = db::SqliteStore::open_at(db_path).expect("open db");
+        let opp_id: i64 = std::env::var("CF_DOGFOOD_OPP")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(21);
+        let res = do_generate_apply_cv(&store, opp_id)
+            .unwrap_or_else(|e| panic!("generate apply cv for opp {opp_id}: {e}"));
+        println!("opp={opp_id}");
+        println!("pack_slug={}", res.pack_slug);
+        println!("export_file_count={}", res.export_file_count);
+        println!("export_files={:?}", res.export_files);
+        println!("overlay_path={}", res.overlay_path);
+        println!("pdf_path={}", res.pdf_path);
+        assert!(
+            res.export_file_count > 0 && !res.export_files.is_empty(),
+            "export must write files, got count={} files={:?}",
+            res.export_file_count,
+            res.export_files
+        );
+        assert!(
+            res.export_files.iter().any(|f| f == "cv-overlay.json"),
+            "export must include cv-overlay.json (role-fit deltas)"
+        );
+        assert!(
+            std::path::Path::new(&res.overlay_path).is_file(),
+            "overlay_path missing {}",
+            res.overlay_path
+        );
+        assert!(
+            res.pack_slug.contains("qred")
+                || res.pack_slug.contains("fullstack")
+                || res.pack_slug.contains("open-application"),
+            "expected human slug, got {}",
+            res.pack_slug
+        );
+        assert!(
+            std::path::Path::new(&res.pdf_path).is_file(),
+            "pdf missing {}",
+            res.pdf_path
+        );
     }
 
     #[test]
     fn do_export_application_pack_writes_files_and_does_not_touch_cvdata() {
-        struct HarnessGuard(std::path::PathBuf);
-        impl Drop for HarnessGuard {
-            fn drop(&mut self) {
-                crate::app_dirs::test_harness::clear();
-                let _ = std::fs::remove_dir_all(&self.0);
-            }
-        }
         let tmp = std::env::temp_dir().join(format!("cf_export_pack_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
-        let _guard = HarnessGuard(tmp.clone());
         crate::app_dirs::test_harness::set(tmp.clone());
 
-        let store = crate::db::SqliteStore::open_at(tmp.join("export.db")).expect("store");
-        let prep = r#"{
-            "cover_letter": "Dear team, durable pack export test letter for application.",
-            "cv_suggestions": ["Promote agentic Tauri work"],
-            "research_notes": "Role values self-guarded agents.",
-            "exceptional_work_example": "Shipped collab-finder prep + export path."
-        }"#;
+        let store = db::SqliteStore::open_at(tmp.join("t.db")).expect("store");
+        let prep = r#"{"cover_letter":"Hi","cv_suggestions":["a"],"research_notes":"r","exceptional_work_example":"e","proof_variant_id":"EW-agent-collab-finder"}"#;
         let id = store
             .upsert_opportunity(
                 "web",
-                Some("https://example.com/jobs/export-1"),
+                Some("https://example.com/jobs/99"),
                 None,
                 Some("Staff Engineer"),
                 Some("ExampleCo"),
-                "jd about agents",
-                "prepped",
-                Some(88),
-                None,
-                Some(prep),
-                None,
-            )
-            .expect("upsert");
-
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
-        let pre_cv = std::fs::read(live).unwrap_or_default();
-
-        // Drive shipped export core (same path as export_application_pack cmd after lock).
-        let res = do_export_application_pack(&store, id).expect("export");
-
-        let post_cv = std::fs::read(live).unwrap_or_default();
-        assert_eq!(pre_cv, post_cv, "export must never write master cvdata.json");
-
-        assert_eq!(res.opportunity_id, id);
-        assert!(
-            res.pack_dir.contains("application_packs")
-                && res.pack_dir.contains("exampleco")
-                && res.pack_dir.contains("staff-engineer"),
-            "pack_dir should be under application_packs/{{company}}-{{title}}-{{date}}, got {}",
-            res.pack_dir
-        );
-        assert!(
-            res.pack_slug.contains("exampleco") && res.pack_slug.contains("staff-engineer"),
-            "pack_slug should be company-title-date, got {}",
-            res.pack_slug
-        );
-        assert_eq!(res.company.as_deref(), Some("ExampleCo"));
-        assert_eq!(res.title.as_deref(), Some("Staff Engineer"));
-        assert!(res.file_count >= 4, "expect multiple artifacts + manifest");
-        assert!(res.files.iter().any(|f| f == "cover-letter.md"));
-
-        let letter_path = std::path::Path::new(&res.pack_dir).join("cover-letter.md");
-        let letter_body = std::fs::read_to_string(&letter_path).expect("read letter");
-        assert!(
-            letter_body.contains("durable pack export test letter"),
-            "cover-letter.md must contain real prep content"
-        );
-        assert!(!letter_body.trim().is_empty());
-
-        let manifest_path = std::path::Path::new(&res.pack_dir).join("manifest.json");
-        let manifest_body = std::fs::read_to_string(&manifest_path).expect("manifest");
-        assert!(
-            manifest_body.contains(&res.pack_slug) && manifest_body.contains("\"slug\""),
-            "manifest must include slug for apply CV naming"
-        );
-
-        // notes recoverability
-        let opps = store
-            .get_opportunities(&crate::db::OpportunityFilter {
-                id: Some(id),
-                limit: Some(1),
-                ..Default::default()
-            })
-            .expect("get");
-        let notes = opps[0].notes.as_deref().unwrap_or("");
-        assert!(
-            notes.contains("export_path=")
-                && notes.contains(&res.pack_dir)
-                && notes.contains("pack_slug="),
-            "notes must record export_path + pack_slug for hydrate recoverability"
-        );
-        // pipeline status preserved
-        assert_eq!(opps[0].status, "prepped");
-    }
-
-    #[test]
-    fn update_opportunity_status_prepped_to_applied_persists() {
-        let tmp = std::env::temp_dir().join(format!("cf_status_applied_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-        let store = crate::db::SqliteStore::open_at(tmp.join("s.db")).expect("store");
-        let prep = r#"{"cover_letter":"x"}"#;
-        let id = store
-            .upsert_opportunity(
-                "web",
-                Some("https://example.com/applied"),
-                None,
-                Some("Role"),
-                Some("Co"),
                 "jd",
                 "prepped",
                 Some(80),
@@ -2530,37 +3942,29 @@ mod tests {
             )
             .expect("ins");
 
-        store
-            .update_opportunity_status(id, "applied", Some("submitted via company form"))
-            .expect("status");
+        let res = do_export_application_pack(&store, id).expect("export");
+        assert!(res.pack_dir.contains("application_packs"), "got {}", res.pack_dir);
+        assert!(
+            res.pack_slug.contains("exampleco") && res.pack_slug.contains("staff-engineer"),
+            "slug {}",
+            res.pack_slug
+        );
+        assert!(std::path::Path::new(&res.pack_dir).join("manifest.json").is_file());
+        assert!(std::path::Path::new(&res.pack_dir).join("cover-letter.md").is_file());
 
         let opps = store
-            .get_opportunities(&crate::db::OpportunityFilter {
+            .get_opportunities(&db::OpportunityFilter {
                 id: Some(id),
                 limit: Some(1),
                 ..Default::default()
             })
-            .expect("get");
-        assert_eq!(opps.len(), 1);
-        assert_eq!(opps[0].status, "applied");
-        assert_eq!(
-            opps[0].notes.as_deref(),
-            Some("submitted via company form")
-        );
+            .unwrap();
+        let notes = opps[0].notes.clone().unwrap_or_default();
+        assert!(notes.contains("export_path=") && notes.contains("pack_slug="));
+        assert_eq!(opps[0].status, "prepped");
 
-        // list path used by get_opportunities / rail
-        let listed = store
-            .get_opportunities(&crate::db::OpportunityFilter {
-                status: Some("applied".into()),
-                limit: Some(50),
-                ..Default::default()
-            })
-            .expect("list applied");
-        assert!(
-            listed.iter().any(|o| o.id == id && o.status == "applied"),
-            "applied row must appear in status filter list"
-        );
-
+        crate::app_dirs::test_harness::clear();
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
 }

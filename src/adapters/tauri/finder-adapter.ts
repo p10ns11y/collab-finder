@@ -12,6 +12,7 @@ import type {
   SearchRunWithTweets,
 } from '../../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../../core/domain/opportunity-target'
+import type { HireBoardFilter, HireBoardLead } from '../../core/domain/hire-board'
 import { safeInvoke } from './safe-invoke'
 
 // Re-export filter types for the effects wrapper sig (used by history MVU)
@@ -63,11 +64,27 @@ export function createTauriFinderPort(): FinderPort {
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
     updateOpportunityStatus: (id, status, notes) =>
       safeInvoke<void>('update_opportunity_status_cmd', { id, status, notes }),
+    fetchHireBoard: (filter?: HireBoardFilter) =>
+      safeInvoke<HireBoardLead[]>('fetch_hire_board', {
+        sheetUrl: filter?.sheet_url,
+        q: filter?.q,
+        geo: filter?.geo,
+        requireCareerUrl: filter?.require_career_url ?? true,
+        limit: filter?.limit ?? 100,
+      }),
+    selectHireBoardLead: (payload) =>
+      safeInvoke<Opportunity>('select_hire_board_lead', {
+        company: payload.company,
+        location: payload.location,
+        careerUrl: payload.career_url,
+        threadUrl: payload.thread_url,
+      }),
     getDevprofilePath: () => safeInvoke<string | null>('get_devprofile_path_cmd', {}),
     setDevprofilePath: (p) => safeInvoke<void>('set_devprofile_path_cmd', { path: p }),
     proposeCvSidecar: (id) => safeInvoke('propose_cv_sidecar_for_prep', { opportunityId: id }),
     exportApplicationPack: (id) =>
       safeInvoke('export_application_pack', { opportunityId: id }),
+    generateApplyCv: (id) => safeInvoke('generate_apply_cv', { opportunityId: id }),
   }
 }
 
@@ -176,6 +193,26 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async exportApplicationPack(opportunityId: number) {
       const result = await port.exportApplicationPack(opportunityId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async generateApplyCv(opportunityId: number) {
+      const result = await port.generateApplyCv(opportunityId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async fetchHireBoard(filter?: HireBoardFilter) {
+      const result = await port.fetchHireBoard(filter)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async selectHireBoardLead(payload: {
+      company: string
+      location?: string
+      career_url: string
+      thread_url?: string
+    }) {
+      const result = await port.selectHireBoardLead(payload)
       if (!result.ok) throw result.error
       return result.value
     },

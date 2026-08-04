@@ -6,7 +6,10 @@ Curated, agent-readable artifacts for X search and LLM analyze (SpaceXAI-targete
 |------|---------|
 | [curation/profile-and-strategy.md](./curation/profile-and-strategy.md) | Positioning, geo priorities, platforms (non-X) |
 | [curation/candidate-preferences.md](./curation/candidate-preferences.md) | Dual-fit constraints (modes, geo, family, culture, deal-breakers, comp) |
-| [curation/candidate-constraints-compact.txt](./curation/candidate-constraints-compact.txt) | Compact extract **injected into analyze** (`include_str` in `opportunity_target.rs`) |
+| [curation/candidate-constraints-compact.txt](./curation/candidate-constraints-compact.txt) | **Strict** dual-fit extract injected into analyze (`include_str` in `opportunity_target.rs`) |
+| [curation/candidate-constraints-relaxed.txt](./curation/candidate-constraints-relaxed.txt) | **Relaxed** simple-fitness extract (relevant experience; no ML/robotics mission veto) |
+
+**Fit mode toggle** (`get/set_fit_mode_cmd`, file `fit_mode.txt`, default `strict`): Discover + Settings choose **strict** (dual-fit + compact constraints) or **relaxed** (simple fitness schema + relaxed packet → prepare bundle). Live evaluate still uses xAI; unit tests use offline stubs only.
 | [curation/proof-variants.md](./curation/proof-variants.md) | Role-class exceptional-work bank; **prep selector** picks a variant by JD keywords |
 | [x-search/operators.md](./x-search/operators.md) | Valid v2 operators only — do not guess |
 | [x-search/queries.json](./x-search/queries.json) | Qualified search presets + default CV packet |

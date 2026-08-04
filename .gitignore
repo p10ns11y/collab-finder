@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Hire board — personal Google Sheet id/url (copy from config.example.json)
+data/hire-board/config.local.json
+
 # Cursor local IDE wiring (symlinks to .agents — recreate per machine)
 .cursor/
 
