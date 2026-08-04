@@ -26,6 +26,10 @@ export function reconstructAnalysisFromOpportunity(o: Opportunity): OpportunityT
         const analysis: OpportunityTargetAnalysisResult = {
           opportunity_id: o.id,
           fit,
+          fit_mode:
+            typeof full.fit_mode === 'string' && full.fit_mode
+              ? full.fit_mode
+              : 'strict',
           packet_preview: typeof full.packet_preview === 'string' ? full.packet_preview : (o.jd_text || '').slice(0, 800),
           packet_preview_truncated: typeof full.packet_preview_truncated === 'boolean' ? full.packet_preview_truncated : (o.jd_text || '').length > 800,
           cv_chars_sent: typeof full.cv_chars_sent === 'number' ? full.cv_chars_sent : 0,

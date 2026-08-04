@@ -6,6 +6,15 @@ import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { TweetFeed } from '../../components/finder/tweet-feed'
 import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
+import { HireBoardPanel } from '../../components/finder/hire-board-panel'
+import {
+  DEFAULT_FIT_MODE,
+  fitModeDescription,
+  fitModeLabel,
+  parseFitMode,
+  type FitMode,
+} from '../../core/domain/fit-mode'
+import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Button } from '../../components/ui/button'
 import { Chip } from '../../components/ui/chip'
@@ -39,6 +48,19 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
   const historyOpportunities = view.historyOpportunities || []
+  const [fitMode, setFitMode] = React.useState<FitMode>(DEFAULT_FIT_MODE)
+
+  React.useEffect(() => {
+    void safeInvoke<string>('get_fit_mode_cmd', {}).then((res) => {
+      if (res.ok && res.value) setFitMode(parseFitMode(res.value))
+    })
+  }, [])
+
+  const setFitModePersisted = React.useCallback(async (mode: FitMode) => {
+    setFitMode(mode)
+    const res = await safeInvoke<string>('set_fit_mode_cmd', { mode })
+    if (res.ok && res.value) setFitMode(parseFitMode(res.value))
+  }, [])
   const isDiscover = view.activeScreen === 'discover'
 
   const targetState = model.opportunityTarget ?? { status: 'idle' as const }
@@ -78,6 +100,13 @@ export function DiscoverScreen({ view, dispatch }: Props) {
       >
         {isDiscover && (
           <>
+            <HireBoardPanel
+              hireBoard={model.hireBoard}
+              hireBoardQ={model.hireBoardQ}
+              hireBoardGeo={model.hireBoardGeo}
+              dispatch={dispatch}
+            />
+
             <Panel dense className="space-y-2.5">
               <SectionLabel meta={`${filtered.length}/${historyOpportunities.length}`}>
                 Your opportunities
@@ -197,6 +226,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
 
             <QuickTarget
               busy={targetBusy}
+              fitMode={fitMode}
+              onFitModeChange={(m) => void setFitModePersisted(m)}
               onAnalyzeRequested={(url, pasted_jd) =>
                 dispatch({ type: 'OpportunityTargetAnalyzeRequested', url, pasted_jd })
               }
@@ -251,6 +282,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             busy={targetBusy}
             sourceUrl={sourceUrl}
             pipelineStatus={pipelineStatus}
+            fitMode={fitMode}
             onClear={() => dispatch({ type: 'OpportunityTargetCleared' })}
             onPrepRequested={(opportunityId) =>
               dispatch({
@@ -267,11 +299,16 @@ export function DiscoverScreen({ view, dispatch }: Props) {
               if (opportunityId)
                 dispatch({ type: 'ApplicationPackExportRequested', opportunity_id: opportunityId })
             }}
+            onGenerateApplyCv={(opportunityId) => {
+              if (opportunityId)
+                dispatch({ type: 'GenerateApplyCvRequested', opportunity_id: opportunityId })
+            }}
             onStatusChange={(id, status) =>
               dispatch({ type: 'OpportunityStatusChangeRequested', id, status })
             }
             lastSidecarProposal={view.lastSidecarProposal}
             lastApplicationPackExport={view.lastApplicationPackExport}
+            lastApplyCv={view.lastApplyCv}
           />
         ) : !isDiscover ? (
           <div className="space-y-3">
@@ -296,17 +333,39 @@ export function DiscoverScreen({ view, dispatch }: Props) {
 
 type QuickTargetProps = {
   busy: boolean
+  fitMode: FitMode
+  onFitModeChange: (mode: FitMode) => void
   onAnalyzeRequested: (url?: string, pasted_jd?: string) => void
 }
 
-function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
+function QuickTarget({ busy, fitMode, onFitModeChange, onAnalyzeRequested }: QuickTargetProps) {
   const [url, setUrl] = React.useState('')
   const [pasted, setPasted] = React.useState('')
   const canAnalyze = !busy && !!(url.trim() || pasted.trim())
+  const relaxed = fitMode === 'relaxed'
 
   return (
     <Panel className="space-y-2.5">
       <SectionLabel meta={<span className="text-accent">evaluate</span>}>New target</SectionLabel>
+      <div className="flex gap-1 rounded-md border border-border-subtle p-0.5">
+        {(['strict', 'relaxed'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            disabled={busy}
+            onClick={() => onFitModeChange(m)}
+            className={
+              fitMode === m
+                ? 'flex-1 rounded px-2 py-1 text-[11px] font-medium bg-accent/15 text-accent'
+                : 'flex-1 rounded px-2 py-1 text-[11px] text-ink-muted hover:text-ink'
+            }
+            title={fitModeDescription(m)}
+          >
+            {fitModeLabel(m)}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-ink-faint leading-snug">{fitModeDescription(fitMode)}</p>
       <Input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
@@ -327,7 +386,11 @@ function QuickTarget({ busy, onAnalyzeRequested }: QuickTargetProps) {
         onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
         className="w-full"
       >
-        {busy ? 'Evaluating…' : 'Evaluate fit'}
+        {busy
+          ? 'Evaluating…'
+          : relaxed
+            ? 'Evaluate match'
+            : 'Evaluate fit'}
       </Button>
     </Panel>
   )

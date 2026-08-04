@@ -17,6 +17,7 @@ import type {
   SearchRunWithTweets,
 } from '../domain/history'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
+import type { HireBoardLead } from '../domain/hire-board'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { AppError } from '../error'
 
@@ -89,11 +90,15 @@ export type FinderModel = {
   // Works for any opportunity type (collab, side hustle, community, role, etc.).
   opportunityTarget: AsyncState<OpportunityTargetResult>
   opportunityTargetUrl?: string
+  // Hire board (ephemeral sheet skim — not SQLite until Select/Evaluate)
+  hireBoard: AsyncState<HireBoardLead[]>
+  hireBoardQ: string
+  hireBoardGeo: string[]
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
   // Last proposal from "Propose these CV suggestions as sidecar" for display in the prep panel.
   lastSidecarProposal?: { preview: string; sidecar_path: string }
-  // Last durable application pack export (files under application_packs/{company}-{title}-{date}/).
+  // Last durable application pack export (files under application_packs/{slug}/).
   lastApplicationPackExport?: {
     opportunity_id: number
     pack_dir: string
@@ -102,6 +107,15 @@ export type FinderModel = {
     title?: string | null
     files: string[]
     file_count: number
+  }
+  // Last apply CV PDF from devprofile generate-apply-cv (no master mutation).
+  lastApplyCv?: {
+    opportunity_id: number
+    pack_slug: string
+    pack_dir: string
+    pdf_path: string
+    flat_pdf_path?: string | null
+    submit_pdf_path?: string | null
   }
 }
 
@@ -177,8 +191,12 @@ export function initialFinderModel(): FinderModel {
     hydrate: idle(),
     opportunityTarget: idle<OpportunityTargetResult>(),
     opportunityTargetUrl,
+    hireBoard: idle<HireBoardLead[]>(),
+    hireBoardQ: '',
+    hireBoardGeo: [],
     lastActiveOppId,
     lastSidecarProposal: undefined,
     lastApplicationPackExport: undefined,
+    lastApplyCv: undefined,
   }
 }

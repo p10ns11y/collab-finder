@@ -44,6 +44,11 @@ export type OpportunityTargetAnalysisResult = {
   opportunity_id: number
   fit: OpportunityTargetFit
   /**
+   * `strict` = dual-fit (You↔Role + constraints). `relaxed` = simple fitness → prep.
+   * Omitted on older DB rows (treat as strict).
+   */
+  fit_mode?: 'strict' | 'relaxed' | string
+  /**
    * Prefix of the CV packet in the xAI user prompt (max 8000 chars).
    * When `packet_preview_truncated` is false and this matches your input, the full CV was sent.
    */

@@ -29,6 +29,7 @@ urlencoding = "2"
 keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 dirs = "6"
 rusqlite = { version = "0.31", features = ["bundled"] }
+csv = "1"
 
 [dev-dependencies]
 tempfile = "3"

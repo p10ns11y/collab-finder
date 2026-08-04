@@ -65,6 +65,7 @@ flowchart TB
 | **Runtime** | `src/runtime/finder-runtime.ts` | Wires program + ports for React |
 | **View** | `src/view/finder-app-view.tsx` | Composes finder panels |
 | **History domain** | `src/core/domain/history.ts` | SearchRun, Lead, DashboardStats |
+| **Hire board** | `src-tauri/src/hire_board.rs`, `src/components/finder/hire-board-panel.tsx` | Sheet skim (config.local.json) → Select/Evaluate → `opportunities` |
 
 ```mermaid
 sequenceDiagram

@@ -64,7 +64,7 @@ cd src-tauri && cargo test
 | Durable history (SQLite) | `src-tauri/src/db.rs`, history MVU slices |
 | Reactor + guards (Rust) | `src-tauri/src/finder_reactor.rs` |
 
-## Tauri commands (25 handlers)
+## Tauri commands (27 handlers)
 
 Grouped inventory (MCP server planned; today: `invoke` only). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
 

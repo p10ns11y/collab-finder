@@ -12,6 +12,11 @@ import { serializePreviousFitForPrep } from '../domain/opportunity-target'
 import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
+import { normalizeOpportunityUrl } from '../domain/opportunity-url'
+import {
+  normalizeApplicationPackExport,
+  normalizeGenerateApplyCv,
+} from '../domain/application-pack'
 
 export type FinderPorts = {
   credentials: {
@@ -35,11 +40,25 @@ export type FinderPorts = {
     hydrateTweet(id: string): Promise<import('../domain/finder').Tweet>
     logEvent(eventType: string, payload?: string, correlationId?: string): Promise<void>
     // Opportunity target analyze + visibility (MVU wired in Discover Quick Target flow)
-    analyzeOpportunityTarget(payload: { url?: string; pasted_jd?: string; cv_summary?: string }): Promise<OpportunityTargetAnalysisResult>
+    analyzeOpportunityTarget(payload: {
+      url?: string
+      pasted_jd?: string
+      title?: string
+      company?: string
+      cv_summary?: string
+    }): Promise<OpportunityTargetAnalysisResult>
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
     updateOpportunityStatus(id: number, status: string, notes?: string): Promise<void>
+    // Hire board
+    fetchHireBoard(filter?: import('../domain/hire-board').HireBoardFilter): Promise<import('../domain/hire-board').HireBoardLead[]>
+    selectHireBoardLead(payload: {
+      company: string
+      location?: string
+      career_url: string
+      thread_url?: string
+    }): Promise<import('../domain/history').Opportunity>
     // devprofile + sidecar propose
     getDevprofilePath(): Promise<string | null>
     setDevprofilePath(path: string | null): Promise<void>
@@ -52,6 +71,17 @@ export type FinderPorts = {
       title?: string | null
       files: string[]
       file_count: number
+    }>
+    generateApplyCv(opportunityId: number): Promise<{
+      opportunity_id: number
+      pack_slug: string
+      pack_dir: string
+      pdf_path: string
+      flat_pdf_path?: string | null
+      submit_pdf_path?: string | null
+      stdout_tail?: string
+      export_files?: string[]
+      export_file_count?: number
     }>
   }
 }
@@ -224,16 +254,60 @@ export function exportApplicationPackCmd(ports: FinderPorts, opportunityId: numb
         dispatch({ type: 'ApplicationPackExportFailed', error: result.error })
         return
       }
-      const r = result.value
+      const r = normalizeApplicationPackExport(result.value)
+      if (r.file_count === 0) {
+        dispatch({
+          type: 'ApplicationPackExportFailed',
+          error: toAppError(
+            new Error(
+              'Export wrote 0 files — generate prep first (cover letter / CV suggestions), then export or use Generate apply CV.',
+            ),
+          ),
+        })
+        return
+      }
       dispatch({
         type: 'ApplicationPackExportSucceeded',
-        opportunity_id: r.opportunity_id,
+        opportunity_id: r.opportunity_id || opportunityId,
         pack_dir: r.pack_dir || '',
         pack_slug: r.pack_slug || undefined,
         company: r.company ?? null,
         title: r.title ?? null,
-        files: r.files || [],
-        file_count: r.file_count || 0,
+        files: r.files,
+        file_count: r.file_count,
+      })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
+export function generateApplyCvCmd(ports: FinderPorts, opportunityId: number): Cmd<FinderMsg> {
+  return (dispatch) => {
+    // Self-contained: Rust re-exports the pack then runs generate-apply-cv (no separate Export click).
+    void fromPromise(ports.finder.generateApplyCv(opportunityId), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'GenerateApplyCvFailed', error: result.error })
+        return
+      }
+      const r = normalizeGenerateApplyCv(result.value)
+      if (!r.pdf_path) {
+        dispatch({
+          type: 'GenerateApplyCvFailed',
+          error: toAppError(new Error('generate-apply-cv returned no pdf_path')),
+        })
+        return
+      }
+      dispatch({
+        type: 'GenerateApplyCvSucceeded',
+        opportunity_id: r.opportunity_id || opportunityId,
+        pack_slug: r.pack_slug,
+        pack_dir: r.pack_dir,
+        pdf_path: r.pdf_path,
+        flat_pdf_path: r.flat_pdf_path ?? null,
+        submit_pdf_path: r.submit_pdf_path ?? null,
+        stdout_tail: r.stdout_tail,
+        export_files: r.export_files,
+        export_file_count: r.export_file_count,
       })
       dispatch({ type: 'HistoryRefreshRequested' })
     })
@@ -257,22 +331,81 @@ export function updateOpportunityStatusCmd(
   }
 }
 
+export function hireBoardRefreshCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.fetchHireBoard({
+        q: model.hireBoardQ || undefined,
+        geo: model.hireBoardGeo.length ? model.hireBoardGeo : undefined,
+        require_career_url: true,
+        limit: 100,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'HireBoardRefreshFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'HireBoardRefreshSucceeded', leads: result.value })
+    })
+  }
+}
+
+export function hireBoardSelectCmd(
+  ports: FinderPorts,
+  lead: import('../domain/hire-board').HireBoardLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.selectHireBoardLead({
+        company: lead.company,
+        location: lead.location,
+        career_url: lead.career_url,
+        thread_url: lead.thread_url || undefined,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'HireBoardSelectFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'HireBoardSelectSucceeded', opportunity: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
+      dispatch({
+        type: 'OpportunitySelected',
+        id: result.value.id,
+        url: result.value.source_url || lead.career_url,
+      })
+    })
+  }
+}
+
 export function opportunityTargetAnalyzeCmd(
   ports: FinderPorts,
   model: FinderModel,
-  payload: { url?: string; pasted_jd?: string },
+  payload: { url?: string; pasted_jd?: string; title?: string; company?: string },
 ): Cmd<FinderMsg> {
   return (dispatch) => {
     // Use pure contract: empty/trimmed-to-empty becomes undefined so Rust can pick devprofile_path pruned or its DEFAULT.
     // Never force DEFAULT_CV_SUMMARY at the IPC boundary.
+    // Normalize bare host/path (jobs.qred.com/…) so Open URL + DB match Rust fetch (https://…).
+    const normalizedUrl =
+      payload.url != null && payload.url.trim()
+        ? normalizeOpportunityUrl(payload.url.trim()) ?? payload.url.trim()
+        : payload.url
     const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
-      url: payload.url,
+      url: normalizedUrl,
       pasted_jd: payload.pasted_jd,
+      title: payload.title,
+      company: payload.company,
       cv_summary: cvForIpc,
     }
     if (import.meta.env.DEV) {
       console.debug('[finder] analyze_opportunity_target cv_summary ipc:', cvForIpc ? cvForIpc.length : 'undefined')
+    }
+    if (normalizedUrl && normalizedUrl !== payload.url) {
+      dispatch({ type: 'OpportunityTargetUrlSet', url: normalizedUrl })
     }
     void fromPromise(ports.finder.analyzeOpportunityTarget(p), toAppError).then((result) => {
       if (!result.ok) {
@@ -668,8 +801,30 @@ export function effectForMsg(
       return proposeCvSidecarCmd(ports, msg.opportunity_id)
     case 'ApplicationPackExportRequested':
       return exportApplicationPackCmd(ports, msg.opportunity_id)
+    case 'GenerateApplyCvRequested':
+      return generateApplyCvCmd(ports, msg.opportunity_id)
     case 'OpportunityStatusChangeRequested':
       return updateOpportunityStatusCmd(ports, msg.id, msg.status)
+    case 'HireBoardRefreshRequested':
+      return hireBoardRefreshCmd(ports, model)
+    case 'HireBoardSelectRequested':
+      return hireBoardSelectCmd(ports, msg.lead)
+    case 'HireBoardGeoToggled':
+      return model.hireBoard.status === 'ready' || model.hireBoard.status === 'failed'
+        ? hireBoardRefreshCmd(ports, model)
+        : undefined
+    case 'HireBoardEvaluateRequested':
+      return [
+        (d) => d({ type: 'OpportunityTargetUrlSet', url: msg.lead.career_url }),
+        opportunityTargetAnalyzeCmd(ports, {
+          ...model,
+          opportunityTargetUrl: msg.lead.career_url,
+        }, {
+          url: msg.lead.career_url,
+          company: msg.lead.company,
+          title: msg.lead.company,
+        }),
+      ]
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':

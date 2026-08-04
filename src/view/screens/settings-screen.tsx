@@ -17,6 +17,13 @@ import {
   type XaiKeyStatus,
   xaiPanelReducer,
 } from '../../core/domain/xai-key-panel'
+import {
+  DEFAULT_FIT_MODE,
+  fitModeDescription,
+  fitModeLabel,
+  parseFitMode,
+  type FitMode,
+} from '../../core/domain/fit-mode'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -58,6 +65,10 @@ export function SettingsScreen({ view, dispatch }: Props) {
       {/* xAI Intelligence key — exact same UX as X bearer */}
       <div className="mt-4">
         <XaiKeyPanel />
+      </div>
+
+      <div className="mt-4">
+        <FitModePanel />
       </div>
 
       <div className="mt-4">
@@ -320,6 +331,74 @@ function XaiKeyPanel() {
 }
 
 /**
+ * Fit mode — strict dual-fit vs relaxed simple fitness (file-backed like xai model).
+ */
+function FitModePanel() {
+  const [mode, setMode] = React.useState<FitMode>(DEFAULT_FIT_MODE)
+  const [busy, setBusy] = React.useState(false)
+  const [notice, setNotice] = React.useState<string | null>(null)
+
+  const refresh = React.useCallback(() => {
+    void safeInvoke<string>('get_fit_mode_cmd', {}).then((res) => {
+      if (res.ok && res.value) setMode(parseFitMode(res.value))
+    })
+  }, [])
+
+  React.useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const save = async (next: FitMode) => {
+    setBusy(true)
+    setNotice(null)
+    const res = await safeInvoke<string>('set_fit_mode_cmd', { mode: next })
+    setBusy(false)
+    if (res.ok) {
+      setMode(parseFitMode(res.value ?? next))
+      setNotice(`Saved: ${fitModeLabel(parseFitMode(res.value ?? next))}`)
+    } else {
+      setNotice(res.error?.message || 'Failed to save fit mode')
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Fit evaluation mode</CardTitle>
+          <CardDescription>
+            Strict keeps dual-fit (You↔Role + mission/life constraints). Relaxed is simple fitness
+            from relevant CV experience, then preparation bundle — no robotics/ML mission veto.
+          </CardDescription>
+        </div>
+        <Badge tone={mode === 'relaxed' ? 'accent' : 'neutral'}>{fitModeLabel(mode)}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-1 rounded-md border border-border-subtle p-0.5">
+          {(['strict', 'relaxed'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              disabled={busy}
+              onClick={() => void save(m)}
+              className={
+                mode === m
+                  ? 'flex-1 rounded px-2 py-1.5 text-xs font-medium bg-accent/15 text-accent'
+                  : 'flex-1 rounded px-2 py-1.5 text-xs text-ink-muted hover:text-ink'
+              }
+            >
+              {fitModeLabel(m)}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-ink-faint leading-snug">{fitModeDescription(mode)}</p>
+        {notice && <p className="text-xs text-ink-muted">{notice}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * Devprofile path — status-enum reducer (no busy/error boolean soup).
  * Pure machine: src/core/domain/devprofile-path-panel.ts
  */
@@ -365,6 +444,9 @@ function DevprofilePathPanel() {
           <CardDescription>
             Real CV for grounding. When set, Quick Target uses pruned cvdata.json for analyze/prep
             (textarea still overrides). Sidecar proposals read it for deltas — no auto-write.
+            Generate apply CV spawns this checkout&apos;s{' '}
+            <span className="font-mono">scripts/generate-apply-cv.tsx</span> (PDF only; never
+            mutates master cvdata).
           </CardDescription>
         </div>
         <Badge tone={configuredPath ? 'success' : 'neutral'}>

@@ -1,6 +1,6 @@
 # Tauri command contract
 
-The desktop shell exposes **26 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
+The desktop shell exposes **31 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
@@ -65,12 +65,22 @@ Implemented in `src-tauri/src/opportunity_target.rs`. Adapter: `finder-adapter.t
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
 | `fetch_opportunity_target_page` | `{ url: string }` | `OpportunityTargetPageResult` | Naive GET + basic tag strip; 20s timeout; truncates >8000 chars. Basic Greenhouse title/company extraction for prefill. |
-| `analyze_opportunity_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `OpportunityTargetAnalysisResult` | Live xAI structured fit (`target_fit_v1`). Persists to `opportunities` (status `analyzed`). Uses CV summary from Discover textarea. |
+| `analyze_opportunity_target` | `{ url?, pasted_jd?, title?, company?, cv_summary? }` | `OpportunityTargetAnalysisResult` | Live xAI structured fit. Mode from `fit_mode.txt`: **strict** → dual-fit `target_fit_v2` + compact constraints; **relaxed** → simple fitness `target_fit_simple_v1` (experience match, no You↔Role). Persists `fit_mode` in `analysis_json`. |
 | `prep_opportunity_target` | `{ opportunity_id?, url?, pasted_jd?, title?, company?, cv_summary?, previous_fit? }` | `OpportunityTargetPrepResult` | Live xAI prep pack (`target_prep_v1`: cover letter, cv_suggestions, research_notes, optional exceptional_work_example). Updates row to `prepped`. `previous_fit` carries Evaluate Fit JSON from the panel. |
-| `export_application_pack` | `{ opportunity_id }` | `ApplicationPackExportResult` | Pure materialization from stored prep (no xAI). Writes pack files under app-local `application_packs/{company}-{title}-{YYYY-MM-DD}/` (slugified; falls back from URL/JD when DB title/company empty). `manifest.json` includes `slug`, `company`, `title`, `date`, `opportunity_id`, `cv_filename`. Result also has `pack_slug`. Notes: `export_path=` + `pack_slug=`. Never mutates external `cvdata.json`. |
-| `propose_cv_sidecar_for_prep` | `{ opportunity_id }` | `CvSidecarProposalResult` | Sidecar-only proposal under `cv_proposals/opp_{id}/`. |
-| `update_opportunity_status_cmd` | `{ id, status, notes? }` | `void` | Pipeline status only (`new`/`analyzed`/`prepped`/`applied`/`passed`/`archived`) — no xAI. |
+| `export_application_pack` | `{ opportunity_id }` | `ApplicationPackExportResult` | Pure materialization from stored prep (no xAI). Writes under app-local `application_packs/{slug}/`. Notes: `export_path=` + `pack_slug=`. **Never** mutates external `cvdata.json`. |
+| `generate_apply_cv` | `{ opportunity_id }` | `GenerateApplyCvResult` | Export pack if needed, then spawn devprofile `generate-apply-cv` (`bun`/`pnpm`). Requires Settings **devprofile_path** + scripts on latest devprofile main. PDF only — **no master CV write**. |
+| `get_fit_mode_cmd` | — | `string` (`strict` \| `relaxed`) | Current fit evaluation mode (default `strict`). |
+| `set_fit_mode_cmd` | `{ mode? }` | `string` (normalized mode) | Persist mode to `fit_mode.txt` under app data dir. |
 | `get_opportunities` | `{ id?, q?, status?, limit? }` | `Opportunity[]` | SQLite read for rail, Data tables, and hydrate-by-id (`loadOpportunityCmd`). `id` filter pushed to SQL (TD-002). |
+
+## Hire board (Discover — public sheet skim → Select/Evaluate)
+
+Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcoded: copy `data/hire-board/config.example.json` → `config.local.json` (gitignored) or set `HIRE_BOARD_SHEET_URL` / `HIRE_BOARD_CONFIG`.
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `fetch_hire_board` | `{ sheetUrl?, q?, geo?, requireCareerUrl?, limit? }` | `HireBoardLead[]` | Live CSV export; filter + heuristic skim; marks `already_in_db` via URL. **No bulk insert.** |
+| `select_hire_board_lead` | `{ company, location?, careerUrl, threadUrl? }` | `Opportunity` | Upserts `status=new` into `opportunities` (URL dedup). Evaluate uses `analyze_opportunity_target`. |
 
 `OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `src/core/domain/opportunity-target.ts`.
 

@@ -2,6 +2,7 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
+mod hire_board;
 mod opportunity_target;
 mod secrets;
 mod x_query;
@@ -15,8 +16,9 @@ use commands::{
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
 use opportunity_target::{
     analyze_opportunity_target, export_application_pack, fetch_opportunity_target_page,
-    get_devprofile_path, get_devprofile_path_cmd, get_xai_model_cmd, prep_opportunity_target,
-    propose_cv_sidecar_for_prep, set_devprofile_path_cmd, set_xai_model_cmd,
+    generate_apply_cv, get_devprofile_path, get_devprofile_path_cmd, get_fit_mode_cmd,
+    get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep,
+    set_devprofile_path_cmd, set_fit_mode_cmd, set_xai_model_cmd,
 };
 use std::sync::Mutex as StdMutex;
 use tauri::State;
@@ -363,6 +365,109 @@ async fn update_opportunity_status_cmd(
         .update_opportunity_status(id, &status, notes.as_deref())
 }
 
+/// Fetch public hire spreadsheet CSV, filter + intelli-skim (in-memory). Does not write SQLite.
+/// Sheet URL from optional arg or gitignored `data/hire-board/config.local.json`.
+#[tauri::command]
+async fn fetch_hire_board(
+    db: State<'_, AppDb>,
+    sheet_url: Option<String>,
+    q: Option<String>,
+    geo: Option<Vec<String>>,
+    require_career_url: Option<bool>,
+    limit: Option<u32>,
+) -> Result<Vec<hire_board::HireBoardLead>, String> {
+    let (export_url, _cfg) = hire_board::resolve_export_url(sheet_url.as_deref())?;
+    let text = hire_board::fetch_sheet_csv(&export_url).await?;
+    let mut leads = hire_board::parse_sheet_csv(&text)?;
+    let filter = hire_board::HireBoardFilter {
+        q,
+        geo: geo.unwrap_or_default(),
+        require_career_url: require_career_url.unwrap_or(true),
+        limit: limit.map(|n| n as usize),
+    };
+    leads = hire_board::filter_and_sort(leads, &filter);
+
+    let known: Vec<(String, i64)> = db
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_opportunities(&db::OpportunityFilter {
+            limit: Some(500),
+            ..Default::default()
+        })?
+        .into_iter()
+        .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+        .collect();
+    hire_board::mark_already_in_db(&mut leads, &known);
+    Ok(leads)
+}
+
+/// Persist one hire-board lead as Opportunity status=new (URL dedup via upsert).
+#[tauri::command]
+async fn select_hire_board_lead(
+    db: State<'_, AppDb>,
+    company: String,
+    location: Option<String>,
+    career_url: String,
+    thread_url: Option<String>,
+) -> Result<db::Opportunity, String> {
+    let mut career = career_url.trim().to_string();
+    if career.is_empty() {
+        return Err("career_url required".into());
+    }
+    if career.contains('@') && !career.contains("://") {
+        return Err("career_url must be an http(s) link, not email".into());
+    }
+    let lower = career.to_lowercase();
+    if matches!(lower.as_str(), "—" | "-" | "(mentioned)" | "n/a") {
+        return Err("career_url is not usable".into());
+    }
+    if !career.starts_with("http://") && !career.starts_with("https://") {
+        if career.contains('.') {
+            career = format!("https://{career}");
+        } else {
+            return Err("career_url must be http(s)".into());
+        }
+    }
+
+    let loc = location.unwrap_or_default();
+    let thread = thread_url.unwrap_or_default();
+    let jd = hire_board::select_stub_jd(&loc, &career, &thread);
+    // Best-effort provenance from local config (no hardcoded sheet id).
+    let cfg = hire_board::load_hire_board_config().unwrap_or_default();
+    let source_ref = hire_board::source_ref_for_sheet(&cfg, &thread);
+    let company_trim = company.trim();
+    if company_trim.is_empty() {
+        return Err("company required".into());
+    }
+
+    let id = db.0.lock().map_err(|e| e.to_string())?.upsert_opportunity(
+        "web",
+        Some(&career),
+        Some(&source_ref),
+        Some(company_trim),
+        Some(company_trim),
+        &jd,
+        "new",
+        None,
+        None,
+        None,
+        Some(&format!("location: {loc}")),
+    )?;
+
+    db.0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_opportunities(&db::OpportunityFilter {
+            id: Some(id),
+            limit: Some(1),
+            ..Default::default()
+        })?
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("opportunity {id} missing after upsert"))
+}
+
 #[tauri::command]
 async fn search_past_tweets(
     db: State<'_, AppDb>,
@@ -420,14 +525,19 @@ pub fn run() {
             fetch_opportunity_target_page,
             analyze_opportunity_target,
             prep_opportunity_target,
+            export_application_pack,
+            generate_apply_cv,
             get_devprofile_path_cmd,
             set_devprofile_path_cmd,
             get_xai_model_cmd,
             set_xai_model_cmd,
+            get_fit_mode_cmd,
+            set_fit_mode_cmd,
             propose_cv_sidecar_for_prep,
-            export_application_pack,
             get_opportunities,
             update_opportunity_status_cmd,
+            fetch_hire_board,
+            select_hire_board_lead,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,
