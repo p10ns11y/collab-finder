@@ -1,0 +1,17 @@
+---
+description: Git commits only on explicit request; always show status and diff first
+alwaysApply: true
+---
+
+# Commit when asked
+
+"Commit" appears often in user turns — treat it as an explicit action, not automatic cleanup.
+
+When the user asks to commit:
+
+1. Run **git status** and **git diff** (staged and unstaged) in parallel.
+2. Stage only files related to the task — never secrets, raw transcripts, or `.env`.
+3. Draft a message focused on **why**, not a file list.
+4. Do not push unless asked. Do not `--amend` unless conditions in project git rules are met.
+
+When the user did **not** ask to commit, finish with a summary of changes and let them decide.

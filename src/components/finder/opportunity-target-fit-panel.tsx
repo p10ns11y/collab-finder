@@ -109,7 +109,7 @@ export function OpportunityTargetFitPanel({
   lastApplicationPackExport,
   lastApplyCv,
 }: Props) {
-  const [modelLabel, setModelLabel] = React.useState('grok-4.5')
+  const [modelLabel, setModelLabel] = React.useState('grok-4.6')
   const [actionCopied, setActionCopied] = React.useState(false)
   const [allCopied, setAllCopied] = React.useState(false)
   const [showGrounding, setShowGrounding] = React.useState(false)

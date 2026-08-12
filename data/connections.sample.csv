@@ -1,0 +1,12 @@
+Notes:
+"Mock connections export for local demos. Copy to connections.csv (gitignored) for real data."
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Ada,North,https://profiles.example/in/ada-north,,Northfield Autonomy AB,Robotics Engineer,16 Mar 2025
+Bob,Builder,https://profiles.example/in/bob-builder,,Contoso Retail,Account Executive,01 Jan 2015
+Cai,Prompt,https://profiles.example/in/cai-prompt,,PriorLabs,Staff AI Engineer,16 Mar 2025
+Dee,Hype,https://profiles.example/in/dee-hype,,HypeSurface Co,Prompt Engineer,01 Jan 2024
+Sam,Orbit,https://profiles.example/in/sam-orbit,,Northbridge Spacetech,Senior Software Engineer,01 Jun 2024
+Pri,Sugar,https://profiles.example/in/pri-sugar,,Rivercane Processing,Process Engineer,01 Jan 2023
+Yue,Robot,https://profiles.example/in/yue-robot,,Cedar Robotics,CEO,01 Jan 2024
+Mel,Learn,https://profiles.example/in/mel-learn,,PriorLabs,Machine Learning Engineer,01 Jan 2023

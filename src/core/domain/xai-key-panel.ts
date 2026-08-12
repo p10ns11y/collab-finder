@@ -33,11 +33,13 @@ export type XaiPanelAction =
   | { type: 'OPERATION_ERROR'; message: string }
   | { type: 'CLEAR_NOTICE' }
 
+export const DEFAULT_XAI_MODEL = 'grok-4.6'
+
 export const initialXaiPanelState: XaiPanelState = {
   keyStatus: null,
-  model: 'grok-4.5',
+  model: DEFAULT_XAI_MODEL,
   keyDraft: '',
-  modelDraft: 'grok-4.5',
+  modelDraft: DEFAULT_XAI_MODEL,
   panelStatus: 'idle',
   notice: null,
 }
@@ -57,8 +59,8 @@ export function xaiPanelReducer(state: XaiPanelState, action: XaiPanelAction): X
     case 'MODEL_LOADED':
       return {
         ...state,
-        model: action.value || 'grok-4.5',
-        modelDraft: action.value || 'grok-4.5',
+        model: action.value || DEFAULT_XAI_MODEL,
+        modelDraft: action.value || DEFAULT_XAI_MODEL,
         panelStatus: state.panelStatus === 'loading' ? 'idle' : state.panelStatus,
       }
 
@@ -123,5 +125,5 @@ export function isXaiPanelChecking(status: XaiPanelStatus): boolean {
 }
 
 export function displayXaiModel(model: string): string {
-  return model || 'grok-4.5'
+  return model || DEFAULT_XAI_MODEL
 }

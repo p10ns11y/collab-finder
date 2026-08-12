@@ -41,6 +41,7 @@ type Props = {
 
 /**
  * Discover = opportunity memory + quick target + fit/prep (hero right pane).
+ * Mission / Sweden = dedicated full-viewport hunt screens (not stacked here).
  * Xplore = X hunt (same component, mode via activeScreen).
  * Layout: φ split (~38% controls / ~62% results).
  */

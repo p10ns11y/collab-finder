@@ -1,6 +1,6 @@
 # Tauri command contract
 
-The desktop shell exposes **31 Tauri commands** (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
+The desktop shell exposes Tauri commands (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
@@ -71,6 +71,9 @@ Implemented in `src-tauri/src/opportunity_target.rs`. Adapter: `finder-adapter.t
 | `generate_apply_cv` | `{ opportunity_id }` | `GenerateApplyCvResult` | Export pack if needed, then spawn devprofile `generate-apply-cv` (`bun`/`pnpm`). Requires Settings **devprofile_path** + scripts on latest devprofile main. PDF only — **no master CV write**. |
 | `get_fit_mode_cmd` | — | `string` (`strict` \| `relaxed`) | Current fit evaluation mode (default `strict`). |
 | `set_fit_mode_cmd` | `{ mode? }` | `string` (normalized mode) | Persist mode to `fit_mode.txt` under app data dir. |
+| `get_llm_route_status` | — | `LlmRouteStatus` | Probe `grok` / `cursor-agent` on PATH + xAI key presence (bool only). Returns quality + recommended backends. |
+| `set_llm_route_quality` | `{ quality }` | `void` | Persist `fast` \| `moderate` \| `high` to `llm_quality.txt`. Analyze still uses xAI API this slice. |
+| `run_local_grok_quest` | `{ prompt }` | `LocalGrokQuestResult` | Headless local `grok --prompt-file`. No yolo. Write/shell/web tools denied. `max-turns=1`. |
 | `get_opportunities` | `{ id?, q?, status?, limit? }` | `Opportunity[]` | SQLite read for rail, Data tables, and hydrate-by-id (`loadOpportunityCmd`). `id` filter pushed to SQL (TD-002). |
 
 ## Hire board (Discover — public sheet skim → Select/Evaluate)

@@ -1,0 +1,16 @@
+---
+description: Read or locate target files before shell commands that touch the tree
+alwaysApply: true
+---
+
+# Read before shell
+
+Corpus signal: `read_file` / `Read` very often precedes `run_terminal_command` / `Shell`.
+
+Before a shell command that reads, writes, or deletes project files:
+
+1. Know the target path (Read or Grep) — do not guess.
+2. If the path is unknown, `list_dir` / Glob, then Read.
+3. Then run the smallest shell command needed.
+
+Skip this for pure status commands (`git status`, `pwd`) with no file side effects.

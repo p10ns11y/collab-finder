@@ -30,6 +30,10 @@ export function FinderApp() {
         dispatch({ type: 'PaletteToggled' })
         return
       }
+      if (action.kind === 'quest') {
+        dispatch({ type: 'QuestToggled' })
+        return
+      }
       dispatch({ type: 'ScreenChanged', screen: action.screen })
     }
     window.addEventListener('keydown', onKey)

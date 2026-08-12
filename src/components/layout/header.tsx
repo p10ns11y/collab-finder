@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 
 type Props = {
   onOpenPalette: () => void
+  onOpenQuest?: () => void
   /** Optional screen title shown next to app name (e.g. "Discover") */
   screenTitle?: string
   /** X bearer connected (search/cycle) */
@@ -17,6 +18,7 @@ type Props = {
 
 export function Header({
   onOpenPalette,
+  onOpenQuest,
   screenTitle,
   xConnected = false,
   xChecking = false,
@@ -63,6 +65,20 @@ export function Header({
             )}
             {targetBusy && <Badge tone="accent">Evaluating…</Badge>}
           </div>
+          {onOpenQuest ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenQuest}
+              className="h-8 shrink-0 border border-border-subtle"
+              title="Local Grok quest drawer"
+            >
+              <span className="hidden sm:inline">Quest</span>
+              <kbd className="ml-1 hidden rounded border border-border-default bg-surface-2 px-1 py-px font-mono text-[10px] text-ink-faint sm:inline">
+                ⌘J
+              </kbd>
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"

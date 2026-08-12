@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 7;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -242,6 +242,21 @@ impl SqliteStore {
             Self::record_migration(conn, 4)?;
         }
 
+        if current < 5 {
+            Self::migrate_v5(conn)?;
+            Self::record_migration(conn, 5)?;
+        }
+
+        if current < 6 {
+            Self::migrate_v6(conn)?;
+            Self::record_migration(conn, 6)?;
+        }
+
+        if current < 7 {
+            Self::migrate_v7(conn)?;
+            Self::record_migration(conn, 7)?;
+        }
+
         Ok(())
     }
 
@@ -432,8 +447,314 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
         Ok(())
     }
 
+    /// v5: personal network people (imported from gitignored CSVs) + import fingerprints.
+    /// Speeds repeated Network screen loads; CSV remains the offline import source.
+    fn migrate_v5(conn: &Connection) -> Result<(), String> {
+        let sql = r#"
+CREATE TABLE IF NOT EXISTS network_people (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL DEFAULT 'linkedin_connection',
+  first_name TEXT NOT NULL DEFAULT '',
+  last_name TEXT NOT NULL DEFAULT '',
+  full_name TEXT NOT NULL,
+  company TEXT NOT NULL DEFAULT '',
+  position TEXT NOT NULL DEFAULT '',
+  linkedin_url TEXT NOT NULL DEFAULT '',
+  connected_on TEXT,
+  emails TEXT,
+  phones TEXT,
+  location_bucket TEXT,
+  x_profile_json TEXT,
+  linkedin_enrichment_json TEXT,
+  collab_score REAL NOT NULL DEFAULT 0,
+  categories_json TEXT NOT NULL DEFAULT '[]',
+  score_reasons_json TEXT NOT NULL DEFAULT '[]',
+  imported_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_network_people_score ON network_people(collab_score DESC);
+CREATE INDEX IF NOT EXISTS idx_network_people_company ON network_people(company);
+CREATE INDEX IF NOT EXISTS idx_network_people_source ON network_people(source);
+CREATE INDEX IF NOT EXISTS idx_network_people_name ON network_people(full_name);
+
+CREATE TABLE IF NOT EXISTS network_import_meta (
+  source_kind TEXT PRIMARY KEY,
+  source_path TEXT NOT NULL,
+  content_fingerprint TEXT NOT NULL,
+  row_count INTEGER NOT NULL DEFAULT 0,
+  imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+        "#;
+        conn.execute_batch(sql).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// v6: phones on network_people (from contacts export).
+    fn migrate_v6(conn: &Connection) -> Result<(), String> {
+        let _ = conn.execute("ALTER TABLE network_people ADD COLUMN phones TEXT", []);
+        Ok(())
+    }
+
+    /// v7: unique (kind, source_ref) so Platsbanken ad ids cannot double-insert.
+    fn migrate_v7(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM opportunities WHERE source_ref IS NOT NULL AND id NOT IN (
+               SELECT MAX(id) FROM opportunities WHERE source_ref IS NOT NULL GROUP BY kind, source_ref
+             )",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_opp_kind_source_ref
+             ON opportunities(kind, source_ref) WHERE source_ref IS NOT NULL;",
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    pub fn get_network_import_fingerprint(&self, source_kind: &str) -> Result<Option<String>, String> {
+        if !self.is_enabled() {
+            return Ok(None);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let fp: Option<String> = guard
+            .query_row(
+                "SELECT content_fingerprint FROM network_import_meta WHERE source_kind = ?1",
+                params![source_kind],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        Ok(fp)
+    }
+
+    pub fn set_network_import_meta(
+        &self,
+        source_kind: &str,
+        source_path: &str,
+        fingerprint: &str,
+        row_count: i64,
+    ) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Err("database disabled".into());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "INSERT INTO network_import_meta (source_kind, source_path, content_fingerprint, row_count, imported_at)
+                 VALUES (?1, ?2, ?3, ?4, datetime('now'))
+                 ON CONFLICT(source_kind) DO UPDATE SET
+                   source_path = excluded.source_path,
+                   content_fingerprint = excluded.content_fingerprint,
+                   row_count = excluded.row_count,
+                   imported_at = datetime('now')",
+                params![source_kind, source_path, fingerprint, row_count],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Replace all rows for a source kind, then upsert people (id is global PK).
+    pub fn replace_network_people_for_source(
+        &self,
+        source: &str,
+        people: &[crate::network_graph::NetworkPerson],
+    ) -> Result<usize, String> {
+        if !self.is_enabled() {
+            return Err("database disabled".into());
+        }
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM network_people WHERE source = ?1",
+            params![source],
+        )
+        .map_err(|e| e.to_string())?;
+        let mut n = 0usize;
+        for person in people {
+            let x_json = person
+                .x_profile
+                .as_ref()
+                .and_then(|x| serde_json::to_string(x).ok());
+            let li_json = person
+                .linkedin_enrichment
+                .as_ref()
+                .and_then(|x| serde_json::to_string(x).ok());
+            let cats = serde_json::to_string(&person.categories).unwrap_or_else(|_| "[]".into());
+            let reasons =
+                serde_json::to_string(&person.score_reasons).unwrap_or_else(|_| "[]".into());
+            tx.execute(
+                "INSERT INTO network_people (
+                    id, source, first_name, last_name, full_name, company, position,
+                    linkedin_url, connected_on, emails, phones, location_bucket,
+                    x_profile_json, linkedin_enrichment_json,
+                    collab_score, categories_json, score_reasons_json, updated_at
+                 ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17, datetime('now'))
+                 ON CONFLICT(id) DO UPDATE SET
+                    source=excluded.source,
+                    first_name=excluded.first_name,
+                    last_name=excluded.last_name,
+                    full_name=excluded.full_name,
+                    company=excluded.company,
+                    position=excluded.position,
+                    linkedin_url=excluded.linkedin_url,
+                    connected_on=excluded.connected_on,
+                    emails=COALESCE(excluded.emails, network_people.emails),
+                    phones=COALESCE(excluded.phones, network_people.phones),
+                    location_bucket=COALESCE(excluded.location_bucket, network_people.location_bucket),
+                    x_profile_json=COALESCE(excluded.x_profile_json, network_people.x_profile_json),
+                    linkedin_enrichment_json=COALESCE(excluded.linkedin_enrichment_json, network_people.linkedin_enrichment_json),
+                    collab_score=excluded.collab_score,
+                    categories_json=excluded.categories_json,
+                    score_reasons_json=excluded.score_reasons_json,
+                    updated_at=datetime('now')",
+                params![
+                    person.id,
+                    person.source,
+                    person.first_name,
+                    person.last_name,
+                    person.full_name,
+                    person.company,
+                    person.position,
+                    person.linkedin_url,
+                    person.connected_on,
+                    person.emails,
+                    person.phones,
+                    person.location_bucket,
+                    x_json,
+                    li_json,
+                    person.collab_score,
+                    cats,
+                    reasons,
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            n += 1;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(n)
+    }
+
+    pub fn upsert_network_people_scores(
+        &self,
+        people: &[crate::network_graph::NetworkPerson],
+    ) -> Result<usize, String> {
+        if !self.is_enabled() {
+            return Err("database disabled".into());
+        }
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        let mut n = 0usize;
+        for person in people {
+            let x_json = person
+                .x_profile
+                .as_ref()
+                .and_then(|x| serde_json::to_string(x).ok());
+            let li_json = person
+                .linkedin_enrichment
+                .as_ref()
+                .and_then(|x| serde_json::to_string(x).ok());
+            let cats = serde_json::to_string(&person.categories).unwrap_or_else(|_| "[]".into());
+            let reasons =
+                serde_json::to_string(&person.score_reasons).unwrap_or_else(|_| "[]".into());
+            let changed = tx
+                .execute(
+                    "UPDATE network_people SET
+                        emails = COALESCE(?2, emails),
+                        phones = COALESCE(?3, phones),
+                        location_bucket = ?4,
+                        x_profile_json = COALESCE(?5, x_profile_json),
+                        linkedin_enrichment_json = COALESCE(?6, linkedin_enrichment_json),
+                        collab_score = ?7,
+                        categories_json = ?8,
+                        score_reasons_json = ?9,
+                        updated_at = datetime('now')
+                     WHERE id = ?1",
+                    params![
+                        person.id,
+                        person.emails,
+                        person.phones,
+                        person.location_bucket,
+                        x_json,
+                        li_json,
+                        person.collab_score,
+                        cats,
+                        reasons,
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+            n += changed as usize;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(n)
+    }
+
+    pub fn list_network_people(&self) -> Result<Vec<crate::network_graph::NetworkPerson>, String> {
+        if !self.is_enabled() {
+            return Ok(Vec::new());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare(
+                "SELECT id, source, first_name, last_name, full_name, company, position,
+                        linkedin_url, connected_on, emails, phones, location_bucket,
+                        x_profile_json, linkedin_enrichment_json,
+                        collab_score, categories_json, score_reasons_json
+                 FROM network_people
+                 ORDER BY collab_score DESC, full_name ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                let x_profile_json: Option<String> = r.get(12)?;
+                let li_json: Option<String> = r.get(13)?;
+                let cats_json: String = r.get(15)?;
+                let reasons_json: String = r.get(16)?;
+                Ok(crate::network_graph::NetworkPerson {
+                    id: r.get(0)?,
+                    source: r.get(1)?,
+                    first_name: r.get(2)?,
+                    last_name: r.get(3)?,
+                    full_name: r.get(4)?,
+                    company: r.get(5)?,
+                    position: r.get(6)?,
+                    linkedin_url: r.get(7)?,
+                    connected_on: r.get(8)?,
+                    emails: r.get(9)?,
+                    phones: r.get(10)?,
+                    location_bucket: r.get(11)?,
+                    x_profile: x_profile_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok()),
+                    linkedin_enrichment: li_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok()),
+                    collab_score: r.get(14)?,
+                    categories: serde_json::from_str(&cats_json).unwrap_or_default(),
+                    score_reasons: serde_json::from_str(&reasons_json).unwrap_or_default(),
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    }
+
+    pub fn network_people_count(&self) -> Result<usize, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let n: i64 = guard
+            .query_row("SELECT COUNT(*) FROM network_people", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        Ok(n as usize)
     }
 
     /// Best effort persist. Never errors the caller.
@@ -877,17 +1198,17 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
                 0
             });
 
+        // AVG returns SQL NULL when no scored leads — must decode as Option<f64>, not f64.
         let avg_score: Option<f64> = guard
             .query_row(
                 "SELECT AVG(score) FROM leads WHERE score IS NOT NULL",
                 [],
-                |r| r.get(0),
+                |r| r.get::<_, Option<f64>>(0),
             )
-            .map_err(|e| {
-                eprintln!("[db] stats avg_score query failed (pre-existing; TD trust): {e}");
-                e
-            })
-            .ok();
+            .unwrap_or_else(|e| {
+                eprintln!("[db] stats avg_score query failed: {e}");
+                None
+            });
 
         // Top queries (simple, last 50 runs).
         let mut top = vec![];
@@ -1128,35 +1449,24 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
         let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
         let tx = guard.transaction().map_err(|e| e.to_string())?;
 
-        let id: i64 = if let Some(u) = source_url {
-            if let Some(existing) = tx
-                .query_row(
-                    "SELECT id FROM opportunities WHERE source_url = ?1",
-                    params![u],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(|e| e.to_string())?
-            {
-                // update in place (keep original jd/source as "source of truth"; update status/fit/analysis etc)
-                tx.execute(
-                    "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
-                    params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
-                )
-                .map_err(|e| e.to_string())?;
-                existing
-            } else {
-                tx.execute(
-                    "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![
-                        kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-                tx.last_insert_rowid()
-            }
+        let id: i64 = if source_url.is_none() && source_ref.is_none() {
+            // paste etc: always new row
+            tx.execute(
+                "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.last_insert_rowid()
+        } else if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+            tx.execute(
+                "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
+                params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
+            )
+            .map_err(|e| e.to_string())?;
+            existing
         } else {
-            // no url (paste etc): always new row
             tx.execute(
                 "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
@@ -1169,6 +1479,91 @@ CREATE INDEX IF NOT EXISTS idx_opp_content_hash ON opportunities(content_hash);
 
         tx.commit().map_err(|e| e.to_string())?;
         Ok(id)
+    }
+
+    fn find_opportunity_id(
+        tx: &rusqlite::Transaction<'_>,
+        source_url: Option<&str>,
+        source_ref: Option<&str>,
+        kind: &str,
+    ) -> Result<Option<i64>, String> {
+        if let Some(u) = source_url {
+            if let Some(id) = tx
+                .query_row(
+                    "SELECT id FROM opportunities WHERE source_url = ?1",
+                    params![u],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+            {
+                return Ok(Some(id));
+            }
+        }
+        if let Some(r) = source_ref.filter(|s| !s.is_empty()) {
+            if let Some(id) = tx
+                .query_row(
+                    "SELECT id FROM opportunities WHERE kind = ?1 AND source_ref = ?2",
+                    params![kind, r],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+            {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Insert hunt hit if new. Existing row (url or kind+ad id) is left intact — no status reset.
+    pub fn remember_opportunity(
+        &self,
+        kind: &str,
+        source_url: Option<&str>,
+        source_ref: Option<&str>,
+        title: Option<&str>,
+        company: Option<&str>,
+        jd_text: &str,
+        notes: Option<&str>,
+    ) -> Result<i64, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+            tx.execute(
+                "UPDATE opportunities SET last_updated = datetime('now'),
+                   source_ref = COALESCE(source_ref, ?1),
+                   title = COALESCE(title, ?2),
+                   company = COALESCE(company, ?3)
+                 WHERE id = ?4",
+                params![source_ref, title, company, existing],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| e.to_string())?;
+            return Ok(existing);
+        }
+        tx.execute(
+            "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)",
+            params![kind, source_url, source_ref, title, company, jd_text, notes],
+        )
+        .map_err(|e| e.to_string())?;
+        let id = tx.last_insert_rowid();
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(id)
+    }
+
+    pub fn delete_opportunity(&self, id: i64) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute("DELETE FROM opportunities WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn update_opportunity_status(
@@ -1349,6 +1744,8 @@ mod tests {
         let stats = store.get_dashboard_stats().unwrap();
         assert_eq!(stats.total_searches, 1);
         assert_eq!(stats.total_pauses, 1);
+        // No scored leads yet — AVG is SQL NULL; must not error (was Invalid column type Null).
+        assert!(stats.avg_score.is_none());
 
         let pauses = store.get_recent_pauses(5).unwrap();
         assert_eq!(pauses[0].reason, "fit low");
@@ -1478,6 +1875,59 @@ mod tests {
     // - re-analyze same URL updates 1 row (count stable)
     // - prep-by-old-id (get by id) works when 50+ newer opps exist
     // - id filter correctness
+
+    #[test]
+    fn remember_platsbanken_ad_id_is_unique() {
+        let (_dir, store) = temp_store();
+        let url = Some("https://arbetsformedlingen.se/platsbanken/annonser/31192648");
+        let id1 = store
+            .remember_opportunity(
+                "platsbanken",
+                url,
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "snippet",
+                Some("search persist"),
+            )
+            .unwrap();
+        let id2 = store
+            .remember_opportunity(
+                "platsbanken",
+                url,
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "other snippet",
+                Some("search persist"),
+            )
+            .unwrap();
+        assert_eq!(id1, id2);
+        let via_ref = store
+            .upsert_opportunity(
+                "platsbanken",
+                Some("https://other.example/31192648"),
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "full jd",
+                "new",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(id1, via_ref, "same ad id must hit existing row even if url differs");
+        store.delete_opportunity(id1).unwrap();
+        let after = store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(after.iter().all(|o| o.id != id1));
+    }
 
     #[test]
     fn upsert_opportunity_same_url_updates_one_row() {

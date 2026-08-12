@@ -18,7 +18,20 @@ import type {
 } from '../domain/history'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import type { HireBoardLead } from '../domain/hire-board'
+import type { PlatsbankenLead } from '../domain/platsbanken'
+import {
+  PLATSBANKEN_DEFAULT_MUNICIPALITY,
+  PLATSBANKEN_DEFAULT_QUERY,
+} from '../domain/platsbanken'
+import type { HarvestedKey, HuntRail } from '../domain/hunt-rails'
+import type { QuestKind, QuestResult, QuestTurn } from '../domain/quest'
+import type { MissionFirmLead } from '../domain/mission-firms'
+import {
+  MISSION_FIRMS_DEFAULT_QUERY,
+  MISSION_FIRMS_DEFAULT_SELECTED,
+} from '../domain/mission-firms'
 import type { BearerStorageStatus } from '../domain/credentials'
+import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
 
 // Shared localStorage keys for CV + minimal session (used by initialFinderModel for sync boot load + effects for writes/loads).
@@ -32,7 +45,18 @@ export type PersistedSession = {
   opportunityTargetUrl?: string
 }
 
-const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'xplore']
+const VALID_SCREENS: FinderScreen[] = [
+  'discover',
+  'mission',
+  'sweden',
+  'stats',
+  'history',
+  'data',
+  'lookup',
+  'settings',
+  'xplore',
+  'network',
+]
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
   return typeof s === 'string' && VALID_SCREENS.includes(s as FinderScreen)
@@ -40,12 +64,15 @@ export function isValidFinderScreen(s: unknown): s is FinderScreen {
 
 export type FinderScreen =
   | 'discover'
+  | 'mission'
+  | 'sweden'
   | 'stats'
   | 'history'
   | 'data'
   | 'lookup'
   | 'settings'
   | 'xplore'
+  | 'network'
 
 export type CredentialsSlice = {
   connected: boolean
@@ -76,6 +103,12 @@ export type FinderModel = {
   reactorState: ReactorState | null
   pauses: string[]
   paletteOpen: boolean
+  questOpen: boolean
+  questKind: QuestKind
+  questDraft: string
+  questSessionId?: string
+  questTurns: QuestTurn[]
+  quest: AsyncState<QuestResult>
   banner: AppError | null
   history: HistorySlice
   // Multi-screen shell
@@ -94,6 +127,22 @@ export type FinderModel = {
   hireBoard: AsyncState<HireBoardLead[]>
   hireBoardQ: string
   hireBoardGeo: string[]
+  // Platsbanken emergency rail (JobTech JobSearch — AF benefits runway)
+  platsbanken: AsyncState<PlatsbankenLead[]>
+  platsbankenQ: string
+  platsbankenMunicipality: string
+  huntRail: HuntRail
+  huntHarvested: HarvestedKey[]
+  // Mission firms (SpaceXAI + Swedish Texas/physical-AI bridges)
+  missionFirms: AsyncState<MissionFirmLead[]>
+  missionFirmsQ: string
+  missionFirmsSelected: string[]
+  missionFirmsTexasOnly: boolean
+  missionFirmsTerafabBias: boolean
+  // Network graph (gitignored LinkedIn connections CSV — PII local only)
+  network: AsyncState<NetworkGraphResult>
+  networkFilter: NetworkFilter
+  networkBusyAction: 'idle' | 'load' | 'resolve_x' | 'enrich_li'
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
   // Last proposal from "Propose these CV suggestions as sidecar" for display in the prep panel.
@@ -173,6 +222,12 @@ export function initialFinderModel(): FinderModel {
     reactorState: null,
     pauses: [],
     paletteOpen: false,
+    questOpen: false,
+    questKind: 'free',
+    questDraft: '',
+    questSessionId: undefined,
+    questTurns: [],
+    quest: idle(),
     banner: null,
     history: {
       searches: idle(),
@@ -194,6 +249,19 @@ export function initialFinderModel(): FinderModel {
     hireBoard: idle<HireBoardLead[]>(),
     hireBoardQ: '',
     hireBoardGeo: [],
+    platsbanken: idle<PlatsbankenLead[]>(),
+    platsbankenQ: PLATSBANKEN_DEFAULT_QUERY,
+    platsbankenMunicipality: PLATSBANKEN_DEFAULT_MUNICIPALITY,
+    huntRail: 'honest',
+    huntHarvested: [],
+    missionFirms: idle<MissionFirmLead[]>(),
+    missionFirmsQ: MISSION_FIRMS_DEFAULT_QUERY,
+    missionFirmsSelected: [...MISSION_FIRMS_DEFAULT_SELECTED],
+    missionFirmsTexasOnly: false,
+    missionFirmsTerafabBias: true,
+    network: idle<NetworkGraphResult>(),
+    networkFilter: 'top50',
+    networkBusyAction: 'idle',
     lastActiveOppId,
     lastSidecarProposal: undefined,
     lastApplicationPackExport: undefined,
