@@ -18,6 +18,18 @@ import type {
 } from '../domain/history'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import type { HireBoardLead } from '../domain/hire-board'
+import type { PlatsbankenLead } from '../domain/platsbanken'
+import {
+  PLATSBANKEN_DEFAULT_MUNICIPALITY,
+  PLATSBANKEN_DEFAULT_QUERY,
+} from '../domain/platsbanken'
+import type { HarvestedKey, HuntRail } from '../domain/hunt-rails'
+import type { QuestKind, QuestResult, QuestTurn } from '../domain/quest'
+import type { MissionFirmLead } from '../domain/mission-firms'
+import {
+  MISSION_FIRMS_DEFAULT_QUERY,
+  MISSION_FIRMS_DEFAULT_SELECTED,
+} from '../domain/mission-firms'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
@@ -35,6 +47,8 @@ export type PersistedSession = {
 
 const VALID_SCREENS: FinderScreen[] = [
   'discover',
+  'mission',
+  'sweden',
   'stats',
   'history',
   'data',
@@ -50,6 +64,8 @@ export function isValidFinderScreen(s: unknown): s is FinderScreen {
 
 export type FinderScreen =
   | 'discover'
+  | 'mission'
+  | 'sweden'
   | 'stats'
   | 'history'
   | 'data'
@@ -87,6 +103,12 @@ export type FinderModel = {
   reactorState: ReactorState | null
   pauses: string[]
   paletteOpen: boolean
+  questOpen: boolean
+  questKind: QuestKind
+  questDraft: string
+  questSessionId?: string
+  questTurns: QuestTurn[]
+  quest: AsyncState<QuestResult>
   banner: AppError | null
   history: HistorySlice
   // Multi-screen shell
@@ -105,6 +127,18 @@ export type FinderModel = {
   hireBoard: AsyncState<HireBoardLead[]>
   hireBoardQ: string
   hireBoardGeo: string[]
+  // Platsbanken emergency rail (JobTech JobSearch — AF benefits runway)
+  platsbanken: AsyncState<PlatsbankenLead[]>
+  platsbankenQ: string
+  platsbankenMunicipality: string
+  huntRail: HuntRail
+  huntHarvested: HarvestedKey[]
+  // Mission firms (SpaceXAI + Swedish Texas/physical-AI bridges)
+  missionFirms: AsyncState<MissionFirmLead[]>
+  missionFirmsQ: string
+  missionFirmsSelected: string[]
+  missionFirmsTexasOnly: boolean
+  missionFirmsTerafabBias: boolean
   // Network graph (gitignored LinkedIn connections CSV — PII local only)
   network: AsyncState<NetworkGraphResult>
   networkFilter: NetworkFilter
@@ -188,6 +222,12 @@ export function initialFinderModel(): FinderModel {
     reactorState: null,
     pauses: [],
     paletteOpen: false,
+    questOpen: false,
+    questKind: 'free',
+    questDraft: '',
+    questSessionId: undefined,
+    questTurns: [],
+    quest: idle(),
     banner: null,
     history: {
       searches: idle(),
@@ -209,6 +249,16 @@ export function initialFinderModel(): FinderModel {
     hireBoard: idle<HireBoardLead[]>(),
     hireBoardQ: '',
     hireBoardGeo: [],
+    platsbanken: idle<PlatsbankenLead[]>(),
+    platsbankenQ: PLATSBANKEN_DEFAULT_QUERY,
+    platsbankenMunicipality: PLATSBANKEN_DEFAULT_MUNICIPALITY,
+    huntRail: 'honest',
+    huntHarvested: [],
+    missionFirms: idle<MissionFirmLead[]>(),
+    missionFirmsQ: MISSION_FIRMS_DEFAULT_QUERY,
+    missionFirmsSelected: [...MISSION_FIRMS_DEFAULT_SELECTED],
+    missionFirmsTexasOnly: false,
+    missionFirmsTerafabBias: true,
     network: idle<NetworkGraphResult>(),
     networkFilter: 'top50',
     networkBusyAction: 'idle',

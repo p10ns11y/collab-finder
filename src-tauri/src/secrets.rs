@@ -17,7 +17,7 @@
 //    - Commands: has_xai_key / get_xai_key_storage / set_xai_key / clear_xai_key
 //    - Internal: get_xai_key() (used only inside analyze/prep commands — NEVER on IPC wire)
 //    - Status: XaiKeyStorageStatus (shape mirrors Bearer* exactly for UI consistency)
-//    - Model is configurable (defaults to grok-4.5). Key enables the calls.
+//    - Model is configurable (defaults to grok-4.6). Key enables the calls.
 //      for estimates: $1.25/M input, $2.50/M output (real costs from API usage fields).
 //
 // Shared invariants (apply to BOTH):

@@ -13,6 +13,8 @@ import type {
 } from '../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../core/domain/opportunity-target'
 import type { HireBoardFilter, HireBoardLead } from '../core/domain/hire-board'
+import type { PlatsbankenLead, PlatsbankenSearchFilter } from '../core/domain/platsbanken'
+import type { MissionFirmLead, MissionFirmFilter } from '../core/domain/mission-firms'
 import type { NetworkGraphResult } from '../core/domain/network-graph'
 import type { Result } from '../core/result'
 import type { AppError } from '../core/error'
@@ -50,6 +52,27 @@ export type FinderPort = {
     location?: string
     career_url: string
     thread_url?: string
+  }): Promise<Result<Opportunity, AppError>>
+
+  /** JobTech JobSearch → ranked Platsbanken leads (emergency AF rail). */
+  searchPlatsbanken(filter?: PlatsbankenSearchFilter): Promise<Result<PlatsbankenLead[], AppError>>
+  /** Fetch full ad + upsert Opportunity kind=platsbanken (Evaluate). */
+  importPlatsbankenAd(adId: string): Promise<Result<Opportunity, AppError>>
+  deleteOpportunity(id: number): Promise<Result<void, AppError>>
+  runLocalGrokQuest(payload: {
+    prompt: string
+    sessionId?: string
+    resume?: boolean
+    kind?: string
+  }): Promise<Result<import('../core/domain/quest').QuestResult, AppError>>
+
+  /** SpaceXAI Greenhouse + Swedish bridge JobTech ads. */
+  searchMissionFirms(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>
+  importMissionFirmLead(payload: {
+    firm_id: string
+    source: string
+    external_id: string
+    absolute_url?: string
   }): Promise<Result<Opportunity, AppError>>
 
   /** Local gitignored connections.csv → scored network graph. */

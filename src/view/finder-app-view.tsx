@@ -2,11 +2,14 @@ import { AppShell } from '../components/layout/app-shell'
 import { Header } from '../components/layout/header'
 import { SidebarNav } from '../components/layout/sidebar-nav'
 import { CommandPalette } from '../components/finder/command-palette'
+import { QuestDrawer } from '../components/finder/quest-drawer'
 import { ErrorBanner } from '../components/finder/error-banner'
 import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { MissionScreen } from './screens/mission-screen'
+import { SwedenScreen } from './screens/sweden-screen'
 import { NetworkScreen } from './screens/network-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import type { FinderScreen } from '../core/finder/model'
@@ -18,6 +21,8 @@ type Props = {
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
   discover: 'Discover',
+  mission: 'Mission',
+  sweden: 'Sweden',
   xplore: 'Xplore',
   network: 'Network',
   settings: 'Settings',
@@ -41,6 +46,10 @@ export function FinderAppView({ view, dispatch }: Props) {
     switch (activeScreen) {
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
+      case 'mission':
+        return <MissionScreen view={view} dispatch={dispatch} />
+      case 'sweden':
+        return <SwedenScreen view={view} dispatch={dispatch} />
       case 'xplore':
         // Xplore: X search/cycle to discover new opportunities on X.
         // DiscoverScreen branches based on activeScreen (Discover = opportunity management + quick target; Xplore = pure X).
@@ -63,6 +72,7 @@ export function FinderAppView({ view, dispatch }: Props) {
         header={
           <Header
             onOpenPalette={() => dispatch({ type: 'PaletteToggled' })}
+            onOpenQuest={() => dispatch({ type: 'QuestToggled' })}
             screenTitle={screenTitle}
             xConnected={view.connectionFlow === 'connected'}
             xChecking={view.connectionFlow === 'checking'}
@@ -82,7 +92,7 @@ export function FinderAppView({ view, dispatch }: Props) {
               <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />
             </div>
           )}
-          <div className="ui-viewport min-h-0 flex-1">{viewportContent}</div>
+          <div className="ui-viewport flex min-h-0 flex-1 flex-col">{viewportContent}</div>
         </div>
       </AppShell>
 
@@ -91,6 +101,15 @@ export function FinderAppView({ view, dispatch }: Props) {
         items={view.paletteItems}
         onSelect={(msg) => dispatch(msg)}
         onClose={() => dispatch({ type: 'PaletteClosed' })}
+      />
+      <QuestDrawer
+        open={model.questOpen}
+        kind={model.questKind}
+        draft={model.questDraft}
+        turns={model.questTurns}
+        sessionId={model.questSessionId}
+        quest={model.quest}
+        dispatch={dispatch}
       />
     </>
   )

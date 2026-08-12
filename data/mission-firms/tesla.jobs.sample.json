@@ -1,0 +1,44 @@
+{
+  "listings": [
+    {
+      "id": "demo-fw-austin-1",
+      "title": "Firmware Engineer, Vehicle Controls",
+      "location": "Austin, TX",
+      "department": "Vehicle Software",
+      "url": "https://www.tesla.com/careers/search/?query=Firmware%20Engineer%20Vehicle%20Controls",
+      "description": "Demo mixed SW/HW role fixture for local Mission firms. Replace with live cua-api/state dump at tesla.jobs.json."
+    },
+    {
+      "id": "demo-emb-fsd-2",
+      "title": "Embedded Software Engineer, Autonomy",
+      "location": "Palo Alto, CA",
+      "department": "Autopilot",
+      "url": "https://www.tesla.com/careers/search/?query=Embedded%20Software%20Engineer%20Autonomy",
+      "description": "Demo autonomy/embedded fixture (software + vehicle hardware context)."
+    },
+    {
+      "id": "demo-robotics-3",
+      "title": "Software Engineer, Robotics Perception",
+      "location": "Austin, TX",
+      "department": "Optimus",
+      "url": "https://www.tesla.com/careers/search/?query=Software%20Engineer%20Robotics%20Perception",
+      "description": "Demo robotics perception fixture spanning software and physical systems."
+    },
+    {
+      "id": "demo-backend-only",
+      "title": "Backend Software Engineer",
+      "location": "Remote",
+      "department": "Cloud Services",
+      "url": "https://www.tesla.com/careers/search/?query=Backend",
+      "description": "Pure software — should be filtered out by mixed SW/HW gate."
+    },
+    {
+      "id": "demo-mech-only",
+      "title": "Mechanical Design Engineer",
+      "location": "Austin, TX",
+      "department": "Body Engineering",
+      "url": "https://www.tesla.com/careers/search/?query=Mechanical",
+      "description": "Pure hardware — should be filtered out by mixed SW/HW gate."
+    }
+  ]
+}

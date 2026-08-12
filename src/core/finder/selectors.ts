@@ -54,6 +54,8 @@ export function selectFinderView(model: FinderModel): FinderViewState {
   const h = model.history
   const screenNavItems: PaletteItem[] = [
     { id: 'nav-discover', label: 'Go to Discover', msg: { type: 'ScreenChanged', screen: 'discover' } },
+    { id: 'nav-mission', label: 'Go to Mission', msg: { type: 'ScreenChanged', screen: 'mission' } },
+    { id: 'nav-sweden', label: 'Go to Sweden', msg: { type: 'ScreenChanged', screen: 'sweden' } },
     { id: 'nav-xplore', label: 'Go to Xplore (X)', msg: { type: 'ScreenChanged', screen: 'xplore' } },
     { id: 'nav-network', label: 'Go to Network', msg: { type: 'ScreenChanged', screen: 'network' } },
     { id: 'nav-settings', label: 'Go to Settings', msg: { type: 'ScreenChanged', screen: 'settings' } },
@@ -73,6 +75,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     strategyReference: PROFILE_STRATEGY_MD,
     paletteItems: [
       ...screenNavItems,
+      { id: 'quest', label: 'Open local Grok quest', msg: { type: 'QuestToggled' } },
       { id: 'search', label: 'Search X (live)', msg: { type: 'SearchRequested' } },
       { id: 'cycle', label: 'Run autonomous cycle (heuristic)', msg: { type: 'CycleRequested' } },
       ...SEARCH_PRESETS.filter((p) => p.tier === 'priority').map((p) => ({

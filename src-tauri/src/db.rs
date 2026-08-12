@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -252,6 +252,11 @@ impl SqliteStore {
             Self::record_migration(conn, 6)?;
         }
 
+        if current < 7 {
+            Self::migrate_v7(conn)?;
+            Self::record_migration(conn, 7)?;
+        }
+
         Ok(())
     }
 
@@ -487,6 +492,23 @@ CREATE TABLE IF NOT EXISTS network_import_meta (
     /// v6: phones on network_people (from contacts export).
     fn migrate_v6(conn: &Connection) -> Result<(), String> {
         let _ = conn.execute("ALTER TABLE network_people ADD COLUMN phones TEXT", []);
+        Ok(())
+    }
+
+    /// v7: unique (kind, source_ref) so Platsbanken ad ids cannot double-insert.
+    fn migrate_v7(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM opportunities WHERE source_ref IS NOT NULL AND id NOT IN (
+               SELECT MAX(id) FROM opportunities WHERE source_ref IS NOT NULL GROUP BY kind, source_ref
+             )",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_opp_kind_source_ref
+             ON opportunities(kind, source_ref) WHERE source_ref IS NOT NULL;",
+        )
+        .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -1427,35 +1449,24 @@ CREATE TABLE IF NOT EXISTS network_import_meta (
         let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
         let tx = guard.transaction().map_err(|e| e.to_string())?;
 
-        let id: i64 = if let Some(u) = source_url {
-            if let Some(existing) = tx
-                .query_row(
-                    "SELECT id FROM opportunities WHERE source_url = ?1",
-                    params![u],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(|e| e.to_string())?
-            {
-                // update in place (keep original jd/source as "source of truth"; update status/fit/analysis etc)
-                tx.execute(
-                    "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
-                    params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
-                )
-                .map_err(|e| e.to_string())?;
-                existing
-            } else {
-                tx.execute(
-                    "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![
-                        kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-                tx.last_insert_rowid()
-            }
+        let id: i64 = if source_url.is_none() && source_ref.is_none() {
+            // paste etc: always new row
+            tx.execute(
+                "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.last_insert_rowid()
+        } else if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+            tx.execute(
+                "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
+                params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
+            )
+            .map_err(|e| e.to_string())?;
+            existing
         } else {
-            // no url (paste etc): always new row
             tx.execute(
                 "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
@@ -1468,6 +1479,91 @@ CREATE TABLE IF NOT EXISTS network_import_meta (
 
         tx.commit().map_err(|e| e.to_string())?;
         Ok(id)
+    }
+
+    fn find_opportunity_id(
+        tx: &rusqlite::Transaction<'_>,
+        source_url: Option<&str>,
+        source_ref: Option<&str>,
+        kind: &str,
+    ) -> Result<Option<i64>, String> {
+        if let Some(u) = source_url {
+            if let Some(id) = tx
+                .query_row(
+                    "SELECT id FROM opportunities WHERE source_url = ?1",
+                    params![u],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+            {
+                return Ok(Some(id));
+            }
+        }
+        if let Some(r) = source_ref.filter(|s| !s.is_empty()) {
+            if let Some(id) = tx
+                .query_row(
+                    "SELECT id FROM opportunities WHERE kind = ?1 AND source_ref = ?2",
+                    params![kind, r],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+            {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Insert hunt hit if new. Existing row (url or kind+ad id) is left intact — no status reset.
+    pub fn remember_opportunity(
+        &self,
+        kind: &str,
+        source_url: Option<&str>,
+        source_ref: Option<&str>,
+        title: Option<&str>,
+        company: Option<&str>,
+        jd_text: &str,
+        notes: Option<&str>,
+    ) -> Result<i64, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+            tx.execute(
+                "UPDATE opportunities SET last_updated = datetime('now'),
+                   source_ref = COALESCE(source_ref, ?1),
+                   title = COALESCE(title, ?2),
+                   company = COALESCE(company, ?3)
+                 WHERE id = ?4",
+                params![source_ref, title, company, existing],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| e.to_string())?;
+            return Ok(existing);
+        }
+        tx.execute(
+            "INSERT INTO opportunities (kind, source_url, source_ref, title, company, jd_text, status, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'new', ?7)",
+            params![kind, source_url, source_ref, title, company, jd_text, notes],
+        )
+        .map_err(|e| e.to_string())?;
+        let id = tx.last_insert_rowid();
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(id)
+    }
+
+    pub fn delete_opportunity(&self, id: i64) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute("DELETE FROM opportunities WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn update_opportunity_status(
@@ -1779,6 +1875,59 @@ mod tests {
     // - re-analyze same URL updates 1 row (count stable)
     // - prep-by-old-id (get by id) works when 50+ newer opps exist
     // - id filter correctness
+
+    #[test]
+    fn remember_platsbanken_ad_id_is_unique() {
+        let (_dir, store) = temp_store();
+        let url = Some("https://arbetsformedlingen.se/platsbanken/annonser/31192648");
+        let id1 = store
+            .remember_opportunity(
+                "platsbanken",
+                url,
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "snippet",
+                Some("search persist"),
+            )
+            .unwrap();
+        let id2 = store
+            .remember_opportunity(
+                "platsbanken",
+                url,
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "other snippet",
+                Some("search persist"),
+            )
+            .unwrap();
+        assert_eq!(id1, id2);
+        let via_ref = store
+            .upsert_opportunity(
+                "platsbanken",
+                Some("https://other.example/31192648"),
+                Some("31192648"),
+                Some("Senior Fullstack"),
+                Some("Anyfin"),
+                "full jd",
+                "new",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(id1, via_ref, "same ad id must hit existing row even if url differs");
+        store.delete_opportunity(id1).unwrap();
+        let after = store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(after.iter().all(|o| o.id != id1));
+    }
 
     #[test]
     fn upsert_opportunity_same_url_updates_one_row() {

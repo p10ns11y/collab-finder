@@ -4,6 +4,7 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
+import { harvestFromHuntLeads, mergeHarvested } from '../domain/hunt-rails'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -27,6 +28,51 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
 
     case 'PaletteClosed':
       return [{ ...model, paletteOpen: false }]
+    case 'QuestToggled':
+      return [{ ...model, questOpen: !model.questOpen, paletteOpen: false }]
+    case 'QuestClosed':
+      return [{ ...model, questOpen: false }]
+    case 'QuestKindChanged':
+      return [{ ...model, questKind: msg.kind }]
+    case 'QuestDraftChanged':
+      return [{ ...model, questDraft: msg.draft }]
+    case 'QuestRequested': {
+      const text = model.questDraft.trim()
+      return [
+        {
+          ...model,
+          quest: { status: 'loading' },
+          questTurns: text
+            ? [...model.questTurns, { role: 'user', text }]
+            : model.questTurns,
+          banner: null,
+        },
+      ]
+    }
+    case 'QuestSucceeded':
+      return [
+        {
+          ...model,
+          quest: { status: 'ready', data: msg.result },
+          questSessionId: msg.result.session_id || model.questSessionId,
+          questDraft: '',
+          questTurns: msg.result.answer
+            ? [...model.questTurns, { role: 'assistant', text: msg.result.answer }]
+            : model.questTurns,
+        },
+      ]
+    case 'QuestFailed':
+      return [{ ...model, quest: { status: 'failed', error: msg.error } }]
+    case 'QuestThreadCleared':
+      return [
+        {
+          ...model,
+          questSessionId: undefined,
+          questTurns: [],
+          quest: { status: 'idle' },
+          questDraft: '',
+        },
+      ]
 
     case 'QueryChanged':
       return [{ ...model, query: msg.query }]
@@ -592,6 +638,211 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           banner: null,
           opportunityTargetUrl: msg.lead.career_url || model.opportunityTargetUrl,
+          opportunityTarget: { status: 'loading' },
+        },
+      ]
+
+    case 'PlatsbankenQChanged':
+      return [{ ...model, platsbankenQ: msg.q }]
+    case 'HuntRailChipApplied':
+      return [
+        {
+          ...model,
+          huntRail: msg.rail,
+          platsbankenQ: msg.surface === 'sweden' ? msg.q : model.platsbankenQ,
+          platsbankenMunicipality:
+            msg.surface === 'sweden' && msg.municipality
+              ? msg.municipality
+              : model.platsbankenMunicipality,
+          missionFirmsQ: msg.surface === 'mission' ? msg.q : model.missionFirmsQ,
+        },
+      ]
+    case 'HuntHarvestKeyApplied':
+      return [
+        {
+          ...model,
+          platsbankenQ: msg.surface === 'sweden' ? msg.key : model.platsbankenQ,
+          missionFirmsQ: msg.surface === 'mission' ? msg.key : model.missionFirmsQ,
+        },
+      ]
+    case 'PlatsbankenMunicipalityChanged':
+      return [{ ...model, platsbankenMunicipality: msg.municipality }]
+    case 'PlatsbankenSearchRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          platsbanken: { status: 'loading' },
+        },
+      ]
+    case 'PlatsbankenSearchSucceeded':
+      return [
+        {
+          ...model,
+          platsbanken: { status: 'ready', data: msg.leads },
+          huntHarvested: mergeHarvested(model.huntHarvested, harvestFromHuntLeads(msg.leads)),
+        },
+      ]
+    case 'PlatsbankenSearchFailed':
+      return [
+        {
+          ...model,
+          platsbanken: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+    case 'PlatsbankenImportRequested':
+      return [{ ...model, banner: null }]
+    case 'PlatsbankenImportSucceeded': {
+      const h = { ...model.history }
+      if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
+        const exists = h.opportunities.data.some((o) => o.id === msg.opportunity.id)
+        h.opportunities = {
+          status: 'ready',
+          data: exists
+            ? h.opportunities.data.map((o) => (o.id === msg.opportunity.id ? msg.opportunity : o))
+            : [msg.opportunity, ...h.opportunities.data],
+        }
+      }
+      return [
+        {
+          ...model,
+          history: h,
+          lastActiveOppId: msg.opportunity.id,
+          opportunityTargetUrl: msg.opportunity.source_url || model.opportunityTargetUrl,
+          platsbanken:
+            model.platsbanken.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: model.platsbanken.data.map((lead) =>
+                    lead.webpage_url === msg.opportunity.source_url ||
+                    lead.ad_id === (msg.opportunity.source_ref || '')
+                      ? {
+                          ...lead,
+                          already_in_db: true,
+                          opportunity_id: msg.opportunity.id,
+                        }
+                      : lead,
+                  ),
+                }
+              : model.platsbanken,
+        },
+      ]
+    }
+    case 'PlatsbankenImportFailed':
+      return [{ ...model, banner: msg.error }]
+    case 'PlatsbankenRemoveRequested':
+      return [{ ...model, banner: null }]
+    case 'PlatsbankenRemoveSucceeded':
+      return [
+        {
+          ...model,
+          platsbanken:
+            model.platsbanken.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: model.platsbanken.data.map((lead) =>
+                    lead.ad_id === msg.adId
+                      ? { ...lead, already_in_db: false, opportunity_id: null }
+                      : lead,
+                  ),
+                }
+              : model.platsbanken,
+        },
+      ]
+    case 'PlatsbankenRemoveFailed':
+      return [{ ...model, banner: msg.error }]
+    case 'PlatsbankenEvaluateRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          opportunityTargetUrl: msg.lead.webpage_url || model.opportunityTargetUrl,
+          opportunityTarget: { status: 'loading' },
+        },
+      ]
+
+    case 'MissionFirmsQChanged':
+      return [{ ...model, missionFirmsQ: msg.q }]
+    case 'MissionFirmsFirmToggled': {
+      const set = new Set(model.missionFirmsSelected)
+      if (set.has(msg.firmId)) set.delete(msg.firmId)
+      else set.add(msg.firmId)
+      return [{ ...model, missionFirmsSelected: [...set] }]
+    }
+    case 'MissionFirmsTexasOnlyToggled':
+      return [{ ...model, missionFirmsTexasOnly: !model.missionFirmsTexasOnly }]
+    case 'MissionFirmsTerafabBiasToggled':
+      return [{ ...model, missionFirmsTerafabBias: !model.missionFirmsTerafabBias }]
+    case 'MissionFirmsSearchRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          missionFirms: { status: 'loading' },
+        },
+      ]
+    case 'MissionFirmsSearchSucceeded':
+      return [
+        {
+          ...model,
+          missionFirms: { status: 'ready', data: msg.leads },
+          huntHarvested: mergeHarvested(model.huntHarvested, harvestFromHuntLeads(msg.leads)),
+        },
+      ]
+    case 'MissionFirmsSearchFailed':
+      return [
+        {
+          ...model,
+          missionFirms: { status: 'failed', error: msg.error },
+          banner: msg.error,
+        },
+      ]
+    case 'MissionFirmsImportRequested':
+      return [{ ...model, banner: null }]
+    case 'MissionFirmsImportSucceeded': {
+      const h = { ...model.history }
+      if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
+        const exists = h.opportunities.data.some((o) => o.id === msg.opportunity.id)
+        h.opportunities = {
+          status: 'ready',
+          data: exists
+            ? h.opportunities.data.map((o) => (o.id === msg.opportunity.id ? msg.opportunity : o))
+            : [msg.opportunity, ...h.opportunities.data],
+        }
+      }
+      return [
+        {
+          ...model,
+          history: h,
+          lastActiveOppId: msg.opportunity.id,
+          opportunityTargetUrl: msg.opportunity.source_url || model.opportunityTargetUrl,
+          missionFirms:
+            model.missionFirms.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: model.missionFirms.data.map((lead) =>
+                    lead.absolute_url === msg.opportunity.source_url
+                      ? {
+                          ...lead,
+                          already_in_db: true,
+                          opportunity_id: msg.opportunity.id,
+                        }
+                      : lead,
+                  ),
+                }
+              : model.missionFirms,
+        },
+      ]
+    }
+    case 'MissionFirmsImportFailed':
+      return [{ ...model, banner: msg.error }]
+    case 'MissionFirmsEvaluateRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          opportunityTargetUrl: msg.lead.absolute_url || model.opportunityTargetUrl,
           opportunityTarget: { status: 'loading' },
         },
       ]

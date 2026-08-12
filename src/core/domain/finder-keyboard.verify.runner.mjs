@@ -7,9 +7,11 @@ function must(c, m) {
 }
 
 must(SCREEN_BY_DIGIT['1'] === 'discover', 'digit 1 → discover')
-must(SCREEN_BY_DIGIT['2'] === 'xplore', 'digit 2 → xplore')
-must(SCREEN_BY_DIGIT['3'] === 'network', 'digit 3 → network')
-must(SCREEN_BY_DIGIT['4'] === 'settings', 'digit 4 → settings')
+must(SCREEN_BY_DIGIT['2'] === 'mission', 'digit 2 → mission')
+must(SCREEN_BY_DIGIT['3'] === 'sweden', 'digit 3 → sweden')
+must(SCREEN_BY_DIGIT['4'] === 'xplore', 'digit 4 → xplore')
+must(SCREEN_BY_DIGIT['5'] === 'network', 'digit 5 → network')
+must(SCREEN_BY_DIGIT['6'] === 'settings', 'digit 6 → settings')
 
 const none = resolveShellHotkey('k', { meta: false, ctrl: false })
 must(none.kind === 'none', 'no mod → none')
@@ -18,9 +20,11 @@ const palMeta = resolveShellHotkey('k', { meta: true, ctrl: false })
 must(palMeta.kind === 'palette', 'meta+k → palette')
 const palCtrl = resolveShellHotkey('K', { meta: false, ctrl: true })
 must(palCtrl.kind === 'palette', 'ctrl+K → palette')
+const quest = resolveShellHotkey('j', { meta: true, ctrl: false })
+must(quest.kind === 'quest', 'meta+j → quest')
 
 const scr = resolveShellHotkey('2', { meta: true, ctrl: false })
-must(scr.kind === 'screen' && scr.screen === 'xplore', 'meta+2 → xplore')
+must(scr.kind === 'screen' && scr.screen === 'mission', 'meta+2 → mission')
 
 const junk = resolveShellHotkey('9', { meta: true, ctrl: false })
 must(junk.kind === 'none', 'meta+9 → none')

@@ -739,16 +739,21 @@ pub(crate) fn set_devprofile_path_cmd(path: Option<String>) -> Result<(), String
 }
 
 /// Simple persistent store for xAI model (plain text; not a secret).
-/// Mirrors devprofile_path pattern. Default is grok-4.5 (new release).
+/// Mirrors devprofile_path pattern. Default is grok-4.6.
 /// Non-goals: no DB column for now.
-const DEFAULT_XAI_MODEL: &str = "grok-4.5";
+const DEFAULT_XAI_MODEL: &str = "grok-4.6";
 
 fn get_xai_model() -> String {
     if let Ok(dir) = crate::app_dirs::app_data_dir() {
         let p = dir.join("xai_model.txt");
-        if let Ok(s) = std::fs::read_to_string(p) {
+        if let Ok(s) = std::fs::read_to_string(&p) {
             let t = s.trim().to_string();
             if !t.is_empty() {
+                // Previous app default — pick up grok-4.6 without a Settings click.
+                if t == "grok-4.5" {
+                    let _ = std::fs::write(&p, DEFAULT_XAI_MODEL);
+                    return DEFAULT_XAI_MODEL.to_string();
+                }
                 return t;
             }
         }

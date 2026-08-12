@@ -15,7 +15,7 @@ dist-ssr
 # Hire board — personal Google Sheet id/url (copy from config.example.json)
 data/hire-board/config.local.json
 
-# Personal contact / LinkedIn exports (PII — never commit)
+# Personal contact / network exports (PII — never commit)
 # Use data/connections.sample.csv + data/contacts.sample.csv for local demos
 data/contacts.csv
 data/connections.csv
@@ -28,6 +28,9 @@ data/distillation/public-projects-full.json
 
 # Local scratch / screenshots
 .tmp/
+
+# Tesla careers dump (paste from cua-api/apps/careers/state — often Akamai-blocked live)
+data/mission-firms/tesla.jobs.json
 
 # Cursor local IDE wiring (symlinks to .agents — recreate per machine)
 .cursor/

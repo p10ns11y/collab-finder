@@ -13,6 +13,8 @@ import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/o
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 import { normalizeOpportunityUrl } from '../domain/opportunity-url'
+import { jobtechSafeQuery } from '../domain/hunt-rails'
+import { buildQuestPrompt, snapshotFromFinder } from '../domain/quest'
 import {
   normalizeApplicationPackExport,
   normalizeGenerateApplyCv,
@@ -58,6 +60,26 @@ export type FinderPorts = {
       location?: string
       career_url: string
       thread_url?: string
+    }): Promise<import('../domain/history').Opportunity>
+    searchPlatsbanken(filter?: import('../domain/platsbanken').PlatsbankenSearchFilter): Promise<
+      import('../domain/platsbanken').PlatsbankenLead[]
+    >
+    importPlatsbankenAd(adId: string): Promise<import('../domain/history').Opportunity>
+    deleteOpportunity(id: number): Promise<void>
+    runLocalGrokQuest(payload: {
+      prompt: string
+      sessionId?: string
+      resume?: boolean
+      kind?: string
+    }): Promise<import('../domain/quest').QuestResult>
+    searchMissionFirms(
+      filter?: import('../domain/mission-firms').MissionFirmFilter,
+    ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
+    importMissionFirmLead(payload: {
+      firm_id: string
+      source: string
+      external_id: string
+      absolute_url?: string
     }): Promise<import('../domain/history').Opportunity>
     loadNetworkGraph(payload?: {
       path?: string
@@ -392,6 +414,213 @@ export function hireBoardSelectCmd(
         id: result.value.id,
         url: result.value.source_url || lead.career_url,
       })
+    })
+  }
+}
+
+export function localGrokQuestCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const resume = !!model.questSessionId
+    const sessionId = model.questSessionId || crypto.randomUUID()
+    const lastUser = [...model.questTurns].reverse().find((t) => t.role === 'user')
+    const question = model.questDraft.trim() || lastUser?.text || ''
+    const prompt = buildQuestPrompt({
+      kind: model.questKind,
+      question,
+      snapshot: snapshotFromFinder(model),
+      followUp: resume,
+    })
+    void fromPromise(
+      ports.finder.runLocalGrokQuest({
+        prompt,
+        sessionId,
+        resume,
+        kind: model.questKind,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'QuestFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'QuestSucceeded', result: result.value })
+    })
+  }
+}
+
+export function platsbankenSearchCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.searchPlatsbanken({
+        q: jobtechSafeQuery(model.platsbankenQ) || undefined,
+        municipality: model.platsbankenMunicipality || undefined,
+        limit: 30,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'PlatsbankenSearchFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'PlatsbankenSearchSucceeded', leads: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
+export function platsbankenImportCmd(
+  ports: FinderPorts,
+  lead: import('../domain/platsbanken').PlatsbankenLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.importPlatsbankenAd(lead.ad_id), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'PlatsbankenImportFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'PlatsbankenImportSucceeded', opportunity: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
+export function platsbankenRemoveCmd(
+  ports: FinderPorts,
+  lead: import('../domain/platsbanken').PlatsbankenLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const id = lead.opportunity_id
+    if (typeof id !== 'number' || id <= 0) {
+      dispatch({
+        type: 'PlatsbankenRemoveFailed',
+        error: toAppError(new Error('No saved row for this ad')),
+      })
+      return
+    }
+    void fromPromise(ports.finder.deleteOpportunity(id), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'PlatsbankenRemoveFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'PlatsbankenRemoveSucceeded', adId: lead.ad_id, opportunityId: id })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
+export function platsbankenEvaluateCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  lead: import('../domain/platsbanken').PlatsbankenLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.importPlatsbankenAd(lead.ad_id), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'PlatsbankenImportFailed', error: result.error })
+        return
+      }
+      const opportunity = result.value
+      dispatch({ type: 'PlatsbankenImportSucceeded', opportunity })
+      dispatch({ type: 'HistoryRefreshRequested' })
+      // Stay on Sweden — do not OpportunitySelected (that switches to Discover).
+      opportunityTargetAnalyzeCmd(ports, model, {
+        pasted_jd: opportunity.jd_text,
+        url: opportunity.source_url || lead.webpage_url,
+        title: opportunity.title || lead.headline,
+        company: opportunity.company || lead.employer,
+      })(dispatch)
+    })
+  }
+}
+
+export function missionFirmsSearchCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  opts?: { forceRefresh?: boolean },
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.searchMissionFirms({
+        q: model.missionFirmsQ || undefined,
+        firms: model.missionFirmsSelected,
+        texas_only: model.missionFirmsTexasOnly,
+        terafab_bias: model.missionFirmsTerafabBias,
+        limit: 80,
+        force_refresh: opts?.forceRefresh === true,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'MissionFirmsSearchFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'MissionFirmsSearchSucceeded', leads: result.value })
+    })
+  }
+}
+
+export function missionFirmsImportCmd(
+  ports: FinderPorts,
+  lead: import('../domain/mission-firms').MissionFirmLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.importMissionFirmLead({
+        firm_id: lead.firm_id,
+        source: lead.source,
+        external_id: lead.external_id,
+        absolute_url: lead.absolute_url,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'MissionFirmsImportFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'MissionFirmsImportSucceeded', opportunity: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
+      dispatch({
+        type: 'OpportunitySelected',
+        id: result.value.id,
+        url: result.value.source_url || lead.absolute_url,
+      })
+    })
+  }
+}
+
+export function missionFirmsEvaluateCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  lead: import('../domain/mission-firms').MissionFirmLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.importMissionFirmLead({
+        firm_id: lead.firm_id,
+        source: lead.source,
+        external_id: lead.external_id,
+        absolute_url: lead.absolute_url,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'MissionFirmsImportFailed', error: result.error })
+        return
+      }
+      const opportunity = result.value
+      dispatch({ type: 'MissionFirmsImportSucceeded', opportunity })
+      dispatch({ type: 'HistoryRefreshRequested' })
+      dispatch({
+        type: 'OpportunitySelected',
+        id: opportunity.id,
+        url: opportunity.source_url || lead.absolute_url,
+      })
+      opportunityTargetAnalyzeCmd(ports, model, {
+        pasted_jd: opportunity.jd_text,
+        url: opportunity.source_url || lead.absolute_url,
+        title: opportunity.title || lead.title,
+        company: opportunity.company || lead.firm_label,
+      })(dispatch)
     })
   }
 }
@@ -902,6 +1131,32 @@ export function effectForMsg(
           title: msg.lead.company,
         }),
       ]
+    case 'QuestRequested':
+      return localGrokQuestCmd(ports, model)
+    case 'PlatsbankenSearchRequested':
+      return platsbankenSearchCmd(ports, model)
+    case 'PlatsbankenImportRequested':
+      return platsbankenImportCmd(ports, msg.lead)
+    case 'PlatsbankenRemoveRequested':
+      return platsbankenRemoveCmd(ports, msg.lead)
+    case 'PlatsbankenMunicipalityChanged':
+      return model.platsbanken.status === 'ready' || model.platsbanken.status === 'failed'
+        ? platsbankenSearchCmd(ports, model)
+        : undefined
+    case 'PlatsbankenEvaluateRequested':
+      return platsbankenEvaluateCmd(ports, model, msg.lead)
+    case 'MissionFirmsSearchRequested':
+      return missionFirmsSearchCmd(ports, model, { forceRefresh: msg.forceRefresh === true })
+    case 'MissionFirmsImportRequested':
+      return missionFirmsImportCmd(ports, msg.lead)
+    case 'MissionFirmsFirmToggled':
+    case 'MissionFirmsTexasOnlyToggled':
+    case 'MissionFirmsTerafabBiasToggled':
+      return model.missionFirms.status === 'ready' || model.missionFirms.status === 'failed'
+        ? missionFirmsSearchCmd(ports, model)
+        : undefined
+    case 'MissionFirmsEvaluateRequested':
+      return missionFirmsEvaluateCmd(ports, model, msg.lead)
     case 'NetworkLoadRequested':
       return networkLoadCmd(ports, msg.force_reimport === true)
     case 'NetworkResolveXRequested':

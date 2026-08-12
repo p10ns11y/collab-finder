@@ -2,7 +2,7 @@
 //! Uses the official OpenAI-compatible endpoint with strict json_schema for structured outputs.
 //! All calls go through secrets::get_xai_key() — key never leaves Rust.
 //!
-//! Model is configurable via get/set_xai_model_cmd (defaults to grok-4.5).
+//! Model is configurable via get/set_xai_model_cmd (defaults to grok-4.6).
 //! Pricing is estimated; real costs come from the API usage object.
 
 use reqwest::Client;
@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 
 const XAI_BASE: &str = "https://api.x.ai/v1";
 
-// Default model lives in opportunity_target::get_xai_model (xai_model.txt + grok-4.5).
+// Default model lives in opportunity_target::get_xai_model (xai_model.txt + grok-4.6).
 // structured_chat takes an explicit model argument — do not reintroduce a unused default here.
 
 // Default pricing estimate (grok-4.x series). Real cost is always from the API "usage" response.

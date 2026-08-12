@@ -3,7 +3,11 @@ mod commands;
 mod db;
 mod finder_reactor;
 mod hire_board;
+mod mission_firms;
 mod network_graph;
+mod platsbanken;
+mod llm_route;
+mod local_grok;
 mod opportunity_target;
 mod secrets;
 mod x_query;
@@ -15,6 +19,8 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
+use llm_route::{get_llm_route_status, set_llm_route_quality};
+use local_grok::run_local_grok_quest;
 use opportunity_target::{
     analyze_opportunity_target, export_application_pack, fetch_opportunity_target_page,
     generate_apply_cv, get_devprofile_path, get_devprofile_path_cmd, get_fit_mode_cmd,
@@ -462,6 +468,279 @@ async fn fetch_hire_board(
     Ok(leads)
 }
 
+/// Mission firms rail — xAI / SpaceX Greenhouse + Swedish bridge employers (JobTech).
+#[tauri::command]
+async fn search_mission_firms(
+    db: State<'_, AppDb>,
+    q: Option<String>,
+    firms: Option<Vec<String>>,
+    texas_only: Option<bool>,
+    terafab_bias: Option<bool>,
+    limit: Option<u32>,
+    force_refresh: Option<bool>,
+) -> Result<Vec<mission_firms::MissionFirmLead>, String> {
+    let filter = mission_firms::MissionFirmFilter {
+        q,
+        firms: firms.unwrap_or_default(),
+        texas_only: texas_only.unwrap_or(false),
+        terafab_bias: terafab_bias.unwrap_or(true),
+        limit: limit.map(|n| n as usize),
+        force_refresh: force_refresh.unwrap_or(false),
+    };
+    let mut leads = mission_firms::search_mission_firms(&filter).await?;
+    let known: Vec<(String, i64)> = db
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_opportunities(&db::OpportunityFilter {
+            limit: Some(500),
+            ..Default::default()
+        })?
+        .into_iter()
+        .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+        .collect();
+    mission_firms::mark_already_in_db(&mut leads, &known);
+    Ok(leads)
+}
+
+/// Import one mission-firm posting into opportunities (kind=mission_firm).
+#[tauri::command]
+async fn import_mission_firm_lead(
+    db: State<'_, AppDb>,
+    firm_id: String,
+    source: String,
+    external_id: String,
+    absolute_url: Option<String>,
+) -> Result<db::Opportunity, String> {
+    let firm = firm_id.trim().to_ascii_lowercase();
+    let source = source.trim().to_ascii_lowercase();
+    let (title, company, url, jd, source_ref) = if source == "greenhouse" {
+        let board = mission_firms::greenhouse_board_for_firm(&firm)
+            .ok_or_else(|| format!("unsupported greenhouse firm '{firm}'"))?;
+        let (title, _loc, abs, jd) =
+            mission_firms::fetch_greenhouse_job_jd(board, &external_id).await?;
+        let url = if abs.is_empty() {
+            absolute_url.unwrap_or_default()
+        } else {
+            abs
+        };
+        let company = mission_firms::firm_label(&firm);
+        (
+            title,
+            company,
+            url,
+            jd,
+            format!("gh:{board}:{external_id}"),
+        )
+    } else if source == "lever" {
+        let site = mission_firms::lever_site_for_firm(&firm)
+            .ok_or_else(|| format!("unsupported lever firm '{firm}'"))?;
+        let (title, _loc, abs, jd) =
+            mission_firms::fetch_lever_job_jd(site, &external_id).await?;
+        let url = if abs.is_empty() {
+            absolute_url.unwrap_or_default()
+        } else {
+            abs
+        };
+        let company = mission_firms::firm_label(&firm);
+        (
+            title,
+            company,
+            url,
+            jd,
+            format!("lever:{site}:{external_id}"),
+        )
+    } else if source == "ashby" {
+        let board = mission_firms::ashby_board_for_firm(&firm)
+            .ok_or_else(|| format!("unsupported ashby firm '{firm}'"))?;
+        let (title, _loc, abs, jd) =
+            mission_firms::fetch_ashby_job_jd(board, &external_id, absolute_url.as_deref()).await?;
+        let url = if abs.is_empty() {
+            absolute_url.unwrap_or_default()
+        } else {
+            abs
+        };
+        let company = mission_firms::firm_label(&firm);
+        (
+            title,
+            company,
+            url,
+            jd,
+            format!("ashby:{board}:{external_id}"),
+        )
+    } else if source == "jobtech" {
+        let ad = platsbanken::fetch_ad(&external_id).await?;
+        let jd = platsbanken::build_jd_text(&ad);
+        (
+            ad.headline,
+            ad.employer,
+            ad.webpage_url,
+            jd,
+            format!("jobtech:{external_id}"),
+        )
+    } else if source == "tesla" {
+        let (title, company, url, jd) = mission_firms::resolve_tesla_job_for_import(
+            &external_id,
+            absolute_url.as_deref(),
+        )?;
+        (title, company, url, jd, format!("tesla:{external_id}"))
+    } else {
+        return Err(format!("unsupported source '{source}'"));
+    };
+
+    if url.trim().is_empty() {
+        return Err("absolute_url required".into());
+    }
+
+    let notes = format!("mission_firm:{firm}; source:{source}");
+    let id = db.0.lock().map_err(|e| e.to_string())?.upsert_opportunity(
+        "mission_firm",
+        Some(&url),
+        Some(&source_ref),
+        Some(&title),
+        Some(&company),
+        &jd,
+        "new",
+        None,
+        None,
+        None,
+        Some(&notes),
+    )?;
+
+    let mut opportunity = db
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_opportunities(&db::OpportunityFilter {
+            id: Some(id),
+            limit: Some(1),
+            ..Default::default()
+        })?
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("opportunity {id} missing after mission firm import"))?;
+    opportunity.jd_text = jd;
+    opportunity.kind = "mission_firm".into();
+    opportunity.title = Some(title);
+    opportunity.company = Some(company);
+    opportunity.source_ref = Some(source_ref);
+    Ok(opportunity)
+}
+
+/// Platsbanken — JobTech search, then remember each ad (dedup on source_url / ad id).
+#[tauri::command]
+async fn search_platsbanken(
+    db: State<'_, AppDb>,
+    q: Option<String>,
+    municipality: Option<String>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<Vec<platsbanken::PlatsbankenLead>, String> {
+    let filter = platsbanken::PlatsbankenSearchFilter {
+        q,
+        municipality,
+        limit: limit.map(|n| n as usize),
+        offset: offset.map(|n| n as usize),
+    };
+    let ads = platsbanken::search_ads(&filter).await?;
+    let mut leads: Vec<_> = ads
+        .into_iter()
+        .map(platsbanken::lead_from_parsed)
+        .collect();
+    leads = platsbanken::rank_leads(leads);
+
+    {
+        let store = db.0.lock().map_err(|e| e.to_string())?;
+        for lead in leads.iter_mut() {
+            let jd = if lead.description_snippet.is_empty() {
+                lead.headline.clone()
+            } else {
+                lead.description_snippet.clone()
+            };
+            let notes = format!(
+                "platsbanken search; municipality={}",
+                lead.municipality.as_deref().unwrap_or("-")
+            );
+            let id = store.remember_opportunity(
+                "platsbanken",
+                Some(&lead.webpage_url),
+                Some(&lead.ad_id),
+                Some(&lead.headline),
+                Some(&lead.employer),
+                &jd,
+                Some(&notes),
+            )?;
+            if id > 0 {
+                lead.already_in_db = true;
+                lead.opportunity_id = Some(id);
+            }
+        }
+    }
+    Ok(leads)
+}
+
+/// Import one Platsbanken ad as Opportunity (kind=platsbanken) with full JD text.
+#[tauri::command]
+async fn import_platsbanken_ad(
+    db: State<'_, AppDb>,
+    ad_id: String,
+) -> Result<db::Opportunity, String> {
+    let ad = platsbanken::fetch_ad(&ad_id).await?;
+    let jd = platsbanken::build_jd_text(&ad);
+    let notes = format!(
+        "platsbanken emergency; favorite_match terms may apply; municipality={}",
+        ad.municipality.as_deref().unwrap_or("-")
+    );
+    let id = db.0.lock().map_err(|e| e.to_string())?.remember_opportunity(
+        "platsbanken",
+        Some(&ad.webpage_url),
+        Some(&ad.ad_id),
+        Some(&ad.headline),
+        Some(&ad.employer),
+        &jd,
+        Some(&notes),
+    )?;
+
+    let mut opportunity = db
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_opportunities(&db::OpportunityFilter {
+            id: Some(id),
+            limit: Some(1),
+            ..Default::default()
+        })?
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("opportunity {id} missing after platsbanken import"))?;
+    // Upsert keeps prior jd_text on URL conflict; Evaluate still needs the live ad body.
+    opportunity.jd_text = jd;
+    opportunity.kind = "platsbanken".into();
+    opportunity.title = Some(ad.headline);
+    opportunity.company = Some(ad.employer);
+    opportunity.source_ref = Some(ad.ad_id);
+    Ok(opportunity)
+}
+
+#[tauri::command]
+fn delete_opportunity_cmd(db: State<'_, AppDb>, id: i64) -> Result<(), String> {
+    db.0.lock()
+        .map_err(|e| e.to_string())?
+        .delete_opportunity(id)
+}
+
+#[tauri::command]
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let t = url.trim();
+    if !(t.starts_with("https://") || t.starts_with("http://")) {
+        return Err("only http(s) urls can be opened".into());
+    }
+    app.opener()
+        .open_url(t, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 /// Persist one hire-board lead as Opportunity status=new (URL dedup via upsert).
 #[tauri::command]
 async fn select_hire_board_lead(
@@ -591,6 +870,8 @@ pub fn run() {
             set_devprofile_path_cmd,
             get_xai_model_cmd,
             set_xai_model_cmd,
+            get_llm_route_status,
+            set_llm_route_quality,
             get_fit_mode_cmd,
             set_fit_mode_cmd,
             propose_cv_sidecar_for_prep,
@@ -598,6 +879,13 @@ pub fn run() {
             update_opportunity_status_cmd,
             fetch_hire_board,
             select_hire_board_lead,
+            search_platsbanken,
+            import_platsbanken_ad,
+            delete_opportunity_cmd,
+            open_external_url,
+            run_local_grok_quest,
+            search_mission_firms,
+            import_mission_firm_lead,
             load_network_graph,
             resolve_network_x_profiles,
             enrich_network_linkedin,

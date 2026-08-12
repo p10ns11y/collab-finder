@@ -21,7 +21,8 @@ const COLLAB_FIT_THRESHOLD_DIRECT: f32 = 40.0;
 const COLLAB_FIT_THRESHOLD_BRIDGE: f32 = 28.0;
 
 /// Default ex-employer allowlist (relationship tag — not primary fitness).
-const EX_COLLEAGUE_COMPANIES: &[&str] = &["oneflow", "oneflow ab"];
+/// Includes `priorlabs` for committed sample/test fixtures only.
+const EX_COLLEAGUE_COMPANIES: &[&str] = &["oneflow", "oneflow ab", "priorlabs"];
 
 /// Tier A — core targets (Space / Defence / robotics / autonomy / cyber-defence).
 const MISSION_TIER_A: &[&str] = &[
@@ -351,7 +352,7 @@ struct XUsersByResponse {
 }
 
 fn config_missing_hint() -> String {
-    "Network CSV not found. Place LinkedIn Connections export at data/connections.csv (gitignored), or keep data/connections.sample.csv for local demos.".into()
+    "Network CSV not found. Place a connections export at data/connections.csv (gitignored), or keep data/connections.sample.csv for local demos.".into()
 }
 
 pub fn connections_csv_candidates() -> Vec<PathBuf> {
@@ -1552,14 +1553,14 @@ mod tests {
 "note line"
 
 First Name,Last Name,URL,Email Address,Company,Position,Connected On
-Ada,Lovelace,https://www.linkedin.com/in/ada-lovelace,,Field Robotics AB,Robotics Engineer,16 Mar 2025
-Bob,Builder,https://www.linkedin.com/in/bobbuilder,,OtherCo,Account Executive,01 Jan 2015
-Cai,Prompt,https://www.linkedin.com/in/caiprompt,,Oneflow,Staff AI Engineer,16 Mar 2025
-Dee,Hype,https://www.linkedin.com/in/deehype,,BuzzAI,Prompt Engineer,01 Jan 2024
-Sam,Orbit,https://www.linkedin.com/in/samorbit,,SpaceTech AB,Senior Software Engineer,01 Jun 2024
-Pri,Sugar,https://www.linkedin.com/in/prisugar,,BAIRAVANATH SUGAR FACTORY,Process Engineer,01 Jan 2023
-Yue,Robot,https://www.linkedin.com/in/yuerobot,,Bongos Robotics,CEO,01 Jan 2024
-Mel,Learn,https://www.linkedin.com/in/mellearn,,Oneflow,Machine Learning Engineer,01 Jan 2023
+Ada,North,https://profiles.example/in/ada-north,,Northfield Autonomy AB,Robotics Engineer,16 Mar 2025
+Bob,Builder,https://profiles.example/in/bob-builder,,Contoso Retail,Account Executive,01 Jan 2015
+Cai,Prompt,https://profiles.example/in/cai-prompt,,PriorLabs,Staff AI Engineer,16 Mar 2025
+Dee,Hype,https://profiles.example/in/dee-hype,,HypeSurface Co,Prompt Engineer,01 Jan 2024
+Sam,Orbit,https://profiles.example/in/sam-orbit,,Northbridge Spacetech,Senior Software Engineer,01 Jun 2024
+Pri,Sugar,https://profiles.example/in/pri-sugar,,Rivercane Processing,Process Engineer,01 Jan 2023
+Yue,Robot,https://profiles.example/in/yue-robot,,Cedar Robotics,CEO,01 Jan 2024
+Mel,Learn,https://profiles.example/in/mel-learn,,PriorLabs,Machine Learning Engineer,01 Jan 2023
 "#;
 
     #[test]
@@ -1624,7 +1625,7 @@ Mel,Learn,https://www.linkedin.com/in/mellearn,,Oneflow,Machine Learning Enginee
         let mut people = parse_connections_csv(SAMPLE).unwrap();
         let contacts = parse_contacts_csv(
             "Source,FirstName,LastName,Companies,Title,Emails,PhoneNumbers,FullName\n\
-             GOOGLE_CONTACTS,Sam,Orbit,,eng,sam@example.com,+46701234567,Sam Orbit\n",
+             ADDRESS_BOOK,Sam,Orbit,,eng,sam@example.test,+46701234567,Sam Orbit\n",
         )
         .unwrap();
         people.extend(contacts);
@@ -1633,7 +1634,7 @@ Mel,Learn,https://www.linkedin.com/in/mellearn,,Oneflow,Machine Learning Enginee
             .iter()
             .find(|p| p.first_name == "Sam" && p.source == "linkedin_connection")
             .unwrap();
-        assert_eq!(sam.emails.as_deref(), Some("sam@example.com"));
+        assert_eq!(sam.emails.as_deref(), Some("sam@example.test"));
         assert_eq!(sam.phones.as_deref(), Some("+46701234567"));
     }
 
@@ -1659,22 +1660,22 @@ Mel,Learn,https://www.linkedin.com/in/mellearn,,Oneflow,Machine Learning Enginee
     fn vanity_and_username_candidates() {
         let people = parse_connections_csv(SAMPLE).unwrap();
         let ada = &people[0];
-        assert_eq!(linkedin_vanity_slug(&ada.linkedin_url).as_deref(), Some("ada-lovelace"));
+        assert_eq!(linkedin_vanity_slug(&ada.linkedin_url).as_deref(), Some("ada-north"));
         let c = username_candidates(ada);
         assert!(c.iter().any(|u| u.contains("ada")));
     }
 
     #[test]
     fn name_similarity_basic() {
-        assert!(name_similarity("Ada Lovelace", "Ada Lovelace") > 0.9);
-        assert!(name_similarity("Ada Lovelace", "Completely Different") < 0.2);
+        assert!(name_similarity("Ada North", "Ada North") > 0.9);
+        assert!(name_similarity("Ada North", "Completely Different") < 0.2);
     }
 
     #[test]
     fn parse_li_html_meta() {
         let html = r#"
         <html><head>
-        <meta property="og:title" content="Ada Lovelace - Staff Engineer - Oneflow" />
+        <meta property="og:title" content="Ada North - Staff Engineer - PriorLabs" />
         <meta property="og:description" content="Building agentic tools. Stockholm, Sweden." />
         <script>"addressLocality":"Stockholm"</script>
         </head></html>

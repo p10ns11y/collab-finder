@@ -18,6 +18,10 @@ import {
   xaiPanelReducer,
 } from '../../core/domain/xai-key-panel'
 import {
+  parseLlmQuality,
+  type LlmQuality,
+} from '../../core/domain/llm-route'
+import {
   DEFAULT_FIT_MODE,
   fitModeDescription,
   fitModeLabel,
@@ -28,6 +32,7 @@ import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
 import { Badge } from '../../components/ui/badge'
+import { Chip } from '../../components/ui/chip'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -65,6 +70,10 @@ export function SettingsScreen({ view, dispatch }: Props) {
       {/* xAI Intelligence key — exact same UX as X bearer */}
       <div className="mt-4">
         <XaiKeyPanel />
+      </div>
+
+      <div className="mt-4">
+        <LlmRoutePanel />
       </div>
 
       <div className="mt-4">
@@ -112,6 +121,78 @@ export function SettingsScreen({ view, dispatch }: Props) {
         </details>
       </div>
     </div>
+  )
+}
+
+type LlmRouteStatus = {
+  quality: string
+  grok_bin: string | null
+  cursor_agent_bin: string | null
+  xai_key_present: boolean
+  short_backend: string
+  long_high_backend: string
+  long_moderate_backend: string
+}
+
+/** Quality-tier route: Grok ACP / cursor-agent / xAI API. No yolo spawn. */
+function LlmRoutePanel() {
+  const [status, setStatus] = React.useState<LlmRouteStatus | null>(null)
+  const [notice, setNotice] = React.useState<string | null>(null)
+  const quality = parseLlmQuality(status?.quality)
+
+  const refresh = React.useCallback(() => {
+    void safeInvoke<LlmRouteStatus>('get_llm_route_status', {}).then((res) => {
+      if (res.ok) setStatus(res.value)
+      else setNotice(res.error?.message || 'Route status failed')
+    })
+  }, [])
+
+  React.useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const setQuality = (next: LlmQuality) => {
+    void safeInvoke<void>('set_llm_route_quality', { quality: next }).then((res) => {
+      if (res.ok) {
+        setNotice(null)
+        refresh()
+      } else {
+        setNotice(res.error?.message || 'Save failed')
+      }
+    })
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>Analyze route</CardTitle>
+        <CardDescription>
+          Evaluate and Prepare stay on the xAI API (grok-4.6 structured JSON). Local Grok Build
+          ACP/stdio is for long agent work with tools — not these two one-shot schemas. Preference
+          below is stored for a later headless <span className="font-mono">grok -p</span> path, not
+          used to spawn ACP from Evaluate.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-1">
+          {(['fast', 'moderate', 'high'] as const).map((q) => (
+            <Chip key={q} active={quality === q} onClick={() => setQuality(q)}>
+              {q === 'high' ? 'High · Grok ACP' : q === 'moderate' ? 'Moderate · cursor-agent' : 'Fast · API'}
+            </Chip>
+          ))}
+        </div>
+        <p className="ui-meta">
+          Grok {status?.grok_bin ? 'found' : 'missing'} · cursor-agent{' '}
+          {status?.cursor_agent_bin ? 'found' : 'missing'} · xAI key{' '}
+          {status?.xai_key_present ? 'present' : 'absent'}
+        </p>
+        <p className="ui-meta">
+          Short → {status?.short_backend ?? '…'} · Long high → {status?.long_high_backend ?? '…'} ·
+          Long moderate → {status?.long_moderate_backend ?? '…'}
+        </p>
+        {notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -287,7 +368,7 @@ function XaiKeyPanel() {
               id="xai-model"
               value={modelDraft}
               onChange={(e) => dispatch({ type: 'SET_MODEL_DRAFT', draft: e.target.value })}
-              placeholder="grok-4.5"
+              placeholder="grok-4.6"
               className="min-w-[140px] flex-1 font-mono text-xs"
               spellCheck={false}
               autoComplete="off"
@@ -306,10 +387,10 @@ function XaiKeyPanel() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => quickSetModel('grok-4.3')}
+              onClick={() => quickSetModel('grok-4.6')}
               disabled={isBusy}
             >
-              grok-4.3
+              grok-4.6
             </Button>
             <Button
               variant="ghost"

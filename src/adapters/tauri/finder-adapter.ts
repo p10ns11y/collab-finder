@@ -13,6 +13,8 @@ import type {
 } from '../../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../../core/domain/opportunity-target'
 import type { HireBoardFilter, HireBoardLead } from '../../core/domain/hire-board'
+import type { PlatsbankenLead, PlatsbankenSearchFilter } from '../../core/domain/platsbanken'
+import type { MissionFirmLead, MissionFirmFilter } from '../../core/domain/mission-firms'
 import type { NetworkGraphResult } from '../../core/domain/network-graph'
 import { safeInvoke } from './safe-invoke'
 
@@ -79,6 +81,41 @@ export function createTauriFinderPort(): FinderPort {
         location: payload.location,
         careerUrl: payload.career_url,
         threadUrl: payload.thread_url,
+      }),
+    searchPlatsbanken: (filter?: PlatsbankenSearchFilter) =>
+      safeInvoke<PlatsbankenLead[]>('search_platsbanken', {
+        q: filter?.q,
+        municipality: filter?.municipality,
+        limit: filter?.limit ?? 30,
+        offset: filter?.offset ?? 0,
+      }),
+    importPlatsbankenAd: (adId) =>
+      safeInvoke<Opportunity>('import_platsbanken_ad', { adId }),
+    deleteOpportunity: (id) => safeInvoke<void>('delete_opportunity_cmd', { id }),
+    runLocalGrokQuest: (payload) =>
+      safeInvoke('run_local_grok_quest', {
+        input: {
+          prompt: payload.prompt,
+          sessionId: payload.sessionId ?? null,
+          resume: payload.resume ?? false,
+          kind: payload.kind ?? 'free',
+        },
+      }),
+    searchMissionFirms: (filter?: MissionFirmFilter) =>
+      safeInvoke<MissionFirmLead[]>('search_mission_firms', {
+        q: filter?.q,
+        firms: filter?.firms,
+        texasOnly: filter?.texas_only ?? false,
+        terafabBias: filter?.terafab_bias ?? true,
+        limit: filter?.limit ?? 80,
+        forceRefresh: filter?.force_refresh ?? false,
+      }),
+    importMissionFirmLead: (payload) =>
+      safeInvoke<Opportunity>('import_mission_firm_lead', {
+        firmId: payload.firm_id,
+        source: payload.source,
+        externalId: payload.external_id,
+        absoluteUrl: payload.absolute_url,
       }),
     loadNetworkGraph: (payload) =>
       safeInvoke<NetworkGraphResult>('load_network_graph', {
@@ -233,6 +270,45 @@ export function finderPortForEffects(port: FinderPort) {
       thread_url?: string
     }) {
       const result = await port.selectHireBoardLead(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async searchPlatsbanken(filter?: PlatsbankenSearchFilter) {
+      const result = await port.searchPlatsbanken(filter)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async importPlatsbankenAd(adId: string) {
+      const result = await port.importPlatsbankenAd(adId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async deleteOpportunity(id: number) {
+      const result = await port.deleteOpportunity(id)
+      if (!result.ok) throw result.error
+    },
+    async runLocalGrokQuest(payload: {
+      prompt: string
+      sessionId?: string
+      resume?: boolean
+      kind?: string
+    }) {
+      const result = await port.runLocalGrokQuest(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async searchMissionFirms(filter?: MissionFirmFilter) {
+      const result = await port.searchMissionFirms(filter)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async importMissionFirmLead(payload: {
+      firm_id: string
+      source: string
+      external_id: string
+      absolute_url?: string
+    }) {
+      const result = await port.importMissionFirmLead(payload)
       if (!result.ok) throw result.error
       return result.value
     },

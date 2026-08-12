@@ -148,7 +148,7 @@ export function NetworkScreen({ view, dispatch }: Props) {
       {model.network.status === 'idle' && (
         <div className="flex-1 flex items-center justify-center text-sm text-ink-faint">
           Uses <code className="mx-1 text-ink-muted">data/connections.sample.csv</code> by
-          default; drop a real LinkedIn export at{' '}
+          default; drop a real connections export at{' '}
           <code className="mx-1 text-ink-muted">data/connections.csv</code> (gitignored) then Load.
         </div>
       )}
