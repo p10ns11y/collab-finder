@@ -7,6 +7,7 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { NetworkScreen } from './screens/network-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import type { FinderScreen } from '../core/finder/model'
 
@@ -18,6 +19,7 @@ type Props = {
 const SCREEN_LABEL: Record<FinderScreen, string> = {
   discover: 'Discover',
   xplore: 'Xplore',
+  network: 'Network',
   settings: 'Settings',
   stats: 'Statistics',
   history: 'History',
@@ -45,6 +47,8 @@ export function FinderAppView({ view, dispatch }: Props) {
         return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
+      case 'network':
+        return <NetworkScreen view={view} dispatch={dispatch} />
       default:
         return <div className="p-6 text-ink-faint">Unknown screen: {activeScreen}</div>
     }

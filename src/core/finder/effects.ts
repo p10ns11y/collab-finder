@@ -59,6 +59,22 @@ export type FinderPorts = {
       career_url: string
       thread_url?: string
     }): Promise<import('../domain/history').Opportunity>
+    loadNetworkGraph(payload?: {
+      path?: string
+      contacts_path?: string
+      force_reimport?: boolean
+      top_n?: number
+    }): Promise<import('../domain/network-graph').NetworkGraphResult>
+    resolveNetworkXProfiles(payload: {
+      graph: import('../domain/network-graph').NetworkGraphResult
+      top_n?: number
+      ids?: string[]
+    }): Promise<import('../domain/network-graph').NetworkGraphResult>
+    enrichNetworkLinkedIn(payload: {
+      graph: import('../domain/network-graph').NetworkGraphResult
+      top_n?: number
+      ids?: string[]
+    }): Promise<import('../domain/network-graph').NetworkGraphResult>
     // devprofile + sidecar propose
     getDevprofilePath(): Promise<string | null>
     setDevprofilePath(path: string | null): Promise<void>
@@ -376,6 +392,67 @@ export function hireBoardSelectCmd(
         id: result.value.id,
         url: result.value.source_url || lead.career_url,
       })
+    })
+  }
+}
+
+export function networkLoadCmd(ports: FinderPorts, forceReimport = false): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.loadNetworkGraph({ top_n: 50, force_reimport: forceReimport }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'NetworkLoadFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'NetworkLoadSucceeded', graph: result.value })
+    })
+  }
+}
+
+export function networkResolveXCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    if (model.network.status !== 'ready') {
+      dispatch({
+        type: 'NetworkResolveXFailed',
+        error: toAppError(new Error('Load network first')),
+      })
+      return
+    }
+    const graph = model.network.data
+    void fromPromise(
+      ports.finder.resolveNetworkXProfiles({ graph, top_n: 50, ids: graph.top_ids.slice(0, 50) }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'NetworkResolveXFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'NetworkResolveXSucceeded', graph: result.value })
+    })
+  }
+}
+
+export function networkEnrichLinkedInCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    if (model.network.status !== 'ready') {
+      dispatch({
+        type: 'NetworkEnrichLinkedInFailed',
+        error: toAppError(new Error('Load network first')),
+      })
+      return
+    }
+    const graph = model.network.data
+    void fromPromise(
+      ports.finder.enrichNetworkLinkedIn({ graph, top_n: 50, ids: graph.top_ids.slice(0, 50) }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'NetworkEnrichLinkedInFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'NetworkEnrichLinkedInSucceeded', graph: result.value })
     })
   }
 }
@@ -825,6 +902,12 @@ export function effectForMsg(
           title: msg.lead.company,
         }),
       ]
+    case 'NetworkLoadRequested':
+      return networkLoadCmd(ports, msg.force_reimport === true)
+    case 'NetworkResolveXRequested':
+      return networkResolveXCmd(ports, model)
+    case 'NetworkEnrichLinkedInRequested':
+      return networkEnrichLinkedInCmd(ports, model)
     case 'OpportunityTargetAnalyzeRequested':
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':
@@ -840,10 +923,14 @@ export function effectForMsg(
     case 'ScreenChanged':
       // existing creds check for settings
       const credsCmd = msg.screen === 'settings' ? credentialsCheckCmd(ports) : undefined
+      const networkCmd =
+        msg.screen === 'network' && model.network.status === 'idle'
+          ? (d: (msg: FinderMsg) => void) => d({ type: 'NetworkLoadRequested' })
+          : undefined
       const sessCmd = (/*dispatch*/) => {
         persistSessionToLocal({ activeScreen: msg.screen })
       }
-      return credsCmd ? [credsCmd, sessCmd] : sessCmd
+      return [credsCmd, networkCmd, sessCmd].filter(Boolean) as Cmd<FinderMsg>[]
 
     // Opportunity load + hydrate opportunityTarget from DB (no xAI). Also sets screen.
     // Note: url (if passed in msg from Data row) is applied in update *before* this effect runs; loadCmd ensures via OpportunityTargetUrlSet for AppStarted path.

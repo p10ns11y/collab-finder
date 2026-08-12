@@ -8,7 +8,8 @@ import type { FinderScreen } from '../finder/model'
 export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = {
   '1': 'discover',
   '2': 'xplore',
-  '3': 'settings',
+  '3': 'network',
+  '4': 'settings',
 }
 
 export type ShellHotkey =

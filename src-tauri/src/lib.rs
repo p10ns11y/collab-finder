@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod finder_reactor;
 mod hire_board;
+mod network_graph;
 mod opportunity_target;
 mod secrets;
 mod x_query;
@@ -365,6 +366,65 @@ async fn update_opportunity_status_cmd(
         .update_opportunity_status(id, &status, notes.as_deref())
 }
 
+#[tauri::command]
+fn load_network_graph(
+    db: State<'_, AppDb>,
+    path: Option<String>,
+    contacts_path: Option<String>,
+    force_reimport: Option<bool>,
+    top_n: Option<u32>,
+) -> Result<network_graph::NetworkGraphResult, String> {
+    let top = top_n.unwrap_or(50) as usize;
+    let force = force_reimport.unwrap_or(false);
+    let store = db.0.lock().map_err(|e| e.to_string())?;
+    if store.network_people_count().unwrap_or(0) > 0 || network_graph::resolve_connections_csv_path(path.as_deref()).is_ok() {
+        return network_graph::load_network_graph_via_db(
+            &store,
+            path.as_deref(),
+            contacts_path.as_deref(),
+            force,
+            top,
+        );
+    }
+    let csv_path = network_graph::resolve_connections_csv_path(path.as_deref())?;
+    network_graph::load_network_graph_from_path(&csv_path, top)
+}
+
+/// Official X user lookup by candidate usernames (LI slug + name variants) for top-N.
+#[tauri::command]
+async fn resolve_network_x_profiles(
+    db: State<'_, AppDb>,
+    graph: network_graph::NetworkGraphResult,
+    top_n: Option<u32>,
+    ids: Option<Vec<String>>,
+) -> Result<network_graph::NetworkGraphResult, String> {
+    let bearer = x_bearer()?;
+    let top = top_n.unwrap_or(50) as usize;
+    let mut graph = graph;
+    let _resolved = network_graph::resolve_x_for_top(&bearer, &mut graph, ids, top).await?;
+    if let Ok(store) = db.0.lock() {
+        let _ = store.upsert_network_people_scores(&graph.people);
+    }
+    Ok(graph)
+}
+
+/// Public LinkedIn page meta only (rate-limited). Prefer after X resolve for top-N.
+#[tauri::command]
+async fn enrich_network_linkedin(
+    db: State<'_, AppDb>,
+    graph: network_graph::NetworkGraphResult,
+    top_n: Option<u32>,
+    ids: Option<Vec<String>>,
+) -> Result<network_graph::NetworkGraphResult, String> {
+    let top = top_n.unwrap_or(50) as usize;
+    let mut graph = graph;
+    let _enriched = network_graph::enrich_linkedin_for_top(&mut graph, ids, top).await?;
+    if let Ok(store) = db.0.lock() {
+        let _ = store.upsert_network_people_scores(&graph.people);
+    }
+    Ok(graph)
+}
+
 /// Fetch public hire spreadsheet CSV, filter + intelli-skim (in-memory). Does not write SQLite.
 /// Sheet URL from optional arg or gitignored `data/hire-board/config.local.json`.
 #[tauri::command]
@@ -538,6 +598,9 @@ pub fn run() {
             update_opportunity_status_cmd,
             fetch_hire_board,
             select_hire_board_lead,
+            load_network_graph,
+            resolve_network_x_profiles,
+            enrich_network_linkedin,
             search_x_recent,
             run_finder_cycle_cmd,
             get_reactor_state,

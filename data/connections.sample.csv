@@ -1,0 +1,12 @@
+Notes:
+"Mock LinkedIn Connections export for local demos. Copy to connections.csv (gitignored) for real data."
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Ada,Lovelace,https://www.linkedin.com/in/ada-lovelace,,Field Robotics AB,Robotics Engineer,16 Mar 2025
+Bob,Builder,https://www.linkedin.com/in/bobbuilder,,OtherCo,Account Executive,01 Jan 2015
+Cai,Prompt,https://www.linkedin.com/in/caiprompt,,Oneflow,Staff AI Engineer,16 Mar 2025
+Dee,Hype,https://www.linkedin.com/in/deehype,,BuzzAI,Prompt Engineer,01 Jan 2024
+Sam,Orbit,https://www.linkedin.com/in/samorbit,,SpaceTech AB,Senior Software Engineer,01 Jun 2024
+Pri,Sugar,https://www.linkedin.com/in/prisugar,,BAIRAVANATH SUGAR FACTORY,Process Engineer,01 Jan 2023
+Yue,Robot,https://www.linkedin.com/in/yuerobot,,Bongos Robotics,CEO,01 Jan 2024
+Mel,Learn,https://www.linkedin.com/in/mellearn,,Oneflow,Machine Learning Engineer,01 Jan 2023

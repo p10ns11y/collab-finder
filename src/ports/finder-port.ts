@@ -13,6 +13,7 @@ import type {
 } from '../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../core/domain/opportunity-target'
 import type { HireBoardFilter, HireBoardLead } from '../core/domain/hire-board'
+import type { NetworkGraphResult } from '../core/domain/network-graph'
 import type { Result } from '../core/result'
 import type { AppError } from '../core/error'
 
@@ -50,6 +51,26 @@ export type FinderPort = {
     career_url: string
     thread_url?: string
   }): Promise<Result<Opportunity, AppError>>
+
+  /** Local gitignored connections.csv → scored network graph. */
+  loadNetworkGraph(payload?: {
+    path?: string
+    contacts_path?: string
+    force_reimport?: boolean
+    top_n?: number
+  }): Promise<Result<NetworkGraphResult, AppError>>
+  /** Official X username lookup for top-N (or ids). */
+  resolveNetworkXProfiles(payload: {
+    graph: NetworkGraphResult
+    top_n?: number
+    ids?: string[]
+  }): Promise<Result<NetworkGraphResult, AppError>>
+  /** Public LinkedIn HTML meta enrich (rate-limited). */
+  enrichNetworkLinkedIn(payload: {
+    graph: NetworkGraphResult
+    top_n?: number
+    ids?: string[]
+  }): Promise<Result<NetworkGraphResult, AppError>>
 
   // devprofile grounding config (AC2): when set, resolve_cv uses pruned cvdata.json from the path
   getDevprofilePath(): Promise<Result<string | null, AppError>>

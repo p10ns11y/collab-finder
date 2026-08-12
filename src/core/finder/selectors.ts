@@ -55,6 +55,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
   const screenNavItems: PaletteItem[] = [
     { id: 'nav-discover', label: 'Go to Discover', msg: { type: 'ScreenChanged', screen: 'discover' } },
     { id: 'nav-xplore', label: 'Go to Xplore (X)', msg: { type: 'ScreenChanged', screen: 'xplore' } },
+    { id: 'nav-network', label: 'Go to Network', msg: { type: 'ScreenChanged', screen: 'network' } },
     { id: 'nav-settings', label: 'Go to Settings', msg: { type: 'ScreenChanged', screen: 'settings' } },
   ]
   return {

@@ -11,6 +11,7 @@ import type {
 } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrepResult } from '../domain/opportunity-target'
 import type { HireBoardLead } from '../domain/hire-board'
+import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
@@ -144,3 +145,15 @@ export type FinderMsg =
   | { type: 'HireBoardSelectSucceeded'; opportunity: Opportunity }
   | { type: 'HireBoardSelectFailed'; error: AppError }
   | { type: 'HireBoardEvaluateRequested'; lead: HireBoardLead }
+
+  // Network graph (local connections.csv → score → top-20 X → LI public meta)
+  | { type: 'NetworkFilterChanged'; filter: NetworkFilter }
+  | { type: 'NetworkLoadRequested'; force_reimport?: boolean }
+  | { type: 'NetworkLoadSucceeded'; graph: NetworkGraphResult }
+  | { type: 'NetworkLoadFailed'; error: AppError }
+  | { type: 'NetworkResolveXRequested' }
+  | { type: 'NetworkResolveXSucceeded'; graph: NetworkGraphResult }
+  | { type: 'NetworkResolveXFailed'; error: AppError }
+  | { type: 'NetworkEnrichLinkedInRequested' }
+  | { type: 'NetworkEnrichLinkedInSucceeded'; graph: NetworkGraphResult }
+  | { type: 'NetworkEnrichLinkedInFailed'; error: AppError }

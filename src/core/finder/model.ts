@@ -19,6 +19,7 @@ import type {
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import type { HireBoardLead } from '../domain/hire-board'
 import type { BearerStorageStatus } from '../domain/credentials'
+import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
 
 // Shared localStorage keys for CV + minimal session (used by initialFinderModel for sync boot load + effects for writes/loads).
@@ -32,7 +33,16 @@ export type PersistedSession = {
   opportunityTargetUrl?: string
 }
 
-const VALID_SCREENS: FinderScreen[] = ['discover', 'stats', 'history', 'data', 'lookup', 'settings', 'xplore']
+const VALID_SCREENS: FinderScreen[] = [
+  'discover',
+  'stats',
+  'history',
+  'data',
+  'lookup',
+  'settings',
+  'xplore',
+  'network',
+]
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
   return typeof s === 'string' && VALID_SCREENS.includes(s as FinderScreen)
@@ -46,6 +56,7 @@ export type FinderScreen =
   | 'lookup'
   | 'settings'
   | 'xplore'
+  | 'network'
 
 export type CredentialsSlice = {
   connected: boolean
@@ -94,6 +105,10 @@ export type FinderModel = {
   hireBoard: AsyncState<HireBoardLead[]>
   hireBoardQ: string
   hireBoardGeo: string[]
+  // Network graph (gitignored LinkedIn connections CSV — PII local only)
+  network: AsyncState<NetworkGraphResult>
+  networkFilter: NetworkFilter
+  networkBusyAction: 'idle' | 'load' | 'resolve_x' | 'enrich_li'
   // Minimal session restore (localStorage; CV + last opp id + screen + url). DB is canonical for Opportunity data.
   lastActiveOppId?: number
   // Last proposal from "Propose these CV suggestions as sidecar" for display in the prep panel.
@@ -194,6 +209,9 @@ export function initialFinderModel(): FinderModel {
     hireBoard: idle<HireBoardLead[]>(),
     hireBoardQ: '',
     hireBoardGeo: [],
+    network: idle<NetworkGraphResult>(),
+    networkFilter: 'top50',
+    networkBusyAction: 'idle',
     lastActiveOppId,
     lastSidecarProposal: undefined,
     lastApplicationPackExport: undefined,

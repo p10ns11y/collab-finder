@@ -8,7 +8,8 @@ function must(c, m) {
 
 must(SCREEN_BY_DIGIT['1'] === 'discover', 'digit 1 → discover')
 must(SCREEN_BY_DIGIT['2'] === 'xplore', 'digit 2 → xplore')
-must(SCREEN_BY_DIGIT['3'] === 'settings', 'digit 3 → settings')
+must(SCREEN_BY_DIGIT['3'] === 'network', 'digit 3 → network')
+must(SCREEN_BY_DIGIT['4'] === 'settings', 'digit 4 → settings')
 
 const none = resolveShellHotkey('k', { meta: false, ctrl: false })
 must(none.kind === 'none', 'no mod → none')

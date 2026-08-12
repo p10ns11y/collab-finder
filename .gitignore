@@ -15,6 +15,20 @@ dist-ssr
 # Hire board — personal Google Sheet id/url (copy from config.example.json)
 data/hire-board/config.local.json
 
+# Personal contact / LinkedIn exports (PII — never commit)
+# Use data/connections.sample.csv + data/contacts.sample.csv for local demos
+data/contacts.csv
+data/connections.csv
+
+# Personal mobility / visa / employer-outcome planning (never commit)
+data/spacexai-critical-path-visa-plan.md
+data/crtitical_path.pdf
+data/crtitical_path_prep.pdf
+data/distillation/public-projects-full.json
+
+# Local scratch / screenshots
+.tmp/
+
 # Cursor local IDE wiring (symlinks to .agents — recreate per machine)
 .cursor/
 

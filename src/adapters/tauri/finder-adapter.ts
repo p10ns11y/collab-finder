@@ -13,6 +13,7 @@ import type {
 } from '../../core/domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../../core/domain/opportunity-target'
 import type { HireBoardFilter, HireBoardLead } from '../../core/domain/hire-board'
+import type { NetworkGraphResult } from '../../core/domain/network-graph'
 import { safeInvoke } from './safe-invoke'
 
 // Re-export filter types for the effects wrapper sig (used by history MVU)
@@ -78,6 +79,25 @@ export function createTauriFinderPort(): FinderPort {
         location: payload.location,
         careerUrl: payload.career_url,
         threadUrl: payload.thread_url,
+      }),
+    loadNetworkGraph: (payload) =>
+      safeInvoke<NetworkGraphResult>('load_network_graph', {
+        path: payload?.path,
+        contactsPath: payload?.contacts_path,
+        forceReimport: payload?.force_reimport ?? false,
+        topN: payload?.top_n ?? 20,
+      }),
+    resolveNetworkXProfiles: (payload) =>
+      safeInvoke<NetworkGraphResult>('resolve_network_x_profiles', {
+        graph: payload.graph,
+        topN: payload.top_n ?? 20,
+        ids: payload.ids,
+      }),
+    enrichNetworkLinkedIn: (payload) =>
+      safeInvoke<NetworkGraphResult>('enrich_network_linkedin', {
+        graph: payload.graph,
+        topN: payload.top_n ?? 20,
+        ids: payload.ids,
       }),
     getDevprofilePath: () => safeInvoke<string | null>('get_devprofile_path_cmd', {}),
     setDevprofilePath: (p) => safeInvoke<void>('set_devprofile_path_cmd', { path: p }),
@@ -213,6 +233,34 @@ export function finderPortForEffects(port: FinderPort) {
       thread_url?: string
     }) {
       const result = await port.selectHireBoardLead(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async loadNetworkGraph(payload?: {
+      path?: string
+      contacts_path?: string
+      force_reimport?: boolean
+      top_n?: number
+    }) {
+      const result = await port.loadNetworkGraph(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async resolveNetworkXProfiles(payload: {
+      graph: import('../../core/domain/network-graph').NetworkGraphResult
+      top_n?: number
+      ids?: string[]
+    }) {
+      const result = await port.resolveNetworkXProfiles(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async enrichNetworkLinkedIn(payload: {
+      graph: import('../../core/domain/network-graph').NetworkGraphResult
+      top_n?: number
+      ids?: string[]
+    }) {
+      const result = await port.enrichNetworkLinkedIn(payload)
       if (!result.ok) throw result.error
       return result.value
     },

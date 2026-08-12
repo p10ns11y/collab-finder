@@ -596,6 +596,59 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    case 'NetworkFilterChanged':
+      return [{ ...model, networkFilter: msg.filter }]
+    case 'NetworkLoadRequested':
+      return [
+        {
+          ...model,
+          banner: null,
+          networkBusyAction: 'load',
+          network: { status: 'loading' },
+        },
+      ]
+    case 'NetworkLoadSucceeded':
+      return [
+        {
+          ...model,
+          network: { status: 'ready', data: msg.graph },
+          networkBusyAction: 'idle',
+        },
+      ]
+    case 'NetworkLoadFailed':
+      return [
+        {
+          ...model,
+          network: { status: 'failed', error: msg.error },
+          networkBusyAction: 'idle',
+          banner: msg.error,
+        },
+      ]
+    case 'NetworkResolveXRequested':
+      return [{ ...model, banner: null, networkBusyAction: 'resolve_x' }]
+    case 'NetworkResolveXSucceeded':
+      return [
+        {
+          ...model,
+          network: { status: 'ready', data: msg.graph },
+          networkBusyAction: 'idle',
+        },
+      ]
+    case 'NetworkResolveXFailed':
+      return [{ ...model, networkBusyAction: 'idle', banner: msg.error }]
+    case 'NetworkEnrichLinkedInRequested':
+      return [{ ...model, banner: null, networkBusyAction: 'enrich_li' }]
+    case 'NetworkEnrichLinkedInSucceeded':
+      return [
+        {
+          ...model,
+          network: { status: 'ready', data: msg.graph },
+          networkBusyAction: 'idle',
+        },
+      ]
+    case 'NetworkEnrichLinkedInFailed':
+      return [{ ...model, networkBusyAction: 'idle', banner: msg.error }]
+
     default:
       return [model]
   }
