@@ -1,0 +1,14 @@
+---
+description: Run a targeted verify command before claiming a task is done
+alwaysApply: true
+---
+
+# Verify before done
+
+Before saying a fix or feature is complete:
+
+1. Run the smallest command that proves the change (test, lint, build, or install).
+2. If the command fails, fix and re-run — do not hand off with "should work."
+3. Prefer project scripts (`pnpm test`, `cmake --build`, `turbo run check-types`) over ad-hoc guesses.
+
+Do not skip verification for config-only edits (pnpm-workspace, manifest.json, CMakeLists).

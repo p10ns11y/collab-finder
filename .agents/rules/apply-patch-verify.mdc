@@ -1,0 +1,16 @@
+---
+description: After ApplyPatch or multi-file edits, run Shell then ReadLints
+alwaysApply: true
+---
+
+# ApplyPatch → verify
+
+High-signal sessions use **ApplyPatch → Shell → ReadLints** (or StrReplace → Shell → ReadLints) as a closed loop.
+
+After patch-heavy turns:
+
+1. Run the relevant **Shell** command (build, test, typecheck, extension reload script).
+2. **ReadLints** on touched paths.
+3. Only then summarize — do not claim success from the patch alone.
+
+If Shell fails, fix forward; do not revert unrelated changes.
