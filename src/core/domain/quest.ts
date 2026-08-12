@@ -91,10 +91,10 @@ const GRAPHS: Record<QuestKind, QuestGraph> = {
   },
   apply: {
     nodes: [
-      { id: 'af1', label: 'AF honest' },
-      { id: 'af2', label: 'AF stretch' },
+      { id: 'af1', label: 'AF employ' },
+      { id: 'af2', label: 'AF learned' },
       { id: 'portal', label: 'Portal' },
-      { id: 'honesty', label: 'Honesty' },
+      { id: 'honesty', label: 'No fake YOE' },
       { id: 'pack', label: 'Pack' },
     ],
     next: {
@@ -165,11 +165,11 @@ const HARNESS: Record<QuestKind, string> = {
   ].join(' '),
   hunt: [
     'HARNESS: dual-rail hunt. JobTech q is AND tokens (no OR/-).',
-    'A=honest Oneflow TS/React. B=stretch-adjacent software titles only (not research scientist).',
+    'A=employment-grounded (Oneflow TS/React/integrations only). B=self-learned AI/agentic — decent enough to apply. Never invent industry ML YOE. Skip research scientist.',
     'Output: better q string(s); refuse list; next search.',
   ].join(' '),
   apply: [
-    'HARNESS: 3 honest-now + 2 stretch-adjacent. 2 AF + 3 portals. Honesty contract: no fabricated ML YOE.',
+    'HARNESS: 3 employment-grounded + 2 self-learned AI/agentic. 2 AF + 3 portals. Honest = inferable from paid jobs only; agentic OSS is enough for B. No fabricated ML YOE.',
     'Output: slot table or gaps. Stay on Sweden; no auto-submit.',
   ].join(' '),
   free: [
@@ -210,7 +210,7 @@ const SKILL_INDEX = [
   'eva-emptiness: emptiness card + DOE',
   'control-graph: phases/budgets/HITL',
   'finder-reactor: fit/cost/rate guards',
-  'hunt-rails: honest vs stretch keys',
+  'hunt-rails: employment vs self-learned AI keys',
   'cv-promote-guard: sidecar only',
 ].join('; ')
 

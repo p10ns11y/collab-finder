@@ -1,6 +1,8 @@
 /**
  * Dual-rail hunt keys. JobTech `q` is freetext / AND-ish — never send OR / - / quotes.
- * Rail A = hireable-now (Oneflow-shaped). Rail B = stretch-adjacent titles only.
+ * Rail A (honest) = only what previous employment directly supports (Oneflow/Weavler).
+ * Rail B = self-learned / learning AI + agentic workflows — decent enough to apply;
+ * not a lie, not industry ML YOE. Still skip research-scientist / PhD titles.
  */
 
 export type HuntRail = 'honest' | 'stretch'
@@ -19,7 +21,7 @@ export type HarvestedKey = {
   count: number
 }
 
-/** Professional Oneflow / SWE tokens — honest-now search only. */
+/** Tokens you can claim from paid employment only. */
 export const HONEST_KEYS = [
   'typescript',
   'react',
@@ -32,7 +34,7 @@ export const HONEST_KEYS = [
   'senior',
 ] as const
 
-/** Software-shaped future-now titles. Not research scientist / data scientist. */
+/** Self-learned AI / agentic titles — apply-worthy. Not research scientist / data scientist. */
 export const STRETCH_KEYS = [
   'ai product engineer',
   'ai workflows architect',
@@ -68,14 +70,14 @@ export const PLATSBANKEN_RAIL_CHIPS: readonly HuntRailChip[] = [
   {
     id: 'honest',
     rail: 'honest',
-    label: 'Honest now',
+    label: 'From employment',
     q: 'senior fullstack TypeScript',
     municipality: 'Stockholm',
   },
   {
     id: 'stretch',
     rail: 'stretch',
-    label: 'Stretch adjacent',
+    label: 'Self-learned AI',
     q: 'AI product engineer',
     municipality: 'Stockholm',
   },
@@ -96,7 +98,7 @@ export const PLATSBANKEN_RAIL_CHIPS: readonly HuntRailChip[] = [
 ]
 
 export const MISSION_QUERY_CHIPS: readonly HuntRailChip[] = [
-  { id: 'honest', rail: 'honest', label: 'Honest now', q: 'senior typescript react' },
+  { id: 'honest', rail: 'honest', label: 'From employment', q: 'senior typescript react' },
   { id: 'stretch', rail: 'stretch', label: 'Autonomy software', q: 'autonomy software' },
   { id: 'intel', rail: 'stretch', label: 'Intelligence architect', q: 'intelligence architect' },
   { id: 'workflows', rail: 'stretch', label: 'AI workflows', q: 'AI workflows architect' },

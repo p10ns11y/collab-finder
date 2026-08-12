@@ -8,6 +8,8 @@ Distilled from personal curation notes for collab-finder and SpaceXAI / analyze 
 
 Swedish–Indian senior engineer: TS/React leadership (Oneflow), Rust OSS, energy-efficient / local-first / agentic systems since 2016 thesis; ships in public (arch-machine, premflow, Grok Dia, thepulimaangani).
 
+**Honest claims** = only what previous employment directly supports (Oneflow / Weavler). **Self-learned AI / agentic workflows** (collab-finder, OSS, courses) are decent enough to apply — describe as personal/OSS, never as multi-year production ML employment.
+
 ## Priority on X (this app)
 
 1. **Main roles** — **SpaceXAI** (xAI is now the SpaceX AI division; Grok, Colossus, Macrohard), senior IC/staff eng, AI infra, inference, agents (US/London + remote where stated).
