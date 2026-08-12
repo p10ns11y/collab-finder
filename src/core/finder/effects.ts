@@ -840,7 +840,7 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
     })
     // Opportunities (from target analyzes) — critical for Data tab + History + Discover "Resume last"
-    void fromPromise(ports.finder.getOpportunities({ limit: 100 }), toAppError).then((r) => {
+    void fromPromise(ports.finder.getOpportunities({ limit: 300 }), toAppError).then((r) => {
       if (r.ok) dispatch({ type: 'HistoryRefreshed', opportunities: r.value })
     })
   }

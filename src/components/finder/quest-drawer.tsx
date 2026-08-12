@@ -5,6 +5,8 @@ import { Chip } from '../ui/chip'
 import { SectionLabel } from '../ui/section-label'
 import {
   QUEST_KIND_CHIPS,
+  activeQuestNode,
+  questGraph,
   type QuestKind,
   type QuestResult,
   type QuestTurn,
@@ -28,6 +30,8 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
   const busy = quest.status === 'loading'
   const answer = quest.status === 'ready' ? quest.data : null
   const err = quest.status === 'failed' ? quest.error?.message || String(quest.error) : null
+  const graph = questGraph(kind)
+  const live = activeQuestNode(kind, quest.status, turns.length)
 
   useEffect(() => {
     if (!open) return
@@ -58,7 +62,7 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
       <aside
         role="dialog"
         aria-label="Local Grok quest"
-        className="flex h-full w-full max-w-[min(420px,92vw)] flex-col border-l border-border-subtle bg-surface-1"
+        className="flex h-full w-full max-w-[min(880px,86vw)] flex-col border-l border-border-subtle bg-surface-1"
       >
         <div className="flex items-start justify-between gap-2 border-b border-border-subtle px-3 py-2.5">
           <div className="min-w-0">
@@ -95,7 +99,9 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
           ))}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 lg:flex-row">
+          <QuestFlow graph={graph} live={live} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           <textarea
             ref={fieldRef}
             value={draft}
@@ -151,8 +157,51 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
             )}
             {err && turns.length > 0 ? <p className="mt-2 text-xs text-ink-muted">{err}</p> : null}
           </div>
+          </div>
         </div>
       </aside>
     </div>
+  )
+}
+
+function QuestFlow({
+  graph,
+  live,
+}: {
+  graph: ReturnType<typeof questGraph>
+  live: string
+}) {
+  return (
+    <nav
+      aria-label="Harness flow"
+      className="shrink-0 rounded-md border border-border-subtle bg-surface-0/50 p-2.5 lg:w-[168px]"
+    >
+      <p className="ui-meta mb-2 px-0.5">Flow</p>
+      <ol className="flex flex-row flex-wrap gap-1 lg:flex-col lg:flex-nowrap">
+        {graph.nodes.map((node, i) => {
+          const on = node.id === live
+          const nxt = graph.next[node.id]
+          return (
+            <li key={node.id} className="flex items-center gap-1 lg:flex-col lg:items-stretch">
+              <div
+                className={`rounded-md border px-2 py-1 text-[11px] ${
+                  on
+                    ? 'border-accent/60 bg-accent-soft font-medium text-ink'
+                    : 'border-border-subtle text-ink-muted'
+                }`}
+              >
+                {node.label}
+              </div>
+              {i < graph.nodes.length - 1 || nxt ? (
+                <span className="ui-meta px-0.5 lg:rotate-0" aria-hidden>
+                  <span className="lg:hidden">→</span>
+                  <span className="hidden lg:inline">↓</span>
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
   )
 }

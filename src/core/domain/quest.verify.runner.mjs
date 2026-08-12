@@ -4,9 +4,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const {
+  activeQuestNode,
   buildQuestPrompt,
   clipChars,
   parseQuestKind,
+  questGraph,
   QUEST_PROMPT_CHAR_CAP,
   snapshotFromFinder,
 } = await import(pathToFileURL(join(here, 'quest.ts')).href)
@@ -73,6 +75,12 @@ const snap = snapshotFromFinder({
   huntHarvested: [{ key: 'intelligence architect' }],
 })
 assert(snap.rail === 'stretch' && snap.harvested?.[0] === 'intelligence architect', 'snapshot from model')
+
+const eva = questGraph('eva')
+assert(eva.nodes[0].id === 'prior' && eva.next.score === 'actorask', 'eva graph')
+assert(activeQuestNode('free', 'idle', 0) === 'ask', 'free idle → ask')
+assert(activeQuestNode('free', 'loading', 1) === 'search', 'free loading → search')
+assert(activeQuestNode('eva', 'ready', 2) === 'actorask', 'eva ready → ActOrAsk')
 
 console.log('=== quest.verify ===')
 if (failed) process.exit(1)

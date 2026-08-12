@@ -32,6 +32,118 @@ export type QuestTurn = {
   text: string
 }
 
+export type QuestGraphNode = { id: string; label: string }
+export type QuestGraph = {
+  nodes: QuestGraphNode[]
+  /** Directed next-id per node. Last node may loop to an earlier id. */
+  next: Record<string, string | undefined>
+}
+
+const GRAPHS: Record<QuestKind, QuestGraph> = {
+  eva: {
+    nodes: [
+      { id: 'prior', label: 'Prior' },
+      { id: 'probe', label: 'Probe' },
+      { id: 'simulate', label: 'Simulate' },
+      { id: 'score', label: 'Score' },
+      { id: 'actorask', label: 'ActOrAsk' },
+    ],
+    next: {
+      prior: 'probe',
+      probe: 'simulate',
+      simulate: 'score',
+      score: 'actorask',
+    },
+  },
+  control: {
+    nodes: [
+      { id: 'orient', label: 'Orient' },
+      { id: 'plan', label: 'Plan' },
+      { id: 'execute', label: 'Execute' },
+      { id: 'verify', label: 'Verify' },
+      { id: 'review', label: 'Review' },
+      { id: 'integrate', label: 'Integrate' },
+    ],
+    next: {
+      orient: 'plan',
+      plan: 'execute',
+      execute: 'verify',
+      verify: 'review',
+      review: 'integrate',
+    },
+  },
+  hunt: {
+    nodes: [
+      { id: 'data', label: 'Data' },
+      { id: 'keys', label: 'Keys' },
+      { id: 'query', label: 'Query' },
+      { id: 'rank', label: 'Rank' },
+      { id: 'fit', label: 'Fit' },
+      { id: 'pack', label: 'Pack' },
+    ],
+    next: {
+      data: 'keys',
+      keys: 'query',
+      query: 'rank',
+      rank: 'fit',
+      fit: 'pack',
+    },
+  },
+  apply: {
+    nodes: [
+      { id: 'af1', label: 'AF honest' },
+      { id: 'af2', label: 'AF stretch' },
+      { id: 'portal', label: 'Portal' },
+      { id: 'honesty', label: 'Honesty' },
+      { id: 'pack', label: 'Pack' },
+    ],
+    next: {
+      af1: 'af2',
+      af2: 'portal',
+      portal: 'honesty',
+      honesty: 'pack',
+    },
+  },
+  free: {
+    nodes: [
+      { id: 'ask', label: 'Ask' },
+      { id: 'search', label: 'Search' },
+      { id: 'answer', label: 'Answer' },
+      { id: 'follow', label: 'Follow-up' },
+    ],
+    next: {
+      ask: 'search',
+      search: 'answer',
+      answer: 'follow',
+      follow: 'ask',
+    },
+  },
+}
+
+export function questGraph(kind: QuestKind): QuestGraph {
+  return GRAPHS[kind]
+}
+
+/** Which node is live given drawer status and thread length. */
+export function activeQuestNode(
+  kind: QuestKind,
+  status: 'idle' | 'loading' | 'ready' | 'failed',
+  turnCount: number,
+): string {
+  const g = GRAPHS[kind]
+  const first = g.nodes[0]?.id ?? 'ask'
+  if (status === 'idle' && turnCount === 0) return first
+  if (kind === 'free') {
+    if (status === 'loading') return turnCount <= 1 ? 'search' : 'follow'
+    if (status === 'failed') return 'ask'
+    return turnCount >= 2 ? 'answer' : first
+  }
+  if (status === 'loading') return g.nodes[1]?.id ?? first
+  if (status === 'ready') return g.nodes[g.nodes.length - 1]?.id ?? first
+  if (status === 'failed') return first
+  return first
+}
+
 export const QUEST_KIND_CHIPS: readonly { id: QuestKind; label: string }[] = [
   { id: 'eva', label: 'EVA' },
   { id: 'control', label: 'Control graph' },

@@ -192,8 +192,17 @@ export function SwedenScreen({ view, dispatch }: Props) {
           />
         ) : model.platsbanken.status === 'idle' ? (
           <EmptyState
-            title="Search Platsbanken"
-            description="AF runway for benefits reporting — not the primary mission hunt. Enter a query and Search; ads fill this pane."
+            title={
+              model.history.opportunities.status === 'loading' ||
+              model.history.opportunities.status === 'idle'
+                ? 'Loading saved ads…'
+                : 'Search Platsbanken'
+            }
+            description={
+              model.history.opportunities.status === 'ready'
+                ? 'No saved Platsbanken ads yet. Search to persist this rail.'
+                : 'Restoring the last saved Sweden list from the local database.'
+            }
             action={
               <Button
                 type="button"

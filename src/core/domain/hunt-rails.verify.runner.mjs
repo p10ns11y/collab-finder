@@ -10,6 +10,8 @@ const {
   classifyKey,
   PLATSBANKEN_DEFAULT_QUERY,
   PLATSBANKEN_RAIL_CHIPS,
+  adIdFromSavedUrl,
+  leadsFromSavedOpportunities,
 } = await import(pathToFileURL(join(here, 'hunt-rails.ts')).href)
 
 let failed = 0
@@ -50,6 +52,26 @@ const merged = mergeHarvested(
   12,
 )
 assert(merged[0].count === 3, 'merge adds counts')
+
+assert(
+  adIdFromSavedUrl('https://arbetsformedlingen.se/platsbanken/annonser/31192648', null) ===
+    '31192648',
+  'ad id from url',
+)
+const saved = leadsFromSavedOpportunities([
+  {
+    id: 9,
+    kind: 'platsbanken',
+    source_ref: '31192648',
+    source_url: 'https://arbetsformedlingen.se/platsbanken/annonser/31192648',
+    title: 'Senior Fullstack',
+    company: 'Anyfin',
+    jd_text: 'TS/React',
+    notes: 'platsbanken search; municipality=Stockholm',
+  },
+  { id: 10, kind: 'web', jd_text: 'ignore' },
+])
+assert(saved.length === 1 && saved[0].already_in_db && saved[0].municipality === 'Stockholm', 'saved hydrate')
 
 console.log('=== hunt-rails.verify ===')
 if (failed) process.exit(1)

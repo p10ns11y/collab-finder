@@ -173,6 +173,55 @@ export function mergeHarvested(
     .slice(0, cap)
 }
 
+export function adIdFromSavedUrl(url?: string | null, sourceRef?: string | null): string {
+  if (sourceRef && sourceRef.trim()) return sourceRef.trim()
+  const m = (url || '').match(/annonser\/(\d+)/i)
+  return m?.[1] ?? ''
+}
+
+/** Map persisted opportunities back into the Sweden list (no live JobTech). */
+export function leadsFromSavedOpportunities(
+  opps: Array<{
+    id: number
+    kind: string
+    source_url?: string
+    source_ref?: string
+    title?: string
+    company?: string
+    jd_text: string
+    fit_score?: number
+    notes?: string
+  }>,
+): import('./platsbanken').PlatsbankenLead[] {
+  return opps
+    .filter((o) => o.kind === 'platsbanken')
+    .map((o) => {
+      const ad_id = adIdFromSavedUrl(o.source_url, o.source_ref)
+      const muni = o.notes?.match(/municipality=([^\s;]+)/i)?.[1]
+      const snippet = (o.jd_text || '').replace(/\s+/g, ' ').trim().slice(0, 220)
+      return {
+        ad_id: ad_id || String(o.id),
+        headline: o.title || `Saved ad ${ad_id || o.id}`,
+        employer: o.company || '',
+        municipality: muni && muni !== '-' ? muni : null,
+        occupation: null,
+        webpage_url:
+          o.source_url ||
+          (ad_id ? `https://arbetsformedlingen.se/platsbanken/annonser/${ad_id}` : ''),
+        application_url: null,
+        publication_date: null,
+        application_deadline: null,
+        description_snippet: snippet,
+        api_relevance: 0,
+        rank_score: o.fit_score ?? 0,
+        rank_reasons: ['saved'],
+        favorite_match: false,
+        already_in_db: true,
+        opportunity_id: o.id,
+      }
+    })
+}
+
 export function harvestFromHuntLeads(
   leads: Array<{ headline?: string; title?: string; occupation?: string | null }>,
 ): HarvestedKey[] {

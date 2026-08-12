@@ -4,7 +4,7 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
-import { harvestFromHuntLeads, mergeHarvested } from '../domain/hunt-rails'
+import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested } from '../domain/hunt-rails'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -381,7 +381,14 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       if (msg.stats) h.stats = { status: 'ready', data: msg.stats }
       if (msg.opportunities) h.opportunities = { status: 'ready', data: msg.opportunities }
       h.lastRefreshed = Date.now()
-      return [{ ...model, history: h }]
+      const next = { ...model, history: h }
+      if (msg.opportunities && model.platsbanken.status === 'idle') {
+        const saved = leadsFromSavedOpportunities(msg.opportunities)
+        if (saved.length > 0) {
+          return [{ ...next, platsbanken: { status: 'ready', data: saved } }]
+        }
+      }
+      return [next]
     }
 
     case 'HistoryFailed':
@@ -413,8 +420,20 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       // Pure UI intent logged via backend (no model change needed).
       return [model]
 
-    case 'ScreenChanged':
-      return [{ ...model, activeScreen: msg.screen }]
+    case 'ScreenChanged': {
+      const next = { ...model, activeScreen: msg.screen }
+      if (
+        msg.screen === 'sweden' &&
+        model.platsbanken.status === 'idle' &&
+        model.history.opportunities.status === 'ready'
+      ) {
+        const saved = leadsFromSavedOpportunities(model.history.opportunities.data)
+        if (saved.length > 0) {
+          return [{ ...next, platsbanken: { status: 'ready', data: saved } }]
+        }
+      }
+      return [next]
+    }
 
     case 'LookupQueryChanged':
       return [{ ...model, lookupQuery: msg.query }]
