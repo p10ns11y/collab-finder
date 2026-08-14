@@ -135,41 +135,13 @@ pub async fn run_local_grok_quest(input: LocalGrokQuestInput) -> Result<LocalGro
     let session_run = session.clone();
     let join = tokio::task::spawn_blocking(move || {
         let mut cmd = Command::new(&grok_bin);
-        if resume {
-            cmd.arg("--resume").arg(&session_run);
-        } else {
-            cmd.arg("--session-id").arg(&session_run);
-        }
-        cmd.arg("--prompt-file")
-            .arg(&tmp_run)
-            .arg("--output-format")
-            .arg("plain")
-            .arg("--disallowed-tools")
-            .arg("run_terminal_cmd,search_replace")
-            .arg("--max-turns")
-            .arg(if free { "6" } else { "2" })
-            .arg("--cwd")
-            .arg(&cwd_run)
-            .arg("--no-auto-update")
-            .arg("--deny")
-            .arg("Bash")
-            .arg("--deny")
-            .arg("Edit")
-            .arg("--allow")
-            .arg("Read")
-            .arg("--allow")
-            .arg("Grep");
-        if free {
-            cmd.arg("--allow")
-                .arg("WebSearch")
-                .arg("--allow")
-                .arg("WebFetch")
-                .arg("--rules")
-                .arg("Answer the user question now. Do not only announce a plan. Do not recast as a job-hunt unless asked.");
-        } else {
-            cmd.arg("--disallowed-tools")
-                .arg("run_terminal_cmd,search_replace,web_search,web_fetch");
-        }
+        cmd.args(quest_grok_args(
+            free,
+            resume,
+            &session_run,
+            &tmp_run,
+            &cwd_run,
+        ));
         cmd.current_dir(&cwd_run)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -221,6 +193,69 @@ pub async fn run_local_grok_quest(input: LocalGrokQuestInput) -> Result<LocalGro
         prompt_chars: prompt.chars().count(),
         session_id: session,
     })
+}
+
+/// Clap rejects `--disallowed-tools` more than once. Apply/EVA/Hunt share
+/// one list; Free keeps the same flag with a shorter deny (web stays allowed).
+fn disallowed_tools(free: bool) -> &'static str {
+    if free {
+        "run_terminal_cmd,search_replace"
+    } else {
+        "run_terminal_cmd,search_replace,web_search,web_fetch"
+    }
+}
+
+fn quest_grok_args(
+    free: bool,
+    resume: bool,
+    session: &str,
+    prompt_file: &Path,
+    cwd: &Path,
+) -> Vec<String> {
+    let mut args = Vec::new();
+    if resume {
+        args.push("--resume".into());
+        args.push(session.into());
+    } else {
+        args.push("--session-id".into());
+        args.push(session.into());
+    }
+    args.extend([
+        "--prompt-file".into(),
+        prompt_file.display().to_string(),
+        "--output-format".into(),
+        "plain".into(),
+        "--disallowed-tools".into(),
+        disallowed_tools(free).into(),
+        "--max-turns".into(),
+        if free { "6" } else { "2" }.into(),
+        "--cwd".into(),
+        cwd.display().to_string(),
+        "--no-auto-update".into(),
+        "--deny".into(),
+        "Bash".into(),
+        "--deny".into(),
+        "Edit".into(),
+        "--allow".into(),
+        "Read".into(),
+        "--allow".into(),
+        "Grep".into(),
+    ]);
+    if free {
+        args.extend([
+            "--allow".into(),
+            "WebSearch".into(),
+            "--allow".into(),
+            "WebFetch".into(),
+            "--rules".into(),
+            "Answer the user question now. Do not only announce a plan. Do not recast as a job-hunt unless asked.".into(),
+        ]);
+    }
+    args
+}
+
+fn flag_count(args: &[String], flag: &str) -> usize {
+    args.iter().filter(|a| a.as_str() == flag).count()
 }
 
 fn new_session_id() -> String {
@@ -302,5 +337,30 @@ mod tests {
     fn clip_keeps_short() {
         assert_eq!(clip("hi", 10), "hi");
         assert!(clip("abcdefghij", 4).ends_with('…'));
+    }
+
+    #[test]
+    fn apply_and_free_pass_disallowed_tools_once() {
+        let prompt = Path::new("/tmp/cf-quest.txt");
+        let cwd = Path::new("/tmp");
+        let sid = "019ff6f8-bd49-7572-bf21-4e36443ae877";
+        for (free, resume) in [(false, true), (false, false), (true, true), (true, false)] {
+            let args = quest_grok_args(free, resume, sid, prompt, cwd);
+            assert_eq!(
+                flag_count(&args, "--disallowed-tools"),
+                1,
+                "free={free} resume={resume}"
+            );
+            let i = args.iter().position(|a| a == "--disallowed-tools").unwrap();
+            if free {
+                assert_eq!(args[i + 1], "run_terminal_cmd,search_replace");
+                assert!(args.contains(&"--allow".into()) && args.iter().any(|a| a == "WebSearch"));
+            } else {
+                assert_eq!(
+                    args[i + 1],
+                    "run_terminal_cmd,search_replace,web_search,web_fetch"
+                );
+            }
+        }
     }
 }
