@@ -5,12 +5,14 @@ import { Chip } from '../ui/chip'
 import { SectionLabel } from '../ui/section-label'
 import {
   QUEST_KIND_CHIPS,
+  QUEST_USAGE,
   activeQuestNode,
   questGraph,
   type QuestKind,
   type QuestResult,
   type QuestTurn,
 } from '../../core/domain/quest'
+import { QUEST_CONTEXT_PACKS, type QuestContextId } from '../../core/domain/quest-context'
 import type { AsyncState } from '../../core/async'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -20,12 +22,22 @@ type Props = {
   kind: QuestKind
   draft: string
   turns: QuestTurn[]
+  contextIds: QuestContextId[]
   sessionId?: string
   quest: AsyncState<QuestResult>
   dispatch: Dispatch<FinderMsg>
 }
 
-export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispatch }: Props) {
+export function QuestDrawer({
+  open,
+  kind,
+  draft,
+  turns,
+  contextIds,
+  sessionId,
+  quest,
+  dispatch,
+}: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const busy = quest.status === 'loading'
   const answer = quest.status === 'ready' ? quest.data : null
@@ -99,6 +111,20 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-1 px-3 pt-2">
+          <p className="ui-meta mr-1 px-0.5">Attach</p>
+          {QUEST_CONTEXT_PACKS.map((pack) => (
+            <Chip
+              key={pack.id}
+              active={contextIds.includes(pack.id)}
+              title={pack.hint}
+              onClick={() => dispatch({ type: 'QuestContextToggled', id: pack.id })}
+            >
+              {pack.label}
+            </Chip>
+          ))}
+        </div>
+
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 lg:flex-row">
           <QuestFlow graph={graph} live={live} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
@@ -151,15 +177,26 @@ export function QuestDrawer({ open, kind, draft, turns, sessionId, quest, dispat
             ) : err ? (
               <p className="text-xs text-ink-muted">{err}</p>
             ) : (
-              <p className="ui-meta">
-                Free: answer + web if needed. EVA/Hunt/Apply stay compact. No yolo. No writes.
-              </p>
+              <QuestUsageNote kind={kind} />
             )}
             {err && turns.length > 0 ? <p className="mt-2 text-xs text-ink-muted">{err}</p> : null}
           </div>
           </div>
         </div>
       </aside>
+    </div>
+  )
+}
+
+function QuestUsageNote({ kind }: { kind: QuestKind }) {
+  const note = QUEST_USAGE[kind]
+  return (
+    <div className="space-y-2">
+      <p className="ui-meta">
+        {note.use} {note.skip} New thread when the job changes. No yolo. No writes.
+      </p>
+      <p className="ui-meta mb-0.5">Example</p>
+      <p className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-ink-muted">{note.example}</p>
     </div>
   )
 }

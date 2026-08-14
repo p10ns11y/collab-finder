@@ -15,6 +15,7 @@ import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 import { normalizeOpportunityUrl } from '../domain/opportunity-url'
 import { jobtechSafeQuery } from '../domain/hunt-rails'
 import { buildQuestPrompt, snapshotFromFinder } from '../domain/quest'
+import { formatQuestContextBlock, resolveQuestContextPacks } from '../domain/quest-context'
 import {
   normalizeApplicationPackExport,
   normalizeGenerateApplyCv,
@@ -424,11 +425,25 @@ export function localGrokQuestCmd(ports: FinderPorts, model: FinderModel): Cmd<F
     const sessionId = model.questSessionId || crypto.randomUUID()
     const lastUser = [...model.questTurns].reverse().find((t) => t.role === 'user')
     const question = model.questDraft.trim() || lastUser?.text || ''
+    const opps =
+      model.history.opportunities.status === 'ready' ? model.history.opportunities.data : []
+    const lastOpp = model.lastActiveOppId
+      ? opps.find((o) => o.id === model.lastActiveOppId)
+      : undefined
+    const contextBlock = formatQuestContextBlock(
+      resolveQuestContextPacks({
+        ids: model.questContextIds,
+        cvSummary: model.cvSummary,
+        opportunityTargetUrl: model.opportunityTargetUrl,
+        lastOpp,
+      }),
+    )
     const prompt = buildQuestPrompt({
       kind: model.questKind,
       question,
       snapshot: snapshotFromFinder(model),
       followUp: resume,
+      contextBlock,
     })
     void fromPromise(
       ports.finder.runLocalGrokQuest({

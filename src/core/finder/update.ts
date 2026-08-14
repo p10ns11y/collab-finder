@@ -36,6 +36,17 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [{ ...model, questKind: msg.kind }]
     case 'QuestDraftChanged':
       return [{ ...model, questDraft: msg.draft }]
+    case 'QuestContextToggled': {
+      const on = model.questContextIds.includes(msg.id)
+      return [
+        {
+          ...model,
+          questContextIds: on
+            ? model.questContextIds.filter((id) => id !== msg.id)
+            : [...model.questContextIds, msg.id],
+        },
+      ]
+    }
     case 'QuestRequested': {
       const text = model.questDraft.trim()
       return [

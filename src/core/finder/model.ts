@@ -25,6 +25,10 @@ import {
 } from '../domain/platsbanken'
 import type { HarvestedKey, HuntRail } from '../domain/hunt-rails'
 import type { QuestKind, QuestResult, QuestTurn } from '../domain/quest'
+import {
+  DEFAULT_QUEST_CONTEXT_IDS,
+  type QuestContextId,
+} from '../domain/quest-context'
 import type { MissionFirmLead } from '../domain/mission-firms'
 import {
   MISSION_FIRMS_DEFAULT_QUERY,
@@ -106,6 +110,7 @@ export type FinderModel = {
   questOpen: boolean
   questKind: QuestKind
   questDraft: string
+  questContextIds: QuestContextId[]
   questSessionId?: string
   questTurns: QuestTurn[]
   quest: AsyncState<QuestResult>
@@ -225,6 +230,7 @@ export function initialFinderModel(): FinderModel {
     questOpen: false,
     questKind: 'free',
     questDraft: '',
+    questContextIds: [...DEFAULT_QUEST_CONTEXT_IDS],
     questSessionId: undefined,
     questTurns: [],
     quest: idle(),

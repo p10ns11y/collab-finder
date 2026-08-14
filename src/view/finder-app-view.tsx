@@ -107,6 +107,7 @@ export function FinderAppView({ view, dispatch }: Props) {
         kind={model.questKind}
         draft={model.questDraft}
         turns={model.questTurns}
+        contextIds={model.questContextIds}
         sessionId={model.questSessionId}
         quest={model.quest}
         dispatch={dispatch}

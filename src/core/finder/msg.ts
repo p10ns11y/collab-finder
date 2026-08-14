@@ -27,6 +27,7 @@ export type FinderMsg =
   | { type: 'QuestClosed' }
   | { type: 'QuestKindChanged'; kind: import('../domain/quest').QuestKind }
   | { type: 'QuestDraftChanged'; draft: string }
+  | { type: 'QuestContextToggled'; id: import('../domain/quest-context').QuestContextId }
   | { type: 'QuestRequested' }
   | { type: 'QuestSucceeded'; result: import('../domain/quest').QuestResult }
   | { type: 'QuestFailed'; error: AppError }

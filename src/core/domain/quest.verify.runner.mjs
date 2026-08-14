@@ -10,6 +10,7 @@ const {
   parseQuestKind,
   questGraph,
   QUEST_PROMPT_CHAR_CAP,
+  QUEST_USAGE,
   snapshotFromFinder,
 } = await import(pathToFileURL(join(here, 'quest.ts')).href)
 
@@ -53,9 +54,20 @@ const follow = buildQuestPrompt({
   question: 'and in Sweden?',
   snapshot: { screen: 'discover' },
   followUp: true,
+  contextBlock: 'CONTEXT: distilled repo packs only.\n### Me\nOneflow TypeScript',
 })
 assert(follow.includes('and in Sweden?'), 'follow-up keeps question')
 assert(!follow.includes('HARNESS'), 'follow-up skips harness')
+assert(follow.includes('### Me'), 'follow-up keeps attached packs')
+assert(
+  !buildQuestPrompt({
+    kind: 'free',
+    question: 'hi',
+    snapshot: { screen: 'sweden' },
+    contextBlock: 'CONTEXT: none attached.',
+  }).includes('Oneflow'),
+  'no pack → no invented employment in prompt',
+)
 assert(!prompt.includes('--yolo'), 'harness must not contain --yolo')
 assert(!prompt.includes('--always-approve'), 'harness must not contain always-approve')
 assert(!prompt.includes('OR engineer'), 'no OR soup')
@@ -81,6 +93,10 @@ assert(eva.nodes[0].id === 'prior' && eva.next.score === 'actorask', 'eva graph'
 assert(activeQuestNode('free', 'idle', 0) === 'ask', 'free idle → ask')
 assert(activeQuestNode('free', 'loading', 1) === 'search', 'free loading → search')
 assert(activeQuestNode('eva', 'ready', 2) === 'actorask', 'eva ready → ActOrAsk')
+assert(QUEST_USAGE.apply.example.includes('Table:'), 'apply example is a slot table')
+assert(QUEST_USAGE.apply.skip.toLowerCase().includes('email'), 'apply skip draft email')
+assert(QUEST_USAGE.free.example.includes('UNKNOWN'), 'free example forbids invented facts')
+assert(QUEST_USAGE.hunt.example.includes('no OR'), 'hunt example no OR')
 
 console.log('=== quest.verify ===')
 if (failed) process.exit(1)
