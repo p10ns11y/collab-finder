@@ -169,6 +169,27 @@
     border-color: var(--color-border-default);
   }
 
+  .quest-flow-node {
+    transition:
+      border-color 220ms var(--ease-out),
+      background-color 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out);
+  }
+
+  .quest-flow-node[data-live='true'][data-busy='true'] {
+    animation: quest-flow-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes quest-flow-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(245 158 11 / 0);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgb(245 158 11 / 0.22);
+    }
+  }
+
   .ui-chip[data-active='true'],
   .ui-chip-active {
     border-color: rgb(245 158 11 / 0.55);

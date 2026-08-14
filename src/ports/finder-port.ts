@@ -65,6 +65,29 @@ export type FinderPort = {
     resume?: boolean
     kind?: string
   }): Promise<Result<import('../core/domain/quest').QuestResult, AppError>>
+  persistQuestTurn(payload: {
+    sessionId: string
+    kind: string
+    contextIds: string
+    lastOppId?: number | null
+    role: string
+    text: string
+    backend?: string | null
+    promptChars?: number | null
+  }): Promise<Result<void, AppError>>
+  loadLatestQuestThread(): Promise<
+    Result<import('../core/domain/quest').QuestThreadRecord | null, AppError>
+  >
+  loadQuestThread(
+    sessionId: string,
+  ): Promise<Result<import('../core/domain/quest').QuestThreadRecord | null, AppError>>
+  listQuestThreads(
+    limit?: number,
+  ): Promise<Result<import('../core/domain/quest').QuestThreadSummary[], AppError>>
+  searchQuestTurns(
+    q: string,
+    limit?: number,
+  ): Promise<Result<import('../core/domain/quest').QuestTurnHit[], AppError>>
 
   /** SpaceXAI Greenhouse + Swedish bridge JobTech ads. */
   searchMissionFirms(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>

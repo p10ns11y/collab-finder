@@ -32,6 +32,36 @@ export type QuestTurn = {
   text: string
 }
 
+export type QuestThreadSummary = {
+  session_id: string
+  kind: string
+  updated_at: string
+  preview?: string | null
+}
+
+export type QuestTurnHit = {
+  session_id: string
+  role: string
+  text: string
+  ts: string
+}
+
+export type QuestThreadRecord = {
+  session_id: string
+  kind: string
+  context_ids: string
+  last_opp_id?: number | null
+  created_at: string
+  updated_at: string
+  turns: Array<{
+    role: string
+    text: string
+    ts: string
+    backend?: string | null
+    prompt_chars?: number | null
+  }>
+}
+
 export type QuestGraphNode = { id: string; label: string }
 export type QuestGraph = {
   nodes: QuestGraphNode[]
@@ -152,6 +182,46 @@ export const QUEST_KIND_CHIPS: readonly { id: QuestKind; label: string }[] = [
   { id: 'free', label: 'Free' },
 ]
 
+/** Operator copy — keep in sync with docs/quest-flows.md */
+export type QuestUsage = {
+  use: string
+  skip: string
+  example: string
+}
+
+export const QUEST_USAGE: Record<QuestKind, QuestUsage> = {
+  eva: {
+    use: 'When you are unsure what to do next. It lists what we know and one cheap question.',
+    skip: 'Not for opening a job link or writing an email.',
+    example:
+      'I am not sure I should keep searching Sweden this week. List what we know, what we do not, and one small question that would change the plan. Do not search or apply.',
+  },
+  control: {
+    use: 'When you have a block of time and want a simple plan with a stop point.',
+    skip: 'Not for writing outreach or fetching a page.',
+    example:
+      'I have 90 minutes. Plan the session in short steps and tell me where I should pause and decide.',
+  },
+  hunt: {
+    use: 'When the Sweden search box is too wide. It rewrites the words to type.',
+    skip: 'Web is off here. Paste a job link in Free instead.',
+    example:
+      'My Sweden search is too broad. Give me two searches: one from paid TypeScript and React work, one from self-taught AI. Plain words only, no OR. List titles I should skip.',
+  },
+  apply: {
+    use: 'When ads are already on the Sweden screen and you want the next honest shortlist.',
+    skip: 'Will not open a URL or draft an email. Use Free for that. Turn on Me.',
+    example:
+      'I already applied to two jobs. From the ads on Sweden, pick the next three. Table: where I found it, title, honest or stretch, why it is honest, what is missing.',
+  },
+  free: {
+    use: 'When you need an answer now — email-only ads, a draft note, facts that may have changed.',
+    skip: 'Not a cover-letter pack. Turn on Me (and This ad) so it uses your distilled data.',
+    example:
+      'This job only wants an email, not a CV. Using the attached Me context, write a short application email (subject + body). If a fact is not in context, write UNKNOWN. Do not invent years or employers.',
+  },
+}
+
 const HARNESS: Record<QuestKind, string> = {
   eva: [
     'HARNESS: eva-emptiness (Prior→Probe→Simulate→Score→ActOrAsk).',
@@ -219,11 +289,14 @@ export function buildQuestPrompt(input: {
   question: string
   snapshot: QuestSnapshot
   followUp?: boolean
+  /** Distilled packs. Re-sent on follow-up so facts stay attached. */
+  contextBlock?: string
 }): string {
   const q = input.question.trim() || '(empty — propose the next cheapest probe)'
-  // Follow-ups ride the Grok session — do not re-send harness/snapshot.
+  const context = (input.contextBlock || '').trim()
+  // Follow-ups skip harness/snapshot but keep selected distilled packs.
   if (input.followUp) {
-    return clipChars(`QUESTION:\n${q}`, QUEST_PROMPT_CHAR_CAP)
+    return clipChars([context, 'QUESTION:', q].filter(Boolean).join('\n'), QUEST_PROMPT_CHAR_CAP)
   }
   const lead =
     input.kind === 'free'
@@ -231,7 +304,9 @@ export function buildQuestPrompt(input: {
       : 'LOCAL QUEST. Read-only. No file edits. Lead with the answer. Then ≤5 short bullets.'
   const skills = input.kind === 'free' ? '' : `SKILLS: ${SKILL_INDEX}`
   const snap = input.kind === 'free' ? '' : `SNAPSHOT:\n${formatQuestSnapshot(input.snapshot)}`
-  const body = [lead, skills, HARNESS[input.kind], snap, 'QUESTION:', q].filter(Boolean).join('\n')
+  const body = [lead, skills, HARNESS[input.kind], context, snap, 'QUESTION:', q]
+    .filter(Boolean)
+    .join('\n')
   return clipChars(body, QUEST_PROMPT_CHAR_CAP)
 }
 

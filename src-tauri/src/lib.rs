@@ -844,6 +844,74 @@ fn log_event(
     Ok(())
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistQuestTurnInput {
+    session_id: String,
+    kind: String,
+    context_ids: String,
+    last_opp_id: Option<i64>,
+    role: String,
+    text: String,
+    backend: Option<String>,
+    prompt_chars: Option<i64>,
+}
+
+#[tauri::command]
+fn persist_quest_turn(db: State<'_, AppDb>, input: PersistQuestTurnInput) -> Result<(), String> {
+    let _ = db.0.lock().map(|s| {
+        let _ = s.persist_quest_turn(
+            &input.session_id,
+            &input.kind,
+            &input.context_ids,
+            input.last_opp_id,
+            &input.role,
+            &input.text,
+            input.backend.as_deref(),
+            input.prompt_chars,
+        );
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn load_latest_quest_thread(db: State<'_, AppDb>) -> Result<Option<db::QuestThread>, String> {
+    db.0.lock()
+        .map(|s| s.get_latest_quest_thread())
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn load_quest_thread(
+    db: State<'_, AppDb>,
+    session_id: String,
+) -> Result<Option<db::QuestThread>, String> {
+    db.0.lock()
+        .map(|s| s.get_quest_thread(&session_id))
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn list_quest_threads(
+    db: State<'_, AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<db::QuestThreadSummary>, String> {
+    db.0.lock()
+        .map(|s| s.list_quest_threads(limit.unwrap_or(12)))
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn search_quest_turns(
+    db: State<'_, AppDb>,
+    q: String,
+    limit: Option<u32>,
+) -> Result<Vec<db::QuestTurnHit>, String> {
+    db.0.lock()
+        .map(|s| s.search_quest_turns(&q, limit.unwrap_or(20)))
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -902,6 +970,11 @@ pub fn run() {
             search_past_tweets,
             hydrate_tweet,
             log_event,
+            persist_quest_turn,
+            load_latest_quest_thread,
+            load_quest_thread,
+            list_quest_threads,
+            search_quest_turns,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

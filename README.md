@@ -81,6 +81,7 @@ Grouped inventory (MCP server planned; today: `invoke` only). Full table: **[doc
 | Doc | Purpose |
 |-----|---------|
 | [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify, Arch notes |
+| [docs/quest-flows.md](docs/quest-flows.md) | Quest chips (EVA / Control / Hunt / Apply / Free) + example prompts |
 | [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map, mermaid, milestone matrix |
 | [docs/tauri-commands.md](docs/tauri-commands.md) | All `invoke` handlers |
 | [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |

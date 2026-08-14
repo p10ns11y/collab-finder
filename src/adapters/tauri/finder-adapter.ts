@@ -101,6 +101,23 @@ export function createTauriFinderPort(): FinderPort {
           kind: payload.kind ?? 'free',
         },
       }),
+    persistQuestTurn: (payload) =>
+      safeInvoke('persist_quest_turn', {
+        input: {
+          sessionId: payload.sessionId,
+          kind: payload.kind,
+          contextIds: payload.contextIds,
+          lastOppId: payload.lastOppId ?? null,
+          role: payload.role,
+          text: payload.text,
+          backend: payload.backend ?? null,
+          promptChars: payload.promptChars ?? null,
+        },
+      }),
+    loadLatestQuestThread: () => safeInvoke('load_latest_quest_thread'),
+    loadQuestThread: (sessionId) => safeInvoke('load_quest_thread', { sessionId }),
+    listQuestThreads: (limit = 12) => safeInvoke('list_quest_threads', { limit }),
+    searchQuestTurns: (q, limit = 20) => safeInvoke('search_quest_turns', { q, limit }),
     searchMissionFirms: (filter?: MissionFirmFilter) =>
       safeInvoke<MissionFirmLead[]>('search_mission_firms', {
         q: filter?.q,
@@ -294,6 +311,39 @@ export function finderPortForEffects(port: FinderPort) {
       kind?: string
     }) {
       const result = await port.runLocalGrokQuest(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async persistQuestTurn(payload: {
+      sessionId: string
+      kind: string
+      contextIds: string
+      lastOppId?: number | null
+      role: string
+      text: string
+      backend?: string | null
+      promptChars?: number | null
+    }) {
+      const result = await port.persistQuestTurn(payload)
+      if (!result.ok) throw result.error
+    },
+    async loadLatestQuestThread() {
+      const result = await port.loadLatestQuestThread()
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async loadQuestThread(sessionId: string) {
+      const result = await port.loadQuestThread(sessionId)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async listQuestThreads(limit?: number) {
+      const result = await port.listQuestThreads(limit)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async searchQuestTurns(q: string, limit?: number) {
+      const result = await port.searchQuestTurns(q, limit)
       if (!result.ok) throw result.error
       return result.value
     },
