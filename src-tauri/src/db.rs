@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 7;
+pub const SCHEMA_VERSION: i32 = 8;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -134,6 +134,26 @@ pub struct Event {
     pub source: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuestTurnRow {
+    pub role: String,
+    pub text: String,
+    pub ts: String,
+    pub backend: Option<String>,
+    pub prompt_chars: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuestThread {
+    pub session_id: String,
+    pub kind: String,
+    pub context_ids: String,
+    pub last_opp_id: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub turns: Vec<QuestTurnRow>,
+}
+
 pub struct SqliteStore {
     conn: Mutex<Connection>,
     enabled: bool,
@@ -255,6 +275,11 @@ impl SqliteStore {
         if current < 7 {
             Self::migrate_v7(conn)?;
             Self::record_migration(conn, 7)?;
+        }
+
+        if current < 8 {
+            Self::migrate_v8(conn)?;
+            Self::record_migration(conn, 8)?;
         }
 
         Ok(())
@@ -507,6 +532,36 @@ CREATE TABLE IF NOT EXISTS network_import_meta (
         conn.execute_batch(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_opp_kind_source_ref
              ON opportunities(kind, source_ref) WHERE source_ref IS NOT NULL;",
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// v8: Quest threads + turns (local Grok drawer). Best-effort memory; not Grok session files.
+    fn migrate_v8(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            r#"
+CREATE TABLE IF NOT EXISTS quest_threads (
+  session_id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'free',
+  context_ids TEXT NOT NULL DEFAULT '["me"]',
+  last_opp_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_quest_threads_updated ON quest_threads(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS quest_turns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL REFERENCES quest_threads(session_id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  text TEXT NOT NULL,
+  ts TEXT NOT NULL DEFAULT (datetime('now')),
+  backend TEXT,
+  prompt_chars INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_quest_turns_session ON quest_turns(session_id, id);
+            "#,
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -948,6 +1003,110 @@ CREATE TABLE IF NOT EXISTS network_import_meta (
             )
             .map_err(|e| e.to_string())?;
         Ok(guard.last_insert_rowid())
+    }
+
+    pub fn persist_quest_turn(
+        &self,
+        session_id: &str,
+        kind: &str,
+        context_ids: &str,
+        last_opp_id: Option<i64>,
+        role: &str,
+        text: &str,
+        backend: Option<&str>,
+        prompt_chars: Option<i64>,
+    ) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        if session_id.trim().is_empty() || text.trim().is_empty() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "INSERT INTO quest_threads (session_id, kind, context_ids, last_opp_id)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(session_id) DO UPDATE SET
+                   kind = excluded.kind,
+                   context_ids = excluded.context_ids,
+                   last_opp_id = COALESCE(excluded.last_opp_id, quest_threads.last_opp_id),
+                   updated_at = datetime('now')",
+                params![session_id, kind, context_ids, last_opp_id],
+            )
+            .map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "INSERT INTO quest_turns (session_id, role, text, backend, prompt_chars)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![session_id, role, text, backend, prompt_chars],
+            )
+            .map_err(|e| e.to_string())?;
+        let _ = guard.execute(
+            "INSERT INTO events (event_type, payload_json, correlation_id, source)
+             VALUES ('quest.turn', ?1, ?2, 'quest')",
+            params![
+                format!("{{\"role\":\"{}\",\"kind\":\"{}\"}}", role, kind),
+                session_id
+            ],
+        );
+        Ok(())
+    }
+
+    pub fn get_latest_quest_thread(&self) -> Result<Option<QuestThread>, String> {
+        if !self.is_enabled() {
+            return Ok(None);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let row = guard
+            .query_row(
+                "SELECT session_id, kind, context_ids, last_opp_id, created_at, updated_at
+                 FROM quest_threads ORDER BY updated_at DESC LIMIT 1",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, Option<i64>>(3)?,
+                        r.get::<_, String>(4)?,
+                        r.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let Some((session_id, kind, context_ids, last_opp_id, created_at, updated_at)) = row else {
+            return Ok(None);
+        };
+        let mut stmt = guard
+            .prepare(
+                "SELECT role, text, ts, backend, prompt_chars FROM quest_turns
+                 WHERE session_id = ?1 ORDER BY id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let turns = stmt
+            .query_map(params![session_id], |r| {
+                Ok(QuestTurnRow {
+                    role: r.get(0)?,
+                    text: r.get(1)?,
+                    ts: r.get(2)?,
+                    backend: r.get(3)?,
+                    prompt_chars: r.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        Ok(Some(QuestThread {
+            session_id,
+            kind,
+            context_ids,
+            last_opp_id,
+            created_at,
+            updated_at,
+            turns,
+        }))
     }
 
     pub fn record_rate_snapshot(
@@ -1667,6 +1826,54 @@ mod tests {
         drop(guard);
         let path = _dir.path().join("test.db");
         SqliteStore::open_at(path).expect("re-open");
+    }
+
+    #[test]
+    fn persist_quest_turns_survive_reopen() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        {
+            let store = SqliteStore::open_at(path.clone()).unwrap();
+            store
+                .persist_quest_turn(
+                    "019ff6f8-bd49-7572-bf21-4e36443ae877",
+                    "free",
+                    r#"["me"]"#,
+                    None,
+                    "user",
+                    "draft the email",
+                    None,
+                    None,
+                )
+                .unwrap();
+            store
+                .persist_quest_turn(
+                    "019ff6f8-bd49-7572-bf21-4e36443ae877",
+                    "free",
+                    r#"["me"]"#,
+                    None,
+                    "assistant",
+                    "Subject: hello",
+                    Some("grok"),
+                    Some(120),
+                )
+                .unwrap();
+        }
+        let store = SqliteStore::open_at(path).unwrap();
+        let thread = store.get_latest_quest_thread().unwrap().expect("thread");
+        assert_eq!(thread.kind, "free");
+        assert_eq!(thread.turns.len(), 2);
+        assert_eq!(thread.turns[0].role, "user");
+        assert_eq!(thread.turns[1].text, "Subject: hello");
+    }
+
+    #[test]
+    fn persist_quest_noop_when_disabled() {
+        let store = SqliteStore::disabled();
+        store
+            .persist_quest_turn("x", "free", "[]", None, "user", "hi", None, None)
+            .unwrap();
+        assert!(store.get_latest_quest_thread().unwrap().is_none());
     }
 
     #[test]

@@ -844,6 +844,43 @@ fn log_event(
     Ok(())
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistQuestTurnInput {
+    session_id: String,
+    kind: String,
+    context_ids: String,
+    last_opp_id: Option<i64>,
+    role: String,
+    text: String,
+    backend: Option<String>,
+    prompt_chars: Option<i64>,
+}
+
+#[tauri::command]
+fn persist_quest_turn(db: State<'_, AppDb>, input: PersistQuestTurnInput) -> Result<(), String> {
+    let _ = db.0.lock().map(|s| {
+        let _ = s.persist_quest_turn(
+            &input.session_id,
+            &input.kind,
+            &input.context_ids,
+            input.last_opp_id,
+            &input.role,
+            &input.text,
+            input.backend.as_deref(),
+            input.prompt_chars,
+        );
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn load_latest_quest_thread(db: State<'_, AppDb>) -> Result<Option<db::QuestThread>, String> {
+    db.0.lock()
+        .map(|s| s.get_latest_quest_thread())
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -902,6 +939,8 @@ pub fn run() {
             search_past_tweets,
             hydrate_tweet,
             log_event,
+            persist_quest_turn,
+            load_latest_quest_thread,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
