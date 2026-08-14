@@ -32,6 +32,12 @@ export type FinderMsg =
   | { type: 'QuestSucceeded'; result: import('../domain/quest').QuestResult }
   | { type: 'QuestFailed'; error: AppError }
   | { type: 'QuestThreadCleared' }
+  | { type: 'QuestThreadHydrated'; thread: import('../domain/quest').QuestThreadRecord }
+  | { type: 'QuestRecentLoaded'; threads: import('../domain/quest').QuestThreadSummary[] }
+  | { type: 'QuestLookupChanged'; q: string }
+  | { type: 'QuestSearchRequested' }
+  | { type: 'QuestSearchLoaded'; hits: import('../domain/quest').QuestTurnHit[] }
+  | { type: 'QuestThreadLoadRequested'; sessionId: string }
   | { type: 'QueryChanged'; query: string }
   | { type: 'CvSummaryChanged'; cvSummary: string }
   | { type: 'CvSummaryLoaded'; cvSummary: string }

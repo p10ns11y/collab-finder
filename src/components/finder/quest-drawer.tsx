@@ -10,7 +10,9 @@ import {
   questGraph,
   type QuestKind,
   type QuestResult,
+  type QuestThreadSummary,
   type QuestTurn,
+  type QuestTurnHit,
 } from '../../core/domain/quest'
 import { QUEST_CONTEXT_PACKS, type QuestContextId } from '../../core/domain/quest-context'
 import type { AsyncState } from '../../core/async'
@@ -24,6 +26,9 @@ type Props = {
   turns: QuestTurn[]
   contextIds: QuestContextId[]
   sessionId?: string
+  recent: QuestThreadSummary[]
+  hits: QuestTurnHit[]
+  lookupQ: string
   quest: AsyncState<QuestResult>
   dispatch: Dispatch<FinderMsg>
 }
@@ -35,6 +40,9 @@ export function QuestDrawer({
   turns,
   contextIds,
   sessionId,
+  recent,
+  hits,
+  lookupQ,
   quest,
   dispatch,
 }: Props) {
@@ -126,7 +134,17 @@ export function QuestDrawer({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 lg:flex-row">
-          <QuestFlow graph={graph} live={live} />
+          <div className="flex shrink-0 flex-col gap-2 lg:w-[168px]">
+          <QuestFlow graph={graph} live={live} busy={busy} />
+          <QuestArchive
+            recent={recent}
+            hits={hits}
+            lookupQ={lookupQ}
+            sessionId={sessionId}
+            busy={busy}
+            dispatch={dispatch}
+          />
+          </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           <textarea
             ref={fieldRef}
@@ -193,7 +211,8 @@ function QuestUsageNote({ kind }: { kind: QuestKind }) {
   return (
     <div className="space-y-2">
       <p className="ui-meta">
-        {note.use} {note.skip} New thread when the job changes. No yolo. No writes.
+        {note.use} {note.skip} Attach Me (and This ad) so it uses your distilled data.
+        New thread when the job changes. No yolo. No writes.
       </p>
       <p className="ui-meta mb-0.5">Example</p>
       <p className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-ink-muted">{note.example}</p>
@@ -201,17 +220,94 @@ function QuestUsageNote({ kind }: { kind: QuestKind }) {
   )
 }
 
+function QuestArchive({
+  recent,
+  hits,
+  lookupQ,
+  sessionId,
+  busy,
+  dispatch,
+}: {
+  recent: QuestThreadSummary[]
+  hits: QuestTurnHit[]
+  lookupQ: string
+  sessionId?: string
+  busy: boolean
+  dispatch: Dispatch<FinderMsg>
+}) {
+  return (
+    <div className="rounded-md border border-border-subtle bg-surface-0/50 p-2.5">
+      <p className="ui-meta mb-1.5 px-0.5">Look up</p>
+      <input
+        value={lookupQ}
+        disabled={busy}
+        placeholder="Search saved turns…"
+        className="ui-field mb-2 h-7 px-2 font-mono text-[11px]"
+        onChange={(e) => dispatch({ type: 'QuestLookupChanged', q: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            dispatch({ type: 'QuestSearchRequested' })
+          }
+        }}
+      />
+      {hits.length > 0 ? (
+        <ul className="mb-2 max-h-28 space-y-1 overflow-auto">
+          {hits.map((hit, i) => (
+            <li key={`${hit.session_id}-${hit.ts}-${i}`}>
+              <button
+                type="button"
+                disabled={busy}
+                className="w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-ink-muted hover:bg-accent-soft hover:text-ink"
+                onClick={() => dispatch({ type: 'QuestThreadLoadRequested', sessionId: hit.session_id })}
+              >
+                {hit.role}: {hit.text}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <ul className="max-h-32 space-y-1 overflow-auto">
+        {recent.length === 0 ? (
+          <li className="ui-meta px-0.5">No saved threads yet</li>
+        ) : (
+          recent.map((row) => (
+            <li key={row.session_id}>
+              <button
+                type="button"
+                disabled={busy}
+                className={`w-full truncate rounded px-1 py-0.5 text-left text-[11px] ${
+                  row.session_id === sessionId
+                    ? 'bg-accent-soft font-medium text-ink'
+                    : 'text-ink-muted hover:bg-accent-soft hover:text-ink'
+                }`}
+                onClick={() =>
+                  dispatch({ type: 'QuestThreadLoadRequested', sessionId: row.session_id })
+                }
+              >
+                {row.kind} · {row.preview || row.session_id.slice(0, 8)}
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  )
+}
+
 function QuestFlow({
   graph,
   live,
+  busy,
 }: {
   graph: ReturnType<typeof questGraph>
   live: string
+  busy: boolean
 }) {
   return (
     <nav
       aria-label="Harness flow"
-      className="shrink-0 rounded-md border border-border-subtle bg-surface-0/50 p-2.5 lg:w-[168px]"
+      className="rounded-md border border-border-subtle bg-surface-0/50 p-2.5"
     >
       <p className="ui-meta mb-2 px-0.5">Flow</p>
       <ol className="flex flex-row flex-wrap gap-1 lg:flex-col lg:flex-nowrap">
@@ -221,7 +317,9 @@ function QuestFlow({
           return (
             <li key={node.id} className="flex items-center gap-1 lg:flex-col lg:items-stretch">
               <div
-                className={`rounded-md border px-2 py-1 text-[11px] ${
+                data-live={on ? 'true' : 'false'}
+                data-busy={on && busy ? 'true' : 'false'}
+                className={`quest-flow-node rounded-md border px-2 py-1 text-[11px] ${
                   on
                     ? 'border-accent/60 bg-accent-soft font-medium text-ink'
                     : 'border-border-subtle text-ink-muted'

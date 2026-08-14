@@ -5,6 +5,8 @@ import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested } from '../domain/hunt-rails'
+import { parseQuestKind } from '../domain/quest'
+import { parseQuestContextIds } from '../domain/quest-context'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -52,6 +54,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [
         {
           ...model,
+          questSessionId: model.questSessionId || crypto.randomUUID(),
           quest: { status: 'loading' },
           questTurns: text
             ? [...model.questTurns, { role: 'user', text }]
@@ -82,8 +85,37 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           questTurns: [],
           quest: { status: 'idle' },
           questDraft: '',
+          questHits: [],
         },
       ]
+    case 'QuestThreadHydrated': {
+      const turns = msg.thread.turns
+        .map((t) => ({
+          role: t.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+          text: t.text,
+        }))
+        .filter((t) => t.text.trim().length > 0)
+      return [
+        {
+          ...model,
+          questSessionId: msg.thread.session_id,
+          questKind: parseQuestKind(msg.thread.kind),
+          questContextIds: parseQuestContextIds(msg.thread.context_ids),
+          questTurns: turns,
+          quest: { status: 'idle' },
+          questDraft: '',
+        },
+      ]
+    }
+    case 'QuestRecentLoaded':
+      return [{ ...model, questRecent: msg.threads }]
+    case 'QuestLookupChanged':
+      return [{ ...model, questLookupQ: msg.q }]
+    case 'QuestSearchLoaded':
+      return [{ ...model, questHits: msg.hits }]
+    case 'QuestThreadLoadRequested':
+    case 'QuestSearchRequested':
+      return [model]
 
     case 'QueryChanged':
       return [{ ...model, query: msg.query }]

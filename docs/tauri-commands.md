@@ -73,7 +73,12 @@ Implemented in `src-tauri/src/opportunity_target.rs`. Adapter: `finder-adapter.t
 | `set_fit_mode_cmd` | `{ mode? }` | `string` (normalized mode) | Persist mode to `fit_mode.txt` under app data dir. |
 | `get_llm_route_status` | — | `LlmRouteStatus` | Probe `grok` / `cursor-agent` on PATH + xAI key presence (bool only). Returns quality + recommended backends. |
 | `set_llm_route_quality` | `{ quality }` | `void` | Persist `fast` \| `moderate` \| `high` to `llm_quality.txt`. Analyze still uses xAI API this slice. |
-| `run_local_grok_quest` | `{ prompt }` | `LocalGrokQuestResult` | Headless local `grok --prompt-file`. No yolo. Write/shell/web tools denied. `max-turns=1`. |
+| `run_local_grok_quest` | `{ input: { prompt, sessionId?, resume?, kind? } }` | `LocalGrokQuestResult` | Headless local `grok --prompt-file`. No yolo. Apply/EVA deny web; Free may fetch. |
+| `persist_quest_turn` | `{ input: { sessionId, kind, contextIds, role, text, … } }` | `void` | Best-effort SQLite append. Never fails the ask. |
+| `load_latest_quest_thread` | — | `QuestThread?` | Most recently updated thread + turns. |
+| `load_quest_thread` | `{ sessionId }` | `QuestThread?` | One saved thread. |
+| `list_quest_threads` | `{ limit? }` | `QuestThreadSummary[]` | Recent threads (preview = first user line). |
+| `search_quest_turns` | `{ q, limit? }` | `QuestTurnHit[]` | `LIKE` search over saved turn text. |
 | `get_opportunities` | `{ id?, q?, status?, limit? }` | `Opportunity[]` | SQLite read for rail, Data tables, and hydrate-by-id (`loadOpportunityCmd`). `id` filter pushed to SQL (TD-002). |
 
 ## Hire board (Discover — public sheet skim → Select/Evaluate)

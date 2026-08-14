@@ -154,6 +154,22 @@ pub struct QuestThread {
     pub turns: Vec<QuestTurnRow>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuestThreadSummary {
+    pub session_id: String,
+    pub kind: String,
+    pub updated_at: String,
+    pub preview: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuestTurnHit {
+    pub session_id: String,
+    pub role: String,
+    pub text: String,
+    pub ts: String,
+}
+
 pub struct SqliteStore {
     conn: Mutex<Connection>,
     enabled: bool,
@@ -1107,6 +1123,140 @@ CREATE INDEX IF NOT EXISTS idx_quest_turns_session ON quest_turns(session_id, id
             updated_at,
             turns,
         }))
+    }
+
+    pub fn get_quest_thread(&self, session_id: &str) -> Result<Option<QuestThread>, String> {
+        if !self.is_enabled() {
+            return Ok(None);
+        }
+        let latest = self.get_latest_quest_thread()?;
+        if latest
+            .as_ref()
+            .map(|t| t.session_id == session_id)
+            .unwrap_or(false)
+        {
+            return Ok(latest);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        self.read_quest_thread(&guard, session_id)
+    }
+
+    fn read_quest_thread(
+        &self,
+        guard: &Connection,
+        session_id: &str,
+    ) -> Result<Option<QuestThread>, String> {
+        let row = guard
+            .query_row(
+                "SELECT session_id, kind, context_ids, last_opp_id, created_at, updated_at
+                 FROM quest_threads WHERE session_id = ?1",
+                params![session_id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, Option<i64>>(3)?,
+                        r.get::<_, String>(4)?,
+                        r.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let Some((session_id, kind, context_ids, last_opp_id, created_at, updated_at)) = row else {
+            return Ok(None);
+        };
+        let mut stmt = guard
+            .prepare(
+                "SELECT role, text, ts, backend, prompt_chars FROM quest_turns
+                 WHERE session_id = ?1 ORDER BY id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let turns = stmt
+            .query_map(params![session_id], |r| {
+                Ok(QuestTurnRow {
+                    role: r.get(0)?,
+                    text: r.get(1)?,
+                    ts: r.get(2)?,
+                    backend: r.get(3)?,
+                    prompt_chars: r.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        Ok(Some(QuestThread {
+            session_id,
+            kind,
+            context_ids,
+            last_opp_id,
+            created_at,
+            updated_at,
+            turns,
+        }))
+    }
+
+    pub fn list_quest_threads(&self, limit: u32) -> Result<Vec<QuestThreadSummary>, String> {
+        if !self.is_enabled() {
+            return Ok(vec![]);
+        }
+        let lim = limit.clamp(1, 50);
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare(
+                "SELECT t.session_id, t.kind, t.updated_at,
+                    (SELECT substr(text, 1, 80) FROM quest_turns
+                     WHERE session_id = t.session_id AND role = 'user' ORDER BY id ASC LIMIT 1)
+                 FROM quest_threads t
+                 ORDER BY t.updated_at DESC LIMIT ?1",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![lim], |r| {
+                Ok(QuestThreadSummary {
+                    session_id: r.get(0)?,
+                    kind: r.get(1)?,
+                    updated_at: r.get(2)?,
+                    preview: r.get(3)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    pub fn search_quest_turns(&self, q: &str, limit: u32) -> Result<Vec<QuestTurnHit>, String> {
+        if !self.is_enabled() {
+            return Ok(vec![]);
+        }
+        let needle = q.trim();
+        if needle.is_empty() {
+            return Ok(vec![]);
+        }
+        let lim = limit.clamp(1, 50);
+        let like = format!("%{needle}%");
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare(
+                "SELECT session_id, role, text, ts FROM quest_turns
+                 WHERE text LIKE ?1 ESCAPE '\\' ORDER BY ts DESC LIMIT ?2",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![like, lim], |r| {
+                Ok(QuestTurnHit {
+                    session_id: r.get(0)?,
+                    role: r.get(1)?,
+                    text: r.get(2)?,
+                    ts: r.get(3)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
     }
 
     pub fn record_rate_snapshot(

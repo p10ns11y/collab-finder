@@ -881,6 +881,37 @@ fn load_latest_quest_thread(db: State<'_, AppDb>) -> Result<Option<db::QuestThre
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn load_quest_thread(
+    db: State<'_, AppDb>,
+    session_id: String,
+) -> Result<Option<db::QuestThread>, String> {
+    db.0.lock()
+        .map(|s| s.get_quest_thread(&session_id))
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn list_quest_threads(
+    db: State<'_, AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<db::QuestThreadSummary>, String> {
+    db.0.lock()
+        .map(|s| s.list_quest_threads(limit.unwrap_or(12)))
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn search_quest_turns(
+    db: State<'_, AppDb>,
+    q: String,
+    limit: Option<u32>,
+) -> Result<Vec<db::QuestTurnHit>, String> {
+    db.0.lock()
+        .map(|s| s.search_quest_turns(&q, limit.unwrap_or(20)))
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -941,6 +972,9 @@ pub fn run() {
             log_event,
             persist_quest_turn,
             load_latest_quest_thread,
+            load_quest_thread,
+            list_quest_threads,
+            search_quest_turns,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

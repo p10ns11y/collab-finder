@@ -32,6 +32,36 @@ export type QuestTurn = {
   text: string
 }
 
+export type QuestThreadSummary = {
+  session_id: string
+  kind: string
+  updated_at: string
+  preview?: string | null
+}
+
+export type QuestTurnHit = {
+  session_id: string
+  role: string
+  text: string
+  ts: string
+}
+
+export type QuestThreadRecord = {
+  session_id: string
+  kind: string
+  context_ids: string
+  last_opp_id?: number | null
+  created_at: string
+  updated_at: string
+  turns: Array<{
+    role: string
+    text: string
+    ts: string
+    backend?: string | null
+    prompt_chars?: number | null
+  }>
+}
+
 export type QuestGraphNode = { id: string; label: string }
 export type QuestGraph = {
   nodes: QuestGraphNode[]

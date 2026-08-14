@@ -73,6 +73,20 @@ export type FinderPorts = {
       resume?: boolean
       kind?: string
     }): Promise<import('../domain/quest').QuestResult>
+    persistQuestTurn(payload: {
+      sessionId: string
+      kind: string
+      contextIds: string
+      lastOppId?: number | null
+      role: string
+      text: string
+      backend?: string | null
+      promptChars?: number | null
+    }): Promise<void>
+    loadLatestQuestThread(): Promise<import('../domain/quest').QuestThreadRecord | null>
+    loadQuestThread(sessionId: string): Promise<import('../domain/quest').QuestThreadRecord | null>
+    listQuestThreads(limit?: number): Promise<import('../domain/quest').QuestThreadSummary[]>
+    searchQuestTurns(q: string, limit?: number): Promise<import('../domain/quest').QuestTurnHit[]>
     searchMissionFirms(
       filter?: import('../domain/mission-firms').MissionFirmFilter,
     ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
@@ -419,9 +433,91 @@ export function hireBoardSelectCmd(
   }
 }
 
+function persistQuestTurnBestEffort(
+  ports: FinderPorts,
+  model: FinderModel,
+  role: 'user' | 'assistant',
+  text: string,
+  extra?: { backend?: string; promptChars?: number },
+) {
+  const sessionId = model.questSessionId
+  if (!sessionId || !text.trim()) return
+  void ports.finder
+    .persistQuestTurn({
+      sessionId,
+      kind: model.questKind,
+      contextIds: JSON.stringify(model.questContextIds),
+      lastOppId: model.lastActiveOppId ?? null,
+      role,
+      text,
+      backend: extra?.backend ?? null,
+      promptChars: extra?.promptChars ?? null,
+    })
+    .catch(() => {})
+}
+
+export function persistLastQuestTurnCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+  role: 'user' | 'assistant',
+): Cmd<FinderMsg> {
+  return () => {
+    const last = [...model.questTurns].reverse().find((t) => t.role === role)
+    persistQuestTurnBestEffort(ports, model, role, last?.text || '', {
+      backend: model.quest.status === 'ready' ? model.quest.data.backend : undefined,
+      promptChars: model.quest.status === 'ready' ? model.quest.data.prompt_chars : undefined,
+    })
+  }
+}
+
+export function hydrateLatestQuestCmd(ports: FinderPorts): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.loadLatestQuestThread(), toAppError).then((result) => {
+      if (!result.ok || !result.value || result.value.turns.length === 0) return
+      dispatch({ type: 'QuestThreadHydrated', thread: result.value })
+    })
+  }
+}
+
+export function listQuestRecentCmd(ports: FinderPorts): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.listQuestThreads(12), toAppError).then((result) => {
+      if (!result.ok) return
+      dispatch({ type: 'QuestRecentLoaded', threads: result.value })
+    })
+  }
+}
+
+export function searchQuestTurnsCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  return (dispatch) => {
+    const q = model.questLookupQ.trim()
+    if (!q) {
+      dispatch({ type: 'QuestSearchLoaded', hits: [] })
+      return
+    }
+    void fromPromise(ports.finder.searchQuestTurns(q, 20), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'QuestSearchLoaded', hits: [] })
+        return
+      }
+      dispatch({ type: 'QuestSearchLoaded', hits: result.value })
+    })
+  }
+}
+
+export function loadQuestThreadCmd(ports: FinderPorts, sessionId: string): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.loadQuestThread(sessionId), toAppError).then((result) => {
+      if (!result.ok || !result.value) return
+      dispatch({ type: 'QuestThreadHydrated', thread: result.value })
+    })
+  }
+}
+
 export function localGrokQuestCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
   return (dispatch) => {
-    const resume = !!model.questSessionId
+    const userTurns = model.questTurns.filter((t) => t.role === 'user').length
+    const resume = model.questTurns.some((t) => t.role === 'assistant') || userTurns > 1
     const sessionId = model.questSessionId || crypto.randomUUID()
     const lastUser = [...model.questTurns].reverse().find((t) => t.role === 'user')
     const question = model.questDraft.trim() || lastUser?.text || ''
@@ -1088,6 +1184,8 @@ export function effectForMsg(
         credentialsCheckCmd(ports),
         historyRefreshCmd(ports),
         loadCvFromLocalCmd(),
+        hydrateLatestQuestCmd(ports),
+        listQuestRecentCmd(ports),
       ]
       const lastId = model.lastActiveOppId
       if (typeof lastId === 'number' && lastId > 0) {
@@ -1147,7 +1245,15 @@ export function effectForMsg(
         }),
       ]
     case 'QuestRequested':
-      return localGrokQuestCmd(ports, model)
+      return [persistLastQuestTurnCmd(ports, model, 'user'), localGrokQuestCmd(ports, model)]
+    case 'QuestSucceeded':
+      return [persistLastQuestTurnCmd(ports, model, 'assistant'), listQuestRecentCmd(ports)]
+    case 'QuestToggled':
+      return model.questOpen ? listQuestRecentCmd(ports) : undefined
+    case 'QuestSearchRequested':
+      return searchQuestTurnsCmd(ports, model)
+    case 'QuestThreadLoadRequested':
+      return loadQuestThreadCmd(ports, msg.sessionId)
     case 'PlatsbankenSearchRequested':
       return platsbankenSearchCmd(ports, model)
     case 'PlatsbankenImportRequested':

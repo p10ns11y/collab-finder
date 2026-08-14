@@ -4,6 +4,8 @@ Quest (header **Quest**, **⌘J**) is a local Grok thread. Chips change the **ha
 
 **New thread** when the job changes (hunt → email draft). Follow-ups keep the session and **do not** re-send the harness, but they **do** re-send the Attach packs you have on.
 
+Turns persist in SQLite (`quest_threads` / `quest_turns`). Restart restores the latest thread. **Look up** in the drawer searches saved text and lists recent threads.
+
 **Attach** (under the flow chips) turns on distilled repo data. **Me** is on by default.
 
 | Attach | Source |

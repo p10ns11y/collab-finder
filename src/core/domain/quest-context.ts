@@ -67,6 +67,20 @@ function formatAd(input: {
   return lines.join('\n')
 }
 
+export function parseQuestContextIds(raw: string | undefined): QuestContextId[] {
+  try {
+    const arr = JSON.parse(raw || '[]') as unknown
+    if (!Array.isArray(arr)) return [...DEFAULT_QUEST_CONTEXT_IDS]
+    const ids = arr.filter(
+      (x): x is QuestContextId =>
+        x === 'me' || x === 'constraints' || x === 'ad' || x === 'projects',
+    )
+    return ids.length ? ids : [...DEFAULT_QUEST_CONTEXT_IDS]
+  } catch {
+    return [...DEFAULT_QUEST_CONTEXT_IDS]
+  }
+}
+
 export function toggleQuestContextId(
   current: readonly QuestContextId[],
   id: QuestContextId,
