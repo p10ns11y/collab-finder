@@ -1144,6 +1144,28 @@ pub(crate) fn normalize_opportunity_fetch_url(raw: &str) -> Result<String, Strin
 #[tauri::command]
 pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
     let url = normalize_opportunity_fetch_url(&url)?;
+    if let Some(ad_id) = crate::platsbanken::ad_id_from_webpage_url(&url) {
+        let ad = crate::platsbanken::fetch_ad(&ad_id).await?;
+        let cleaned = crate::platsbanken::build_jd_text(&ad);
+        let original_len = cleaned.len() as u32;
+        let truncated = cleaned.len() > 12000;
+        let cleaned_text = if truncated {
+            let mut end = 12000;
+            while end > 0 && !cleaned.is_char_boundary(end) {
+                end -= 1;
+            }
+            cleaned[..end].to_string()
+        } else {
+            cleaned
+        };
+        return Ok(OpportunityTargetPageResult {
+            title: Some(ad.headline).filter(|s| !s.trim().is_empty()),
+            company: Some(ad.employer).filter(|s| !s.trim().is_empty()),
+            cleaned_text,
+            original_len,
+            truncated,
+        });
+    }
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
@@ -1200,28 +1222,63 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
 /// Placeholder written by older analyze/prep upserts instead of the real JD body.
 fn stored_jd_is_usable(jd_text: &str) -> bool {
     let trimmed = jd_text.trim();
-    !trimmed.is_empty() && trimmed != "jd"
+    if trimmed.is_empty() || trimmed == "jd" {
+        return false;
+    }
+    let lower = trimmed.to_lowercase();
+    if lower.contains("jag godkänner alla kakor") || lower.contains("jag godkanner alla kakor") {
+        return false;
+    }
+    true
 }
 
 /// Prefer pasted JD, else fetch URL. Empty Option means neither source had usable text (caller may load DB).
-async fn resolve_opportunity_jd_text(
+async fn resolve_opportunity_source(
     url: Option<String>,
     pasted_jd: Option<String>,
-) -> Result<Option<String>, String> {
+) -> Result<Option<(String, Option<String>, Option<String>)>, String> {
+    let mut title = None;
+    let mut company = None;
+    let mut jd = None;
     if let Some(pasted) = pasted_jd {
         if stored_jd_is_usable(&pasted) {
-            return Ok(Some(pasted));
+            let inferred = infer_title_company_from_jd(&pasted);
+            title = inferred.0;
+            company = inferred.1;
+            jd = Some(pasted);
         }
     }
     if let Some(page_url) = url {
         if !page_url.trim().is_empty() {
             let fetched = fetch_opportunity_target_page(page_url).await?;
-            if stored_jd_is_usable(&fetched.cleaned_text) {
-                return Ok(Some(fetched.cleaned_text));
+            if title.is_none() {
+                title = fetched.title;
+            }
+            if company.is_none() {
+                company = fetched.company;
+            }
+            if jd.is_none() && stored_jd_is_usable(&fetched.cleaned_text) {
+                let inferred = infer_title_company_from_jd(&fetched.cleaned_text);
+                if title.is_none() {
+                    title = inferred.0;
+                }
+                if company.is_none() {
+                    company = inferred.1;
+                }
+                jd = Some(fetched.cleaned_text);
             }
         }
     }
-    Ok(None)
+    Ok(jd.map(|text| (text, title, company)))
+}
+
+async fn resolve_opportunity_jd_text(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<Option<String>, String> {
+    Ok(resolve_opportunity_source(url, pasted_jd)
+        .await?
+        .map(|(text, _, _)| text))
 }
 
 /// Core implementation for analyze (no store/persist), so tests can drive the logic the cmd uses
@@ -1308,10 +1365,16 @@ pub(crate) async fn analyze_opportunity_target(
         other => other.filter(|u| !u.trim().is_empty()),
     };
     let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
-    // Resolve JD once so we persist the real body (not the old "jd" placeholder) and analyze uses the same text.
-    let jd = resolve_opportunity_jd_text(url.clone(), pasted_jd.clone())
-        .await?
-        .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
+    let (jd, fetched_title, fetched_company) =
+        resolve_opportunity_source(url.clone(), pasted_jd.clone())
+            .await?
+            .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
+    let title = title
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t))
+        .or(fetched_title);
+    let company = company
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_company(t))
+        .or(fetched_company);
     // Delegate core (resolve + stub xAI + compute packet) to run_, short lock for upsert only.
     let mut res = run_analyze_opportunity_target(None, Some(jd.clone()), title.clone(), company.clone(), cv_summary).await?;
     let run_id = if let Ok(guard) = db.0.lock() {
@@ -1327,11 +1390,20 @@ pub(crate) async fn analyze_opportunity_target(
             "completion_tokens": res.completion_tokens,
             "est_cost_usd": res.est_cost_usd,
         });
-        guard.upsert_opportunity(
+        let id = guard.upsert_opportunity(
             "web", url.as_deref(), None, title.as_deref(), company.as_deref(), &jd,
             "analyzed", Some( (res.fit.get("overall").and_then(|v| v.as_i64()).unwrap_or(0)) as i32 ),
             Some(&analysis_for_store.to_string()), None, None,
-        ).unwrap_or(0)
+        ).unwrap_or(0);
+        if id > 0 {
+            let _ = guard.update_opportunity_identity(
+                id,
+                title.as_deref(),
+                company.as_deref(),
+                Some(jd.as_str()),
+            );
+        }
+        id
     } else { 0 };
     res.opportunity_id = run_id;
     Ok(res)
@@ -1435,7 +1507,20 @@ pub(crate) async fn prep_opportunity_target(
     paste: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
     let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
-    let mut jd = resolve_opportunity_jd_text(url.clone(), pasted_jd.clone()).await?;
+    let mut title = title.filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+    let mut company = company.filter(|t| !t.trim().is_empty() && !is_placeholder_company(t));
+    let mut jd = None;
+    if let Ok(Some((text, fetched_title, fetched_company))) =
+        resolve_opportunity_source(url.clone(), pasted_jd.clone()).await
+    {
+        jd = Some(text);
+        if title.is_none() {
+            title = fetched_title;
+        }
+        if company.is_none() {
+            company = fetched_company;
+        }
+    }
     if !jd.as_ref().is_some_and(|text| stored_jd_is_usable(text)) {
         if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
             if let Ok(guard) = db.0.lock() {
@@ -1447,6 +1532,25 @@ pub(crate) async fn prep_opportunity_target(
                     if let Some(row) = rows.into_iter().next() {
                         if stored_jd_is_usable(&row.jd_text) {
                             jd = Some(row.jd_text);
+                        }
+                        if title.is_none() {
+                            title = row
+                                .title
+                                .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+                        }
+                        if company.is_none() {
+                            company = row
+                                .company
+                                .filter(|t| !t.trim().is_empty() && !is_placeholder_company(t));
+                        }
+                        if title.is_none() || company.is_none() {
+                            let inferred = infer_title_company_from_jd(jd.as_deref().unwrap_or(""));
+                            if title.is_none() {
+                                title = inferred.0;
+                            }
+                            if company.is_none() {
+                                company = inferred.1;
+                            }
                         }
                     }
                 }
@@ -1470,6 +1574,12 @@ pub(crate) async fn prep_opportunity_target(
     let run_id = if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
         if let Ok(guard) = db.0.lock() {
             let _ = guard.set_prep_artifacts(oid, &res.prep.to_string(), "prepped");
+            let _ = guard.update_opportunity_identity(
+                oid,
+                title.as_deref(),
+                company.as_deref(),
+                Some(jd.as_str()),
+            );
         }
         oid
     } else if let Ok(guard) = db.0.lock() {
@@ -1757,10 +1867,31 @@ pub(crate) fn build_email_apply_draft(cover: &str, company: &str, title: &str) -
     )
 }
 
+fn is_placeholder_company(company: &str) -> bool {
+    let trimmed = company.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    let lower = trimmed.to_lowercase();
+    if lower == "the company" || lower == "unknown employer" || lower == "target" {
+        return true;
+    }
+    lower
+        .strip_prefix("opp")
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn is_placeholder_title(title: &str) -> bool {
+    matches!(
+        title.trim().to_lowercase().as_str(),
+        "" | "role" | "the role" | "target"
+    )
+}
+
 /// Display company: `qred` → `Qred`, leave multi-word as-is with first-letter upcase.
 pub(crate) fn display_company_name(company: &str) -> String {
     let t = company.trim();
-    if t.is_empty() {
+    if t.is_empty() || is_placeholder_company(t) {
         return "the company".into();
     }
     if t.contains(' ') {
@@ -1786,7 +1917,7 @@ pub(crate) fn display_company_name(company: &str) -> String {
 /// Clean role title for prose (collapse Typescript → TypeScript, drop trailing junk).
 pub(crate) fn display_role_title(title: &str) -> String {
     let t = title.trim().replace("Typescript", "TypeScript");
-    if t.is_empty() {
+    if t.is_empty() || is_placeholder_title(&t) {
         "Software Engineer".into()
     } else {
         t
@@ -1904,9 +2035,20 @@ pub(crate) fn recent_personal_phrase(featured: &[String], scan: &str) -> String 
 pub(crate) fn seeking_line(title: &str, company: &str) -> String {
     let role = display_role_title(title);
     let co = display_company_name(company);
-    format!(
-        "Seeking the {role} role at {co} to own full-stack delivery of internal platforms and integrations."
-    )
+    let role_phrase = if role.to_lowercase().contains("role") {
+        format!("the {role}")
+    } else {
+        format!("the {role} role")
+    };
+    if is_placeholder_company(company) {
+        format!(
+            "Seeking {role_phrase} to own full-stack delivery of internal platforms and integrations."
+        )
+    } else {
+        format!(
+            "Seeking {role_phrase} at {co} to own full-stack delivery of internal platforms and integrations."
+        )
+    }
 }
 
 /// PROFILE: 5-beat coherent overview (hook → career/craft → recent → seeking).
@@ -2380,57 +2522,133 @@ pub(crate) fn company_from_greenhouse_url(url: &str) -> Option<String> {
 
 /// Infer role title + company from JD blob / Greenhouse title patterns when DB fields empty.
 pub(crate) fn infer_title_company_from_jd(jd: &str) -> (Option<String>, Option<String>) {
-    let head: String = jd.chars().take(400).collect();
+    let mut title: Option<String> = None;
+    let mut company: Option<String> = None;
+    for line in jd.lines().take(24) {
+        let trimmed = line.trim();
+        if title.is_none() {
+            if let Some(rest) = trimmed.strip_prefix("# ") {
+                let heading = rest.trim();
+                if heading.len() > 3 && heading.len() < 120 && !heading.to_lowercase().starts_with("http")
+                {
+                    title = Some(heading.to_string());
+                }
+            }
+        }
+        if company.is_none() {
+            if let Some(rest) = trimmed.strip_prefix("Employer:") {
+                let name = rest.trim();
+                if name.len() > 1 && name.len() < 80 && !is_placeholder_company(name) {
+                    company = Some(name.to_string());
+                }
+            }
+        }
+        if company.is_none() && trimmed.starts_with("At ") && trimmed.contains(',') {
+            let name = trimmed
+                .trim_start_matches("At ")
+                .split(',')
+                .next()
+                .unwrap_or("")
+                .trim();
+            if name.len() > 1
+                && name.len() < 48
+                && name
+                    .chars()
+                    .next()
+                    .map(|ch| ch.is_uppercase())
+                    .unwrap_or(false)
+                && !is_placeholder_company(name)
+            {
+                company = Some(name.to_string());
+            }
+        }
+    }
+
+    if title.is_some() && company.is_some() {
+        return (title, company);
+    }
+
+    let head: String = jd.chars().take(800).collect();
     let lower = head.to_lowercase();
+    if title.is_none() {
+        if let Some(idx) = lower.find("we are looking for a ") {
+            let rest = &head[idx + "we are looking for a ".len()..];
+            let cut = rest
+                .find(" to join")
+                .or_else(|| rest.find(" ("))
+                .or_else(|| rest.find('\n'))
+                .unwrap_or(rest.len().min(90));
+            let found = rest[..cut].trim();
+            if found.len() > 3 && found.len() < 90 {
+                title = Some(found.to_string());
+            }
+        }
+    }
 
     // "Job Application for {Title} at {Company}"
-    if let Some(idx) = lower.find("job application for ") {
-        let rest = &head[idx + "job application for ".len()..];
-        let rest_l = rest.to_lowercase();
-        let cut = rest_l
-            .find("back to")
-            .or_else(|| rest_l.find('\n'))
-            .unwrap_or(rest.len().min(160));
-        let phrase = rest[..cut].trim();
-        if let Some(at) = phrase.to_lowercase().rfind(" at ") {
-            let title = phrase[..at].trim();
-            let company = phrase[at + 4..].trim();
-            if !title.is_empty() && !company.is_empty() {
-                return (Some(title.to_string()), Some(company.to_string()));
+    if title.is_none() || company.is_none() {
+        if let Some(idx) = lower.find("job application for ") {
+            let rest = &head[idx + "job application for ".len()..];
+            let rest_l = rest.to_lowercase();
+            let cut = rest_l
+                .find("back to")
+                .or_else(|| rest_l.find('\n'))
+                .unwrap_or(rest.len().min(160));
+            let phrase = rest[..cut].trim();
+            if let Some(at) = phrase.to_lowercase().rfind(" at ") {
+                let found_title = phrase[..at].trim();
+                let found_company = phrase[at + 4..].trim();
+                if title.is_none() && !found_title.is_empty() {
+                    title = Some(found_title.to_string());
+                }
+                if company.is_none() && !found_company.is_empty() {
+                    company = Some(found_company.to_string());
+                }
             }
         }
     }
 
     // "Exceptional Software Engineer at xAI" early in cleaned text
-    if let Some(at) = lower.find(" at ") {
-        if at > 3 && at < 80 {
-            let before = head[..at].trim();
-            // strip leading noise like "Back to jobs"
-            let title = before
-                .rsplit(|c: char| c == '\n' || c == '>' )
-                .next()
-                .unwrap_or(before)
-                .trim();
-            let after = &head[at + 4..];
-            let company = after
-                .split(|c: char| c == '\n' || c == '|' || c == '(' || c == ',' || c.is_ascii_whitespace() && after.len() > 40)
-                .next()
-                .unwrap_or("")
-                .trim();
-            // Prefer short company tokens
-            let company_tok = company.split_whitespace().next().unwrap_or(company);
-            if title.len() > 3
-                && title.len() < 80
-                && company_tok.len() > 1
-                && company_tok.len() < 40
-                && !title.to_lowercase().starts_with("http")
-            {
-                return (Some(title.to_string()), Some(company_tok.to_string()));
+    if title.is_none() || company.is_none() {
+        if let Some(at) = lower.find(" at ") {
+            if at > 3 && at < 80 {
+                let before = head[..at].trim();
+                let found_title = before
+                    .rsplit(|c: char| c == '\n' || c == '>')
+                    .next()
+                    .unwrap_or(before)
+                    .trim();
+                let after = &head[at + 4..];
+                let found_company = after
+                    .split(|c: char| {
+                        c == '\n'
+                            || c == '|'
+                            || c == '('
+                            || c == ','
+                            || c.is_ascii_whitespace() && after.len() > 40
+                    })
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                let company_tok = found_company.split_whitespace().next().unwrap_or(found_company);
+                if found_title.len() > 3
+                    && found_title.len() < 80
+                    && company_tok.len() > 1
+                    && company_tok.len() < 40
+                    && !found_title.to_lowercase().starts_with("http")
+                {
+                    if title.is_none() {
+                        title = Some(found_title.to_string());
+                    }
+                    if company.is_none() {
+                        company = Some(company_tok.to_string());
+                    }
+                }
             }
         }
     }
 
-    (None, None)
+    (title, company)
 }
 
 fn date_yyyy_mm_dd_from_last_updated(last_updated: &str) -> String {
@@ -2467,13 +2685,13 @@ pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> Applicat
         .company
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_placeholder_company(s))
         .map(|s| s.to_string());
     let mut title = o
         .title
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_placeholder_title(s))
         .map(|s| s.to_string());
 
     if company.is_none() {
@@ -2599,12 +2817,11 @@ fn artifact_path_allowed(canonical_file: &std::path::Path) -> bool {
     false
 }
 
-pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, String> {
-    let raw = std::path::PathBuf::from(path.trim());
+fn resolve_allowed_artifact_file(path: &str) -> Result<std::path::PathBuf, String> {
     if path.trim().is_empty() {
         return Err("path required".into());
     }
-    let canonical = raw
+    let canonical = std::path::PathBuf::from(path.trim())
         .canonicalize()
         .map_err(|_| "artifact not found".to_string())?;
     if !canonical.is_file() {
@@ -2613,6 +2830,11 @@ pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, Stri
     if !artifact_path_allowed(&canonical) {
         return Err("artifact path is outside allowed pack/apply folders".into());
     }
+    Ok(canonical)
+}
+
+pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, String> {
+    let canonical = resolve_allowed_artifact_file(path)?;
     let meta = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
     if meta.len() > MAX_ARTIFACT_BYTES {
         return Err("artifact too large to preview".into());
@@ -2651,6 +2873,16 @@ pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, Stri
 #[tauri::command]
 pub(crate) fn read_pack_artifact(path: String) -> Result<PackArtifactRead, String> {
     read_pack_artifact_at(&path)
+}
+
+/// Open an allowed pack/apply file in the system viewer (PDF, markdown, etc.).
+#[tauri::command]
+pub(crate) fn open_pack_artifact(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let canonical = resolve_allowed_artifact_file(&path)?;
+    app.opener()
+        .open_path(canonical.to_string_lossy().as_ref(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -3268,16 +3500,11 @@ pub(crate) async fn generate_apply_cv(
     db: State<'_, AppDb>,
     opportunity_id: i64,
 ) -> Result<GenerateApplyCvResult, String> {
-    // 1) Export + template overlay under lock
-    let exported = {
-        let guard = db
-            .0
-            .lock()
-            .map_err(|_| "lock failed".to_string())?;
-        if opportunity_id <= 0 {
-            return Err("opportunity_id required".into());
-        }
-        // existence check
+    if opportunity_id <= 0 {
+        return Err("opportunity_id required".into());
+    }
+    let (source_url, needs_enrich) = {
+        let guard = db.0.lock().map_err(|_| "lock failed".to_string())?;
         let opps = guard
             .get_opportunities(&db::OpportunityFilter {
                 id: Some(opportunity_id),
@@ -3285,9 +3512,36 @@ pub(crate) async fn generate_apply_cv(
                 ..Default::default()
             })
             .unwrap_or_default();
-        if opps.is_empty() {
-            return Err(format!("opportunity {opportunity_id} not found"));
+        let o = opps
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("opportunity {opportunity_id} not found"))?;
+        let identity = resolve_application_pack_identity(&o);
+        let needs = is_placeholder_company(&identity.company)
+            || is_placeholder_title(&identity.title)
+            || !stored_jd_is_usable(&o.jd_text);
+        (o.source_url.clone(), needs)
+    };
+    if needs_enrich {
+        if let Some(url) = source_url.clone() {
+            if let Ok(Some((text, title, company))) = resolve_opportunity_source(Some(url), None).await {
+                if let Ok(guard) = db.0.lock() {
+                    let _ = guard.update_opportunity_identity(
+                        opportunity_id,
+                        title.as_deref(),
+                        company.as_deref(),
+                        Some(text.as_str()),
+                    );
+                }
+            }
         }
+    }
+    // 1) Export + template overlay under lock
+    let exported = {
+        let guard = db
+            .0
+            .lock()
+            .map_err(|_| "lock failed".to_string())?;
         do_export_application_pack(&*guard, opportunity_id)?
     };
 
@@ -4220,6 +4474,47 @@ mod tests {
     }
 
     #[test]
+    fn infer_title_company_from_platsbanken_jd_and_vend_prose() {
+        let formatted = "# Software Engineer, Customer Service Experience\nEmployer: Vend Marketplaces AB\n\nBody";
+        let (title, company) = infer_title_company_from_jd(formatted);
+        assert_eq!(
+            title.as_deref(),
+            Some("Software Engineer, Customer Service Experience")
+        );
+        assert_eq!(company.as_deref(), Some("Vend Marketplaces AB"));
+
+        let prose = "We are looking for a Frontend/Fullstack Software Engineer to join our CSX team.\n\nAt Vend, our mission is simple.";
+        let (title, company) = infer_title_company_from_jd(prose);
+        assert!(
+            title
+                .as_deref()
+                .is_some_and(|t| t.contains("Frontend/Fullstack Software Engineer")),
+            "{title:?}"
+        );
+        assert_eq!(company.as_deref(), Some("Vend"));
+    }
+
+    #[test]
+    fn seeking_line_avoids_role_role_and_opp_id_company() {
+        let line = seeking_line("role", "opp55");
+        assert!(
+            !line.to_lowercase().contains("role role"),
+            "{line}"
+        );
+        assert!(
+            !line.to_lowercase().contains("opp55"),
+            "{line}"
+        );
+        let vend = seeking_line(
+            "Software Engineer, Customer Service Experience",
+            "Vend Marketplaces AB",
+        );
+        assert!(vend.contains("Vend Marketplaces AB"), "{vend}");
+        assert!(vend.contains("Software Engineer, Customer Service Experience"), "{vend}");
+        assert!(!vend.contains("the Software Engineer, Customer Service Experience role at") || vend.contains("at Vend"), "{vend}");
+    }
+
+    #[test]
     fn featured_keys_from_prep_text_detects_project_mentions() {
         let keys = featured_keys_from_prep_text(
             "Promote collab-finder and agent-prompt-tuning-lab; selfie-sign-in with Rekognition",
@@ -4350,10 +4645,18 @@ mod tests {
         let read = read_pack_artifact_at(letter.to_str().unwrap()).expect("read pack md");
         assert_eq!(read.kind, "text");
         assert!(read.text.unwrap_or_default().contains("Hello Vend"));
+        let pdf = pack.join("cv.pdf");
+        std::fs::write(&pdf, b"%PDF-1.4\n").unwrap();
+        assert!(
+            resolve_allowed_artifact_file(pdf.to_str().unwrap()).is_ok(),
+            "pack PDF must be openable"
+        );
         let outside = tmp.join("secret.txt");
         std::fs::write(&outside, "nope").unwrap();
         let err = read_pack_artifact_at(outside.to_str().unwrap()).unwrap_err();
         assert!(err.contains("outside"), "{err}");
+        let open_err = resolve_allowed_artifact_file(outside.to_str().unwrap()).unwrap_err();
+        assert!(open_err.contains("outside"), "{open_err}");
     }
 
     #[test]

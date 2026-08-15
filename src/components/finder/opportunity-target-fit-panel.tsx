@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Copy, ExternalLink, BookOpen } from 'lucide-react'
+import { Check, Copy, ExternalLink, BookOpen, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -236,9 +236,24 @@ export function OpportunityTargetFitPanel({
         text: prepObj.cv_suggestions.map((s) => `- ${s}`).join('\n'),
       })
     }
+    const seenPdfPaths = new Set(
+      nodes.filter((n) => n.group === 'CV PDF' && n.path).map((n) => n.path as string),
+    )
     const packDir = lastApplicationPackExport?.pack_dir
     if (listedPack.length > 0) {
       for (const item of listedPack) {
+        const isPdf = item.kind === 'pdf' || item.name.toLowerCase().endsWith('.pdf')
+        if (isPdf) {
+          if (seenPdfPaths.has(item.path)) continue
+          seenPdfPaths.add(item.path)
+          nodes.push({
+            id: `pdf-pack-${item.path}`,
+            label: item.name,
+            group: 'CV PDF',
+            path: item.path,
+          })
+          continue
+        }
         nodes.push({
           id: `pack-${item.path}`,
           label: item.name,
@@ -248,10 +263,11 @@ export function OpportunityTargetFitPanel({
       }
     } else if (packDir && lastApplicationPackExport?.files) {
       for (const fileName of lastApplicationPackExport.files) {
+        const isPdf = fileName.toLowerCase().endsWith('.pdf')
         nodes.push({
-          id: `pack-${fileName}`,
+          id: isPdf ? `pdf-pack-${fileName}` : `pack-${fileName}`,
           label: fileName,
-          group: 'Pack',
+          group: isPdf ? 'CV PDF' : 'Pack',
           path: `${packDir.replace(/\/$/, '')}/${fileName}`,
         })
       }
@@ -259,10 +275,13 @@ export function OpportunityTargetFitPanel({
     return nodes
   }, [result, listedPack, lastApplicationPackExport, lastApplyCv, companyName, roleTitle])
 
+  const pdfNode = artifactNodes.find((node) => node.group === 'CV PDF')
+
   const openWorkspace = React.useCallback((focusId?: string) => {
-    setReaderFocus(focusId ?? artifactNodes[0]?.id ?? null)
+    const fallback = pdfNode?.id ?? artifactNodes[0]?.id ?? null
+    setReaderFocus(focusId ?? fallback)
     setReaderOpen(true)
-  }, [artifactNodes])
+  }, [artifactNodes, pdfNode])
 
   if (busy) {
     return (
@@ -656,6 +675,24 @@ export function OpportunityTargetFitPanel({
             >
               <BookOpen className="h-3.5 w-3.5" />
               Open artifacts
+            </Button>
+          )}
+          {prep && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!pdfNode}
+              onClick={() => {
+                if (pdfNode) openWorkspace(pdfNode.id)
+              }}
+              title={
+                pdfNode
+                  ? 'Open the apply CV PDF'
+                  : 'No PDF yet — click Generate apply CV first'
+              }
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Open PDF
             </Button>
           )}
           {onGenerateApplyCv && prep && opportunityId && (

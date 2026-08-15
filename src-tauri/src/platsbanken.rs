@@ -336,6 +336,20 @@ pub async fn search_ads(filter: &PlatsbankenSearchFilter) -> Result<Vec<ParsedAd
     Ok(out)
 }
 
+/// Platsbanken listing id from a public ad URL (`…/platsbanken/annonser/31331639`).
+pub fn ad_id_from_webpage_url(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    let marker = "/platsbanken/annonser/";
+    let pos = lower.find(marker)?;
+    let after = &url[pos + marker.len()..];
+    let id: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if id.len() >= 4 {
+        Some(id)
+    } else {
+        None
+    }
+}
+
 pub async fn fetch_ad(ad_id: &str) -> Result<ParsedAd, String> {
     let id = ad_id.trim();
     if id.is_empty() {
@@ -430,6 +444,18 @@ mod tests {
         assert!(jd.contains("Ad id: 31226420"));
         assert!(jd.contains("Platsbanken:"));
         assert!(jd.contains("Machine Learning Engineer"));
+    }
+
+    #[test]
+    fn ad_id_from_platsbanken_url() {
+        assert_eq!(
+            ad_id_from_webpage_url(
+                "https://arbetsformedlingen.se/platsbanken/annonser/31331639"
+            )
+            .as_deref(),
+            Some("31331639")
+        );
+        assert_eq!(ad_id_from_webpage_url("https://jobs.qred.com/x"), None);
     }
 
     #[test]
