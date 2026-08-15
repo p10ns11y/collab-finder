@@ -48,11 +48,14 @@ import type { AppError } from '../error'
 // Central definition avoids drift (Issue 5). localStorage is the FE cache; DB is canonical for Opportunity data.
 export const CV_LS_KEY = 'cf.cvSummary'
 export const SESSION_LS_KEY = 'cf.lastSession'
+/** Cap persisted paste so session JSON stays small; evaluate still sends the live textarea. */
+export const PASTED_JD_SESSION_MAX_CHARS = 24000
 
 export type PersistedSession = {
   lastActiveOppId?: number
   activeScreen?: FinderScreen
   opportunityTargetUrl?: string
+  opportunityTargetPastedJd?: string
 }
 
 const VALID_SCREENS: FinderScreen[] = [
@@ -137,6 +140,8 @@ export type FinderModel = {
   // Works for any opportunity type (collab, side hustle, community, role, etc.).
   opportunityTarget: AsyncState<OpportunityTargetResult>
   opportunityTargetUrl?: string
+  /** Pasted JD from Evaluate / hydrate — Prepare bundle must send this when there is no URL. */
+  opportunityTargetPastedJd?: string
   // Hire board (ephemeral sheet skim — not SQLite until Select/Evaluate)
   hireBoard: AsyncState<HireBoardLead[]>
   hireBoardQ: string
@@ -195,6 +200,7 @@ export function initialFinderModel(): FinderModel {
   let activeScreen: FinderScreen = 'discover'
   let lastActiveOppId: number | undefined = undefined
   let opportunityTargetUrl: string | undefined = undefined
+  let opportunityTargetPastedJd: string | undefined = undefined
   try {
     const savedCv = localStorage.getItem(CV_LS_KEY)
     const { value } = sanitizeCvPacket(savedCv, DEFAULT_CV_SUMMARY)
@@ -214,6 +220,9 @@ export function initialFinderModel(): FinderModel {
       }
       if (typeof s.opportunityTargetUrl === 'string' && s.opportunityTargetUrl.length > 0) {
         opportunityTargetUrl = s.opportunityTargetUrl
+      }
+      if (typeof s.opportunityTargetPastedJd === 'string' && s.opportunityTargetPastedJd.trim()) {
+        opportunityTargetPastedJd = s.opportunityTargetPastedJd
       }
     }
   } catch {
@@ -264,6 +273,7 @@ export function initialFinderModel(): FinderModel {
     hydrate: idle(),
     opportunityTarget: idle<OpportunityTargetResult>(),
     opportunityTargetUrl,
+    opportunityTargetPastedJd,
     hireBoard: idle<HireBoardLead[]>(),
     hireBoardQ: '',
     hireBoardGeo: [],

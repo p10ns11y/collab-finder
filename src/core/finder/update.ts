@@ -546,6 +546,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: { status: 'loading' },
           opportunityTargetUrl: msg.url,
+          opportunityTargetPastedJd: msg.pasted_jd,
           banner: null,
         },
       ]
@@ -571,6 +572,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: idle(),
           opportunityTargetUrl: undefined,
+          opportunityTargetPastedJd: undefined,
           lastSidecarProposal: undefined,
           lastApplicationPackExport: undefined,
           lastApplyCv: undefined,
@@ -580,6 +582,21 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'OpportunityTargetUrlSet':
       // Pure setter (no I/O effect) used by restore/load paths to sync the display url (for panel "Open" button + prep dispatch) without triggering analyze.
       return [{ ...model, opportunityTargetUrl: msg.url }]
+
+    case 'OpportunityTargetJdSet':
+      // Hydrate from DB: never wipe a paste the user already typed this session.
+      return [
+        {
+          ...model,
+          opportunityTargetPastedJd:
+            msg.pasted_jd && msg.pasted_jd.trim()
+              ? msg.pasted_jd
+              : model.opportunityTargetPastedJd,
+        },
+      ]
+
+    case 'OpportunityTargetPastedJdChanged':
+      return [{ ...model, opportunityTargetPastedJd: msg.pasted_jd }]
 
     // Opportunity target prep (Slice C)
     case 'OpportunityTargetPrepRequested':

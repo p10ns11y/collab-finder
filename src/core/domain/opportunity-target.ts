@@ -30,6 +30,14 @@ export type OpportunityTargetFit = {
   deal_breakers_triggered?: string[]
 }
 
+/** Real JD body only — ignore empty and the old analyze upsert placeholder `"jd"`. */
+export function usableOpportunityJdText(text?: string | null): string | undefined {
+  if (text == null) return undefined
+  const trimmed = text.trim()
+  if (!trimmed || trimmed === 'jd') return undefined
+  return text
+}
+
 export type OpportunityTargetPrep = {
   cover_letter: string
   cv_suggestions: string[]

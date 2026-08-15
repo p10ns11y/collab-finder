@@ -61,6 +61,7 @@ export function HuntFitPane({ view, dispatch }: Props) {
           type: 'OpportunityTargetPrepRequested',
           opportunity_id: opportunityId,
           url: sourceUrl,
+          pasted_jd: model.opportunityTargetPastedJd || selectedOpp?.jd_text,
         })
       }
       onProposeSidecar={(opportunityId) => {

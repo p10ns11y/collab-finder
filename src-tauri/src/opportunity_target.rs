@@ -1115,6 +1115,33 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
     })
 }
 
+/// Placeholder written by older analyze/prep upserts instead of the real JD body.
+fn stored_jd_is_usable(jd_text: &str) -> bool {
+    let trimmed = jd_text.trim();
+    !trimmed.is_empty() && trimmed != "jd"
+}
+
+/// Prefer pasted JD, else fetch URL. Empty Option means neither source had usable text (caller may load DB).
+async fn resolve_opportunity_jd_text(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<Option<String>, String> {
+    if let Some(pasted) = pasted_jd {
+        if stored_jd_is_usable(&pasted) {
+            return Ok(Some(pasted));
+        }
+    }
+    if let Some(page_url) = url {
+        if !page_url.trim().is_empty() {
+            let fetched = fetch_opportunity_target_page(page_url).await?;
+            if stored_jd_is_usable(&fetched.cleaned_text) {
+                return Ok(Some(fetched.cleaned_text));
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Core implementation for analyze (no store/persist), so tests can drive the logic the cmd uses
 /// and get the full OpportunityTargetAnalysisResult with packet_preview from the cv resolved under the path.
 pub(crate) async fn run_analyze_opportunity_target(
@@ -1124,15 +1151,9 @@ pub(crate) async fn run_analyze_opportunity_target(
     _company: Option<String>,
     cv_summary: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
-    let jd = match (url.clone(), pasted_jd) {
-        (_, Some(p)) if !p.trim().is_empty() => p,
-        (Some(u), _) => {
-            // Normalize bare host/path before fetch (avoids reqwest "builder error").
-            let fetched = fetch_opportunity_target_page(u).await?;
-            fetched.cleaned_text
-        }
-        _ => return Err("Provide either url or pasted_jd".into()),
-    };
+    let jd = resolve_opportunity_jd_text(url, pasted_jd)
+        .await?
+        .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
 
     let dev_path = get_devprofile_path();
     let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
@@ -1197,14 +1218,20 @@ pub(crate) async fn analyze_opportunity_target(
     title: Option<String>,
     company: Option<String>,
     cv_summary: Option<String>,
+    paste: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
     // Normalize bare host/path so DB + Open URL store absolute https://…
     let url = match url {
         Some(u) if !u.trim().is_empty() => Some(normalize_opportunity_fetch_url(&u)?),
         other => other.filter(|u| !u.trim().is_empty()),
     };
+    let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
+    // Resolve JD once so we persist the real body (not the old "jd" placeholder) and analyze uses the same text.
+    let jd = resolve_opportunity_jd_text(url.clone(), pasted_jd.clone())
+        .await?
+        .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
     // Delegate core (resolve + stub xAI + compute packet) to run_, short lock for upsert only.
-    let mut res = run_analyze_opportunity_target(url.clone(), pasted_jd.clone(), title.clone(), company.clone(), cv_summary).await?;
+    let mut res = run_analyze_opportunity_target(None, Some(jd.clone()), title.clone(), company.clone(), cv_summary).await?;
     let run_id = if let Ok(guard) = db.0.lock() {
         let analysis_for_store = json!({
             "fit": res.fit,
@@ -1219,7 +1246,7 @@ pub(crate) async fn analyze_opportunity_target(
             "est_cost_usd": res.est_cost_usd,
         });
         guard.upsert_opportunity(
-            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), "jd",
+            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), &jd,
             "analyzed", Some( (res.fit.get("overall").and_then(|v| v.as_i64()).unwrap_or(0)) as i32 ),
             Some(&analysis_for_store.to_string()), None, None,
         ).unwrap_or(0)
@@ -1238,22 +1265,11 @@ pub(crate) async fn run_prep_opportunity_target(
     cv_summary: Option<String>,
     previous_fit: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
-    let mut jd = String::new();
-    if let Some(p) = &pasted_jd {
-        if !p.trim().is_empty() {
-            jd = p.clone();
-        }
-    }
-    if jd.is_empty() {
-        if let Some(u) = &url {
-            // Same scheme normalization as analyze (bare host/path pastes).
-            let fetched = fetch_opportunity_target_page(u.clone()).await?;
-            jd = fetched.cleaned_text;
-        }
-    }
-    if jd.is_empty() {
-        return Err( "Provide url, pasted_jd or ensure prior analyze created the opportunity".into() );
-    }
+    let jd = resolve_opportunity_jd_text(url, pasted_jd)
+        .await?
+        .ok_or_else(|| {
+            "Provide url, pasted_jd or ensure prior analyze created the opportunity".to_string()
+        })?;
 
     let dev_path = get_devprofile_path();
     let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
@@ -1319,15 +1335,65 @@ pub(crate) async fn prep_opportunity_target(
     company: Option<String>,
     cv_summary: Option<String>,
     previous_fit: Option<String>,
+    paste: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
-    // Delegate to run_ (core), short lock for persist.
-    let mut res = run_prep_opportunity_target(opportunity_id, url.clone(), pasted_jd.clone(), title.clone(), company.clone(), cv_summary, previous_fit).await?;
-    let run_id = if let Ok(guard) = db.0.lock() {
-        guard.upsert_opportunity(
-            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), "jd",
-            "prepped", None, None, Some(&res.prep.to_string()), None,
-        ).unwrap_or(0)
-    } else { 0 };
+    let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
+    let mut jd = resolve_opportunity_jd_text(url.clone(), pasted_jd.clone()).await?;
+    if !jd.as_ref().is_some_and(|text| stored_jd_is_usable(text)) {
+        if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
+            if let Ok(guard) = db.0.lock() {
+                if let Ok(rows) = guard.get_opportunities(&db::OpportunityFilter {
+                    id: Some(oid),
+                    limit: Some(1),
+                    ..Default::default()
+                }) {
+                    if let Some(row) = rows.into_iter().next() {
+                        if stored_jd_is_usable(&row.jd_text) {
+                            jd = Some(row.jd_text);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let jd = jd.filter(|text| stored_jd_is_usable(text)).ok_or_else(|| {
+        "Provide url, pasted_jd or ensure prior analyze created the opportunity".to_string()
+    })?;
+    // Delegate to run_ (core) with resolved JD as pasted_jd so paste-only / prior-analyze paths work.
+    let mut res = run_prep_opportunity_target(
+        opportunity_id,
+        None,
+        Some(jd.clone()),
+        title.clone(),
+        company.clone(),
+        cv_summary,
+        previous_fit,
+    )
+    .await?;
+    let run_id = if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
+        if let Ok(guard) = db.0.lock() {
+            let _ = guard.set_prep_artifacts(oid, &res.prep.to_string(), "prepped");
+        }
+        oid
+    } else if let Ok(guard) = db.0.lock() {
+        guard
+            .upsert_opportunity(
+                "web",
+                url.as_deref(),
+                None,
+                title.as_deref(),
+                company.as_deref(),
+                &jd,
+                "prepped",
+                None,
+                None,
+                Some(&res.prep.to_string()),
+                None,
+            )
+            .unwrap_or(0)
+    } else {
+        0
+    };
     res.opportunity_id = run_id;
     Ok(res)
 }
@@ -1444,6 +1510,16 @@ pub struct ApplicationPackExportResult {
     pub files: Vec<String>,
     /// Number of non-empty content files written (excludes empty skips).
     pub file_count: u32,
+}
+
+/// In-app reader payload for pack markdown/PDF (bounded paths only).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PackArtifactRead {
+    pub filename: String,
+    /// `text` or `pdf`
+    pub kind: String,
+    pub text: Option<String>,
+    pub pdf_base64: Option<String>,
 }
 
 /// Identity used for pack folder naming and manifest (pure / serializable).
@@ -2326,6 +2402,108 @@ pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> Applicat
 /// Deterministic pack dir under app data: `application_packs/{company}-{title}-{date}/`.
 pub(crate) fn application_pack_dir_for(base_dir: &std::path::Path, slug: &str) -> PathBuf {
     base_dir.join("application_packs").join(slug)
+}
+
+const MAX_ARTIFACT_BYTES: u64 = 12 * 1024 * 1024;
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(((bytes.len() + 2) / 3) * 4);
+    for chunk in bytes.chunks(3) {
+        let a = chunk[0] as u32;
+        let b = chunk.get(1).copied().unwrap_or(0) as u32;
+        let c = chunk.get(2).copied().unwrap_or(0) as u32;
+        let triple = (a << 16) | (b << 8) | c;
+        out.push(TABLE[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(triple & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn path_is_under(canonical_file: &std::path::Path, root: &std::path::Path) -> bool {
+    let Ok(root_c) = root.canonicalize() else {
+        return false;
+    };
+    canonical_file.starts_with(&root_c)
+}
+
+/// Only application_packs under app data, or generate-apply-cv PDFs under devprofile/out/apply.
+fn artifact_path_allowed(canonical_file: &std::path::Path) -> bool {
+    if let Ok(data) = crate::app_dirs::app_data_dir() {
+        if path_is_under(canonical_file, &data.join("application_packs")) {
+            return true;
+        }
+    }
+    if let Some(dev) = get_devprofile_path() {
+        if path_is_under(canonical_file, &std::path::PathBuf::from(dev).join("out").join("apply")) {
+            return true;
+        }
+    }
+    false
+}
+
+pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, String> {
+    let raw = std::path::PathBuf::from(path.trim());
+    if path.trim().is_empty() {
+        return Err("path required".into());
+    }
+    let canonical = raw
+        .canonicalize()
+        .map_err(|_| "artifact not found".to_string())?;
+    if !canonical.is_file() {
+        return Err("artifact is not a file".into());
+    }
+    if !artifact_path_allowed(&canonical) {
+        return Err("artifact path is outside allowed pack/apply folders".into());
+    }
+    let meta = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
+    if meta.len() > MAX_ARTIFACT_BYTES {
+        return Err("artifact too large to preview".into());
+    }
+    let filename = canonical
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("artifact")
+        .to_string();
+    let ext = canonical
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext == "pdf" {
+        let bytes = std::fs::read(&canonical).map_err(|e| e.to_string())?;
+        return Ok(PackArtifactRead {
+            filename,
+            kind: "pdf".into(),
+            text: None,
+            pdf_base64: Some(encode_base64(&bytes)),
+        });
+    }
+    if matches!(ext.as_str(), "md" | "txt" | "json") {
+        let text = std::fs::read_to_string(&canonical).map_err(|e| e.to_string())?;
+        return Ok(PackArtifactRead {
+            filename,
+            kind: "text".into(),
+            text: Some(text),
+            pdf_base64: None,
+        });
+    }
+    Err("preview supports markdown, text, json, and pdf".into())
+}
+
+#[tauri::command]
+pub(crate) fn read_pack_artifact(path: String) -> Result<PackArtifactRead, String> {
+    read_pack_artifact_at(&path)
 }
 
 /// Core of export_application_pack: load stored prep, build files, write under app-local
@@ -3488,6 +3666,15 @@ mod tests {
     }
 
     #[test]
+    fn stored_jd_placeholder_is_not_usable() {
+        assert!(!stored_jd_is_usable("jd"));
+        assert!(!stored_jd_is_usable("  "));
+        assert!(stored_jd_is_usable(
+            "Hiring a staff engineer for agent inference"
+        ));
+    }
+
+    #[test]
     fn run_prep_path_selects_variant_and_embeds_id() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let res = rt
@@ -3649,6 +3836,7 @@ mod tests {
             Some("Staff Engineer".to_string()),
             Some("xAI".to_string()),
             None, // cv_summary=None -> triggers devprofile_path branch
+            None, // paste alias
         ) ).expect("analyze_opportunity_target cmd");
 
         // The returned result from the cmd must have packet_preview from the live pruned CV
@@ -3820,6 +4008,33 @@ mod tests {
             "xai-exceptional-software-engineer-2026-07-17"
         );
         assert_eq!(slugify_pack_segment("  Foo & Bar!! "), "foo-bar");
+    }
+
+    #[test]
+    fn read_pack_artifact_allows_app_packs_and_rejects_outside() {
+        struct HarnessGuard(std::path::PathBuf);
+        impl Drop for HarnessGuard {
+            fn drop(&mut self) {
+                crate::app_dirs::test_harness::clear();
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("cf_artifact_read_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let _guard = HarnessGuard(tmp.clone());
+        crate::app_dirs::test_harness::set(tmp.clone());
+        let pack = tmp.join("application_packs").join("vend-role-2026-08-15");
+        std::fs::create_dir_all(&pack).unwrap();
+        let letter = pack.join("cover-letter.md");
+        std::fs::write(&letter, "# Cover letter\n\nHello Vend.\n").unwrap();
+        let read = read_pack_artifact_at(letter.to_str().unwrap()).expect("read pack md");
+        assert_eq!(read.kind, "text");
+        assert!(read.text.unwrap_or_default().contains("Hello Vend"));
+        let outside = tmp.join("secret.txt");
+        std::fs::write(&outside, "nope").unwrap();
+        let err = read_pack_artifact_at(outside.to_str().unwrap()).unwrap_err();
+        assert!(err.contains("outside"), "{err}");
     }
 
     #[test]

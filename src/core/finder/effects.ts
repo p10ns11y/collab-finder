@@ -4,11 +4,11 @@ import { requireConnection, validateBearerDraft } from '../security/credentials-
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel, PersistedSession } from './model'
-import { CV_LS_KEY, SESSION_LS_KEY } from './model'
+import { CV_LS_KEY, PASTED_JD_SESSION_MAX_CHARS, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
-import { serializePreviousFitForPrep } from '../domain/opportunity-target'
+import { serializePreviousFitForPrep, usableOpportunityJdText } from '../domain/opportunity-target'
 import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
@@ -811,15 +811,24 @@ export function opportunityTargetAnalyzeCmd(
         ? normalizeOpportunityUrl(payload.url.trim()) ?? payload.url.trim()
         : payload.url
     const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
+    const pastedJd =
+      usableOpportunityJdText(payload.pasted_jd) ??
+      usableOpportunityJdText(model.opportunityTargetPastedJd)
     const p = {
       url: normalizedUrl,
-      pasted_jd: payload.pasted_jd,
+      pasted_jd: pastedJd,
       title: payload.title,
       company: payload.company,
       cv_summary: cvForIpc,
     }
     if (import.meta.env.DEV) {
-      console.debug('[finder] analyze_opportunity_target cv_summary ipc:', cvForIpc ? cvForIpc.length : 'undefined')
+      console.debug(
+        '[finder] analyze_opportunity_target ipc:',
+        'pasted_jd',
+        pastedJd ? `${pastedJd.length} chars` : 'missing',
+        'cv_summary',
+        cvForIpc ? cvForIpc.length : 'undefined',
+      )
     }
     if (normalizedUrl && normalizedUrl !== payload.url) {
       dispatch({ type: 'OpportunityTargetUrlSet', url: normalizedUrl })
@@ -879,7 +888,9 @@ export function opportunityTargetPrepCmd(
     const p = {
       opportunity_id: payload.opportunity_id,
       url: payload.url,
-      pasted_jd: payload.pasted_jd,
+      pasted_jd:
+        usableOpportunityJdText(payload.pasted_jd) ??
+        usableOpportunityJdText(model.opportunityTargetPastedJd),
       cv_summary: cvForIpc,
       previous_fit,
     }
@@ -1125,6 +1136,7 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       dispatch({ type: 'ScreenChanged', screen: 'discover' })
       // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
       dispatch({ type: 'OpportunityTargetUrlSet', url: o.source_url })
+      dispatch({ type: 'OpportunityTargetJdSet', pasted_jd: usableOpportunityJdText(o.jd_text) })
 
       // Robust reconstruct using the pure contract (moved to opportunity-target-ipc for testability and honest verify).
       let fitDispatched = false
@@ -1284,7 +1296,22 @@ export function effectForMsg(
       return networkResolveXCmd(ports, model)
     case 'NetworkEnrichLinkedInRequested':
       return networkEnrichLinkedInCmd(ports, model)
+    case 'OpportunityTargetPastedJdChanged':
+      return (/*dispatch*/) => {
+        const text = msg.pasted_jd
+        persistSessionToLocal({
+          opportunityTargetPastedJd: text
+            ? text.slice(0, PASTED_JD_SESSION_MAX_CHARS)
+            : undefined,
+        })
+      }
     case 'OpportunityTargetAnalyzeRequested':
+      persistSessionToLocal({
+        opportunityTargetPastedJd: (msg.pasted_jd ?? model.opportunityTargetPastedJd)
+          ? (msg.pasted_jd ?? model.opportunityTargetPastedJd)!.slice(0, PASTED_JD_SESSION_MAX_CHARS)
+          : undefined,
+        ...(msg.url ? { opportunityTargetUrl: msg.url } : {}),
+      })
       return opportunityTargetAnalyzeCmd(ports, model, { url: msg.url, pasted_jd: msg.pasted_jd })
     case 'OpportunityTargetPrepRequested':
       return opportunityTargetPrepCmd(ports, model, { opportunity_id: msg.opportunity_id, url: msg.url, pasted_jd: msg.pasted_jd })

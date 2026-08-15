@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Check, Copy, ExternalLink } from 'lucide-react'
+import { Check, Copy, ExternalLink, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { ArtifactReader, type ArtifactReaderDoc } from './artifact-reader'
 import type {
   OpportunityTargetResult,
   OpportunityTargetFit,
@@ -61,17 +62,30 @@ function PrepSection({
   title,
   children,
   copyText,
+  onRead,
 }: {
   title: string
   children: React.ReactNode
   copyText?: string
+  onRead?: () => void
 }) {
   const [copied, setCopied] = React.useState(false)
   return (
     <div className="rounded-md border border-border-subtle/80 bg-surface-2/40">
       <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border-subtle/60">
         <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">{title}</div>
-        {copyText ? (
+        <div className="flex items-center gap-2">
+          {onRead ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
+              onClick={onRead}
+            >
+              <BookOpen className="h-3 w-3" />
+              Read
+            </button>
+          ) : null}
+          {copyText ? (
           <button
             type="button"
             className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
@@ -85,7 +99,8 @@ function PrepSection({
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {copied ? 'Copied' : 'Copy'}
           </button>
-        ) : null}
+          ) : null}
+        </div>
       </div>
       <div className="p-2.5 text-xs text-ink-muted leading-relaxed">{children}</div>
     </div>
@@ -113,6 +128,35 @@ export function OpportunityTargetFitPanel({
   const [actionCopied, setActionCopied] = React.useState(false)
   const [allCopied, setAllCopied] = React.useState(false)
   const [showGrounding, setShowGrounding] = React.useState(false)
+  const [reader, setReader] = React.useState<ArtifactReaderDoc | null>(null)
+
+  const openPackFile = React.useCallback((absolutePath: string, title: string) => {
+    setReader({ title, kind: 'text', text: 'Opening…' })
+    void safeInvoke<{
+      filename: string
+      kind: string
+      text?: string | null
+      pdf_base64?: string | null
+    }>('read_pack_artifact', { path: absolutePath }).then((res) => {
+      if (!res.ok) {
+        setReader({ title, kind: 'error', message: res.error.message || String(res.error) })
+        return
+      }
+      if (res.value.kind === 'pdf' && res.value.pdf_base64) {
+        setReader({
+          title: res.value.filename || title,
+          kind: 'pdf',
+          src: `data:application/pdf;base64,${res.value.pdf_base64}`,
+        })
+        return
+      }
+      setReader({
+        title: res.value.filename || title,
+        kind: 'text',
+        text: res.value.text || '',
+      })
+    })
+  }, [])
 
   React.useEffect(() => {
     safeInvoke<string>('get_xai_model_cmd', {})
@@ -140,7 +184,7 @@ export function OpportunityTargetFitPanel({
     return (
       <Card className="border-danger/30 bg-danger/5">
         <CardHeader>
-          <CardTitle className="text-sm text-danger">Target analysis failed</CardTitle>
+          <CardTitle className="text-sm text-danger">Target step failed</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-ink-muted">{error}</CardContent>
       </Card>
@@ -387,7 +431,13 @@ export function OpportunityTargetFitPanel({
               )}
             </div>
             {prep.cover_letter && (
-              <PrepSection title="Cover letter" copyText={prep.cover_letter}>
+              <PrepSection
+                title="Cover letter"
+                copyText={prep.cover_letter}
+                onRead={() =>
+                  setReader({ title: 'Cover letter', kind: 'text', text: prep.cover_letter })
+                }
+              >
                 <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
                   {prep.cover_letter}
                 </pre>
@@ -406,12 +456,28 @@ export function OpportunityTargetFitPanel({
               </PrepSection>
             )}
             {prep.research_notes && (
-              <PrepSection title="Research notes" copyText={prep.research_notes}>
+              <PrepSection
+                title="Research notes"
+                copyText={prep.research_notes}
+                onRead={() =>
+                  setReader({ title: 'Research notes', kind: 'text', text: prep.research_notes })
+                }
+              >
                 <p className="whitespace-pre-wrap m-0">{prep.research_notes}</p>
               </PrepSection>
             )}
             {prep.exceptional_work_example && (
-              <PrepSection title="Exceptional work example" copyText={prep.exceptional_work_example}>
+              <PrepSection
+                title="Exceptional work example"
+                copyText={prep.exceptional_work_example}
+                onRead={() =>
+                  setReader({
+                    title: 'Exceptional work example',
+                    kind: 'text',
+                    text: prep.exceptional_work_example || '',
+                  })
+                }
+              >
                 <p className="whitespace-pre-wrap m-0">{prep.exceptional_work_example}</p>
               </PrepSection>
             )}
@@ -551,10 +617,23 @@ export function OpportunityTargetFitPanel({
                 {lastApplicationPackExport.pack_dir}
               </div>
               {(lastApplicationPackExport.files?.length ?? 0) > 0 ? (
-                <div className="text-ink-faint mt-1">
-                  {lastApplicationPackExport.files.join(', ')} — durable offline pack; master
-                  cvdata untouched. Prefer <strong>Generate apply CV</strong> for the PDF (exports
-                  automatically).
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {lastApplicationPackExport.files.map((fileName) => (
+                    <button
+                      key={fileName}
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent hover:border-accent/40"
+                      onClick={() =>
+                        openPackFile(
+                          `${lastApplicationPackExport.pack_dir.replace(/\/$/, '')}/${fileName}`,
+                          fileName,
+                        )
+                      }
+                    >
+                      <BookOpen className="h-3 w-3" />
+                      {fileName}
+                    </button>
+                  ))}
                 </div>
               ) : (
                 <div className="text-warning mt-1">
@@ -581,6 +660,40 @@ export function OpportunityTargetFitPanel({
             ) : null}
             <div className="text-ink-faint mt-1">
               From devprofile generate-apply-cv · pack {lastApplyCv.pack_slug}
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+                onClick={() => openPackFile(lastApplyCv.pdf_path, 'Apply CV PDF')}
+              >
+                <BookOpen className="h-3 w-3" />
+                Read PDF
+              </button>
+              {lastApplyCv.flat_pdf_path ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
+                  onClick={() => {
+                    const flatPdfPath = lastApplyCv.flat_pdf_path
+                    if (flatPdfPath) openPackFile(flatPdfPath, 'Flat PDF')
+                  }}
+                >
+                  Read flat PDF
+                </button>
+              ) : null}
+              {lastApplyCv.submit_pdf_path ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
+                  onClick={() => {
+                    const submitPdfPath = lastApplyCv.submit_pdf_path
+                    if (submitPdfPath) openPackFile(submitPdfPath, 'Submit PDF')
+                  }}
+                >
+                  Read submit PDF
+                </button>
+              ) : null}
             </div>
           </div>
         )}
@@ -612,6 +725,7 @@ export function OpportunityTargetFitPanel({
           </div>
         )}
       </CardContent>
+      {reader ? <ArtifactReader doc={reader} onClose={() => setReader(null)} /> : null}
     </Card>
   )
 }

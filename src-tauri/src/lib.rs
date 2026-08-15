@@ -25,7 +25,7 @@ use opportunity_target::{
     analyze_opportunity_target, export_application_pack, fetch_opportunity_target_page,
     generate_apply_cv, get_devprofile_path, get_devprofile_path_cmd, get_fit_mode_cmd,
     get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep,
-    set_devprofile_path_cmd, set_fit_mode_cmd, set_xai_model_cmd,
+    read_pack_artifact, set_devprofile_path_cmd, set_fit_mode_cmd, set_xai_model_cmd,
 };
 use std::sync::Mutex as StdMutex;
 use tauri::State;
@@ -933,6 +933,7 @@ pub fn run() {
             analyze_opportunity_target,
             prep_opportunity_target,
             export_application_pack,
+            read_pack_artifact,
             generate_apply_cv,
             get_devprofile_path_cmd,
             set_devprofile_path_cmd,

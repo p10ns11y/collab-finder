@@ -45,6 +45,8 @@ export type FinderMsg =
   | { type: 'CvSummaryResetToDefaultRequested' }
   | { type: 'OpportunitySelected'; id: number; url?: string }
   | { type: 'OpportunityTargetUrlSet'; url?: string }
+  | { type: 'OpportunityTargetJdSet'; pasted_jd?: string }
+  | { type: 'OpportunityTargetPastedJdChanged'; pasted_jd: string }
   | { type: 'PresetSelected'; query: string }
   | { type: 'CredentialsChecked'; storage: BearerStorageStatus }
   | { type: 'CredentialsDraftChanged'; draft: string }
