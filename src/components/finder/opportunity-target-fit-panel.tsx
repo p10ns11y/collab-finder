@@ -3,11 +3,12 @@ import { Check, Copy, ExternalLink, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { ArtifactReader, type ArtifactReaderDoc } from './artifact-reader'
-import type {
-  OpportunityTargetResult,
-  OpportunityTargetFit,
-  OpportunityTargetPrep,
+import { ArtifactReader, type ArtifactTreeNode } from './artifact-reader'
+import {
+  buildEmailApplyDraft,
+  type OpportunityTargetResult,
+  type OpportunityTargetFit,
+  type OpportunityTargetPrep,
 } from '../../core/domain/opportunity-target'
 import { shouldShowRestoredCvWarning } from '../../core/domain/opportunity-target-ipc'
 import { displayOpportunityUrl, normalizeOpportunityUrl } from '../../core/domain/opportunity-url'
@@ -56,6 +57,8 @@ type Props = {
     flat_pdf_path?: string | null
     submit_pdf_path?: string | null
   }
+  companyName?: string | null
+  roleTitle?: string | null
 }
 
 function PrepSection({
@@ -123,40 +126,18 @@ export function OpportunityTargetFitPanel({
   lastSidecarProposal,
   lastApplicationPackExport,
   lastApplyCv,
+  companyName,
+  roleTitle,
 }: Props) {
   const [modelLabel, setModelLabel] = React.useState('grok-4.6')
   const [actionCopied, setActionCopied] = React.useState(false)
   const [allCopied, setAllCopied] = React.useState(false)
   const [showGrounding, setShowGrounding] = React.useState(false)
-  const [reader, setReader] = React.useState<ArtifactReaderDoc | null>(null)
-
-  const openPackFile = React.useCallback((absolutePath: string, title: string) => {
-    setReader({ title, kind: 'text', text: 'Opening…' })
-    void safeInvoke<{
-      filename: string
-      kind: string
-      text?: string | null
-      pdf_base64?: string | null
-    }>('read_pack_artifact', { path: absolutePath }).then((res) => {
-      if (!res.ok) {
-        setReader({ title, kind: 'error', message: res.error.message || String(res.error) })
-        return
-      }
-      if (res.value.kind === 'pdf' && res.value.pdf_base64) {
-        setReader({
-          title: res.value.filename || title,
-          kind: 'pdf',
-          src: `data:application/pdf;base64,${res.value.pdf_base64}`,
-        })
-        return
-      }
-      setReader({
-        title: res.value.filename || title,
-        kind: 'text',
-        text: res.value.text || '',
-      })
-    })
-  }, [])
+  const [readerOpen, setReaderOpen] = React.useState(false)
+  const [readerFocus, setReaderFocus] = React.useState<string | null>(null)
+  const [listedPack, setListedPack] = React.useState<
+    { name: string; path: string; kind: string }[]
+  >([])
 
   React.useEffect(() => {
     safeInvoke<string>('get_xai_model_cmd', {})
@@ -165,6 +146,123 @@ export function OpportunityTargetFitPanel({
       })
       .catch(() => {})
   }, [])
+
+  React.useEffect(() => {
+    const dir = lastApplicationPackExport?.pack_dir || lastApplyCv?.pack_dir
+    if (!dir) {
+      setListedPack([])
+      return
+    }
+    void safeInvoke<{ name: string; path: string; kind: string }[]>('list_pack_dir', { dir }).then(
+      (res) => {
+        if (res.ok) setListedPack(res.value)
+        else setListedPack([])
+      },
+    )
+  }, [lastApplicationPackExport?.pack_dir, lastApplyCv?.pack_dir])
+
+  const artifactNodes = React.useMemo((): ArtifactTreeNode[] => {
+    const nodes: ArtifactTreeNode[] = []
+    const prepObj = result && 'prep' in result ? result.prep : undefined
+    const company =
+      companyName || lastApplicationPackExport?.company || ''
+    const title = roleTitle || lastApplicationPackExport?.title || ''
+    if (lastApplyCv?.pdf_path) {
+      nodes.push({
+        id: 'pdf-primary',
+        label: lastApplyCv.pdf_path.split('/').pop() || 'apply.pdf',
+        group: 'CV PDF',
+        path: lastApplyCv.pdf_path,
+      })
+    }
+    if (lastApplyCv?.flat_pdf_path) {
+      nodes.push({
+        id: 'pdf-flat',
+        label: lastApplyCv.flat_pdf_path.split('/').pop() || 'flat.pdf',
+        group: 'CV PDF',
+        path: lastApplyCv.flat_pdf_path,
+      })
+    }
+    if (lastApplyCv?.submit_pdf_path) {
+      nodes.push({
+        id: 'pdf-submit',
+        label: lastApplyCv.submit_pdf_path.split('/').pop() || 'submit.pdf',
+        group: 'CV PDF',
+        path: lastApplyCv.submit_pdf_path,
+      })
+    }
+    const emailDraft =
+      prepObj?.email_draft?.trim() ||
+      (prepObj?.cover_letter
+        ? buildEmailApplyDraft(prepObj.cover_letter, company, title)
+        : '')
+    if (emailDraft) {
+      nodes.push({
+        id: 'prep-email',
+        label: 'email-draft.md',
+        group: 'Email',
+        text: emailDraft,
+      })
+    }
+    if (prepObj?.cover_letter) {
+      nodes.push({
+        id: 'prep-cover',
+        label: 'cover-letter.md',
+        group: 'Prep',
+        text: prepObj.cover_letter,
+      })
+    }
+    if (prepObj?.research_notes) {
+      nodes.push({
+        id: 'prep-research',
+        label: 'research-notes.md',
+        group: 'Prep',
+        text: prepObj.research_notes,
+      })
+    }
+    if (prepObj?.exceptional_work_example) {
+      nodes.push({
+        id: 'prep-ew',
+        label: 'exceptional-work.md',
+        group: 'Prep',
+        text: prepObj.exceptional_work_example,
+      })
+    }
+    if (prepObj?.cv_suggestions?.length) {
+      nodes.push({
+        id: 'prep-suggestions',
+        label: 'cv-suggestions.md',
+        group: 'Prep',
+        text: prepObj.cv_suggestions.map((s) => `- ${s}`).join('\n'),
+      })
+    }
+    const packDir = lastApplicationPackExport?.pack_dir
+    if (listedPack.length > 0) {
+      for (const item of listedPack) {
+        nodes.push({
+          id: `pack-${item.path}`,
+          label: item.name,
+          group: 'Pack',
+          path: item.path,
+        })
+      }
+    } else if (packDir && lastApplicationPackExport?.files) {
+      for (const fileName of lastApplicationPackExport.files) {
+        nodes.push({
+          id: `pack-${fileName}`,
+          label: fileName,
+          group: 'Pack',
+          path: `${packDir.replace(/\/$/, '')}/${fileName}`,
+        })
+      }
+    }
+    return nodes
+  }, [result, listedPack, lastApplicationPackExport, lastApplyCv, companyName, roleTitle])
+
+  const openWorkspace = React.useCallback((focusId?: string) => {
+    setReaderFocus(focusId ?? artifactNodes[0]?.id ?? null)
+    setReaderOpen(true)
+  }, [artifactNodes])
 
   if (busy) {
     return (
@@ -238,9 +336,19 @@ export function OpportunityTargetFitPanel({
   const statusNorm = normalizePipelineStatus(pipelineStatus)
   const dealBreakers = fit?.deal_breakers_triggered ?? []
   const roleConcerns = fit?.role_concerns ?? []
+  const emailDraft =
+    prep?.email_draft?.trim() ||
+    (prep?.cover_letter
+      ? buildEmailApplyDraft(
+          prep.cover_letter,
+          companyName || lastApplicationPackExport?.company,
+          roleTitle || lastApplicationPackExport?.title,
+        )
+      : '')
 
   const prepBlob = prep
     ? [
+        emailDraft && `## Email apply draft\n\n${emailDraft}`,
         prep.cover_letter && `## Cover letter\n\n${prep.cover_letter}`,
         prep.cv_suggestions?.length &&
           `## CV suggestions\n\n${prep.cv_suggestions.map((s) => `- ${s}`).join('\n')}`,
@@ -430,13 +538,22 @@ export function OpportunityTargetFitPanel({
                 </button>
               )}
             </div>
+            {emailDraft && (
+              <PrepSection
+                title="Email apply draft"
+                copyText={emailDraft}
+                onRead={() => openWorkspace('prep-email')}
+              >
+                <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
+                  {emailDraft}
+                </pre>
+              </PrepSection>
+            )}
             {prep.cover_letter && (
               <PrepSection
                 title="Cover letter"
                 copyText={prep.cover_letter}
-                onRead={() =>
-                  setReader({ title: 'Cover letter', kind: 'text', text: prep.cover_letter })
-                }
+                onRead={() => openWorkspace('prep-cover')}
               >
                 <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
                   {prep.cover_letter}
@@ -459,9 +576,7 @@ export function OpportunityTargetFitPanel({
               <PrepSection
                 title="Research notes"
                 copyText={prep.research_notes}
-                onRead={() =>
-                  setReader({ title: 'Research notes', kind: 'text', text: prep.research_notes })
-                }
+                onRead={() => openWorkspace('prep-research')}
               >
                 <p className="whitespace-pre-wrap m-0">{prep.research_notes}</p>
               </PrepSection>
@@ -470,13 +585,7 @@ export function OpportunityTargetFitPanel({
               <PrepSection
                 title="Exceptional work example"
                 copyText={prep.exceptional_work_example}
-                onRead={() =>
-                  setReader({
-                    title: 'Exceptional work example',
-                    kind: 'text',
-                    text: prep.exceptional_work_example || '',
-                  })
-                }
+                onRead={() => openWorkspace('prep-ew')}
               >
                 <p className="whitespace-pre-wrap m-0">{prep.exceptional_work_example}</p>
               </PrepSection>
@@ -536,6 +645,17 @@ export function OpportunityTargetFitPanel({
               title="Propose CV suggestions as sidecar (no master mutation)"
             >
               Propose CV sidecar
+            </Button>
+          )}
+          {artifactNodes.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => openWorkspace()}
+              title="Full-viewport file tree for CV PDF, email draft, pack, and prep"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Open artifacts
             </Button>
           )}
           {onGenerateApplyCv && prep && opportunityId && (
@@ -623,12 +743,12 @@ export function OpportunityTargetFitPanel({
                       key={fileName}
                       type="button"
                       className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent hover:border-accent/40"
-                      onClick={() =>
-                        openPackFile(
-                          `${lastApplicationPackExport.pack_dir.replace(/\/$/, '')}/${fileName}`,
-                          fileName,
+                      onClick={() => {
+                        const match = artifactNodes.find(
+                          (n) => n.label === fileName || n.label.endsWith(fileName),
                         )
-                      }
+                        openWorkspace(match?.id ?? `pack-${fileName}`)
+                      }}
                     >
                       <BookOpen className="h-3 w-3" />
                       {fileName}
@@ -665,10 +785,10 @@ export function OpportunityTargetFitPanel({
               <button
                 type="button"
                 className="inline-flex items-center gap-1 rounded border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
-                onClick={() => openPackFile(lastApplyCv.pdf_path, 'Apply CV PDF')}
+                onClick={() => openWorkspace('pdf-primary')}
               >
                 <BookOpen className="h-3 w-3" />
-                Read PDF
+                Read CV PDF
               </button>
               {lastApplyCv.flat_pdf_path ? (
                 <button
@@ -676,7 +796,7 @@ export function OpportunityTargetFitPanel({
                   className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
                   onClick={() => {
                     const flatPdfPath = lastApplyCv.flat_pdf_path
-                    if (flatPdfPath) openPackFile(flatPdfPath, 'Flat PDF')
+                    if (flatPdfPath) openWorkspace('pdf-flat')
                   }}
                 >
                   Read flat PDF
@@ -688,7 +808,7 @@ export function OpportunityTargetFitPanel({
                   className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
                   onClick={() => {
                     const submitPdfPath = lastApplyCv.submit_pdf_path
-                    if (submitPdfPath) openPackFile(submitPdfPath, 'Submit PDF')
+                    if (submitPdfPath) openWorkspace('pdf-submit')
                   }}
                 >
                   Read submit PDF
@@ -725,7 +845,14 @@ export function OpportunityTargetFitPanel({
           </div>
         )}
       </CardContent>
-      {reader ? <ArtifactReader doc={reader} onClose={() => setReader(null)} /> : null}
+      {readerOpen && artifactNodes.length > 0 ? (
+        <ArtifactReader
+          key={readerFocus ?? 'workspace'}
+          nodes={artifactNodes}
+          initialId={readerFocus ?? undefined}
+          onClose={() => setReaderOpen(false)}
+        />
+      ) : null}
     </Card>
   )
 }

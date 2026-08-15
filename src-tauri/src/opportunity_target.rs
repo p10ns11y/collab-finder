@@ -41,13 +41,19 @@ const PUBLIC_PROJECTS_FOCUSED_JSON: &str =
 const PUBLIC_PROJECTS_SLIM_JSON: &str =
     include_str!("../../data/distillation/public-projects.json");
 
+/// Full GitHub descriptions (no API ellipsis) — upgrades truncated slim blurbs.
+const PUBLIC_PROJECTS_CLEAN_JSON: &str =
+    include_str!("../../data/distillation/public-projects-clean.json");
+
 const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
 
 const DEFAULT_PROOF_VARIANT_ID: &str = "EW-agent-collab-finder";
 
 /// Max projects / chars injected into prep (token budget for cover letters).
-const PREP_PROJECTS_MAX: usize = 12;
+const PREP_PROJECTS_MAX: usize = 8;
 const PREP_PROJECTS_BLOCK_MAX_CHARS: usize = 4500;
+/// PDF column: few complete blurbs beat many truncated GitHub leftovers.
+const FEATURED_PROJECTS_MAX: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProofVariant {
@@ -487,8 +493,7 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
                 let stars = p.get("stars").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
 
                 if let Some(existing) = by_name.get_mut(&key) {
-                    // Prefer longer description; fill empty fields from slim.
-                    if existing.description.len() < desc.len() {
+                    if should_replace_description(&existing.description, &desc) {
                         existing.description = desc;
                     }
                     if existing.url.is_empty() {
@@ -510,7 +515,11 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
                         key,
                         PublicProject {
                             name,
-                            description: desc,
+                            description: if github_description_truncated(&desc) {
+                                String::new()
+                            } else {
+                                desc
+                            },
                             language,
                             topics,
                             url,
@@ -525,7 +534,72 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
         }
     }
 
+    merge_clean_repo_descriptions(&mut by_name, PUBLIC_PROJECTS_CLEAN_JSON);
+
     by_name.into_values().collect()
+}
+
+fn github_description_truncated(s: &str) -> bool {
+    let t = s.trim();
+    t.ends_with('\u{2026}') || t.ends_with("...")
+}
+
+fn should_replace_description(current: &str, incoming: &str) -> bool {
+    if incoming.trim().is_empty() {
+        return false;
+    }
+    let incoming_cut = github_description_truncated(incoming);
+    let current_cut = current.trim().is_empty() || github_description_truncated(current);
+    if incoming_cut && !current_cut {
+        return false;
+    }
+    if !incoming_cut && current_cut {
+        return true;
+    }
+    incoming.chars().count() > current.chars().count()
+}
+
+fn merge_clean_repo_descriptions(
+    by_name: &mut std::collections::BTreeMap<String, PublicProject>,
+    clean_json: &str,
+) {
+    let Ok(v) = serde_json::from_str::<Value>(clean_json) else {
+        return;
+    };
+    let Some(arr) = v.get("repos").and_then(|x| x.as_array()) else {
+        return;
+    };
+    for p in arr {
+        let name = p
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let desc = p
+            .get("description")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if desc.is_empty() || github_description_truncated(&desc) {
+            continue;
+        }
+        let key = name.to_lowercase();
+        if let Some(existing) = by_name.get_mut(&key) {
+            if should_replace_description(&existing.description, &desc) {
+                existing.description = desc;
+            }
+            if existing.url.is_empty() {
+                if let Some(u) = p.get("html_url").and_then(|x| x.as_str()) {
+                    existing.url = u.to_string();
+                }
+            }
+        }
+    }
 }
 
 fn project_relevance_score(p: &PublicProject, jd_lower: &str) -> i32 {
@@ -608,8 +682,16 @@ pub(crate) fn format_public_projects_for_prep(projects: &[PublicProject], jd: &s
             p.topics.join(", ")
         };
         let mut desc = p.description.clone();
-        if desc.chars().count() > 220 {
-            desc = format!("{}…", desc.chars().take(219).collect::<String>());
+        if github_description_truncated(&desc) {
+            desc.clear();
+        } else if desc.chars().count() > 320 {
+            // Sentence-complete clamp — never mid-word GitHub leftover + extra ellipsis.
+            let cut: String = desc.chars().take(320).collect();
+            if let Some(idx) = cut.rfind(". ") {
+                desc = cut[..=idx].to_string();
+            } else {
+                desc = cut;
+            }
         }
         let lang = if p.language.is_empty() {
             "?"
@@ -1260,8 +1342,8 @@ pub(crate) async fn run_prep_opportunity_target(
     opportunity_id: Option<i64>,
     url: Option<String>,
     pasted_jd: Option<String>,
-    _title: Option<String>,
-    _company: Option<String>,
+    title: Option<String>,
+    company: Option<String>,
     cv_summary: Option<String>,
     previous_fit: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
@@ -1314,6 +1396,21 @@ pub(crate) async fn run_prep_opportunity_target(
     if let Some(obj) = prep_json.as_object_mut() {
         obj.insert("proof_variant_id".into(), json!(variant.id));
         obj.insert("proof_variant_title".into(), json!(variant.title));
+        let cover = obj
+            .get("cover_letter")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if !cover.trim().is_empty() {
+            obj.insert(
+                "email_draft".into(),
+                json!(build_email_apply_draft(
+                    &cover,
+                    company.as_deref().unwrap_or(""),
+                    title.as_deref().unwrap_or(""),
+                )),
+            );
+        }
     }
 
     // Return dummy id; caller (cmd or test) can persist if needed.
@@ -1622,6 +1719,44 @@ fn cover_letter_body_excerpt(cover: &str, max_chars: usize) -> String {
     body.chars().take(max_chars).collect()
 }
 
+fn first_sentences(text: &str, max_sentences: usize) -> String {
+    let mut out = String::new();
+    let mut count = 0usize;
+    for part in text.split_inclusive(|ch: char| matches!(ch, '.' | '!' | '?')) {
+        let trimmed = part.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(trimmed);
+        count += 1;
+        if count >= max_sentences {
+            break;
+        }
+    }
+    out
+}
+
+/// Subject + short email touch + full cover letter for apply-via-email (no extra xAI call).
+pub(crate) fn build_email_apply_draft(cover: &str, company: &str, title: &str) -> String {
+    let co = display_company_name(company);
+    let role = display_role_title(title);
+    let subject = format!("Application — {role} — {co}");
+    let excerpt = cover_letter_body_excerpt(cover, 480);
+    let touch = first_sentences(&excerpt, 2);
+    let touch = if touch.is_empty() {
+        format!("I'm applying for the {role} role at {co}.")
+    } else {
+        touch
+    };
+    let letter = cover.trim();
+    format!(
+        "Subject: {subject}\n\nHi,\n\n{touch}\n\nI've attached my CV as a PDF.\n\n---\n\n{letter}\n"
+    )
+}
+
 /// Display company: `qred` → `Qred`, leave multi-word as-is with first-letter upcase.
 pub(crate) fn display_company_name(company: &str) -> String {
     let t = company.trim();
@@ -1879,14 +2014,15 @@ pub(crate) fn build_cv_overlay_from_prep(
     scan.push_str(cover);
 
     let mut featured = featured_keys_from_prep_text(&scan);
-    // Defaults so OSS signal shows when suggestions are generic
     for def in ["collab-finder", "agent-prompt-tuning-lab", "adaptate"] {
+        if featured.len() >= FEATURED_PROJECTS_MAX {
+            break;
+        }
         if !featured.iter().any(|k| k == def) {
             featured.push(def.to_string());
         }
     }
-    // Cap for PDF column readability
-    featured.truncate(6);
+    featured.truncate(FEATURED_PROJECTS_MAX);
 
     let company = identity.map(|i| i.company.as_str()).unwrap_or("target");
     let title = identity.map(|i| i.title.as_str()).unwrap_or("role");
@@ -1916,19 +2052,17 @@ pub(crate) fn build_cv_overlay_from_prep(
             if techs.is_empty() && !p.language.is_empty() {
                 techs.push(p.language.clone());
             }
-            projects_upsert.push(json!({
-                "key": key,
-                "name": p.name,
-                "description": if p.description.is_empty() {
-                    format!("Personal/OSS: {}", p.name)
-                } else {
-                    p.description.chars().take(400).collect::<String>()
-                },
-                "url": p.url,
-                "type": "hobby_oss",
-                "technologies": techs,
-                "is_open_source": true,
-            }));
+            let mut rec = serde_json::Map::new();
+            rec.insert("key".into(), json!(key));
+            rec.insert("name".into(), json!(p.name));
+            rec.insert("url".into(), json!(p.url));
+            rec.insert("type".into(), json!("hobby_oss"));
+            rec.insert("technologies".into(), json!(techs));
+            rec.insert("is_open_source".into(), json!(true));
+            if !p.description.is_empty() && !github_description_truncated(&p.description) {
+                rec.insert("description".into(), json!(p.description.clone()));
+            }
+            projects_upsert.push(Value::Object(rec));
         }
     }
 
@@ -1966,6 +2100,19 @@ pub(crate) fn build_application_pack_files(
             files.push((
                 "cover-letter.md".into(),
                 format!("# Cover letter\n\n{t}\n"),
+            ));
+            let company = identity.map(|i| i.company.as_str()).unwrap_or("");
+            let title = identity.map(|i| i.title.as_str()).unwrap_or("");
+            let draft = prep
+                .get("email_draft")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| build_email_apply_draft(t, company, title));
+            files.push((
+                "email-draft.md".into(),
+                format!("# Email apply draft\n\n{draft}\n"),
             ));
         }
     }
@@ -2504,6 +2651,107 @@ pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, Stri
 #[tauri::command]
 pub(crate) fn read_pack_artifact(path: String) -> Result<PackArtifactRead, String> {
     read_pack_artifact_at(&path)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PackArtifactListItem {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+}
+
+fn artifact_kind_for_path(path: &std::path::Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "pdf" => "pdf",
+        "md" | "txt" | "json" => "text",
+        _ => "other",
+    }
+}
+
+pub(crate) fn list_pack_dir_at(dir: &str) -> Result<Vec<PackArtifactListItem>, String> {
+    let raw = std::path::PathBuf::from(dir.trim());
+    if dir.trim().is_empty() {
+        return Err("pack dir required".into());
+    }
+    let canonical = raw
+        .canonicalize()
+        .map_err(|_| "pack folder not found".to_string())?;
+    if !canonical.is_dir() {
+        return Err("pack path is not a folder".into());
+    }
+    if !artifact_path_allowed(&canonical) && !path_is_under_allowed_dir(&canonical) {
+        return Err("pack folder is outside allowed pack/apply folders".into());
+    }
+    let mut out: Vec<PackArtifactListItem> = Vec::new();
+    collect_pack_files(&canonical, &canonical, &mut out, 0)?;
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(out)
+}
+
+fn path_is_under_allowed_dir(canonical_dir: &std::path::Path) -> bool {
+    if let Ok(data) = crate::app_dirs::app_data_dir() {
+        if path_is_under(canonical_dir, &data.join("application_packs")) {
+            return true;
+        }
+        if canonical_dir.starts_with(&data.join("application_packs")) {
+            return true;
+        }
+    }
+    if let Some(dev) = get_devprofile_path() {
+        let apply = std::path::PathBuf::from(dev).join("out").join("apply");
+        if path_is_under(canonical_dir, &apply) {
+            return true;
+        }
+    }
+    false
+}
+
+fn collect_pack_files(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    out: &mut Vec<PackArtifactListItem>,
+    depth: u8,
+) -> Result<(), String> {
+    if depth > 2 {
+        return Ok(());
+    }
+    let rd = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for entry in rd.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_pack_files(root, &path, out, depth + 1)?;
+            continue;
+        }
+        if !path.is_file() {
+            continue;
+        }
+        let kind = artifact_kind_for_path(&path);
+        if kind == "other" {
+            continue;
+        }
+        let name = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+        out.push(PackArtifactListItem {
+            name,
+            path: path.to_string_lossy().to_string(),
+            kind: kind.to_string(),
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn list_pack_dir(dir: String) -> Result<Vec<PackArtifactListItem>, String> {
+    list_pack_dir_at(&dir)
 }
 
 /// Core of export_application_pack: load stored prep, build files, write under app-local
@@ -3900,6 +4148,15 @@ mod tests {
         let files = build_application_pack_files(prep, None).expect("builder");
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"cover-letter.md"));
+        assert!(names.contains(&"email-draft.md"));
+        let email = files
+            .iter()
+            .find(|(n, _)| n == "email-draft.md")
+            .map(|(_, c)| c.as_str())
+            .unwrap_or("");
+        assert!(email.contains("Subject:"));
+        assert!(email.contains("I've attached my CV as a PDF."));
+        assert!(email.contains("Dear hiring team"));
         assert!(names.contains(&"cv-suggestions.md"));
         assert!(names.contains(&"research-notes.md"));
         assert!(names.contains(&"exceptional-work.md"));
@@ -3949,6 +4206,20 @@ mod tests {
     }
 
     #[test]
+    fn email_apply_draft_combines_touch_and_cover_letter() {
+        let cover = "Dear hiring team,\n\nI bring Tauri plus agentic systems experience. I ship self-guarded loops.\n\nBest regards";
+        let draft = build_email_apply_draft(cover, "qred", "Fullstack Engineer");
+        assert!(draft.contains("Subject: Application — Fullstack Engineer — Qred"));
+        assert!(draft.contains("I bring Tauri plus agentic systems experience."));
+        assert!(draft.contains("I've attached my CV as a PDF."));
+        assert!(draft.contains("Dear hiring team"));
+        assert!(
+            !draft.contains("Peramanathan"),
+            "email touch must not inject extra identity lines"
+        );
+    }
+
+    #[test]
     fn featured_keys_from_prep_text_detects_project_mentions() {
         let keys = featured_keys_from_prep_text(
             "Promote collab-finder and agent-prompt-tuning-lab; selfie-sign-in with Rekognition",
@@ -3956,6 +4227,54 @@ mod tests {
         assert!(keys.contains(&"collab-finder".to_string()));
         assert!(keys.contains(&"agent-prompt-tuning-lab".to_string()));
         assert!(keys.contains(&"selfie-signin".to_string()));
+    }
+
+    #[test]
+    fn bank_and_overlay_use_complete_adaptate_description() {
+        let projects =
+            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        let adaptate = projects
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case("adaptate"))
+            .expect("adaptate in bank");
+        assert!(
+            !github_description_truncated(&adaptate.description),
+            "bank must not keep GitHub ellipsis: {}",
+            adaptate.description
+        );
+        assert!(
+            adaptate.description.to_lowercase().contains("at runtime")
+                || adaptate.description.to_lowercase().contains("consumer"),
+            "expected full clean blurb, got {}",
+            adaptate.description
+        );
+        let overlay = build_cv_overlay_from_prep(
+            &serde_json::from_str(
+                r#"{"cover_letter":"","cv_suggestions":["Lead with adaptate Zod OpenAPI"],"research_notes":"","exceptional_work_example":""}"#,
+            )
+            .unwrap(),
+            None,
+        );
+        let upsert = overlay
+            .get("projects_upsert")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let ad = upsert.iter().find(|p| {
+            p.get("key").and_then(|k| k.as_str()) == Some("adaptate")
+        });
+        if let Some(ad) = ad {
+            if let Some(d) = ad.get("description").and_then(|v| v.as_str()) {
+                assert!(!github_description_truncated(d), "overlay leaked truncated desc: {d}");
+                assert!(!d.contains("configuration objects to …"));
+            }
+        }
+        let keys = overlay
+            .get("featured_keys")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        assert!(keys <= FEATURED_PROJECTS_MAX);
     }
 
     #[test]

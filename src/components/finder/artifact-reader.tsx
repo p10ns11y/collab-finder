@@ -1,20 +1,48 @@
 /**
- * Full-pane reader for prep copy and exported pack files (md / pdf).
+ * Full-viewport artifact workspace: file tree + preview (text / PDF).
+ * Edit / LLM tweaks are out of scope.
  */
 import * as React from 'react'
-import { X } from 'lucide-react'
+import { FileText, Folder, X, Copy, Check } from 'lucide-react'
+import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 
-export type ArtifactReaderDoc =
-  | { title: string; kind: 'text'; text: string }
-  | { title: string; kind: 'pdf'; src: string }
-  | { title: string; kind: 'error'; message: string }
+export type ArtifactTreeNode = {
+  id: string
+  label: string
+  group: string
+  /** Inline prep copy (no disk). */
+  text?: string
+  /** Absolute path under application_packs or apply-cv out/. */
+  path?: string
+}
+
+type Preview =
+  | { kind: 'empty' }
+  | { kind: 'loading'; label: string }
+  | { kind: 'text'; title: string; text: string }
+  | { kind: 'pdf'; title: string; src: string }
+  | { kind: 'error'; title: string; message: string }
 
 type Props = {
-  doc: ArtifactReaderDoc
+  title?: string
+  nodes: ArtifactTreeNode[]
+  initialId?: string
   onClose: () => void
 }
 
-export function ArtifactReader({ doc, onClose }: Props) {
+export function ArtifactReader({ title = 'Application artifacts', nodes, initialId, onClose }: Props) {
+  const [selectedId, setSelectedId] = React.useState<string | null>(initialId ?? nodes[0]?.id ?? null)
+  const [preview, setPreview] = React.useState<Preview>({ kind: 'empty' })
+  const [copied, setCopied] = React.useState(false)
+  const blobUrlRef = React.useRef<string | null>(null)
+
+  const revokeBlob = React.useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
+    }
+  }, [])
+
   React.useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
@@ -23,34 +51,156 @@ export function ArtifactReader({ doc, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  React.useEffect(() => {
+    return () => revokeBlob()
+  }, [revokeBlob])
+
+  const selected = nodes.find((n) => n.id === selectedId) ?? nodes[0]
+
+  React.useEffect(() => {
+    if (!selected) {
+      setPreview({ kind: 'empty' })
+      return
+    }
+    revokeBlob()
+    if (selected.text != null) {
+      setPreview({ kind: 'text', title: selected.label, text: selected.text })
+      return
+    }
+    if (!selected.path) {
+      setPreview({ kind: 'empty' })
+      return
+    }
+    setPreview({ kind: 'loading', label: selected.label })
+    void safeInvoke<{
+      filename: string
+      kind: string
+      text?: string | null
+      pdf_base64?: string | null
+    }>('read_pack_artifact', { path: selected.path }).then((res) => {
+      if (!res.ok) {
+        setPreview({
+          kind: 'error',
+          title: selected.label,
+          message: res.error.message || String(res.error),
+        })
+        return
+      }
+      if (res.value.kind === 'pdf' && res.value.pdf_base64) {
+        const binary = atob(res.value.pdf_base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+        blobUrlRef.current = blobUrl
+        setPreview({
+          title: res.value.filename || selected.label,
+          kind: 'pdf',
+          src: blobUrl,
+        })
+        return
+      }
+      setPreview({
+        kind: 'text',
+        title: res.value.filename || selected.label,
+        text: res.value.text || '',
+      })
+    })
+  }, [selected, revokeBlob])
+
+  const groups = React.useMemo(() => {
+    const order: string[] = []
+    const map = new Map<string, ArtifactTreeNode[]>()
+    for (const node of nodes) {
+      if (!map.has(node.group)) {
+        map.set(node.group, [])
+        order.push(node.group)
+      }
+      map.get(node.group)?.push(node)
+    }
+    return order.map((group) => ({ group, items: map.get(group) ?? [] }))
+  }, [nodes])
+
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-surface-0/95 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col bg-surface-0"
       role="dialog"
       aria-modal="true"
-      aria-label={doc.title}
+      aria-label={title}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-2.5">
-        <div className="min-w-0 text-sm font-medium text-ink truncate">{doc.title}</div>
-        <button
-          type="button"
-          className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
-          onClick={onClose}
-        >
-          <X className="h-3.5 w-3.5" />
-          Close
-        </button>
+      <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-2">
+        <div className="min-w-0 text-sm font-medium text-ink truncate">{title}</div>
+        <div className="flex items-center gap-1">
+          {preview.kind === 'text' && preview.text ? (
+            <button
+              type="button"
+              className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
+              onClick={() => {
+                navigator.clipboard?.writeText(preview.text).then(() => {
+                  setCopied(true)
+                  window.setTimeout(() => setCopied(false), 1200)
+                }).catch(() => {})
+              }}
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
+            onClick={onClose}
+          >
+            <X className="h-3.5 w-3.5" />
+            Close
+          </button>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {doc.kind === 'error' ? (
-          <p className="p-6 text-sm text-danger">{doc.message}</p>
-        ) : doc.kind === 'pdf' ? (
-          <iframe title={doc.title} src={doc.src} className="h-full w-full border-0 bg-surface-1" />
-        ) : (
-          <article className="mx-auto max-w-prose px-5 py-8 text-[15px] leading-7 text-ink">
-            <pre className="whitespace-pre-wrap font-sans m-0">{doc.text}</pre>
-          </article>
-        )}
+      <div className="flex min-h-0 flex-1">
+        <aside className="w-[min(280px,38%)] shrink-0 overflow-auto border-r border-border-subtle bg-surface-1/60 py-2">
+          {groups.map(({ group, items }) => (
+            <div key={group} className="mb-2">
+              <div className="flex items-center gap-1 px-3 py-1 text-[10px] uppercase tracking-wide text-ink-faint">
+                <Folder className="h-3 w-3" />
+                {group}
+              </div>
+              {items.map((node) => {
+                const active = node.id === (selected?.id ?? selectedId)
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className={
+                      active
+                        ? 'flex w-full items-center gap-1.5 px-3 py-1 text-left text-[12px] bg-accent/15 text-accent'
+                        : 'flex w-full items-center gap-1.5 px-3 py-1 text-left text-[12px] text-ink-muted hover:bg-surface-2 hover:text-ink'
+                    }
+                    onClick={() => setSelectedId(node.id)}
+                  >
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{node.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </aside>
+        <section className="min-w-0 flex-1 overflow-hidden bg-surface-0">
+          {preview.kind === 'empty' ? (
+            <p className="p-6 text-sm text-ink-muted">Select a file.</p>
+          ) : preview.kind === 'loading' ? (
+            <p className="p-6 text-sm text-ink-muted">Opening {preview.label}…</p>
+          ) : preview.kind === 'error' ? (
+            <p className="p-6 text-sm text-danger">{preview.message}</p>
+          ) : preview.kind === 'pdf' ? (
+            <iframe title={preview.title} src={preview.src} className="h-full w-full border-0 bg-surface-1" />
+          ) : (
+            <article className="h-full overflow-auto">
+              <pre className="mx-auto max-w-3xl whitespace-pre-wrap px-6 py-8 font-sans text-[15px] leading-7 text-ink m-0">
+                {preview.text}
+              </pre>
+            </article>
+          )}
+        </section>
       </div>
     </div>
   )

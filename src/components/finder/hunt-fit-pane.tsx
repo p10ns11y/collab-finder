@@ -82,6 +82,8 @@ export function HuntFitPane({ view, dispatch }: Props) {
       lastSidecarProposal={view.lastSidecarProposal}
       lastApplicationPackExport={view.lastApplicationPackExport}
       lastApplyCv={view.lastApplyCv}
+      companyName={selectedOpp?.company}
+      roleTitle={selectedOpp?.title}
     />
   )
 }

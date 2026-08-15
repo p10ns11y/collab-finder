@@ -318,6 +318,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             lastSidecarProposal={view.lastSidecarProposal}
             lastApplicationPackExport={view.lastApplicationPackExport}
             lastApplyCv={view.lastApplyCv}
+            companyName={selectedOpp?.company}
+            roleTitle={selectedOpp?.title}
           />
         ) : !isDiscover ? (
           <div className="space-y-3">

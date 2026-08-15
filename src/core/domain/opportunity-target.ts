@@ -43,6 +43,8 @@ export type OpportunityTargetPrep = {
   cv_suggestions: string[]
   research_notes: string
   exceptional_work_example?: string
+  /** Subject + email touch + full cover letter for apply-via-email. */
+  email_draft?: string
   /** Embedded by Rust after variant selection (also on prep result top-level). */
   proof_variant_id?: string
   proof_variant_title?: string
@@ -115,4 +117,83 @@ export function serializePreviousFitForPrep(fit: OpportunityTargetFit): string {
     deal_breakers_triggered: fit.deal_breakers_triggered,
     recommended_action: fit.recommended_action,
   })
+}
+
+function firstSentences(text: string, maxSentences: number): string {
+  const kept: string[] = []
+  let buffer = ''
+  for (const ch of text) {
+    buffer += ch
+    if (ch === '.' || ch === '!' || ch === '?') {
+      const trimmed = buffer.trim()
+      if (trimmed) kept.push(trimmed)
+      buffer = ''
+      if (kept.length >= maxSentences) break
+    }
+  }
+  if (kept.length < maxSentences && buffer.trim()) kept.push(buffer.trim())
+  return kept.join(' ')
+}
+
+function coverLetterBodyExcerpt(cover: string, maxChars: number): string {
+  const lines = cover
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  while (lines[0]) {
+    const lower = lines[0].toLowerCase()
+    if (lower.startsWith('dear ') || lower.startsWith('hi ') || lower.startsWith('hello ')) {
+      lines.shift()
+      continue
+    }
+    break
+  }
+  while (lines[lines.length - 1]) {
+    const last = lines[lines.length - 1]
+    const lower = last.toLowerCase()
+    if (
+      lower.startsWith('sincerely') ||
+      lower.startsWith('best regards') ||
+      lower.startsWith('kind regards') ||
+      lower.startsWith('regards') ||
+      last === '—'
+    ) {
+      lines.pop()
+      continue
+    }
+    break
+  }
+  return lines.join(' ').slice(0, maxChars)
+}
+
+function displayCompanyName(company: string): string {
+  const trimmed = company.trim()
+  if (!trimmed) return 'the company'
+  if (trimmed.includes(' ')) {
+    return trimmed
+      .split(/\s+/)
+      .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+      .join(' ')
+  }
+  return trimmed[0].toUpperCase() + trimmed.slice(1)
+}
+
+function displayRoleTitle(title: string): string {
+  const trimmed = title.trim().replace('Typescript', 'TypeScript')
+  return trimmed || 'Software Engineer'
+}
+
+/** Deterministic email body: short touch + attach-CV line + full cover letter. */
+export function buildEmailApplyDraft(
+  cover: string,
+  company?: string | null,
+  title?: string | null,
+): string {
+  const companyName = displayCompanyName(company ?? '')
+  const role = displayRoleTitle(title ?? '')
+  const subject = `Application — ${role} — ${companyName}`
+  const excerpt = coverLetterBodyExcerpt(cover, 480)
+  const touch =
+    firstSentences(excerpt, 2) || `I'm applying for the ${role} role at ${companyName}.`
+  return `Subject: ${subject}\n\nHi,\n\n${touch}\n\nI've attached my CV as a PDF.\n\n---\n\n${cover.trim()}\n`
 }
