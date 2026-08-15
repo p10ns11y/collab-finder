@@ -1,17 +1,19 @@
 # collab-finder
 
-**Agentic X opportunity finder** (Tauri desktop): self-guarded reactor, MVU React shell, secure X + xAI credentials, and a path to MCP autonomy. You intervene when guards fire — not on every step.
+Desktop Tauri app (Rust + React) that hunts high-fit roles, prepares application packs, and tracks history in SQLite. You intervene when **guards** fire — fit, cost, rate, or CV promote — not on every step.
+
+Planning and session status live in [life-os](https://github.com/p10ns11y/life-os) (`Projects/collab-finder`). How-to for agents: **[AGENTS.md](AGENTS.md)**.
 
 ## Prerequisites
 
 | Tool | Notes |
 |------|--------|
-| **Node.js** | LTS recommended |
+| **Node.js** | LTS |
 | **pnpm** | `corepack enable` or install globally |
-| **Rust** | Stable toolchain + `cargo` |
-| **Tauri v2 system deps** | Linux: GTK/WebKit, `libsecret`/keyring. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). |
+| **Rust** | Stable + `cargo` |
+| **Tauri v2** | Linux: GTK/WebKit, `libsecret`. [Prerequisites](https://v2.tauri.app/start/prerequisites/). |
 
-Arch/Linux detail, credential storage, and troubleshooting: **[docs/SETUP.md](docs/SETUP.md)**.
+Arch notes, credentials, troubleshooting: **[docs/SETUP.md](docs/SETUP.md)**.
 
 ## Quick start
 
@@ -20,94 +22,78 @@ pnpm install
 pnpm tauri dev
 ```
 
-First launch opens **Discover** (opportunity rail + Quick Target). Sidebar nav: **Discover · Xplore · Settings**.
+First launch: **Discover**. Sidebar: **Discover · Mission · Sweden · Xplore · Network · Settings**. Palette: ⌘K / Ctrl+K. Quest: header control (threads persist in SQLite).
 
-## First-run tour
+## First-run
 
-### Settings — credentials
+### Settings
 
-1. Open **Settings** in the sidebar.
-2. **X connection** — paste your app Bearer token, **Save credentials**. Token is stored in Rust (not kept in UI state). Panel shows keyring vs file fallback via `get_x_bearer_storage`.
-3. **xAI key** — paste your xAI API key for Quick Target analyze/prep on Discover. Same keyring/file pattern via `get_xai_key_storage`.
+1. **X connection** — Bearer token, **Save**. Stored in Rust (keyring + file fallback). Status via `get_x_bearer_storage`.
+2. **xAI key** — for Evaluate / Prepare. Same storage pattern (`get_xai_key_storage`).
+3. **devprofile path** — needed for **Generate apply CV** (PDF). Never auto-writes the master CV.
 
-### Discover — opportunities + Quick Target
+### Hunt → prepare → apply
 
-1. **Your Opportunities** rail (left) — persisted job rows from SQLite; click to hydrate fit + prep from stored blobs (no new xAI call).
-2. **CV summary** — grounds analyze/prep; persisted in localStorage.
-3. **Quick Target** — paste a job URL or JD, **Evaluate fit** (live xAI), then **Generate prep**. Optimistic row appears in the rail; server reconciles on refresh.
+| Screen | Job |
+|--------|-----|
+| **Discover** | Opportunity rail, hire-board skim, Quick Target (URL or pasted JD). |
+| **Mission** | Career-board hunt (SpaceXAI / Tesla / Nordic–EU). Import → Evaluate. |
+| **Sweden** | Platsbanken via **JobTech API** (skips the website cookie wall). Search → Evaluate. |
+| **Xplore** | Live X search + autonomous cycle (`guarded_search`). |
+| **Network** | Local LinkedIn graph (PII stays on disk). |
 
-### Xplore — live X search + reactor cycle
+**Quick Target loop:** paste URL or JD → **Evaluate fit** (xAI) → **Prepare** → **Generate apply CV** → **Artifacts** (markdown + PDFs) → **Applied**. Platsbanken URLs load the ad from JobTech, not HTML. A JobTech JD body is not a URL even if it contains a Platsbanken link.
 
-1. **Search workspace** — live recent search (`search_x_recent`).
-2. **Run autonomous cycle** — live X search via `guarded_search`, heuristic analyze in the reactor (xAI structured decisions for the cycle path are still planned); tweets + SQLite history.
-3. Stats, raw history tables, and archive lookup are **not** in the sidebar today — use the command palette (⌘K / Ctrl+K) for search, cycle, presets, and history refresh where wired.
+Click a rail row to restore fit + prep from SQLite (no new xAI call). Pack files live under `~/.local/share/collab-finder/application_packs/` and reappear after reload.
 
 ## Verify
 
 ```bash
 pnpm build
-cd src-tauri && cargo check
-cd src-tauri && cargo test
+cd src-tauri && cargo check && cargo test
 ```
 
-`cargo test` covers secrets, db, reactor, and query validation (no live X token required). `package.json` does not yet define `type-check`, `lint`, or `precommit` scripts (see **AGENTS.md** for planned checks).
+`cargo test` covers secrets, db, reactor, and query validation (no live X token). Frontend typecheck: `pnpm exec tsc -b`. `package.json` has no `lint` / `precommit` scripts yet.
 
-## Architecture (short)
+## Architecture
 
 | Layer | Location |
 |-------|----------|
-| MVU UI + guards | `src/core/finder/`, `src/view/`, `src/components/finder/` |
-| Discover / Xplore / Settings screens | `src/view/screens/`, `src/components/layout/sidebar-nav.tsx` |
+| MVU UI | `src/core/finder/`, `src/view/`, `src/components/finder/` |
+| Screens | `src/view/screens/`, `src/components/layout/sidebar-nav.tsx` |
 | Tauri bridge | `src/adapters/tauri/`, `src/ports/` |
-| Live X search + secrets | `src-tauri/src/lib.rs`, `commands.rs`, `secrets.rs` |
-| Quick Target + xAI | `src-tauri/src/opportunity_target.rs` |
-| Durable history (SQLite) | `src-tauri/src/db.rs`, history MVU slices |
-| Reactor + guards (Rust) | `src-tauri/src/finder_reactor.rs` |
+| X + secrets | `src-tauri/src/lib.rs`, `secrets.rs`, `app_dirs.rs` |
+| Target / packs / apply CV | `src-tauri/src/opportunity_target.rs` |
+| Platsbanken / JobTech | `src-tauri/src/platsbanken.rs` |
+| SQLite | `src-tauri/src/db.rs` |
+| Reactor | `src-tauri/src/finder_reactor.rs` |
 
-## Tauri commands (27 handlers)
+Invoke inventory: **[docs/tauri-commands.md](docs/tauri-commands.md)** (MCP planned; today `invoke` only).
 
-Grouped inventory (MCP server planned; today: `invoke` only). Full table: **[docs/tauri-commands.md](docs/tauri-commands.md)**.
-
-| Group | Commands |
-|-------|----------|
-| **X bearer** | `has_x_bearer`, `get_x_bearer_storage`, `set_x_bearer`, `clear_x_bearer` |
-| **xAI key** | `has_xai_key`, `get_xai_key_storage`, `set_xai_key`, `clear_xai_key` |
-| **Quick Target** | `fetch_opportunity_target_page`, `analyze_opportunity_target`, `prep_opportunity_target`, `get_opportunities` |
-| **Finder / reactor** | `search_x_recent`, `run_finder_cycle_cmd`, `get_reactor_state`, `promote_lead` |
-| **History / audit** | `get_search_history`, `get_search_run`, `get_leads`, `get_dashboard_stats`, `get_recent_pauses`, `get_events`, `search_past_tweets`, `hydrate_tweet`, `log_event` |
-
-## Documentation
+## Docs
 
 | Doc | Purpose |
 |-----|---------|
-| [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify, Arch notes |
-| [docs/quest-flows.md](docs/quest-flows.md) | Quest chips (EVA / Control / Hunt / Apply / Free) + example prompts |
-| [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map, mermaid, milestone matrix |
-| [docs/tauri-commands.md](docs/tauri-commands.md) | All `invoke` handlers |
-| [docs/tauri-ipc-and-intent-engine.md](docs/tauri-ipc-and-intent-engine.md) | IPC Intent Engine, Arch/Linux |
-| [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | Dev: intercept and debug `invoke` |
-| [docs/tauri-webview-and-devtools.md](docs/tauri-webview-and-devtools.md) | Linux WebKit WebView, Safari-like inspector, console `invoke` QA |
-| [.agents/skills/tauri-ipc-debug/](.agents/skills/tauri-ipc-debug/SKILL.md) | Agent skill: layer-by-layer IPC triage |
+| [PRODUCT.md](PRODUCT.md) / [DESIGN.md](DESIGN.md) | Product + visual system |
+| [docs/SETUP.md](docs/SETUP.md) | Install, credentials, verify |
+| [docs/quest-flows.md](docs/quest-flows.md) | Quest chips + example prompts |
+| [docs/agentic-architecture.md](docs/agentic-architecture.md) | System map |
+| [docs/tauri-commands.md](docs/tauri-commands.md) | `invoke` handlers |
+| [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) | IPC failures in dev |
+| [docs/secrets-agent-safety.md](docs/secrets-agent-safety.md) | Never dump keys |
 | [docs/x-tools.md](docs/x-tools.md) | Official X agent resources |
-| [data/distillation/README.md](data/distillation/README.md) | Search presets, curation, analyze prompts (UI source) |
-| [.agents/x-resources/README.md](.agents/x-resources/README.md) | Official X skill.md / llms snapshots + refresh |
-| [reports/intuitive-shell-plan.md](reports/intuitive-shell-plan.md) | Executable UX plan (Discover / Xplore / Settings) |
+| [data/distillation/README.md](data/distillation/README.md) | Presets and analyze prompts |
+| [.agents/x-resources/README.md](.agents/x-resources/README.md) | Vendored X skill.md / llms |
 
-Diagrams in-repo; interactive architecture canvas is Cursor-only — see [agentic-architecture.md](docs/agentic-architecture.md).
+## Agents
 
-## Agent / dev resources
+- **AGENTS.md** — skills, triage, conventions
+- **.agents/skills/** — finder-reactor, tauri-agentic, cv-promote-guard, x-agent-resources
 
-- **AGENTS.md** — skills index, triage, conventions (`type-check` / `lint` / `precommit` not in `package.json` yet)
-- **docs/x-tools.md** — official X llms.txt, skill.md, XMCP, xurl
-- **.agents/skills/** — finder-reactor, tauri-agentic, cv-promote-guard, x-agent-resources, fusion-sage
+## X content
 
-## Data handling (X content)
+Official X API only. SQLite stores **IDs**, `https://x.com/i/web/status/{id}` links, and **280-character snippets** — not full bodies. Full text via `hydrate_tweet` on demand. `collab-finder.db` is never committed.
 
-- Post data is fetched via the **official X API** for personal productivity use only.
-- SQLite stores **post IDs**, links (`https://x.com/i/web/status/{id}`), and **280-character snippets** for local preview and FTS — not full post bodies.
-- Full text is available on demand via `hydrate_tweet` (lookup API; fresh data, 404 if deleted). Live search/cycle responses return full text from the API but only snippets are persisted.
-- The local database (`collab-finder.db`) is never committed to the repo.
-
-See [docs/x-content-storage-distributin-policy.md](docs/x-content-storage-distributin-policy.md) for rationale.
+See [docs/x-content-storage-distributin-policy.md](docs/x-content-storage-distributin-policy.md).
 
 Private tool for p10ns11y.
