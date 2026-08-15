@@ -1875,6 +1875,26 @@ CREATE INDEX IF NOT EXISTS idx_quest_turns_session ON quest_turns(session_id, id
         Ok(())
     }
 
+    pub fn update_opportunity_identity(
+        &self,
+        id: i64,
+        title: Option<&str>,
+        company: Option<&str>,
+        jd_text: Option<&str>,
+    ) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "UPDATE opportunities SET title = COALESCE(?1, title), company = COALESCE(?2, company), jd_text = COALESCE(?3, jd_text), last_updated = datetime('now') WHERE id = ?4",
+                params![title, company, jd_text, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn update_opportunity_status(
         &self,
         id: i64,

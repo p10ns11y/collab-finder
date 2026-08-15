@@ -228,6 +228,12 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             <QuickTarget
               busy={targetBusy}
               fitMode={fitMode}
+              url={model.opportunityTargetUrl ?? ''}
+              pastedJd={model.opportunityTargetPastedJd ?? ''}
+              onUrlChange={(url) => dispatch({ type: 'OpportunityTargetUrlSet', url })}
+              onPastedJdChange={(pasted_jd) =>
+                dispatch({ type: 'OpportunityTargetPastedJdChanged', pasted_jd })
+              }
               onFitModeChange={(m) => void setFitModePersisted(m)}
               onAnalyzeRequested={(url, pasted_jd) =>
                 dispatch({ type: 'OpportunityTargetAnalyzeRequested', url, pasted_jd })
@@ -290,6 +296,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
                 type: 'OpportunityTargetPrepRequested',
                 opportunity_id: opportunityId,
                 url: sourceUrl,
+                pasted_jd:
+                  model.opportunityTargetPastedJd || selectedOpp?.jd_text,
               })
             }
             onProposeSidecar={(opportunityId) => {
@@ -310,6 +318,8 @@ export function DiscoverScreen({ view, dispatch }: Props) {
             lastSidecarProposal={view.lastSidecarProposal}
             lastApplicationPackExport={view.lastApplicationPackExport}
             lastApplyCv={view.lastApplyCv}
+            companyName={selectedOpp?.company}
+            roleTitle={selectedOpp?.title}
           />
         ) : !isDiscover ? (
           <div className="space-y-3">
@@ -335,14 +345,25 @@ export function DiscoverScreen({ view, dispatch }: Props) {
 type QuickTargetProps = {
   busy: boolean
   fitMode: FitMode
+  url: string
+  pastedJd: string
+  onUrlChange: (url: string) => void
+  onPastedJdChange: (pasted_jd: string) => void
   onFitModeChange: (mode: FitMode) => void
   onAnalyzeRequested: (url?: string, pasted_jd?: string) => void
 }
 
-function QuickTarget({ busy, fitMode, onFitModeChange, onAnalyzeRequested }: QuickTargetProps) {
-  const [url, setUrl] = React.useState('')
-  const [pasted, setPasted] = React.useState('')
-  const canAnalyze = !busy && !!(url.trim() || pasted.trim())
+function QuickTarget({
+  busy,
+  fitMode,
+  url,
+  pastedJd,
+  onUrlChange,
+  onPastedJdChange,
+  onFitModeChange,
+  onAnalyzeRequested,
+}: QuickTargetProps) {
+  const canAnalyze = !busy && !!(url.trim() || pastedJd.trim())
   const relaxed = fitMode === 'relaxed'
 
   return (
@@ -369,13 +390,13 @@ function QuickTarget({ busy, fitMode, onFitModeChange, onAnalyzeRequested }: Qui
       <p className="text-[10px] text-ink-faint leading-snug">{fitModeDescription(fitMode)}</p>
       <Input
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
+        onChange={(e) => onUrlChange(e.target.value)}
         placeholder="https://… job or collab URL"
         className="h-8 font-mono text-xs"
       />
       <Textarea
-        value={pasted}
-        onChange={(e) => setPasted(e.target.value)}
+        value={pastedJd}
+        onChange={(e) => onPastedJdChange(e.target.value)}
         placeholder="Or paste full description / JD"
         rows={3}
         className="min-h-[4.5rem] text-xs"
@@ -384,7 +405,7 @@ function QuickTarget({ busy, fitMode, onFitModeChange, onAnalyzeRequested }: Qui
         variant="primary"
         size="sm"
         disabled={!canAnalyze}
-        onClick={() => onAnalyzeRequested(url.trim() || undefined, pasted.trim() || undefined)}
+        onClick={() => onAnalyzeRequested(url.trim() || undefined, pastedJd.trim() || undefined)}
         className="w-full"
       >
         {busy

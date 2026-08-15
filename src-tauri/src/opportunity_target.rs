@@ -41,13 +41,19 @@ const PUBLIC_PROJECTS_FOCUSED_JSON: &str =
 const PUBLIC_PROJECTS_SLIM_JSON: &str =
     include_str!("../../data/distillation/public-projects.json");
 
+/// Full GitHub descriptions (no API ellipsis) — upgrades truncated slim blurbs.
+const PUBLIC_PROJECTS_CLEAN_JSON: &str =
+    include_str!("../../data/distillation/public-projects-clean.json");
+
 const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
 
 const DEFAULT_PROOF_VARIANT_ID: &str = "EW-agent-collab-finder";
 
 /// Max projects / chars injected into prep (token budget for cover letters).
-const PREP_PROJECTS_MAX: usize = 12;
+const PREP_PROJECTS_MAX: usize = 8;
 const PREP_PROJECTS_BLOCK_MAX_CHARS: usize = 4500;
+/// PDF column: few complete blurbs beat many truncated GitHub leftovers.
+const FEATURED_PROJECTS_MAX: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProofVariant {
@@ -487,8 +493,7 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
                 let stars = p.get("stars").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
 
                 if let Some(existing) = by_name.get_mut(&key) {
-                    // Prefer longer description; fill empty fields from slim.
-                    if existing.description.len() < desc.len() {
+                    if should_replace_description(&existing.description, &desc) {
                         existing.description = desc;
                     }
                     if existing.url.is_empty() {
@@ -510,7 +515,11 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
                         key,
                         PublicProject {
                             name,
-                            description: desc,
+                            description: if github_description_truncated(&desc) {
+                                String::new()
+                            } else {
+                                desc
+                            },
                             language,
                             topics,
                             url,
@@ -525,7 +534,72 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
         }
     }
 
+    merge_clean_repo_descriptions(&mut by_name, PUBLIC_PROJECTS_CLEAN_JSON);
+
     by_name.into_values().collect()
+}
+
+fn github_description_truncated(s: &str) -> bool {
+    let t = s.trim();
+    t.ends_with('\u{2026}') || t.ends_with("...")
+}
+
+fn should_replace_description(current: &str, incoming: &str) -> bool {
+    if incoming.trim().is_empty() {
+        return false;
+    }
+    let incoming_cut = github_description_truncated(incoming);
+    let current_cut = current.trim().is_empty() || github_description_truncated(current);
+    if incoming_cut && !current_cut {
+        return false;
+    }
+    if !incoming_cut && current_cut {
+        return true;
+    }
+    incoming.chars().count() > current.chars().count()
+}
+
+fn merge_clean_repo_descriptions(
+    by_name: &mut std::collections::BTreeMap<String, PublicProject>,
+    clean_json: &str,
+) {
+    let Ok(v) = serde_json::from_str::<Value>(clean_json) else {
+        return;
+    };
+    let Some(arr) = v.get("repos").and_then(|x| x.as_array()) else {
+        return;
+    };
+    for p in arr {
+        let name = p
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let desc = p
+            .get("description")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if desc.is_empty() || github_description_truncated(&desc) {
+            continue;
+        }
+        let key = name.to_lowercase();
+        if let Some(existing) = by_name.get_mut(&key) {
+            if should_replace_description(&existing.description, &desc) {
+                existing.description = desc;
+            }
+            if existing.url.is_empty() {
+                if let Some(u) = p.get("html_url").and_then(|x| x.as_str()) {
+                    existing.url = u.to_string();
+                }
+            }
+        }
+    }
 }
 
 fn project_relevance_score(p: &PublicProject, jd_lower: &str) -> i32 {
@@ -608,8 +682,16 @@ pub(crate) fn format_public_projects_for_prep(projects: &[PublicProject], jd: &s
             p.topics.join(", ")
         };
         let mut desc = p.description.clone();
-        if desc.chars().count() > 220 {
-            desc = format!("{}…", desc.chars().take(219).collect::<String>());
+        if github_description_truncated(&desc) {
+            desc.clear();
+        } else if desc.chars().count() > 320 {
+            // Sentence-complete clamp — never mid-word GitHub leftover + extra ellipsis.
+            let cut: String = desc.chars().take(320).collect();
+            if let Some(idx) = cut.rfind(". ") {
+                desc = cut[..=idx].to_string();
+            } else {
+                desc = cut;
+            }
         }
         let lang = if p.language.is_empty() {
             "?"
@@ -1025,6 +1107,45 @@ async fn structured_chat(
 #[cfg(not(test))]
 use crate::xai::structured_chat;
 
+/// True when `raw` is a single URL (or bare host/path), not a JD that merely contains a URL.
+pub(crate) fn looks_like_lone_opportunity_url(raw: &str) -> bool {
+    let t = raw.trim();
+    if t.is_empty() || t.len() > 2000 {
+        return false;
+    }
+    if t.contains('\n') || t.contains('\r') {
+        return false;
+    }
+    if t.starts_with('#') {
+        return false;
+    }
+    if t.starts_with("http://") || t.starts_with("https://") || t.starts_with("//") {
+        return true;
+    }
+    !t.contains(' ') && t.contains('.')
+}
+
+fn coerce_fetch_url_and_paste(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<(Option<String>, Option<String>), String> {
+    let mut paste = pasted_jd.filter(|t| !t.trim().is_empty());
+    let fetch_url = match url {
+        Some(u) if !u.trim().is_empty() => {
+            if looks_like_lone_opportunity_url(&u) {
+                Some(normalize_opportunity_fetch_url(&u)?)
+            } else {
+                if paste.is_none() {
+                    paste = Some(u);
+                }
+                None
+            }
+        }
+        other => other.filter(|u| !u.trim().is_empty() && looks_like_lone_opportunity_url(u)),
+    };
+    Ok((fetch_url, paste))
+}
+
 /// Make a paste-friendly opportunity URL absolute for reqwest.
 /// Bare `host/path` (no scheme) → `https://host/path`. Rejects empty / non-http(s).
 ///
@@ -1059,9 +1180,37 @@ pub(crate) fn normalize_opportunity_fetch_url(raw: &str) -> Result<String, Strin
     Ok(parsed.to_string())
 }
 
+const PLATSBANKEN_COOKIE_WALL_HINT: &str = "This page is an Arbetsförmedlingen cookie wall. Use Sweden (JobTech API) to search and Evaluate, or paste a Platsbanken URL like …/platsbanken/annonser/31331639.";
+
+async fn page_from_jobtech_ad(ad_id: &str) -> Result<OpportunityTargetPageResult, String> {
+    let ad = crate::platsbanken::fetch_ad(ad_id).await?;
+    let cleaned = crate::platsbanken::build_jd_text(&ad);
+    let original_len = cleaned.len() as u32;
+    let truncated = cleaned.len() > 12000;
+    let cleaned_text = if truncated {
+        let mut end = 12000;
+        while end > 0 && !cleaned.is_char_boundary(end) {
+            end -= 1;
+        }
+        cleaned[..end].to_string()
+    } else {
+        cleaned
+    };
+    Ok(OpportunityTargetPageResult {
+        title: Some(ad.headline).filter(|s| !s.trim().is_empty()),
+        company: Some(ad.employer).filter(|s| !s.trim().is_empty()),
+        cleaned_text,
+        original_len,
+        truncated,
+    })
+}
+
 #[tauri::command]
 pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
     let url = normalize_opportunity_fetch_url(&url)?;
+    if let Some(ad_id) = crate::platsbanken::ad_id_from_webpage_url(&url) {
+        return page_from_jobtech_ad(&ad_id).await;
+    }
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
@@ -1087,6 +1236,12 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
 
     // Very naive strip of tags/scripts for v1. Real readability can come later.
     let cleaned = strip_html_basic(&text);
+    if crate::platsbanken::is_cookie_wall_text(&cleaned) || crate::platsbanken::is_cookie_wall_text(&text) {
+        if let Some(ad_id) = crate::platsbanken::ad_id_from_webpage_url(&url) {
+            return page_from_jobtech_ad(&ad_id).await;
+        }
+        return Err(PLATSBANKEN_COOKIE_WALL_HINT.into());
+    }
     // Safe char-boundary truncate (fixes latent UTF-8 panic risk on multi-byte text e.g. international Greenhouse JDs;
     // was byte slice &cleaned[..8000] -- moved verbatim from lib but now hardened per review).
     // Future: dedicated readability crate or TD notes.
@@ -1115,6 +1270,76 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
     })
 }
 
+/// Placeholder written by older analyze/prep upserts instead of the real JD body.
+fn stored_jd_is_usable(jd_text: &str) -> bool {
+    let trimmed = jd_text.trim();
+    if trimmed.is_empty() || trimmed == "jd" {
+        return false;
+    }
+    if crate::platsbanken::is_cookie_wall_text(trimmed) {
+        return false;
+    }
+    true
+}
+
+/// Prefer pasted JD, else fetch URL. Empty Option means neither source had usable text (caller may load DB).
+async fn resolve_opportunity_source(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<Option<(String, Option<String>, Option<String>)>, String> {
+    let mut title = None;
+    let mut company = None;
+    let mut jd = None;
+    if let Some(pasted) = pasted_jd {
+        if looks_like_lone_opportunity_url(&pasted)
+            && crate::platsbanken::ad_id_from_webpage_url(&pasted).is_some()
+        {
+            let fetched = fetch_opportunity_target_page(pasted).await?;
+            title = fetched.title;
+            company = fetched.company;
+            if stored_jd_is_usable(&fetched.cleaned_text) {
+                jd = Some(fetched.cleaned_text);
+            }
+        } else if stored_jd_is_usable(&pasted) {
+            let inferred = infer_title_company_from_jd(&pasted);
+            title = inferred.0;
+            company = inferred.1;
+            jd = Some(pasted);
+        }
+    }
+    if let Some(page_url) = url {
+        if !page_url.trim().is_empty() {
+            let fetched = fetch_opportunity_target_page(page_url).await?;
+            if title.is_none() {
+                title = fetched.title;
+            }
+            if company.is_none() {
+                company = fetched.company;
+            }
+            if jd.is_none() && stored_jd_is_usable(&fetched.cleaned_text) {
+                let inferred = infer_title_company_from_jd(&fetched.cleaned_text);
+                if title.is_none() {
+                    title = inferred.0;
+                }
+                if company.is_none() {
+                    company = inferred.1;
+                }
+                jd = Some(fetched.cleaned_text);
+            }
+        }
+    }
+    Ok(jd.map(|text| (text, title, company)))
+}
+
+async fn resolve_opportunity_jd_text(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<Option<String>, String> {
+    Ok(resolve_opportunity_source(url, pasted_jd)
+        .await?
+        .map(|(text, _, _)| text))
+}
+
 /// Core implementation for analyze (no store/persist), so tests can drive the logic the cmd uses
 /// and get the full OpportunityTargetAnalysisResult with packet_preview from the cv resolved under the path.
 pub(crate) async fn run_analyze_opportunity_target(
@@ -1124,15 +1349,9 @@ pub(crate) async fn run_analyze_opportunity_target(
     _company: Option<String>,
     cv_summary: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
-    let jd = match (url.clone(), pasted_jd) {
-        (_, Some(p)) if !p.trim().is_empty() => p,
-        (Some(u), _) => {
-            // Normalize bare host/path before fetch (avoids reqwest "builder error").
-            let fetched = fetch_opportunity_target_page(u).await?;
-            fetched.cleaned_text
-        }
-        _ => return Err("Provide either url or pasted_jd".into()),
-    };
+    let jd = resolve_opportunity_jd_text(url, pasted_jd)
+        .await?
+        .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
 
     let dev_path = get_devprofile_path();
     let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
@@ -1197,14 +1416,21 @@ pub(crate) async fn analyze_opportunity_target(
     title: Option<String>,
     company: Option<String>,
     cv_summary: Option<String>,
+    paste: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
-    // Normalize bare host/path so DB + Open URL store absolute https://…
-    let url = match url {
-        Some(u) if !u.trim().is_empty() => Some(normalize_opportunity_fetch_url(&u)?),
-        other => other.filter(|u| !u.trim().is_empty()),
-    };
+    let (url, pasted_jd) = coerce_fetch_url_and_paste(url, pasted_jd.or(paste))?;
+    let (jd, fetched_title, fetched_company) =
+        resolve_opportunity_source(url.clone(), pasted_jd.clone())
+            .await?
+            .ok_or_else(|| "Provide either url or pasted_jd".to_string())?;
+    let title = title
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t))
+        .or(fetched_title);
+    let company = company
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_company(t))
+        .or(fetched_company);
     // Delegate core (resolve + stub xAI + compute packet) to run_, short lock for upsert only.
-    let mut res = run_analyze_opportunity_target(url.clone(), pasted_jd.clone(), title.clone(), company.clone(), cv_summary).await?;
+    let mut res = run_analyze_opportunity_target(None, Some(jd.clone()), title.clone(), company.clone(), cv_summary).await?;
     let run_id = if let Ok(guard) = db.0.lock() {
         let analysis_for_store = json!({
             "fit": res.fit,
@@ -1218,11 +1444,20 @@ pub(crate) async fn analyze_opportunity_target(
             "completion_tokens": res.completion_tokens,
             "est_cost_usd": res.est_cost_usd,
         });
-        guard.upsert_opportunity(
-            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), "jd",
+        let id = guard.upsert_opportunity(
+            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), &jd,
             "analyzed", Some( (res.fit.get("overall").and_then(|v| v.as_i64()).unwrap_or(0)) as i32 ),
             Some(&analysis_for_store.to_string()), None, None,
-        ).unwrap_or(0)
+        ).unwrap_or(0);
+        if id > 0 {
+            let _ = guard.update_opportunity_identity(
+                id,
+                title.as_deref(),
+                company.as_deref(),
+                Some(jd.as_str()),
+            );
+        }
+        id
     } else { 0 };
     res.opportunity_id = run_id;
     Ok(res)
@@ -1233,27 +1468,16 @@ pub(crate) async fn run_prep_opportunity_target(
     opportunity_id: Option<i64>,
     url: Option<String>,
     pasted_jd: Option<String>,
-    _title: Option<String>,
-    _company: Option<String>,
+    title: Option<String>,
+    company: Option<String>,
     cv_summary: Option<String>,
     previous_fit: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
-    let mut jd = String::new();
-    if let Some(p) = &pasted_jd {
-        if !p.trim().is_empty() {
-            jd = p.clone();
-        }
-    }
-    if jd.is_empty() {
-        if let Some(u) = &url {
-            // Same scheme normalization as analyze (bare host/path pastes).
-            let fetched = fetch_opportunity_target_page(u.clone()).await?;
-            jd = fetched.cleaned_text;
-        }
-    }
-    if jd.is_empty() {
-        return Err( "Provide url, pasted_jd or ensure prior analyze created the opportunity".into() );
-    }
+    let jd = resolve_opportunity_jd_text(url, pasted_jd)
+        .await?
+        .ok_or_else(|| {
+            "Provide url, pasted_jd or ensure prior analyze created the opportunity".to_string()
+        })?;
 
     let dev_path = get_devprofile_path();
     let (cv, cv_meta) = resolve_cv_packet(cv_summary, dev_path);
@@ -1298,6 +1522,21 @@ pub(crate) async fn run_prep_opportunity_target(
     if let Some(obj) = prep_json.as_object_mut() {
         obj.insert("proof_variant_id".into(), json!(variant.id));
         obj.insert("proof_variant_title".into(), json!(variant.title));
+        let cover = obj
+            .get("cover_letter")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if !cover.trim().is_empty() {
+            obj.insert(
+                "email_draft".into(),
+                json!(build_email_apply_draft(
+                    &cover,
+                    company.as_deref().unwrap_or(""),
+                    title.as_deref().unwrap_or(""),
+                )),
+            );
+        }
     }
 
     // Return dummy id; caller (cmd or test) can persist if needed.
@@ -1319,15 +1558,103 @@ pub(crate) async fn prep_opportunity_target(
     company: Option<String>,
     cv_summary: Option<String>,
     previous_fit: Option<String>,
+    paste: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
-    // Delegate to run_ (core), short lock for persist.
-    let mut res = run_prep_opportunity_target(opportunity_id, url.clone(), pasted_jd.clone(), title.clone(), company.clone(), cv_summary, previous_fit).await?;
-    let run_id = if let Ok(guard) = db.0.lock() {
-        guard.upsert_opportunity(
-            "web", url.as_deref(), None, title.as_deref(), company.as_deref(), "jd",
-            "prepped", None, None, Some(&res.prep.to_string()), None,
-        ).unwrap_or(0)
-    } else { 0 };
+    let (url, pasted_jd) = coerce_fetch_url_and_paste(url, pasted_jd.or(paste))?;
+    let mut title = title.filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+    let mut company = company.filter(|t| !t.trim().is_empty() && !is_placeholder_company(t));
+    let mut jd = None;
+    if let Ok(Some((text, fetched_title, fetched_company))) =
+        resolve_opportunity_source(url.clone(), pasted_jd.clone()).await
+    {
+        jd = Some(text);
+        if title.is_none() {
+            title = fetched_title;
+        }
+        if company.is_none() {
+            company = fetched_company;
+        }
+    }
+    if !jd.as_ref().is_some_and(|text| stored_jd_is_usable(text)) {
+        if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
+            if let Ok(guard) = db.0.lock() {
+                if let Ok(rows) = guard.get_opportunities(&db::OpportunityFilter {
+                    id: Some(oid),
+                    limit: Some(1),
+                    ..Default::default()
+                }) {
+                    if let Some(row) = rows.into_iter().next() {
+                        if stored_jd_is_usable(&row.jd_text) {
+                            jd = Some(row.jd_text);
+                        }
+                        if title.is_none() {
+                            title = row
+                                .title
+                                .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+                        }
+                        if company.is_none() {
+                            company = row
+                                .company
+                                .filter(|t| !t.trim().is_empty() && !is_placeholder_company(t));
+                        }
+                        if title.is_none() || company.is_none() {
+                            let inferred = infer_title_company_from_jd(jd.as_deref().unwrap_or(""));
+                            if title.is_none() {
+                                title = inferred.0;
+                            }
+                            if company.is_none() {
+                                company = inferred.1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let jd = jd.filter(|text| stored_jd_is_usable(text)).ok_or_else(|| {
+        "Provide url, pasted_jd or ensure prior analyze created the opportunity".to_string()
+    })?;
+    // Delegate to run_ (core) with resolved JD as pasted_jd so paste-only / prior-analyze paths work.
+    let mut res = run_prep_opportunity_target(
+        opportunity_id,
+        None,
+        Some(jd.clone()),
+        title.clone(),
+        company.clone(),
+        cv_summary,
+        previous_fit,
+    )
+    .await?;
+    let run_id = if let Some(oid) = opportunity_id.filter(|id| *id > 0) {
+        if let Ok(guard) = db.0.lock() {
+            let _ = guard.set_prep_artifacts(oid, &res.prep.to_string(), "prepped");
+            let _ = guard.update_opportunity_identity(
+                oid,
+                title.as_deref(),
+                company.as_deref(),
+                Some(jd.as_str()),
+            );
+        }
+        oid
+    } else if let Ok(guard) = db.0.lock() {
+        guard
+            .upsert_opportunity(
+                "web",
+                url.as_deref(),
+                None,
+                title.as_deref(),
+                company.as_deref(),
+                &jd,
+                "prepped",
+                None,
+                None,
+                Some(&res.prep.to_string()),
+                None,
+            )
+            .unwrap_or(0)
+    } else {
+        0
+    };
     res.opportunity_id = run_id;
     Ok(res)
 }
@@ -1446,6 +1773,16 @@ pub struct ApplicationPackExportResult {
     pub file_count: u32,
 }
 
+/// In-app reader payload for pack markdown/PDF (bounded paths only).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PackArtifactRead {
+    pub filename: String,
+    /// `text` or `pdf`
+    pub kind: String,
+    pub text: Option<String>,
+    pub pdf_base64: Option<String>,
+}
+
 /// Identity used for pack folder naming and manifest (pure / serializable).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ApplicationPackIdentity {
@@ -1546,10 +1883,69 @@ fn cover_letter_body_excerpt(cover: &str, max_chars: usize) -> String {
     body.chars().take(max_chars).collect()
 }
 
+fn first_sentences(text: &str, max_sentences: usize) -> String {
+    let mut out = String::new();
+    let mut count = 0usize;
+    for part in text.split_inclusive(|ch: char| matches!(ch, '.' | '!' | '?')) {
+        let trimmed = part.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(trimmed);
+        count += 1;
+        if count >= max_sentences {
+            break;
+        }
+    }
+    out
+}
+
+/// Subject + short email touch + full cover letter for apply-via-email (no extra xAI call).
+pub(crate) fn build_email_apply_draft(cover: &str, company: &str, title: &str) -> String {
+    let co = display_company_name(company);
+    let role = display_role_title(title);
+    let subject = format!("Application — {role} — {co}");
+    let excerpt = cover_letter_body_excerpt(cover, 480);
+    let touch = first_sentences(&excerpt, 2);
+    let touch = if touch.is_empty() {
+        format!("I'm applying for the {role} role at {co}.")
+    } else {
+        touch
+    };
+    let letter = cover.trim();
+    format!(
+        "Subject: {subject}\n\nHi,\n\n{touch}\n\nI've attached my CV as a PDF.\n\n---\n\n{letter}\n"
+    )
+}
+
+fn is_placeholder_company(company: &str) -> bool {
+    let trimmed = company.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    let lower = trimmed.to_lowercase();
+    if lower == "the company" || lower == "unknown employer" || lower == "target" {
+        return true;
+    }
+    lower
+        .strip_prefix("opp")
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn is_placeholder_title(title: &str) -> bool {
+    matches!(
+        title.trim().to_lowercase().as_str(),
+        "" | "role" | "the role" | "target"
+    )
+}
+
 /// Display company: `qred` → `Qred`, leave multi-word as-is with first-letter upcase.
 pub(crate) fn display_company_name(company: &str) -> String {
     let t = company.trim();
-    if t.is_empty() {
+    if t.is_empty() || is_placeholder_company(t) {
         return "the company".into();
     }
     if t.contains(' ') {
@@ -1575,7 +1971,7 @@ pub(crate) fn display_company_name(company: &str) -> String {
 /// Clean role title for prose (collapse Typescript → TypeScript, drop trailing junk).
 pub(crate) fn display_role_title(title: &str) -> String {
     let t = title.trim().replace("Typescript", "TypeScript");
-    if t.is_empty() {
+    if t.is_empty() || is_placeholder_title(&t) {
         "Software Engineer".into()
     } else {
         t
@@ -1693,9 +2089,20 @@ pub(crate) fn recent_personal_phrase(featured: &[String], scan: &str) -> String 
 pub(crate) fn seeking_line(title: &str, company: &str) -> String {
     let role = display_role_title(title);
     let co = display_company_name(company);
-    format!(
-        "Seeking the {role} role at {co} to own full-stack delivery of internal platforms and integrations."
-    )
+    let role_phrase = if role.to_lowercase().contains("role") {
+        format!("the {role}")
+    } else {
+        format!("the {role} role")
+    };
+    if is_placeholder_company(company) {
+        format!(
+            "Seeking {role_phrase} to own full-stack delivery of internal platforms and integrations."
+        )
+    } else {
+        format!(
+            "Seeking {role_phrase} at {co} to own full-stack delivery of internal platforms and integrations."
+        )
+    }
 }
 
 /// PROFILE: 5-beat coherent overview (hook → career/craft → recent → seeking).
@@ -1803,14 +2210,15 @@ pub(crate) fn build_cv_overlay_from_prep(
     scan.push_str(cover);
 
     let mut featured = featured_keys_from_prep_text(&scan);
-    // Defaults so OSS signal shows when suggestions are generic
     for def in ["collab-finder", "agent-prompt-tuning-lab", "adaptate"] {
+        if featured.len() >= FEATURED_PROJECTS_MAX {
+            break;
+        }
         if !featured.iter().any(|k| k == def) {
             featured.push(def.to_string());
         }
     }
-    // Cap for PDF column readability
-    featured.truncate(6);
+    featured.truncate(FEATURED_PROJECTS_MAX);
 
     let company = identity.map(|i| i.company.as_str()).unwrap_or("target");
     let title = identity.map(|i| i.title.as_str()).unwrap_or("role");
@@ -1840,19 +2248,17 @@ pub(crate) fn build_cv_overlay_from_prep(
             if techs.is_empty() && !p.language.is_empty() {
                 techs.push(p.language.clone());
             }
-            projects_upsert.push(json!({
-                "key": key,
-                "name": p.name,
-                "description": if p.description.is_empty() {
-                    format!("Personal/OSS: {}", p.name)
-                } else {
-                    p.description.chars().take(400).collect::<String>()
-                },
-                "url": p.url,
-                "type": "hobby_oss",
-                "technologies": techs,
-                "is_open_source": true,
-            }));
+            let mut rec = serde_json::Map::new();
+            rec.insert("key".into(), json!(key));
+            rec.insert("name".into(), json!(p.name));
+            rec.insert("url".into(), json!(p.url));
+            rec.insert("type".into(), json!("hobby_oss"));
+            rec.insert("technologies".into(), json!(techs));
+            rec.insert("is_open_source".into(), json!(true));
+            if !p.description.is_empty() && !github_description_truncated(&p.description) {
+                rec.insert("description".into(), json!(p.description.clone()));
+            }
+            projects_upsert.push(Value::Object(rec));
         }
     }
 
@@ -1890,6 +2296,19 @@ pub(crate) fn build_application_pack_files(
             files.push((
                 "cover-letter.md".into(),
                 format!("# Cover letter\n\n{t}\n"),
+            ));
+            let company = identity.map(|i| i.company.as_str()).unwrap_or("");
+            let title = identity.map(|i| i.title.as_str()).unwrap_or("");
+            let draft = prep
+                .get("email_draft")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| build_email_apply_draft(t, company, title));
+            files.push((
+                "email-draft.md".into(),
+                format!("# Email apply draft\n\n{draft}\n"),
             ));
         }
     }
@@ -2157,57 +2576,133 @@ pub(crate) fn company_from_greenhouse_url(url: &str) -> Option<String> {
 
 /// Infer role title + company from JD blob / Greenhouse title patterns when DB fields empty.
 pub(crate) fn infer_title_company_from_jd(jd: &str) -> (Option<String>, Option<String>) {
-    let head: String = jd.chars().take(400).collect();
+    let mut title: Option<String> = None;
+    let mut company: Option<String> = None;
+    for line in jd.lines().take(24) {
+        let trimmed = line.trim();
+        if title.is_none() {
+            if let Some(rest) = trimmed.strip_prefix("# ") {
+                let heading = rest.trim();
+                if heading.len() > 3 && heading.len() < 120 && !heading.to_lowercase().starts_with("http")
+                {
+                    title = Some(heading.to_string());
+                }
+            }
+        }
+        if company.is_none() {
+            if let Some(rest) = trimmed.strip_prefix("Employer:") {
+                let name = rest.trim();
+                if name.len() > 1 && name.len() < 80 && !is_placeholder_company(name) {
+                    company = Some(name.to_string());
+                }
+            }
+        }
+        if company.is_none() && trimmed.starts_with("At ") && trimmed.contains(',') {
+            let name = trimmed
+                .trim_start_matches("At ")
+                .split(',')
+                .next()
+                .unwrap_or("")
+                .trim();
+            if name.len() > 1
+                && name.len() < 48
+                && name
+                    .chars()
+                    .next()
+                    .map(|ch| ch.is_uppercase())
+                    .unwrap_or(false)
+                && !is_placeholder_company(name)
+            {
+                company = Some(name.to_string());
+            }
+        }
+    }
+
+    if title.is_some() && company.is_some() {
+        return (title, company);
+    }
+
+    let head: String = jd.chars().take(800).collect();
     let lower = head.to_lowercase();
+    if title.is_none() {
+        if let Some(idx) = lower.find("we are looking for a ") {
+            let rest = &head[idx + "we are looking for a ".len()..];
+            let cut = rest
+                .find(" to join")
+                .or_else(|| rest.find(" ("))
+                .or_else(|| rest.find('\n'))
+                .unwrap_or(rest.len().min(90));
+            let found = rest[..cut].trim();
+            if found.len() > 3 && found.len() < 90 {
+                title = Some(found.to_string());
+            }
+        }
+    }
 
     // "Job Application for {Title} at {Company}"
-    if let Some(idx) = lower.find("job application for ") {
-        let rest = &head[idx + "job application for ".len()..];
-        let rest_l = rest.to_lowercase();
-        let cut = rest_l
-            .find("back to")
-            .or_else(|| rest_l.find('\n'))
-            .unwrap_or(rest.len().min(160));
-        let phrase = rest[..cut].trim();
-        if let Some(at) = phrase.to_lowercase().rfind(" at ") {
-            let title = phrase[..at].trim();
-            let company = phrase[at + 4..].trim();
-            if !title.is_empty() && !company.is_empty() {
-                return (Some(title.to_string()), Some(company.to_string()));
+    if title.is_none() || company.is_none() {
+        if let Some(idx) = lower.find("job application for ") {
+            let rest = &head[idx + "job application for ".len()..];
+            let rest_l = rest.to_lowercase();
+            let cut = rest_l
+                .find("back to")
+                .or_else(|| rest_l.find('\n'))
+                .unwrap_or(rest.len().min(160));
+            let phrase = rest[..cut].trim();
+            if let Some(at) = phrase.to_lowercase().rfind(" at ") {
+                let found_title = phrase[..at].trim();
+                let found_company = phrase[at + 4..].trim();
+                if title.is_none() && !found_title.is_empty() {
+                    title = Some(found_title.to_string());
+                }
+                if company.is_none() && !found_company.is_empty() {
+                    company = Some(found_company.to_string());
+                }
             }
         }
     }
 
     // "Exceptional Software Engineer at xAI" early in cleaned text
-    if let Some(at) = lower.find(" at ") {
-        if at > 3 && at < 80 {
-            let before = head[..at].trim();
-            // strip leading noise like "Back to jobs"
-            let title = before
-                .rsplit(|c: char| c == '\n' || c == '>' )
-                .next()
-                .unwrap_or(before)
-                .trim();
-            let after = &head[at + 4..];
-            let company = after
-                .split(|c: char| c == '\n' || c == '|' || c == '(' || c == ',' || c.is_ascii_whitespace() && after.len() > 40)
-                .next()
-                .unwrap_or("")
-                .trim();
-            // Prefer short company tokens
-            let company_tok = company.split_whitespace().next().unwrap_or(company);
-            if title.len() > 3
-                && title.len() < 80
-                && company_tok.len() > 1
-                && company_tok.len() < 40
-                && !title.to_lowercase().starts_with("http")
-            {
-                return (Some(title.to_string()), Some(company_tok.to_string()));
+    if title.is_none() || company.is_none() {
+        if let Some(at) = lower.find(" at ") {
+            if at > 3 && at < 80 {
+                let before = head[..at].trim();
+                let found_title = before
+                    .rsplit(|c: char| c == '\n' || c == '>')
+                    .next()
+                    .unwrap_or(before)
+                    .trim();
+                let after = &head[at + 4..];
+                let found_company = after
+                    .split(|c: char| {
+                        c == '\n'
+                            || c == '|'
+                            || c == '('
+                            || c == ','
+                            || c.is_ascii_whitespace() && after.len() > 40
+                    })
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                let company_tok = found_company.split_whitespace().next().unwrap_or(found_company);
+                if found_title.len() > 3
+                    && found_title.len() < 80
+                    && company_tok.len() > 1
+                    && company_tok.len() < 40
+                    && !found_title.to_lowercase().starts_with("http")
+                {
+                    if title.is_none() {
+                        title = Some(found_title.to_string());
+                    }
+                    if company.is_none() {
+                        company = Some(company_tok.to_string());
+                    }
+                }
             }
         }
     }
 
-    (None, None)
+    (title, company)
 }
 
 fn date_yyyy_mm_dd_from_last_updated(last_updated: &str) -> String {
@@ -2244,13 +2739,13 @@ pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> Applicat
         .company
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_placeholder_company(s))
         .map(|s| s.to_string());
     let mut title = o
         .title
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_placeholder_title(s))
         .map(|s| s.to_string());
 
     if company.is_none() {
@@ -2326,6 +2821,223 @@ pub(crate) fn resolve_application_pack_identity(o: &db::Opportunity) -> Applicat
 /// Deterministic pack dir under app data: `application_packs/{company}-{title}-{date}/`.
 pub(crate) fn application_pack_dir_for(base_dir: &std::path::Path, slug: &str) -> PathBuf {
     base_dir.join("application_packs").join(slug)
+}
+
+const MAX_ARTIFACT_BYTES: u64 = 12 * 1024 * 1024;
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(((bytes.len() + 2) / 3) * 4);
+    for chunk in bytes.chunks(3) {
+        let a = chunk[0] as u32;
+        let b = chunk.get(1).copied().unwrap_or(0) as u32;
+        let c = chunk.get(2).copied().unwrap_or(0) as u32;
+        let triple = (a << 16) | (b << 8) | c;
+        out.push(TABLE[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(triple & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn path_is_under(canonical_file: &std::path::Path, root: &std::path::Path) -> bool {
+    let Ok(root_c) = root.canonicalize() else {
+        return false;
+    };
+    canonical_file.starts_with(&root_c)
+}
+
+/// Only application_packs under app data, or generate-apply-cv PDFs under devprofile/out/apply.
+fn artifact_path_allowed(canonical_file: &std::path::Path) -> bool {
+    if let Ok(data) = crate::app_dirs::app_data_dir() {
+        if path_is_under(canonical_file, &data.join("application_packs")) {
+            return true;
+        }
+    }
+    if let Some(dev) = get_devprofile_path() {
+        if path_is_under(canonical_file, &std::path::PathBuf::from(dev).join("out").join("apply")) {
+            return true;
+        }
+    }
+    false
+}
+
+fn resolve_allowed_artifact_file(path: &str) -> Result<std::path::PathBuf, String> {
+    if path.trim().is_empty() {
+        return Err("path required".into());
+    }
+    let canonical = std::path::PathBuf::from(path.trim())
+        .canonicalize()
+        .map_err(|_| "artifact not found".to_string())?;
+    if !canonical.is_file() {
+        return Err("artifact is not a file".into());
+    }
+    if !artifact_path_allowed(&canonical) {
+        return Err("artifact path is outside allowed pack/apply folders".into());
+    }
+    Ok(canonical)
+}
+
+pub(crate) fn read_pack_artifact_at(path: &str) -> Result<PackArtifactRead, String> {
+    let canonical = resolve_allowed_artifact_file(path)?;
+    let meta = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
+    if meta.len() > MAX_ARTIFACT_BYTES {
+        return Err("artifact too large to preview".into());
+    }
+    let filename = canonical
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("artifact")
+        .to_string();
+    let ext = canonical
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext == "pdf" {
+        let bytes = std::fs::read(&canonical).map_err(|e| e.to_string())?;
+        return Ok(PackArtifactRead {
+            filename,
+            kind: "pdf".into(),
+            text: None,
+            pdf_base64: Some(encode_base64(&bytes)),
+        });
+    }
+    if matches!(ext.as_str(), "md" | "txt" | "json") {
+        let text = std::fs::read_to_string(&canonical).map_err(|e| e.to_string())?;
+        return Ok(PackArtifactRead {
+            filename,
+            kind: "text".into(),
+            text: Some(text),
+            pdf_base64: None,
+        });
+    }
+    Err("preview supports markdown, text, json, and pdf".into())
+}
+
+#[tauri::command]
+pub(crate) fn read_pack_artifact(path: String) -> Result<PackArtifactRead, String> {
+    read_pack_artifact_at(&path)
+}
+
+/// Open an allowed pack/apply file in the system viewer (PDF, markdown, etc.).
+#[tauri::command]
+pub(crate) fn open_pack_artifact(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let canonical = resolve_allowed_artifact_file(&path)?;
+    app.opener()
+        .open_path(canonical.to_string_lossy().as_ref(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PackArtifactListItem {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+}
+
+fn artifact_kind_for_path(path: &std::path::Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "pdf" => "pdf",
+        "md" | "txt" | "json" => "text",
+        _ => "other",
+    }
+}
+
+pub(crate) fn list_pack_dir_at(dir: &str) -> Result<Vec<PackArtifactListItem>, String> {
+    let raw = std::path::PathBuf::from(dir.trim());
+    if dir.trim().is_empty() {
+        return Err("pack dir required".into());
+    }
+    let canonical = raw
+        .canonicalize()
+        .map_err(|_| "pack folder not found".to_string())?;
+    if !canonical.is_dir() {
+        return Err("pack path is not a folder".into());
+    }
+    if !artifact_path_allowed(&canonical) && !path_is_under_allowed_dir(&canonical) {
+        return Err("pack folder is outside allowed pack/apply folders".into());
+    }
+    let mut out: Vec<PackArtifactListItem> = Vec::new();
+    collect_pack_files(&canonical, &canonical, &mut out, 0)?;
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(out)
+}
+
+fn path_is_under_allowed_dir(canonical_dir: &std::path::Path) -> bool {
+    if let Ok(data) = crate::app_dirs::app_data_dir() {
+        if path_is_under(canonical_dir, &data.join("application_packs")) {
+            return true;
+        }
+        if canonical_dir.starts_with(&data.join("application_packs")) {
+            return true;
+        }
+    }
+    if let Some(dev) = get_devprofile_path() {
+        let apply = std::path::PathBuf::from(dev).join("out").join("apply");
+        if path_is_under(canonical_dir, &apply) {
+            return true;
+        }
+    }
+    false
+}
+
+fn collect_pack_files(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    out: &mut Vec<PackArtifactListItem>,
+    depth: u8,
+) -> Result<(), String> {
+    if depth > 2 {
+        return Ok(());
+    }
+    let rd = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for entry in rd.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_pack_files(root, &path, out, depth + 1)?;
+            continue;
+        }
+        if !path.is_file() {
+            continue;
+        }
+        let kind = artifact_kind_for_path(&path);
+        if kind == "other" {
+            continue;
+        }
+        let name = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+        out.push(PackArtifactListItem {
+            name,
+            path: path.to_string_lossy().to_string(),
+            kind: kind.to_string(),
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn list_pack_dir(dir: String) -> Result<Vec<PackArtifactListItem>, String> {
+    list_pack_dir_at(&dir)
 }
 
 /// Core of export_application_pack: load stored prep, build files, write under app-local
@@ -2842,16 +3554,11 @@ pub(crate) async fn generate_apply_cv(
     db: State<'_, AppDb>,
     opportunity_id: i64,
 ) -> Result<GenerateApplyCvResult, String> {
-    // 1) Export + template overlay under lock
-    let exported = {
-        let guard = db
-            .0
-            .lock()
-            .map_err(|_| "lock failed".to_string())?;
-        if opportunity_id <= 0 {
-            return Err("opportunity_id required".into());
-        }
-        // existence check
+    if opportunity_id <= 0 {
+        return Err("opportunity_id required".into());
+    }
+    let (source_url, needs_enrich) = {
+        let guard = db.0.lock().map_err(|_| "lock failed".to_string())?;
         let opps = guard
             .get_opportunities(&db::OpportunityFilter {
                 id: Some(opportunity_id),
@@ -2859,9 +3566,36 @@ pub(crate) async fn generate_apply_cv(
                 ..Default::default()
             })
             .unwrap_or_default();
-        if opps.is_empty() {
-            return Err(format!("opportunity {opportunity_id} not found"));
+        let o = opps
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("opportunity {opportunity_id} not found"))?;
+        let identity = resolve_application_pack_identity(&o);
+        let needs = is_placeholder_company(&identity.company)
+            || is_placeholder_title(&identity.title)
+            || !stored_jd_is_usable(&o.jd_text);
+        (o.source_url.clone(), needs)
+    };
+    if needs_enrich {
+        if let Some(url) = source_url.clone() {
+            if let Ok(Some((text, title, company))) = resolve_opportunity_source(Some(url), None).await {
+                if let Ok(guard) = db.0.lock() {
+                    let _ = guard.update_opportunity_identity(
+                        opportunity_id,
+                        title.as_deref(),
+                        company.as_deref(),
+                        Some(text.as_str()),
+                    );
+                }
+            }
         }
+    }
+    // 1) Export + template overlay under lock
+    let exported = {
+        let guard = db
+            .0
+            .lock()
+            .map_err(|_| "lock failed".to_string())?;
         do_export_application_pack(&*guard, opportunity_id)?
     };
 
@@ -3230,6 +3964,19 @@ mod tests {
     }
 
     #[test]
+    fn lone_url_is_not_confused_with_platsbanken_jd_blob() {
+        let jd = "# Fullstack Engineer - Commercial Tech\nEmployer: Embark Studios AB\nPlatsbanken: https://arbetsformedlingen.se/platsbanken/annonser/31297733\nAd id: 31297733\n";
+        assert!(!looks_like_lone_opportunity_url(jd));
+        assert!(crate::platsbanken::ad_id_from_webpage_url(jd).is_some());
+        let (url, paste) = coerce_fetch_url_and_paste(Some(jd.into()), None).unwrap();
+        assert!(url.is_none());
+        assert!(paste.unwrap().starts_with("# Fullstack"));
+        assert!(looks_like_lone_opportunity_url(
+            "https://arbetsformedlingen.se/platsbanken/annonser/31297733"
+        ));
+    }
+
+    #[test]
     fn analyze_user_prompt_injects_constraints_from_curation_artifact() {
         let prompt = build_analyze_user_prompt(
             "CV_BODY_HERE",
@@ -3488,6 +4235,16 @@ mod tests {
     }
 
     #[test]
+    fn stored_jd_placeholder_is_not_usable() {
+        assert!(!stored_jd_is_usable("jd"));
+        assert!(!stored_jd_is_usable("  "));
+        assert!(stored_jd_is_usable(
+            "Hiring a staff engineer for agent inference"
+        ));
+        assert!(!stored_jd_is_usable("Jag godkänner alla kakor"));
+    }
+
+    #[test]
     fn run_prep_path_selects_variant_and_embeds_id() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let res = rt
@@ -3649,6 +4406,7 @@ mod tests {
             Some("Staff Engineer".to_string()),
             Some("xAI".to_string()),
             None, // cv_summary=None -> triggers devprofile_path branch
+            None, // paste alias
         ) ).expect("analyze_opportunity_target cmd");
 
         // The returned result from the cmd must have packet_preview from the live pruned CV
@@ -3712,6 +4470,15 @@ mod tests {
         let files = build_application_pack_files(prep, None).expect("builder");
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"cover-letter.md"));
+        assert!(names.contains(&"email-draft.md"));
+        let email = files
+            .iter()
+            .find(|(n, _)| n == "email-draft.md")
+            .map(|(_, c)| c.as_str())
+            .unwrap_or("");
+        assert!(email.contains("Subject:"));
+        assert!(email.contains("I've attached my CV as a PDF."));
+        assert!(email.contains("Dear hiring team"));
         assert!(names.contains(&"cv-suggestions.md"));
         assert!(names.contains(&"research-notes.md"));
         assert!(names.contains(&"exceptional-work.md"));
@@ -3761,6 +4528,61 @@ mod tests {
     }
 
     #[test]
+    fn email_apply_draft_combines_touch_and_cover_letter() {
+        let cover = "Dear hiring team,\n\nI bring Tauri plus agentic systems experience. I ship self-guarded loops.\n\nBest regards";
+        let draft = build_email_apply_draft(cover, "qred", "Fullstack Engineer");
+        assert!(draft.contains("Subject: Application — Fullstack Engineer — Qred"));
+        assert!(draft.contains("I bring Tauri plus agentic systems experience."));
+        assert!(draft.contains("I've attached my CV as a PDF."));
+        assert!(draft.contains("Dear hiring team"));
+        assert!(
+            !draft.contains("Peramanathan"),
+            "email touch must not inject extra identity lines"
+        );
+    }
+
+    #[test]
+    fn infer_title_company_from_platsbanken_jd_and_vend_prose() {
+        let formatted = "# Software Engineer, Customer Service Experience\nEmployer: Vend Marketplaces AB\n\nBody";
+        let (title, company) = infer_title_company_from_jd(formatted);
+        assert_eq!(
+            title.as_deref(),
+            Some("Software Engineer, Customer Service Experience")
+        );
+        assert_eq!(company.as_deref(), Some("Vend Marketplaces AB"));
+
+        let prose = "We are looking for a Frontend/Fullstack Software Engineer to join our CSX team.\n\nAt Vend, our mission is simple.";
+        let (title, company) = infer_title_company_from_jd(prose);
+        assert!(
+            title
+                .as_deref()
+                .is_some_and(|t| t.contains("Frontend/Fullstack Software Engineer")),
+            "{title:?}"
+        );
+        assert_eq!(company.as_deref(), Some("Vend"));
+    }
+
+    #[test]
+    fn seeking_line_avoids_role_role_and_opp_id_company() {
+        let line = seeking_line("role", "opp55");
+        assert!(
+            !line.to_lowercase().contains("role role"),
+            "{line}"
+        );
+        assert!(
+            !line.to_lowercase().contains("opp55"),
+            "{line}"
+        );
+        let vend = seeking_line(
+            "Software Engineer, Customer Service Experience",
+            "Vend Marketplaces AB",
+        );
+        assert!(vend.contains("Vend Marketplaces AB"), "{vend}");
+        assert!(vend.contains("Software Engineer, Customer Service Experience"), "{vend}");
+        assert!(!vend.contains("the Software Engineer, Customer Service Experience role at") || vend.contains("at Vend"), "{vend}");
+    }
+
+    #[test]
     fn featured_keys_from_prep_text_detects_project_mentions() {
         let keys = featured_keys_from_prep_text(
             "Promote collab-finder and agent-prompt-tuning-lab; selfie-sign-in with Rekognition",
@@ -3768,6 +4590,54 @@ mod tests {
         assert!(keys.contains(&"collab-finder".to_string()));
         assert!(keys.contains(&"agent-prompt-tuning-lab".to_string()));
         assert!(keys.contains(&"selfie-signin".to_string()));
+    }
+
+    #[test]
+    fn bank_and_overlay_use_complete_adaptate_description() {
+        let projects =
+            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        let adaptate = projects
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case("adaptate"))
+            .expect("adaptate in bank");
+        assert!(
+            !github_description_truncated(&adaptate.description),
+            "bank must not keep GitHub ellipsis: {}",
+            adaptate.description
+        );
+        assert!(
+            adaptate.description.to_lowercase().contains("at runtime")
+                || adaptate.description.to_lowercase().contains("consumer"),
+            "expected full clean blurb, got {}",
+            adaptate.description
+        );
+        let overlay = build_cv_overlay_from_prep(
+            &serde_json::from_str(
+                r#"{"cover_letter":"","cv_suggestions":["Lead with adaptate Zod OpenAPI"],"research_notes":"","exceptional_work_example":""}"#,
+            )
+            .unwrap(),
+            None,
+        );
+        let upsert = overlay
+            .get("projects_upsert")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let ad = upsert.iter().find(|p| {
+            p.get("key").and_then(|k| k.as_str()) == Some("adaptate")
+        });
+        if let Some(ad) = ad {
+            if let Some(d) = ad.get("description").and_then(|v| v.as_str()) {
+                assert!(!github_description_truncated(d), "overlay leaked truncated desc: {d}");
+                assert!(!d.contains("configuration objects to …"));
+            }
+        }
+        let keys = overlay
+            .get("featured_keys")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        assert!(keys <= FEATURED_PROJECTS_MAX);
     }
 
     #[test]
@@ -3820,6 +4690,50 @@ mod tests {
             "xai-exceptional-software-engineer-2026-07-17"
         );
         assert_eq!(slugify_pack_segment("  Foo & Bar!! "), "foo-bar");
+    }
+
+    #[test]
+    fn read_pack_artifact_allows_app_packs_and_rejects_outside() {
+        struct HarnessGuard(std::path::PathBuf);
+        impl Drop for HarnessGuard {
+            fn drop(&mut self) {
+                crate::app_dirs::test_harness::clear();
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let tmp = std::env::temp_dir().join(format!("cf_artifact_read_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let _guard = HarnessGuard(tmp.clone());
+        crate::app_dirs::test_harness::set(tmp.clone());
+        let pack = tmp.join("application_packs").join("vend-role-2026-08-15");
+        std::fs::create_dir_all(&pack).unwrap();
+        let letter = pack.join("cover-letter.md");
+        std::fs::write(&letter, "# Cover letter\n\nHello Vend.\n").unwrap();
+        let submit = pack.join("submit");
+        std::fs::create_dir_all(&submit).unwrap();
+        std::fs::write(submit.join("resume.pdf"), b"%PDF-1.4\n").unwrap();
+        let listed = list_pack_dir_at(pack.to_str().unwrap()).expect("list pack");
+        assert!(
+            listed.iter().any(|i| i.name.ends_with("resume.pdf") && i.kind == "pdf"),
+            "submit PDF must appear in artifact tree: {:?}",
+            listed
+        );
+        let read = read_pack_artifact_at(letter.to_str().unwrap()).expect("read pack md");
+        assert_eq!(read.kind, "text");
+        assert!(read.text.unwrap_or_default().contains("Hello Vend"));
+        let pdf = pack.join("cv.pdf");
+        std::fs::write(&pdf, b"%PDF-1.4\n").unwrap();
+        assert!(
+            resolve_allowed_artifact_file(pdf.to_str().unwrap()).is_ok(),
+            "pack PDF must be openable"
+        );
+        let outside = tmp.join("secret.txt");
+        std::fs::write(&outside, "nope").unwrap();
+        let err = read_pack_artifact_at(outside.to_str().unwrap()).unwrap_err();
+        assert!(err.contains("outside"), "{err}");
+        let open_err = resolve_allowed_artifact_file(outside.to_str().unwrap()).unwrap_err();
+        assert!(open_err.contains("outside"), "{open_err}");
     }
 
     #[test]

@@ -57,8 +57,8 @@ export function SwedenScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Sweden</SectionLabel>
             <p className="ui-meta px-0.5">
-              Platsbanken / JobTech — AF runway. Tokens are AND (no OR). Employment-grounded vs
-              self-learned AI/agentic (decent enough to apply). Harvested keys from live titles.
+              JobTech API (same as Evaluate on a Platsbanken URL) — skips the website cookie wall.
+              Tokens are AND (no OR). Employment-grounded vs self-learned AI/agentic.
             </p>
           </div>
           <Button

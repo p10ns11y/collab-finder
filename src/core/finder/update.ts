@@ -135,6 +135,9 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...(msg.url !== undefined ? { opportunityTargetUrl: msg.url } : {}),
           // Mark loading for the hydrate path (succeeded will populate from DB data; no re-xAI).
           opportunityTarget: { status: 'loading' } as AsyncState<OpportunityTargetResult>,
+          // Pack/PDF paths are session-only until notes hydrate — drop the previous opp's files.
+          lastApplicationPackExport: undefined,
+          lastApplyCv: undefined,
           banner: null,
         },
       ]
@@ -344,6 +347,21 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       ]
     case 'ApplicationPackExportFailed':
       return [{ ...model, banner: msg.error }]
+    case 'ApplicationPackHydrated':
+      return [
+        {
+          ...model,
+          lastApplicationPackExport: {
+            opportunity_id: msg.opportunity_id,
+            pack_dir: msg.pack_dir,
+            pack_slug: msg.pack_slug,
+            company: model.lastApplicationPackExport?.company ?? null,
+            title: model.lastApplicationPackExport?.title ?? null,
+            files: model.lastApplicationPackExport?.files ?? [],
+            file_count: model.lastApplicationPackExport?.file_count ?? 0,
+          },
+        },
+      ]
 
     case 'GenerateApplyCvRequested':
       return [{ ...model, banner: null }]
@@ -546,6 +564,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: { status: 'loading' },
           opportunityTargetUrl: msg.url,
+          opportunityTargetPastedJd: msg.pasted_jd,
           banner: null,
         },
       ]
@@ -571,6 +590,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           opportunityTarget: idle(),
           opportunityTargetUrl: undefined,
+          opportunityTargetPastedJd: undefined,
           lastSidecarProposal: undefined,
           lastApplicationPackExport: undefined,
           lastApplyCv: undefined,
@@ -580,6 +600,21 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'OpportunityTargetUrlSet':
       // Pure setter (no I/O effect) used by restore/load paths to sync the display url (for panel "Open" button + prep dispatch) without triggering analyze.
       return [{ ...model, opportunityTargetUrl: msg.url }]
+
+    case 'OpportunityTargetJdSet':
+      // Hydrate from DB: never wipe a paste the user already typed this session.
+      return [
+        {
+          ...model,
+          opportunityTargetPastedJd:
+            msg.pasted_jd && msg.pasted_jd.trim()
+              ? msg.pasted_jd
+              : model.opportunityTargetPastedJd,
+        },
+      ]
+
+    case 'OpportunityTargetPastedJdChanged':
+      return [{ ...model, opportunityTargetPastedJd: msg.pasted_jd }]
 
     // Opportunity target prep (Slice C)
     case 'OpportunityTargetPrepRequested':

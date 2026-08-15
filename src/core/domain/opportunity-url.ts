@@ -3,8 +3,20 @@
  * Keeps link rendering consistent and tolerates missing/relative values.
  */
 
+/** True when the string is a single URL, not a JD that merely contains a URL. */
+export function looksLikeLoneOpportunityUrl(raw: string | null | undefined): boolean {
+  if (raw == null) return false
+  const t = String(raw).trim()
+  if (!t || t.length > 2000) return false
+  if (t.includes('\n') || t.includes('\r')) return false
+  if (t.startsWith('#')) return false
+  if (/^https?:\/\//i.test(t) || t.startsWith('//')) return true
+  return !t.includes(' ') && t.includes('.')
+}
+
 /** Return a browser-openable http(s) URL, or null if none. */
 export function normalizeOpportunityUrl(raw: string | null | undefined): string | null {
+  if (!looksLikeLoneOpportunityUrl(raw)) return null
   if (raw == null) return null
   const t = String(raw).trim()
   if (!t) return null

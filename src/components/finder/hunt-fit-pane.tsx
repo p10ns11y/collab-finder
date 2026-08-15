@@ -61,6 +61,7 @@ export function HuntFitPane({ view, dispatch }: Props) {
           type: 'OpportunityTargetPrepRequested',
           opportunity_id: opportunityId,
           url: sourceUrl,
+          pasted_jd: model.opportunityTargetPastedJd || selectedOpp?.jd_text,
         })
       }
       onProposeSidecar={(opportunityId) => {
@@ -81,6 +82,8 @@ export function HuntFitPane({ view, dispatch }: Props) {
       lastSidecarProposal={view.lastSidecarProposal}
       lastApplicationPackExport={view.lastApplicationPackExport}
       lastApplyCv={view.lastApplyCv}
+      companyName={selectedOpp?.company}
+      roleTitle={selectedOpp?.title}
     />
   )
 }

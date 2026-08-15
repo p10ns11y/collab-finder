@@ -50,6 +50,7 @@ export function createTauriFinderPort(): FinderPort {
       safeInvoke<OpportunityTargetAnalysisResult>('analyze_opportunity_target', {
         url: payload.url,
         pastedJd: payload.pasted_jd,
+        paste: payload.pasted_jd,
         title: payload.title,
         company: payload.company,
         cvSummary: payload.cv_summary,
@@ -59,6 +60,7 @@ export function createTauriFinderPort(): FinderPort {
         opportunityId: payload.opportunity_id,
         url: payload.url,
         pastedJd: payload.pasted_jd,
+        paste: payload.pasted_jd,
         title: payload.title,
         company: payload.company,
         cvSummary: payload.cv_summary,
