@@ -18,6 +18,7 @@ import { buildQuestPrompt, snapshotFromFinder } from '../domain/quest'
 import { formatQuestContextBlock, resolveQuestContextPacks } from '../domain/quest-context'
 import {
   normalizeApplicationPackExport,
+  packExportFromOpportunityNotes,
   normalizeGenerateApplyCv,
 } from '../domain/application-pack'
 
@@ -1148,6 +1149,16 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       // If reconstruction produced a legacy stub (no cv meta), warn (the pure fn already produces the stub shape when needed).
       if (fitDispatched && reconstructed && (reconstructed.cv_chars_sent === 0 && reconstructed.cv_ipc_chars === 0)) {
         console.warn('[finder] hydrate: legacy/ stub analysis without cv meta for id', id)
+      }
+
+      const packFromNotes = packExportFromOpportunityNotes(o.notes)
+      if (packFromNotes) {
+        dispatch({
+          type: 'ApplicationPackHydrated',
+          opportunity_id: o.id,
+          pack_dir: packFromNotes.pack_dir,
+          pack_slug: packFromNotes.pack_slug || undefined,
+        })
       }
 
       if (o.prep_artifacts_json) {

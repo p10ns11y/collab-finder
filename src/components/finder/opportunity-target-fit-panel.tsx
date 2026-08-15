@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Copy, ExternalLink, BookOpen, FileText } from 'lucide-react'
+import { ExternalLink, BookOpen, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -31,7 +31,6 @@ type Props = {
   busy: boolean
   sourceUrl?: string
   pipelineStatus?: string
-  /** Current settings mode (fallback when result has no fit_mode). */
   fitMode?: FitMode
   onClear?: () => void
   onPrepRequested?: (opportunityId?: number) => void
@@ -61,55 +60,6 @@ type Props = {
   roleTitle?: string | null
 }
 
-function PrepSection({
-  title,
-  children,
-  copyText,
-  onRead,
-}: {
-  title: string
-  children: React.ReactNode
-  copyText?: string
-  onRead?: () => void
-}) {
-  const [copied, setCopied] = React.useState(false)
-  return (
-    <div className="rounded-md border border-border-subtle/80 bg-surface-2/40">
-      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border-subtle/60">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">{title}</div>
-        <div className="flex items-center gap-2">
-          {onRead ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
-              onClick={onRead}
-            >
-              <BookOpen className="h-3 w-3" />
-              Read
-            </button>
-          ) : null}
-          {copyText ? (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
-            onClick={() => {
-              navigator.clipboard?.writeText(copyText).then(() => {
-                setCopied(true)
-                window.setTimeout(() => setCopied(false), 1000)
-              }).catch(() => {})
-            }}
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          ) : null}
-        </div>
-      </div>
-      <div className="p-2.5 text-xs text-ink-muted leading-relaxed">{children}</div>
-    </div>
-  )
-}
-
 export function OpportunityTargetFitPanel({
   result,
   error,
@@ -130,9 +80,7 @@ export function OpportunityTargetFitPanel({
   roleTitle,
 }: Props) {
   const [modelLabel, setModelLabel] = React.useState('grok-4.6')
-  const [actionCopied, setActionCopied] = React.useState(false)
-  const [allCopied, setAllCopied] = React.useState(false)
-  const [showGrounding, setShowGrounding] = React.useState(false)
+  const [showMore, setShowMore] = React.useState(false)
   const [readerOpen, setReaderOpen] = React.useState(false)
   const [readerFocus, setReaderFocus] = React.useState<string | null>(null)
   const [listedPack, setListedPack] = React.useState<
@@ -164,8 +112,7 @@ export function OpportunityTargetFitPanel({
   const artifactNodes = React.useMemo((): ArtifactTreeNode[] => {
     const nodes: ArtifactTreeNode[] = []
     const prepObj = result && 'prep' in result ? result.prep : undefined
-    const company =
-      companyName || lastApplicationPackExport?.company || ''
+    const company = companyName || lastApplicationPackExport?.company || ''
     const title = roleTitle || lastApplicationPackExport?.title || ''
     if (lastApplyCv?.pdf_path) {
       nodes.push({
@@ -239,21 +186,25 @@ export function OpportunityTargetFitPanel({
     const seenPdfPaths = new Set(
       nodes.filter((n) => n.group === 'CV PDF' && n.path).map((n) => n.path as string),
     )
+    const seenLabels = new Set(nodes.map((n) => n.label.toLowerCase()))
     const packDir = lastApplicationPackExport?.pack_dir
     if (listedPack.length > 0) {
       for (const item of listedPack) {
         const isPdf = item.kind === 'pdf' || item.name.toLowerCase().endsWith('.pdf')
+        const baseName = item.name.split('/').pop()?.toLowerCase() || item.name.toLowerCase()
         if (isPdf) {
           if (seenPdfPaths.has(item.path)) continue
           seenPdfPaths.add(item.path)
           nodes.push({
             id: `pdf-pack-${item.path}`,
             label: item.name,
-            group: 'CV PDF',
+            group: 'PDF',
             path: item.path,
           })
           continue
         }
+        if (seenLabels.has(baseName)) continue
+        seenLabels.add(baseName)
         nodes.push({
           id: `pack-${item.path}`,
           label: item.name,
@@ -275,13 +226,18 @@ export function OpportunityTargetFitPanel({
     return nodes
   }, [result, listedPack, lastApplicationPackExport, lastApplyCv, companyName, roleTitle])
 
-  const pdfNode = artifactNodes.find((node) => node.group === 'CV PDF')
+  const pdfNode = artifactNodes.find(
+    (node) => node.group === 'CV PDF' || node.group === 'PDF' || node.label.toLowerCase().endsWith('.pdf'),
+  )
 
-  const openWorkspace = React.useCallback((focusId?: string) => {
-    const fallback = pdfNode?.id ?? artifactNodes[0]?.id ?? null
-    setReaderFocus(focusId ?? fallback)
-    setReaderOpen(true)
-  }, [artifactNodes, pdfNode])
+  const openWorkspace = React.useCallback(
+    (focusId?: string) => {
+      const fallback = pdfNode?.id ?? artifactNodes[0]?.id ?? null
+      setReaderFocus(focusId ?? fallback)
+      setReaderOpen(true)
+    },
+    [artifactNodes, pdfNode],
+  )
 
   if (busy) {
     return (
@@ -339,9 +295,6 @@ export function OpportunityTargetFitPanel({
   const previewTruncated =
     'packet_preview_truncated' in result ? result.packet_preview_truncated : undefined
   const promptTokens = 'prompt_tokens' in result ? result.prompt_tokens : undefined
-  const proofVariantId =
-    ('proof_variant_id' in result && (result as { proof_variant_id?: string }).proof_variant_id) ||
-    prep?.proof_variant_id
   const isRestoredHydrate =
     result && 'cv_chars_sent' in result
       ? shouldShowRestoredCvWarning(result as any)
@@ -355,532 +308,224 @@ export function OpportunityTargetFitPanel({
   const statusNorm = normalizePipelineStatus(pipelineStatus)
   const dealBreakers = fit?.deal_breakers_triggered ?? []
   const roleConcerns = fit?.role_concerns ?? []
-  const emailDraft =
-    prep?.email_draft?.trim() ||
-    (prep?.cover_letter
-      ? buildEmailApplyDraft(
-          prep.cover_letter,
-          companyName || lastApplicationPackExport?.company,
-          roleTitle || lastApplicationPackExport?.title,
-        )
-      : '')
-
-  const prepBlob = prep
-    ? [
-        emailDraft && `## Email apply draft\n\n${emailDraft}`,
-        prep.cover_letter && `## Cover letter\n\n${prep.cover_letter}`,
-        prep.cv_suggestions?.length &&
-          `## CV suggestions\n\n${prep.cv_suggestions.map((s) => `- ${s}`).join('\n')}`,
-        prep.research_notes && `## Research\n\n${prep.research_notes}`,
-        prep.exceptional_work_example &&
-          `## Exceptional work example\n\n${prep.exceptional_work_example}`,
-        proofVariantId && `## Proof variant\n\n${proofVariantId}`,
-      ]
-        .filter(Boolean)
-        .join('\n\n')
-    : ''
+  const coverExcerpt = prep?.cover_letter?.trim() ?? ''
+  const hasMustGaps = Boolean(fit?.gaps_must?.length)
+  const hasNiceGaps = Boolean(fit?.gaps_nice?.length)
 
   return (
-    <Card className="border-border-subtle shadow-glow">
-      <CardHeader className="pb-2 sticky top-0 z-10 bg-surface-1/95 backdrop-blur-sm border-b border-border-subtle/40">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-            {prep ? (relaxed ? 'Fitness + prep' : 'Fit + prep') : relaxed ? 'Fitness' : 'Fit analysis'}
-            <span className="text-[10px] text-accent font-normal">{modelLabel}</span>
-            <Badge tone="neutral" className="text-[10px]">
-              {pipelineStatusLabel(statusNorm)}
-            </Badge>
-            <Badge tone={relaxed ? 'accent' : 'neutral'} className="text-[10px]">
-              {relaxed ? 'relaxed' : 'strict'}
-            </Badge>
-          </CardTitle>
-          <Badge tone={tone}>{score}/100 {relaxed ? 'fitness' : 'mutual'}</Badge>
-        </div>
-        <div className="text-[11px] text-ink-faint">
-          #{opportunityId ?? '—'}
-          {estCost != null ? ` · ~$${estCost.toFixed(4)}` : ''}
-          {score >= 75 ? ' · Strong match' : score >= 55 ? ' · Moderate — review gaps' : ' · Low match'}
-          {showDualFit && candidateToRole != null ? ` · You→role ${candidateToRole}` : ''}
-          {showDualFit && roleToCandidate != null ? ` · Role→you ${roleToCandidate}` : ''}
+    <Card className="border-border-subtle">
+      <CardHeader className="px-6 pt-6 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-[15px] font-semibold tracking-tight">
+              {roleTitle || companyName
+                ? [roleTitle, companyName].filter(Boolean).join(' · ')
+                : prep
+                  ? 'Prepared'
+                  : 'Fit'}
+            </CardTitle>
+            <p className="text-[13px] text-ink-faint">
+              #{opportunityId ?? '—'}
+              {relaxed ? ' · relaxed' : ' · strict'}
+              {` · ${pipelineStatusLabel(statusNorm).toLowerCase()}`}
+              {estCost != null ? ` · ~$${estCost.toFixed(3)}` : ''}
+            </p>
+          </div>
+          <Badge tone={tone} className="shrink-0 normal-case tracking-normal">
+            {score}/100
+          </Badge>
         </div>
         {externalHref ? (
           <a
             href={externalHref}
             target="_blank"
             rel="noreferrer noopener"
-            className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs text-accent hover:underline font-mono break-all"
+            className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[13px] text-ink-muted hover:text-accent"
             title={externalHref}
           >
             <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="truncate">{externalLabel || externalHref}</span>
           </a>
-        ) : (
-          <div className="mt-1 text-[11px] text-ink-faint">Paste-only target (no source URL).</div>
-        )}
-        {isRestoredHydrate && (
-          <div className="mt-1 text-[11px] text-warning">
-            Restored from DB — re-run Evaluate fit to ground on current CV.
-          </div>
-        )}
+        ) : null}
+        {isRestoredHydrate ? (
+          <p className="mt-3 text-[13px] text-warning">Restored from history — re-evaluate to ground on the current CV.</p>
+        ) : null}
       </CardHeader>
 
-      <CardContent className="space-y-4 text-sm pt-3">
-        {fit?.rationale && (
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">Rationale</div>
-            <p className="text-ink-muted leading-relaxed text-[13px]">{fit.rationale}</p>
-          </div>
-        )}
+      <CardContent className="space-y-8 px-6 pb-8 pt-0">
+        {fit?.rationale ? (
+          <p className="max-w-[65ch] text-[15px] leading-7 text-ink-muted">{fit.rationale}</p>
+        ) : null}
 
-        {showDualFit && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
-                You → role
-              </div>
-              <div className="text-sm font-medium text-ink">
-                {candidateToRole != null ? `${candidateToRole}/100` : '—'}
-              </div>
-              <div className="text-[10px] text-ink-faint mt-0.5">Can you do this job?</div>
-            </div>
-            <div className="rounded-md border border-border-subtle/80 bg-surface-2/30 px-2.5 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-0.5">
-                Role → you
-              </div>
-              <div className="text-sm font-medium text-ink">
-                {roleToCandidate != null ? `${roleToCandidate}/100` : '—'}
-              </div>
-              <div className="text-[10px] text-ink-faint mt-0.5">Is this right for you?</div>
-            </div>
-          </div>
-        )}
+        {showDualFit ? (
+          <p className="text-[13px] text-ink-faint">
+            You → role {candidateToRole ?? '—'}
+            <span className="mx-2 text-border-strong">·</span>
+            Role → you {roleToCandidate ?? '—'}
+          </p>
+        ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
-              {relaxed ? 'Gaps to address' : 'Must address (you → role)'}
-            </div>
-            {fit?.gaps_must && fit.gaps_must.length > 0 ? (
-              <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_must.map((g, i) => (
-                  <li key={i}>{g}</li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-xs text-ink-faint">None flagged</div>
-            )}
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">Nice to have</div>
-            {fit?.gaps_nice && fit.gaps_nice.length > 0 ? (
-              <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                {fit.gaps_nice.map((g, i) => (
-                  <li key={i}>{g}</li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-xs text-ink-faint">None flagged</div>
-            )}
-          </div>
-        </div>
-
-        {showDualFit &&
-          (roleConcerns.length > 0 ||
-            dealBreakers.length > 0 ||
-            fit?.role_concerns != null ||
-            fit?.deal_breakers_triggered != null) && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
-                Role concerns (role → you)
-              </div>
-              {roleConcerns.length > 0 ? (
-                <ul className="list-disc pl-4 text-xs space-y-0.5 text-ink-muted">
-                  {roleConcerns.map((g, i) => (
-                    <li key={i}>{g}</li>
+        {(hasMustGaps || hasNiceGaps) && (
+          <div className="grid max-w-[65ch] gap-6 sm:grid-cols-2">
+            {hasMustGaps ? (
+              <div>
+                <h3 className="mb-2 text-[13px] font-medium text-ink">Gaps</h3>
+                <ul className="space-y-1.5 text-[13px] leading-6 text-ink-muted">
+                  {fit?.gaps_must?.map((gap) => (
+                    <li key={gap}>{gap}</li>
                   ))}
                 </ul>
-              ) : (
-                <div className="text-xs text-ink-faint">None flagged</div>
-              )}
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wide text-warning mb-1">
-                Deal-breakers triggered
               </div>
-              {dealBreakers.length > 0 ? (
-                <ul className="list-disc pl-4 text-xs space-y-0.5 text-warning">
-                  {dealBreakers.map((g, i) => (
-                    <li key={i}>{g}</li>
+            ) : null}
+            {hasNiceGaps ? (
+              <div>
+                <h3 className="mb-2 text-[13px] font-medium text-ink">Nice</h3>
+                <ul className="space-y-1.5 text-[13px] leading-6 text-ink-muted">
+                  {fit?.gaps_nice?.map((gap) => (
+                    <li key={gap}>{gap}</li>
                   ))}
                 </ul>
-              ) : (
-                <div className="text-xs text-ink-faint">None</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {fit?.recommended_action && (
-          <div className="pt-1 border-t border-border-subtle">
-            <div className="text-[11px] uppercase tracking-wide text-ink-faint mb-1">
-              Recommended next step
-            </div>
-            <p className="text-accent font-medium text-sm leading-relaxed">{fit.recommended_action}</p>
-          </div>
-        )}
-
-        {prep && (
-          <div className="space-y-2 border-t border-border-subtle pt-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[11px] uppercase tracking-wide text-ink-faint">
-                Prep pack
-                {proofVariantId ? (
-                  <span className="ml-2 font-mono normal-case tracking-normal text-accent">
-                    {proofVariantId}
-                  </span>
-                ) : null}
               </div>
-              {prepBlob && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-[10px] text-ink-muted hover:text-accent"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(prepBlob).then(() => {
-                      setAllCopied(true)
-                      window.setTimeout(() => setAllCopied(false), 1200)
-                    }).catch(() => {})
-                  }}
-                >
-                  {allCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  {allCopied ? 'Copied all' : 'Copy all prep'}
-                </button>
-              )}
-            </div>
-            {emailDraft && (
-              <PrepSection
-                title="Email apply draft"
-                copyText={emailDraft}
-                onRead={() => openWorkspace('prep-email')}
-              >
-                <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
-                  {emailDraft}
-                </pre>
-              </PrepSection>
-            )}
-            {prep.cover_letter && (
-              <PrepSection
-                title="Cover letter"
-                copyText={prep.cover_letter}
-                onRead={() => openWorkspace('prep-cover')}
-              >
-                <pre className="whitespace-pre-wrap font-sans max-h-56 overflow-auto m-0">
-                  {prep.cover_letter}
-                </pre>
-              </PrepSection>
-            )}
-            {prep.cv_suggestions && prep.cv_suggestions.length > 0 && (
-              <PrepSection
-                title="CV suggestions"
-                copyText={prep.cv_suggestions.map((s) => `- ${s}`).join('\n')}
-              >
-                <ul className="list-disc pl-4 space-y-0.5">
-                  {prep.cv_suggestions.map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </PrepSection>
-            )}
-            {prep.research_notes && (
-              <PrepSection
-                title="Research notes"
-                copyText={prep.research_notes}
-                onRead={() => openWorkspace('prep-research')}
-              >
-                <p className="whitespace-pre-wrap m-0">{prep.research_notes}</p>
-              </PrepSection>
-            )}
-            {prep.exceptional_work_example && (
-              <PrepSection
-                title="Exceptional work example"
-                copyText={prep.exceptional_work_example}
-                onRead={() => openWorkspace('prep-ew')}
-              >
-                <p className="whitespace-pre-wrap m-0">{prep.exceptional_work_example}</p>
-              </PrepSection>
-            )}
+            ) : null}
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-1 border-t border-border-subtle">
-          {externalHref && (
-            <a
-              href={externalHref}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 h-8 px-3 text-xs rounded-md border border-border-default bg-surface-3 text-ink hover:bg-surface-elevated"
-            >
-              <ExternalLink className="h-3 w-3" /> Open URL
-            </a>
-          )}
-          {fit?.recommended_action && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const text = fit.recommended_action || ''
-                if (text) {
-                  navigator.clipboard?.writeText(text).then(() => {
-                    setActionCopied(true)
-                    window.setTimeout(() => setActionCopied(false), 1200)
-                  }).catch(() => {})
-                }
-              }}
-            >
-              {actionCopied ? 'Copied!' : 'Copy action'}
+        {dealBreakers.length > 0 ? (
+          <div>
+            <h3 className="mb-2 text-[13px] font-medium text-warning">Deal-breakers</h3>
+            <ul className="max-w-[65ch] space-y-1.5 text-[13px] leading-6 text-warning">
+              {dealBreakers.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {roleConcerns.length > 0 ? (
+          <div>
+            <h3 className="mb-2 text-[13px] font-medium text-ink">Role concerns</h3>
+            <ul className="max-w-[65ch] space-y-1.5 text-[13px] leading-6 text-ink-muted">
+              {roleConcerns.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {fit?.recommended_action ? (
+          <p className="max-w-[65ch] text-[15px] leading-7 text-ink">{fit.recommended_action}</p>
+        ) : null}
+
+        {coverExcerpt ? (
+          <p className="max-w-[65ch] line-clamp-5 text-[15px] leading-7 text-ink-muted">{coverExcerpt}</p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-3">
+          {!prep && onPrepRequested && canPrep ? (
+            <Button variant="primary" size="sm" onClick={() => onPrepRequested(opportunityId)}>
+              Prepare
             </Button>
-          )}
-          {onPrepRequested && result && canPrep && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onPrepRequested(opportunityId)}
-              title={
-                estCost != null
-                  ? `Prior call ~$${estCost.toFixed(4)}; prep is an additional model call`
-                  : relaxed
-                    ? 'Generate preparation bundle (additional model call)'
-                    : 'Generate prep pack (additional model call)'
-              }
-            >
-              {prep ? 'Regenerate prep' : relaxed ? 'Prepare bundle' : 'Generate prep'}
-            </Button>
-          )}
-          {onProposeSidecar && prep && opportunityId && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onProposeSidecar(opportunityId)}
-              title="Propose CV suggestions as sidecar (no master mutation)"
-            >
-              Propose CV sidecar
-            </Button>
-          )}
-          {artifactNodes.length > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => openWorkspace()}
-              title="Full-viewport file tree for CV PDF, email draft, pack, and prep"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              Open artifacts
-            </Button>
-          )}
-          {prep && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!pdfNode}
-              onClick={() => {
-                if (pdfNode) openWorkspace(pdfNode.id)
-              }}
-              title={
-                pdfNode
-                  ? 'Open the apply CV PDF'
-                  : 'No PDF yet — click Generate apply CV first'
-              }
-            >
+          ) : null}
+          {prep && pdfNode ? (
+            <Button variant="primary" size="sm" onClick={() => openWorkspace(pdfNode.id)}>
               <FileText className="h-3.5 w-3.5" />
               Open PDF
             </Button>
-          )}
-          {onGenerateApplyCv && prep && opportunityId && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onGenerateApplyCv(opportunityId)}
-              title="One-click: re-export pack + run devprofile generate-apply-cv (PDF only; no master cvdata write). Export pack alone is optional."
-            >
+          ) : null}
+          {prep && !pdfNode && onGenerateApplyCv && opportunityId ? (
+            <Button variant="primary" size="sm" onClick={() => onGenerateApplyCv(opportunityId)}>
               Generate apply CV
             </Button>
-          )}
-          {onExportPack && prep && opportunityId && (
+          ) : null}
+          {prep && artifactNodes.length > 0 ? (
+            <Button variant="secondary" size="sm" onClick={() => openWorkspace()}>
+              <BookOpen className="h-3.5 w-3.5" />
+              Artifacts
+            </Button>
+          ) : null}
+          {onStatusChange && opportunityId != null && opportunityId > 0 ? (
             <Button
-              variant="secondary"
+              variant={statusNorm === 'applied' ? 'primary' : 'ghost'}
               size="sm"
-              onClick={() => onExportPack(opportunityId)}
-              title="Optional: write pack files only (no PDF). Generate apply CV already exports first."
+              onClick={() => onStatusChange(opportunityId, 'applied')}
             >
-              Export pack only
+              Applied
             </Button>
-          )}
-          {onStatusChange && opportunityId != null && opportunityId > 0 && (
-            <div className="flex flex-wrap gap-1 items-center">
-              {(
-                [
-                  ['applied', 'Applied'],
-                  ['passed', 'Pass'],
-                  ['archived', 'Archive'],
-                  ['prepped', 'Prepped'],
-                ] as const
-              ).map(([st, label]) => (
-                <Button
-                  key={st}
-                  variant={statusNorm === st ? 'primary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2 text-[10px]"
-                  onClick={() => onStatusChange(opportunityId, st)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          )}
-          {onClear && (
-            <Button variant="ghost" size="sm" onClick={onClear} className="ml-auto">
-              Clear
-            </Button>
-          )}
+          ) : null}
         </div>
 
-        {lastSidecarProposal && (
-          <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">
-            <div className="font-medium text-xs">CV sidecar proposed (no master write)</div>
-            <pre className="whitespace-pre-wrap mt-1 max-h-28 overflow-auto text-ink-muted text-[11px]">
-              {lastSidecarProposal.preview}
-            </pre>
-            <div className="text-ink-faint mt-1">
-              Artifact under app-local cv_proposals/. Apply UI: review path only for now.
-            </div>
-          </div>
-        )}
-
-        {lastApplicationPackExport &&
-          lastApplicationPackExport.opportunity_id === opportunityId && (
-            <div className="p-2.5 border border-border-subtle rounded-md text-[11px] bg-surface-1/50">
-              <div className="font-medium text-xs">
-                Application pack
-                {lastApplicationPackExport.file_count > 0
-                  ? ` (${lastApplicationPackExport.file_count} files)`
-                  : lastApplicationPackExport.files?.length
-                    ? ` (${lastApplicationPackExport.files.length} files)`
-                    : ''}
-                {lastApplicationPackExport.pack_slug
-                  ? ` — ${lastApplicationPackExport.pack_slug}`
-                  : ''}
+        <div>
+          <button
+            type="button"
+            className="text-[13px] text-ink-faint hover:text-ink"
+            onClick={() => setShowMore((open) => !open)}
+          >
+            {showMore ? 'Less' : 'More'}
+          </button>
+          {showMore ? (
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                {prep && onPrepRequested && canPrep ? (
+                  <Button variant="ghost" size="sm" onClick={() => onPrepRequested(opportunityId)}>
+                    Regenerate prep
+                  </Button>
+                ) : null}
+                {prep && pdfNode && onGenerateApplyCv && opportunityId ? (
+                  <Button variant="ghost" size="sm" onClick={() => onGenerateApplyCv(opportunityId)}>
+                    Regenerate PDF
+                  </Button>
+                ) : null}
+                {onProposeSidecar && prep && opportunityId ? (
+                  <Button variant="ghost" size="sm" onClick={() => onProposeSidecar(opportunityId)}>
+                    Propose sidecar
+                  </Button>
+                ) : null}
+                {onExportPack && prep && opportunityId ? (
+                  <Button variant="ghost" size="sm" onClick={() => onExportPack(opportunityId)}>
+                    Export pack
+                  </Button>
+                ) : null}
+                {onStatusChange && opportunityId != null && opportunityId > 0
+                  ? (
+                      [
+                        ['passed', 'Pass'],
+                        ['archived', 'Archive'],
+                        ['prepped', 'Prepped'],
+                      ] as const
+                    ).map(([status, label]) => (
+                      <Button
+                        key={status}
+                        variant={statusNorm === status ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => onStatusChange(opportunityId, status)}
+                      >
+                        {label}
+                      </Button>
+                    ))
+                  : null}
+                {onClear ? (
+                  <Button variant="ghost" size="sm" onClick={onClear}>
+                    Clear
+                  </Button>
+                ) : null}
               </div>
-              <div className="font-mono text-ink-muted mt-1 break-all">
-                {lastApplicationPackExport.pack_dir}
-              </div>
-              {(lastApplicationPackExport.files?.length ?? 0) > 0 ? (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {lastApplicationPackExport.files.map((fileName) => (
-                    <button
-                      key={fileName}
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent hover:border-accent/40"
-                      onClick={() => {
-                        const match = artifactNodes.find(
-                          (n) => n.label === fileName || n.label.endsWith(fileName),
-                        )
-                        openWorkspace(match?.id ?? `pack-${fileName}`)
-                      }}
-                    >
-                      <BookOpen className="h-3 w-3" />
-                      {fileName}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-warning mt-1">
-                  No file list in UI — if the folder is empty, run Generate prep then Generate apply
-                  CV (one-click export + PDF).
-                </div>
-              )}
-            </div>
-          )}
-
-        {lastApplyCv && lastApplyCv.opportunity_id === opportunityId && (
-          <div className="p-2.5 border border-accent/30 rounded-md text-[11px] bg-surface-1/50">
-            <div className="font-medium text-xs">Apply CV PDF ready (no master write)</div>
-            <div className="font-mono text-ink-muted mt-1 break-all">{lastApplyCv.pdf_path}</div>
-            {lastApplyCv.flat_pdf_path ? (
-              <div className="font-mono text-ink-faint mt-0.5 break-all">
-                Flat: {lastApplyCv.flat_pdf_path}
-              </div>
-            ) : null}
-            {lastApplyCv.submit_pdf_path ? (
-              <div className="font-mono text-ink-faint mt-0.5 break-all">
-                Submit: {lastApplyCv.submit_pdf_path}
-              </div>
-            ) : null}
-            <div className="text-ink-faint mt-1">
-              From devprofile generate-apply-cv · pack {lastApplyCv.pack_slug}
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
-                onClick={() => openWorkspace('pdf-primary')}
-              >
-                <BookOpen className="h-3 w-3" />
-                Read CV PDF
-              </button>
-              {lastApplyCv.flat_pdf_path ? (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
-                  onClick={() => {
-                    const flatPdfPath = lastApplyCv.flat_pdf_path
-                    if (flatPdfPath) openWorkspace('pdf-flat')
-                  }}
-                >
-                  Read flat PDF
-                </button>
+              {lastSidecarProposal ? (
+                <p className="max-w-[65ch] text-[13px] leading-6 text-ink-faint">
+                  Sidecar written (no master change).
+                </p>
               ) : null}
-              {lastApplyCv.submit_pdf_path ? (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-accent"
-                  onClick={() => {
-                    const submitPdfPath = lastApplyCv.submit_pdf_path
-                    if (submitPdfPath) openWorkspace('pdf-submit')
-                  }}
-                >
-                  Read submit PDF
-                </button>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {(cvCharsSent !== undefined || packetPreview) && !isRestoredHydrate && (
-          <div className="text-[11px]">
-            <button
-              type="button"
-              className="text-ink-faint hover:text-ink"
-              onClick={() => setShowGrounding((s) => !s)}
-            >
-              {showGrounding ? '▾' : '▸'} Technical details
-            </button>
-            {showGrounding && (
-              <div className="mt-1 space-y-1 text-ink-faint font-mono text-[10px]">
-                <div>
-                  CV: sent={cvCharsSent ?? '—'} · ipc={cvIpcChars ?? 0}
-                  {cvUsedFallback ? ' · DEFAULT_FALLBACK' : ''}
-                  {previewTruncated ? ' · preview_truncated' : ''}
+              {(cvCharsSent !== undefined || packetPreview) && !isRestoredHydrate ? (
+                <p className="font-mono text-[11px] text-ink-faint">
+                  CV sent={cvCharsSent ?? '—'} · ipc={cvIpcChars ?? 0}
+                  {cvUsedFallback ? ' · fallback' : ''}
+                  {previewTruncated ? ' · truncated' : ''}
                   {promptTokens != null ? ` · tokens=${promptTokens}` : ''}
-                </div>
-                {packetPreview && (
-                  <pre className="p-2 bg-surface-2 rounded overflow-auto max-h-36 whitespace-pre-wrap">
-                    {packetPreview}
-                  </pre>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                  {` · ${modelLabel}`}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </CardContent>
       {readerOpen && artifactNodes.length > 0 ? (
         <ArtifactReader

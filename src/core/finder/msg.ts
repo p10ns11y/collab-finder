@@ -132,6 +132,12 @@ export type FinderMsg =
       file_count: number
     }
   | { type: 'ApplicationPackExportFailed'; error: AppError }
+  | {
+      type: 'ApplicationPackHydrated'
+      opportunity_id: number
+      pack_dir: string
+      pack_slug?: string
+    }
 
   // One-click apply CV PDF via devprofile generate-apply-cv (no master CV mutation)
   | { type: 'GenerateApplyCvRequested'; opportunity_id: number }

@@ -4642,6 +4642,15 @@ mod tests {
         std::fs::create_dir_all(&pack).unwrap();
         let letter = pack.join("cover-letter.md");
         std::fs::write(&letter, "# Cover letter\n\nHello Vend.\n").unwrap();
+        let submit = pack.join("submit");
+        std::fs::create_dir_all(&submit).unwrap();
+        std::fs::write(submit.join("resume.pdf"), b"%PDF-1.4\n").unwrap();
+        let listed = list_pack_dir_at(pack.to_str().unwrap()).expect("list pack");
+        assert!(
+            listed.iter().any(|i| i.name.ends_with("resume.pdf") && i.kind == "pdf"),
+            "submit PDF must appear in artifact tree: {:?}",
+            listed
+        );
         let read = read_pack_artifact_at(letter.to_str().unwrap()).expect("read pack md");
         assert_eq!(read.kind, "text");
         assert!(read.text.unwrap_or_default().contains("Hello Vend"));

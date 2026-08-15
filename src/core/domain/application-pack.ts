@@ -71,6 +71,21 @@ export function normalizeApplicationPackExport(raw: unknown): ApplicationPackExp
   }
 }
 
+/** Recover pack folder from opportunity notes (`export_path=… pack_slug=…`). */
+export function packExportFromOpportunityNotes(
+  notes?: string | null,
+): { pack_dir: string; pack_slug: string } | null {
+  if (!notes || !notes.trim()) return null
+  let pack_dir = ''
+  let pack_slug = ''
+  for (const part of notes.split(/\s+/)) {
+    if (part.startsWith('export_path=')) pack_dir = part.slice('export_path='.length).trim()
+    if (part.startsWith('pack_slug=')) pack_slug = part.slice('pack_slug='.length).trim()
+  }
+  if (!pack_dir) return null
+  return { pack_dir, pack_slug }
+}
+
 /** Normalize generate_apply_cv result from IPC. */
 export function normalizeGenerateApplyCv(raw: unknown): GenerateApplyCvWire {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
