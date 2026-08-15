@@ -807,16 +807,17 @@ export function opportunityTargetAnalyzeCmd(
     // Use pure contract: empty/trimmed-to-empty becomes undefined so Rust can pick devprofile_path pruned or its DEFAULT.
     // Never force DEFAULT_CV_SUMMARY at the IPC boundary.
     // Normalize bare host/path (jobs.qred.com/…) so Open URL + DB match Rust fetch (https://…).
-    const normalizedUrl =
+    const loneUrl =
       payload.url != null && payload.url.trim()
-        ? normalizeOpportunityUrl(payload.url.trim()) ?? payload.url.trim()
-        : payload.url
+        ? normalizeOpportunityUrl(payload.url.trim())
+        : null
     const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const pastedJd =
       usableOpportunityJdText(payload.pasted_jd) ??
-      usableOpportunityJdText(model.opportunityTargetPastedJd)
+      usableOpportunityJdText(model.opportunityTargetPastedJd) ??
+      (!loneUrl ? usableOpportunityJdText(payload.url) : undefined)
     const p = {
-      url: normalizedUrl,
+      url: loneUrl ?? undefined,
       pasted_jd: pastedJd,
       title: payload.title,
       company: payload.company,
@@ -831,8 +832,8 @@ export function opportunityTargetAnalyzeCmd(
         cvForIpc ? cvForIpc.length : 'undefined',
       )
     }
-    if (normalizedUrl && normalizedUrl !== payload.url) {
-      dispatch({ type: 'OpportunityTargetUrlSet', url: normalizedUrl })
+    if (loneUrl && loneUrl !== payload.url) {
+      dispatch({ type: 'OpportunityTargetUrlSet', url: loneUrl })
     }
     void fromPromise(ports.finder.analyzeOpportunityTarget(p), toAppError).then((result) => {
       if (!result.ok) {
@@ -888,7 +889,7 @@ export function opportunityTargetPrepCmd(
     const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
     const p = {
       opportunity_id: payload.opportunity_id,
-      url: payload.url,
+      url: payload.url ? normalizeOpportunityUrl(payload.url) ?? undefined : undefined,
       pasted_jd:
         usableOpportunityJdText(payload.pasted_jd) ??
         usableOpportunityJdText(model.opportunityTargetPastedJd),

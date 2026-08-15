@@ -1107,6 +1107,45 @@ async fn structured_chat(
 #[cfg(not(test))]
 use crate::xai::structured_chat;
 
+/// True when `raw` is a single URL (or bare host/path), not a JD that merely contains a URL.
+pub(crate) fn looks_like_lone_opportunity_url(raw: &str) -> bool {
+    let t = raw.trim();
+    if t.is_empty() || t.len() > 2000 {
+        return false;
+    }
+    if t.contains('\n') || t.contains('\r') {
+        return false;
+    }
+    if t.starts_with('#') {
+        return false;
+    }
+    if t.starts_with("http://") || t.starts_with("https://") || t.starts_with("//") {
+        return true;
+    }
+    !t.contains(' ') && t.contains('.')
+}
+
+fn coerce_fetch_url_and_paste(
+    url: Option<String>,
+    pasted_jd: Option<String>,
+) -> Result<(Option<String>, Option<String>), String> {
+    let mut paste = pasted_jd.filter(|t| !t.trim().is_empty());
+    let fetch_url = match url {
+        Some(u) if !u.trim().is_empty() => {
+            if looks_like_lone_opportunity_url(&u) {
+                Some(normalize_opportunity_fetch_url(&u)?)
+            } else {
+                if paste.is_none() {
+                    paste = Some(u);
+                }
+                None
+            }
+        }
+        other => other.filter(|u| !u.trim().is_empty() && looks_like_lone_opportunity_url(u)),
+    };
+    Ok((fetch_url, paste))
+}
+
 /// Make a paste-friendly opportunity URL absolute for reqwest.
 /// Bare `host/path` (no scheme) → `https://host/path`. Rejects empty / non-http(s).
 ///
@@ -1141,30 +1180,36 @@ pub(crate) fn normalize_opportunity_fetch_url(raw: &str) -> Result<String, Strin
     Ok(parsed.to_string())
 }
 
+const PLATSBANKEN_COOKIE_WALL_HINT: &str = "This page is an Arbetsförmedlingen cookie wall. Use Sweden (JobTech API) to search and Evaluate, or paste a Platsbanken URL like …/platsbanken/annonser/31331639.";
+
+async fn page_from_jobtech_ad(ad_id: &str) -> Result<OpportunityTargetPageResult, String> {
+    let ad = crate::platsbanken::fetch_ad(ad_id).await?;
+    let cleaned = crate::platsbanken::build_jd_text(&ad);
+    let original_len = cleaned.len() as u32;
+    let truncated = cleaned.len() > 12000;
+    let cleaned_text = if truncated {
+        let mut end = 12000;
+        while end > 0 && !cleaned.is_char_boundary(end) {
+            end -= 1;
+        }
+        cleaned[..end].to_string()
+    } else {
+        cleaned
+    };
+    Ok(OpportunityTargetPageResult {
+        title: Some(ad.headline).filter(|s| !s.trim().is_empty()),
+        company: Some(ad.employer).filter(|s| !s.trim().is_empty()),
+        cleaned_text,
+        original_len,
+        truncated,
+    })
+}
+
 #[tauri::command]
 pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<OpportunityTargetPageResult, String> {
     let url = normalize_opportunity_fetch_url(&url)?;
     if let Some(ad_id) = crate::platsbanken::ad_id_from_webpage_url(&url) {
-        let ad = crate::platsbanken::fetch_ad(&ad_id).await?;
-        let cleaned = crate::platsbanken::build_jd_text(&ad);
-        let original_len = cleaned.len() as u32;
-        let truncated = cleaned.len() > 12000;
-        let cleaned_text = if truncated {
-            let mut end = 12000;
-            while end > 0 && !cleaned.is_char_boundary(end) {
-                end -= 1;
-            }
-            cleaned[..end].to_string()
-        } else {
-            cleaned
-        };
-        return Ok(OpportunityTargetPageResult {
-            title: Some(ad.headline).filter(|s| !s.trim().is_empty()),
-            company: Some(ad.employer).filter(|s| !s.trim().is_empty()),
-            cleaned_text,
-            original_len,
-            truncated,
-        });
+        return page_from_jobtech_ad(&ad_id).await;
     }
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
@@ -1191,6 +1236,12 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
 
     // Very naive strip of tags/scripts for v1. Real readability can come later.
     let cleaned = strip_html_basic(&text);
+    if crate::platsbanken::is_cookie_wall_text(&cleaned) || crate::platsbanken::is_cookie_wall_text(&text) {
+        if let Some(ad_id) = crate::platsbanken::ad_id_from_webpage_url(&url) {
+            return page_from_jobtech_ad(&ad_id).await;
+        }
+        return Err(PLATSBANKEN_COOKIE_WALL_HINT.into());
+    }
     // Safe char-boundary truncate (fixes latent UTF-8 panic risk on multi-byte text e.g. international Greenhouse JDs;
     // was byte slice &cleaned[..8000] -- moved verbatim from lib but now hardened per review).
     // Future: dedicated readability crate or TD notes.
@@ -1225,8 +1276,7 @@ fn stored_jd_is_usable(jd_text: &str) -> bool {
     if trimmed.is_empty() || trimmed == "jd" {
         return false;
     }
-    let lower = trimmed.to_lowercase();
-    if lower.contains("jag godkänner alla kakor") || lower.contains("jag godkanner alla kakor") {
+    if crate::platsbanken::is_cookie_wall_text(trimmed) {
         return false;
     }
     true
@@ -1241,7 +1291,16 @@ async fn resolve_opportunity_source(
     let mut company = None;
     let mut jd = None;
     if let Some(pasted) = pasted_jd {
-        if stored_jd_is_usable(&pasted) {
+        if looks_like_lone_opportunity_url(&pasted)
+            && crate::platsbanken::ad_id_from_webpage_url(&pasted).is_some()
+        {
+            let fetched = fetch_opportunity_target_page(pasted).await?;
+            title = fetched.title;
+            company = fetched.company;
+            if stored_jd_is_usable(&fetched.cleaned_text) {
+                jd = Some(fetched.cleaned_text);
+            }
+        } else if stored_jd_is_usable(&pasted) {
             let inferred = infer_title_company_from_jd(&pasted);
             title = inferred.0;
             company = inferred.1;
@@ -1359,12 +1418,7 @@ pub(crate) async fn analyze_opportunity_target(
     cv_summary: Option<String>,
     paste: Option<String>,
 ) -> Result<OpportunityTargetAnalysisResult, String> {
-    // Normalize bare host/path so DB + Open URL store absolute https://…
-    let url = match url {
-        Some(u) if !u.trim().is_empty() => Some(normalize_opportunity_fetch_url(&u)?),
-        other => other.filter(|u| !u.trim().is_empty()),
-    };
-    let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
+    let (url, pasted_jd) = coerce_fetch_url_and_paste(url, pasted_jd.or(paste))?;
     let (jd, fetched_title, fetched_company) =
         resolve_opportunity_source(url.clone(), pasted_jd.clone())
             .await?
@@ -1506,7 +1560,7 @@ pub(crate) async fn prep_opportunity_target(
     previous_fit: Option<String>,
     paste: Option<String>,
 ) -> Result<OpportunityTargetPrepResult, String> {
-    let pasted_jd = pasted_jd.filter(|t| !t.trim().is_empty()).or(paste.filter(|t| !t.trim().is_empty()));
+    let (url, pasted_jd) = coerce_fetch_url_and_paste(url, pasted_jd.or(paste))?;
     let mut title = title.filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
     let mut company = company.filter(|t| !t.trim().is_empty() && !is_placeholder_company(t));
     let mut jd = None;
@@ -3910,6 +3964,19 @@ mod tests {
     }
 
     #[test]
+    fn lone_url_is_not_confused_with_platsbanken_jd_blob() {
+        let jd = "# Fullstack Engineer - Commercial Tech\nEmployer: Embark Studios AB\nPlatsbanken: https://arbetsformedlingen.se/platsbanken/annonser/31297733\nAd id: 31297733\n";
+        assert!(!looks_like_lone_opportunity_url(jd));
+        assert!(crate::platsbanken::ad_id_from_webpage_url(jd).is_some());
+        let (url, paste) = coerce_fetch_url_and_paste(Some(jd.into()), None).unwrap();
+        assert!(url.is_none());
+        assert!(paste.unwrap().starts_with("# Fullstack"));
+        assert!(looks_like_lone_opportunity_url(
+            "https://arbetsformedlingen.se/platsbanken/annonser/31297733"
+        ));
+    }
+
+    #[test]
     fn analyze_user_prompt_injects_constraints_from_curation_artifact() {
         let prompt = build_analyze_user_prompt(
             "CV_BODY_HERE",
@@ -4174,6 +4241,7 @@ mod tests {
         assert!(stored_jd_is_usable(
             "Hiring a staff engineer for agent inference"
         ));
+        assert!(!stored_jd_is_usable("Jag godkänner alla kakor"));
     }
 
     #[test]

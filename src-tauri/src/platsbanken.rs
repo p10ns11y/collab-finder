@@ -336,18 +336,61 @@ pub async fn search_ads(filter: &PlatsbankenSearchFilter) -> Result<Vec<ParsedAd
     Ok(out)
 }
 
-/// Platsbanken listing id from a public ad URL (`…/platsbanken/annonser/31331639`).
-pub fn ad_id_from_webpage_url(url: &str) -> Option<String> {
-    let lower = url.to_lowercase();
-    let marker = "/platsbanken/annonser/";
+fn digits_after(haystack: &str, marker: &str) -> Option<String> {
+    let lower = haystack.to_lowercase();
     let pos = lower.find(marker)?;
-    let after = &url[pos + marker.len()..];
+    let after = &haystack[pos + marker.len()..];
     let id: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
     if id.len() >= 4 {
         Some(id)
     } else {
         None
     }
+}
+
+/// Platsbanken listing id from a public ad or JobTech `/ad/{id}` URL.
+pub fn ad_id_from_webpage_url(url: &str) -> Option<String> {
+    if let Some(id) = digits_after(url, "/platsbanken/annonser/") {
+        return Some(id);
+    }
+    let lower = url.to_lowercase();
+    if lower.contains("jobtechdev.se") {
+        if let Some(id) = digits_after(url, "/ad/") {
+            return Some(id);
+        }
+    }
+    let is_af = lower.contains("arbetsformedlingen.se") || lower.contains("platsbanken");
+    if !is_af {
+        return None;
+    }
+    let mut best: Option<String> = None;
+    let mut run = String::new();
+    for ch in url.chars() {
+        if ch.is_ascii_digit() {
+            run.push(ch);
+        } else if !run.is_empty() {
+            if (6..=10).contains(&run.len()) {
+                best = Some(run.clone());
+            }
+            run.clear();
+        }
+    }
+    if (6..=10).contains(&run.len()) {
+        best = Some(run);
+    }
+    best
+}
+
+/// AF CMP / cookie-consent page — not a job description. Use JobTech instead of HTML.
+pub fn is_cookie_wall_text(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("jag godkänner alla kakor")
+        || lower.contains("jag godkanner alla kakor")
+        || lower.contains("godkänn alla cookies")
+        || lower.contains("godkann alla cookies")
+        || (lower.contains("nödvändiga kakor") && lower.contains("cookie"))
+        || (lower.contains("nodvandiga kakor") && lower.contains("cookie"))
+        || (lower.contains("we use cookies") && lower.contains("arbetsformedlingen"))
 }
 
 pub async fn fetch_ad(ad_id: &str) -> Result<ParsedAd, String> {
@@ -456,6 +499,22 @@ mod tests {
             Some("31331639")
         );
         assert_eq!(ad_id_from_webpage_url("https://jobs.qred.com/x"), None);
+        assert_eq!(
+            ad_id_from_webpage_url(
+                "https://arbetsformedlingen.se/platsbanken/annonser/31331639?foo=1"
+            )
+            .as_deref(),
+            Some("31331639")
+        );
+        assert_eq!(
+            ad_id_from_webpage_url("https://jobsearch.api.jobtechdev.se/ad/31331639")
+                .as_deref(),
+            Some("31331639")
+        );
+        assert!(is_cookie_wall_text(
+            "Jag godkänner alla kakor. Nödvändiga kakor för webbplatsen."
+        ));
+        assert!(!is_cookie_wall_text("Hiring a software engineer in Stockholm"));
     }
 
     #[test]
