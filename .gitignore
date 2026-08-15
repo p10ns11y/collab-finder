@@ -29,6 +29,9 @@ data/distillation/public-projects-full.json
 # Local scratch / screenshots
 .tmp/
 
+# Impeccable: local/session (surfaces, live inject, mocks, critique). Keep on disk; do not commit.
+.impeccable/
+
 # Tesla careers dump (paste from cua-api/apps/careers/state — often Akamai-blocked live)
 data/mission-firms/tesla.jobs.json
 
