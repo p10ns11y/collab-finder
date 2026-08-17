@@ -53,6 +53,7 @@ export type FinderViewState = {
 export function selectFinderView(model: FinderModel): FinderViewState {
   const h = model.history
   const screenNavItems: PaletteItem[] = [
+    { id: 'nav-heading', label: 'Go to Heading', msg: { type: 'ScreenChanged', screen: 'heading' } },
     { id: 'nav-discover', label: 'Go to Discover', msg: { type: 'ScreenChanged', screen: 'discover' } },
     { id: 'nav-mission', label: 'Go to Mission', msg: { type: 'ScreenChanged', screen: 'mission' } },
     { id: 'nav-sweden', label: 'Go to Sweden', msg: { type: 'ScreenChanged', screen: 'sweden' } },

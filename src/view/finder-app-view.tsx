@@ -8,6 +8,7 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { HeadingScreen } from './screens/heading-screen'
 import { MissionScreen } from './screens/mission-screen'
 import { SwedenScreen } from './screens/sweden-screen'
 import { NetworkScreen } from './screens/network-screen'
@@ -20,6 +21,7 @@ type Props = {
 }
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
+  heading: 'Heading',
   discover: 'Discover',
   mission: 'Mission',
   sweden: 'Sweden',
@@ -44,6 +46,8 @@ export function FinderAppView({ view, dispatch }: Props) {
 
   const viewportContent = (() => {
     switch (activeScreen) {
+      case 'heading':
+        return <HeadingScreen dispatch={dispatch} />
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'mission':

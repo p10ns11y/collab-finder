@@ -21,6 +21,7 @@ import {
   packExportFromOpportunityNotes,
   normalizeGenerateApplyCv,
 } from '../domain/application-pack'
+import { headingBootFromCluster } from '../../adapters/tauri/heading-boot'
 
 export type FinderPorts = {
   credentials: {
@@ -1210,6 +1211,7 @@ export function effectForMsg(
         loadCvFromLocalCmd(),
         hydrateLatestQuestCmd(ports),
         listQuestRecentCmd(ports),
+        (d) => headingBootFromCluster(d),
       ]
       const lastId = model.lastActiveOppId
       if (typeof lastId === 'number' && lastId > 0) {

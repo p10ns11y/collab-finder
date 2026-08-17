@@ -4,6 +4,7 @@ import {
   Crosshair,
   MapPinned,
   Network,
+  Route,
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: 'heading', label: 'Heading', Icon: Route },
   { id: 'discover', label: 'Discover', Icon: Compass },
   { id: 'mission', label: 'Mission', Icon: Crosshair },
   { id: 'sweden', label: 'Sweden', Icon: MapPinned },

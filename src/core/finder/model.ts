@@ -59,6 +59,7 @@ export type PersistedSession = {
 }
 
 const VALID_SCREENS: FinderScreen[] = [
+  'heading',
   'discover',
   'mission',
   'sweden',
@@ -76,6 +77,7 @@ export function isValidFinderScreen(s: unknown): s is FinderScreen {
 }
 
 export type FinderScreen =
+  | 'heading'
   | 'discover'
   | 'mission'
   | 'sweden'

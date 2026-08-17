@@ -741,6 +741,50 @@ fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+fn mission_maps_dir() -> std::path::PathBuf {
+    std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".grok/mission-maps")
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HeadingSnapshot {
+    map_json: String,
+    contacts: String,
+    waybar: String,
+}
+
+/// Read-only cluster SoT (mission-map owner writes these files).
+#[tauri::command]
+fn read_heading_snapshot() -> Result<HeadingSnapshot, String> {
+    let d = mission_maps_dir();
+    let read = |name: &str| std::fs::read_to_string(d.join(name)).unwrap_or_default();
+    Ok(HeadingSnapshot {
+        map_json: read("cash-path-now.json"),
+        contacts: read("contacts.md"),
+        waybar: read("waybar.json"),
+    })
+}
+
+/// One-shot route from a sibling app (`mm-waybar open`). Owner: cluster open-route file.
+#[tauri::command]
+fn consume_cluster_route() -> Result<Option<String>, String> {
+    let p = mission_maps_dir().join("open-route");
+    if !p.is_file() {
+        return Ok(None);
+    }
+    let s = std::fs::read_to_string(&p).unwrap_or_default();
+    let _ = std::fs::remove_file(&p);
+    let t = s.trim();
+    if t.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(t.to_string()))
+    }
+}
+
 /// Persist one hire-board lead as Opportunity status=new (URL dedup via upsert).
 #[tauri::command]
 async fn select_hire_board_lead(
@@ -954,6 +998,8 @@ pub fn run() {
             import_platsbanken_ad,
             delete_opportunity_cmd,
             open_external_url,
+            read_heading_snapshot,
+            consume_cluster_route,
             run_local_grok_quest,
             search_mission_firms,
             import_mission_firm_lead,
