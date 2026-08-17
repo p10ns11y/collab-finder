@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "collab-finder",
+  "productName": "kanithanj.ai",
   "version": "0.1.0",
   "identifier": "com.p10ns11y.collab-finder",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "collab-finder",
+        "title": "kanithanj.ai",
         "width": 1200,
         "height": 800,
         "minWidth": 900,
