@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { selectFinderView } from '../core/finder/selectors'
 import { resolveShellHotkey } from '../core/domain/finder-keyboard'
+import { screenFromHash } from '../core/domain/finder-nav'
 import { registerFinderDispatch } from '../runtime/global-errors'
 import { getFinderProgram } from '../runtime/finder-runtime'
 import { useProgram } from '../runtime/react/use-program'
@@ -38,6 +39,16 @@ export function FinderApp() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [dispatch])
+
+  // External sync: `#heading` (and other screens) from hash / cluster deep link.
+  useEffect(() => {
+    function onHash() {
+      const screen = screenFromHash(window.location.hash)
+      if (screen) dispatch({ type: 'ScreenChanged', screen })
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
   }, [dispatch])
 
   return <FinderAppView view={view} dispatch={dispatch} />

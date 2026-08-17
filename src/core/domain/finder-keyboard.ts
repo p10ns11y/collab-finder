@@ -6,12 +6,13 @@ import type { FinderScreen } from '../finder/model'
 
 /** Primary screens — digit shortcuts match sidebar order. */
 export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = {
-  '1': 'discover',
-  '2': 'mission',
-  '3': 'sweden',
-  '4': 'xplore',
-  '5': 'network',
-  '6': 'settings',
+  '1': 'heading',
+  '2': 'discover',
+  '3': 'mission',
+  '4': 'sweden',
+  '5': 'xplore',
+  '6': 'network',
+  '7': 'settings',
 }
 
 export type ShellHotkey =

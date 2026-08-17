@@ -21,7 +21,14 @@ import {
   packExportFromOpportunityNotes,
   normalizeGenerateApplyCv,
 } from '../domain/application-pack'
-import { headingBootFromCluster } from '../../adapters/tauri/heading-boot'
+import {
+  clearClusterRoute,
+  headingBootFromCluster,
+  isClusterHeadingHold,
+  releaseClusterHeadingHold,
+  watchClusterRoute,
+} from '../../adapters/tauri/heading-boot'
+import { applyScreenHash, screenFromHash } from '../domain/finder-nav'
 
 export type FinderPorts = {
   credentials: {
@@ -430,6 +437,7 @@ export function hireBoardSelectCmd(
         type: 'OpportunitySelected',
         id: result.value.id,
         url: result.value.source_url || lead.career_url,
+        reveal: true,
       })
     })
   }
@@ -696,6 +704,7 @@ export function missionFirmsImportCmd(
         type: 'OpportunitySelected',
         id: result.value.id,
         url: result.value.source_url || lead.absolute_url,
+        reveal: true,
       })
     })
   }
@@ -727,6 +736,7 @@ export function missionFirmsEvaluateCmd(
         type: 'OpportunitySelected',
         id: opportunity.id,
         url: opportunity.source_url || lead.absolute_url,
+        reveal: true,
       })
       opportunityTargetAnalyzeCmd(ports, model, {
         pasted_jd: opportunity.jd_text,
@@ -1118,7 +1128,11 @@ export function resetCvToDefaultCmd(): Cmd<FinderMsg> {
   }
 }
 
-export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMsg> {
+export function loadOpportunityCmd(
+  ports: FinderPorts,
+  id: number,
+  opts?: { revealDiscover?: boolean },
+): Cmd<FinderMsg> {
   return (dispatch) => {
     void fromPromise(ports.finder.getOpportunities({ id }), toAppError).then((res) => {
       if (!res.ok) {
@@ -1135,8 +1149,11 @@ export function loadOpportunityCmd(ports: FinderPorts, id: number): Cmd<FinderMs
       }
       // Persist what we now know for next restart (url for open button etc).
       persistSessionToLocal({ lastActiveOppId: o.id, opportunityTargetUrl: o.source_url })
-      // Switch to discover and hydrate opportunityTarget from stored DB truth (no xAI cost).
-      dispatch({ type: 'ScreenChanged', screen: 'discover' })
+      // Boot/hydrate must not steal the sidebar. Only explicit Open/select (reveal) goes to Discover.
+      // Waybar Apply (`open-route=heading`) holds Heading even if a caller asked to reveal.
+      if (opts?.revealDiscover && !isClusterHeadingHold()) {
+        dispatch({ type: 'ScreenChanged', screen: 'discover' })
+      }
       // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
       dispatch({ type: 'OpportunityTargetUrlSet', url: o.source_url })
       dispatch({ type: 'OpportunityTargetJdSet', pasted_jd: usableOpportunityJdText(o.jd_text) })
@@ -1201,32 +1218,33 @@ export function effectForMsg(
 ): Cmd<FinderMsg> | Cmd<FinderMsg>[] | undefined {
   switch (msg.type) {
     case 'AppStarted':
-      // Load creds + initial history for the dashboard.
-      // + CV from localStorage (CvSummaryLoaded, with corruption heal) + conditional last opp hydrate
-      // via OpportunitySelected (model.lastActiveOppId from initialFinderModel / LS).
-      // History refresh also re-attempts restore if the first select raced or session was missing.
-      const appCmds: (Cmd<FinderMsg> | undefined)[] = [
-        credentialsCheckCmd(ports),
-        historyRefreshCmd(ports),
-        loadCvFromLocalCmd(),
-        hydrateLatestQuestCmd(ports),
-        listQuestRecentCmd(ports),
-        (d) => headingBootFromCluster(d),
-      ]
-      const lastId = model.lastActiveOppId
-      if (typeof lastId === 'number' && lastId > 0) {
-        // Trigger the normal OpportunitySelected path (sets last, loads from DB via loadCmd which also does OpportunityTargetUrlSet for live model url, hydrates opportunityTarget + screen).
-        // Prefer session URL so the panel external link is available before the DB round-trip returns.
-        const bootUrl = model.opportunityTargetUrl
-        appCmds.push((d) =>
-          d({
-            type: 'OpportunitySelected',
-            id: lastId,
-            ...(bootUrl ? { url: bootUrl } : {}),
-          }),
-        )
+      // Consume open-route *before* last-opp hydrate / HistoryRefreshed, or Discover wins the sidebar.
+      return (dispatch) => {
+        watchClusterRoute(dispatch)
+        const startRest = () => {
+          credentialsCheckCmd(ports)(dispatch)
+          historyRefreshCmd(ports)(dispatch)
+          loadCvFromLocalCmd()(dispatch)
+          hydrateLatestQuestCmd(ports)(dispatch)
+          listQuestRecentCmd(ports)(dispatch)
+          if (typeof window !== 'undefined' && !isClusterHeadingHold()) {
+            const fromHash = screenFromHash(window.location.hash)
+            if (fromHash && fromHash !== model.activeScreen) {
+              dispatch({ type: 'ScreenChanged', screen: fromHash })
+            }
+          }
+          const lastId = model.lastActiveOppId
+          if (typeof lastId === 'number' && lastId > 0) {
+            const bootUrl = model.opportunityTargetUrl
+            dispatch({
+              type: 'OpportunitySelected',
+              id: lastId,
+              ...(bootUrl ? { url: bootUrl } : {}),
+            })
+          }
+        }
+        void headingBootFromCluster(dispatch).then(startRest, startRest)
       }
-      return appCmds.filter(Boolean) as Cmd<FinderMsg>[]
 
     case 'CvSummaryResetToDefaultRequested':
       return resetCvToDefaultCmd()
@@ -1338,6 +1356,11 @@ export function effectForMsg(
 
     // Session id/screen persist (for resume). Also creds probe for settings already handled.
     case 'ScreenChanged':
+      if (msg.screen === 'heading') {
+        void clearClusterRoute()
+      } else {
+        releaseClusterHeadingHold()
+      }
       // existing creds check for settings
       const credsCmd = msg.screen === 'settings' ? credentialsCheckCmd(ports) : undefined
       const networkCmd =
@@ -1345,17 +1368,18 @@ export function effectForMsg(
           ? (d: (msg: FinderMsg) => void) => d({ type: 'NetworkLoadRequested' })
           : undefined
       const sessCmd = (/*dispatch*/) => {
+        applyScreenHash(msg.screen)
         persistSessionToLocal({ activeScreen: msg.screen })
       }
       return [credsCmd, networkCmd, sessCmd].filter(Boolean) as Cmd<FinderMsg>[]
 
-    // Opportunity load + hydrate opportunityTarget from DB (no xAI). Also sets screen.
+    // Opportunity load + hydrate opportunityTarget from DB (no xAI). Screen only if msg.reveal.
     // Note: url (if passed in msg from Data row) is applied in update *before* this effect runs; loadCmd ensures via OpportunityTargetUrlSet for AppStarted path.
     // Always run the load for explicit user intent (rail click, resume, data row) or startup restore.
     // The previous guard prevented loadCmd from ever running (because update sets 'loading' before effect sees the 'next' model).
     // loadCmd itself handles not-found / errors by clearing and GlobalError.
     case 'OpportunitySelected':
-      return loadOpportunityCmd(ports, msg.id)
+      return loadOpportunityCmd(ports, msg.id, { revealDiscover: msg.reveal === true })
 
     // Persist last active opp (and url if known) so restart can resume exact opportunityTarget.
     case 'OpportunityTargetAnalyzeSucceeded':

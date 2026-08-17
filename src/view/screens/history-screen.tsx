@@ -120,10 +120,8 @@ export function HistoryScreen({ view, dispatch }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    // Only OpportunitySelected (let loadOpportunityCmd in effects own success-only ScreenChanged + hydrate/parse/*Succeeded).
-                    // Matches Data rows (data-screen:180) + Resume (discover:60) exactly for consistent error UX (failure keeps user here + banner; no unconditional nav).
-                    // Per review: avoids flip-to-Discover on getOpps fail / bad blob / edge (effects:428,436,480).
-                    dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined })
+                    // reveal: go to Discover only after a successful load (loadOpportunityCmd).
+                    dispatch({ type: 'OpportunitySelected', id: o.id, url: o.source_url || undefined, reveal: true })
                   }}
                   className="shrink-0 rounded border border-border-default px-2 py-1 text-[10px] hover:border-accent/50 hover:text-accent"
                   title="Load this opportunity into Discover (exact stored fit+prep via 6a path; stays here + banner on load error)"
