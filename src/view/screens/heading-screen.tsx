@@ -1,5 +1,5 @@
 /**
- * Heading — cash-path cockpit (not the Mission hunt screen).
+ * Navigating — cash-path cockpit (not the Mission hunt screen).
  * Reads mission-map SoT. Writes stay with mm-lifeos-graph / CF apply cmds.
  */
 import { useEffect, useState } from 'react'
@@ -61,7 +61,7 @@ export function HeadingScreen({ dispatch: _dispatch }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-5">
       <div>
-        <SectionLabel>Heading</SectionLabel>
+        <SectionLabel>Navigating</SectionLabel>
         <p className="mt-1 text-sm text-ink-muted">
           Arrive: {g || '—'} {chip ? `· now: ${chip}` : ''}
         </p>

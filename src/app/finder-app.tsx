@@ -41,7 +41,7 @@ export function FinderApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [dispatch])
 
-  // External sync: `#heading` (and other screens) from hash / cluster deep link.
+  // External sync: `#navigating` (and other screens) from hash / cluster deep link.
   useEffect(() => {
     function onHash() {
       const screen = screenFromHash(window.location.hash)

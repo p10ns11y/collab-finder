@@ -21,7 +21,7 @@ type Props = {
 }
 
 const SCREEN_LABEL: Record<FinderScreen, string> = {
-  heading: 'Heading',
+  heading: 'Navigating',
   discover: 'Discover',
   mission: 'Mission',
   sweden: 'Sweden',

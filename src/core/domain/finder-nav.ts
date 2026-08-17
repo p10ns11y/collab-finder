@@ -17,22 +17,34 @@ const HASH_SCREENS: readonly FinderScreen[] = [
   'network',
 ]
 
-function isHashScreen(s: string): s is FinderScreen {
-  return (HASH_SCREENS as readonly string[]).includes(s)
+/** Presentation slug for the heading cockpit. Wire id stays `heading`. */
+const HASH_SLUG_BY_SCREEN: Partial<Record<FinderScreen, string>> = {
+  heading: 'navigating',
+}
+
+const SCREEN_BY_HASH_ALIAS: Record<string, FinderScreen> = {
+  navigating: 'heading',
+}
+
+function isHashScreen(slug: string): slug is FinderScreen {
+  return (HASH_SCREENS as readonly string[]).includes(slug)
 }
 
 export function screenFromHash(hash: string): FinderScreen | null {
   const raw = hash.startsWith('#') ? hash.slice(1) : hash
   const slug = raw.split('?')[0]?.trim().toLowerCase() ?? ''
+  const aliased = SCREEN_BY_HASH_ALIAS[slug]
+  if (aliased) return aliased
   if (isHashScreen(slug)) return slug
   return null
 }
 
 export function hashFromScreen(screen: FinderScreen): string {
-  return `#${screen}`
+  const slug = HASH_SLUG_BY_SCREEN[screen] ?? screen
+  return `#${slug}`
 }
 
-/** Write `#heading` (etc.) without adding history or firing hashchange. */
+/** Write `#navigating` (etc.) without adding history or firing hashchange. */
 export function applyScreenHash(screen: FinderScreen): void {
   if (typeof window === 'undefined' || typeof history === 'undefined') return
   const next = hashFromScreen(screen)
