@@ -398,7 +398,10 @@ pub fn set_xai_key(key: &str) -> Result<(), String> {
 
 pub fn clear_xai_key() -> Result<(), String> {
     xai_key_store::clear()?;
-    clear_xai_keyring()
+    if let Err(error) = clear_xai_keyring() {
+        eprintln!("[secrets] xAI keyring clear skipped: {error}");
+    }
+    Ok(())
 }
 
 // End of xAI key parallel block
@@ -588,7 +591,10 @@ pub fn set_x_bearer(token: &str) -> Result<(), String> {
 
 pub fn clear_x_bearer() -> Result<(), String> {
     file_store::clear()?;
-    clear_keyring()
+    if let Err(error) = clear_keyring() {
+        eprintln!("[secrets] keyring clear skipped: {error}");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -619,6 +625,16 @@ mod tests {
         fn drop(&mut self) {
             let _ = clear_x_bearer();
             test_harness::clear();
+        }
+    }
+
+    fn secret_service_available() -> bool {
+        match keyring_entry() {
+            Ok(entry) => matches!(
+                entry.get_password(),
+                Ok(_) | Err(KeyringError::NoEntry)
+            ),
+            Err(_) => false,
         }
     }
 
@@ -670,6 +686,10 @@ mod tests {
         file_store::write("from-file").unwrap();
         let _ = clear_keyring();
         assert_eq!(resolve_active_source(), BearerActiveSource::File);
+        if !secret_service_available() {
+            eprintln!("skip keyring branch: no org.freedesktop.secrets on runner");
+            return;
+        }
         write_keyring("from-keyring").expect("keyring write");
         assert_eq!(resolve_active_source(), BearerActiveSource::Keyring);
         assert_eq!(
@@ -681,6 +701,10 @@ mod tests {
     #[test]
     fn set_succeeds_when_keyring_stale_but_file_written() {
         let _g = TestDir::new();
+        if !secret_service_available() {
+            eprintln!("skip keyring stale test: no secret service");
+            return;
+        }
         write_keyring("stale-keyring-token").expect("seed keyring");
         set_x_bearer("fresh-file-token").expect("set should verify file, update keyring");
         assert_eq!(
@@ -699,6 +723,10 @@ mod tests {
     #[test]
     fn keyring_roundtrip_when_available() {
         let _g = TestDir::new();
+        if !secret_service_available() {
+            eprintln!("skip keyring roundtrip: no secret service");
+            return;
+        }
         let token = "AAAA-keyring-integration-probe";
         write_keyring(token).expect("write");
         assert_eq!(read_keyring().expect("read").as_deref(), Some(token));

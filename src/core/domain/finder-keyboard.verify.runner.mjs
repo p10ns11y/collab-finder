@@ -13,6 +13,7 @@ must(SCREEN_BY_DIGIT['4'] === 'sweden', 'digit 4 → sweden')
 must(SCREEN_BY_DIGIT['5'] === 'xplore', 'digit 5 → xplore')
 must(SCREEN_BY_DIGIT['6'] === 'network', 'digit 6 → network')
 must(SCREEN_BY_DIGIT['7'] === 'settings', 'digit 7 → settings')
+must(SCREEN_BY_DIGIT['8'] === 'preferences', 'digit 8 → preferences')
 
 const none = resolveShellHotkey('k', { meta: false, ctrl: false })
 must(none.kind === 'none', 'no mod → none')

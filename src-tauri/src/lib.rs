@@ -2,8 +2,11 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
+mod cv_home;
 mod environment;
 mod firm_durability;
+mod operator_pack;
+mod rank_config;
 mod hire_board;
 mod mission_firms;
 mod network_graph;
@@ -21,6 +24,7 @@ use commands::{
     promote_message,
 };
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
+use cv_home::{get_cv_home_status, install_kanithanj_cv};
 use llm_route::{get_llm_route_status, set_llm_route_quality};
 use local_grok::run_local_grok_quest;
 use opportunity_target::{
@@ -487,16 +491,29 @@ fn durability_exclude_ids(store: &db::SqliteStore) -> Vec<String> {
     ids
 }
 
+#[tauri::command]
+fn get_rank_config() -> Result<rank_config::RankConfigView, String> {
+    rank_config::view()
+}
+
+#[tauri::command]
+fn save_rank_config(config: rank_config::RankConfig) -> Result<rank_config::RankConfigView, String> {
+    rank_config::save(&config)?;
+    rank_config::view()
+}
+
 /// Durability ranker. `next`/`advance` skip the last stored wave.
 #[tauri::command]
 fn list_durable_firms(
     db: State<'_, AppDb>,
     next: Option<bool>,
     advance: Option<bool>,
+    refresh: Option<bool>,
 ) -> Result<firm_durability::IterationResult, String> {
     let go_next = next.unwrap_or(false) || advance.unwrap_or(false);
+    let refresh = refresh.unwrap_or(false);
     let store = db.0.lock().map_err(|e| e.to_string())?;
-    if !go_next {
+    if !go_next && !refresh {
         if let Ok(Some(last)) = store.latest_durability_iteration() {
             if !last.top10.is_empty() {
                 return Ok(last);
@@ -1194,6 +1211,8 @@ pub fn run() {
             generate_apply_cv,
             get_devprofile_path_cmd,
             set_devprofile_path_cmd,
+            get_cv_home_status,
+            install_kanithanj_cv,
             get_xai_model_cmd,
             set_xai_model_cmd,
             get_llm_route_status,
@@ -1214,6 +1233,8 @@ pub fn run() {
             clear_cluster_route,
             consume_cluster_route,
             run_local_grok_quest,
+            get_rank_config,
+            save_rank_config,
             list_durable_firms,
             search_mission_firms,
             import_mission_firm_lead,

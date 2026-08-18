@@ -13,6 +13,7 @@ const HASH_SCREENS: readonly FinderScreen[] = [
   'data',
   'lookup',
   'settings',
+  'preferences',
   'xplore',
   'network',
 ]

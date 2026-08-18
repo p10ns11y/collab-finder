@@ -1,11 +1,10 @@
 //! Firm durability scorer v1 — fortress cash, AI-wave relevance, hiring theatre gate.
 //!
-//! Universe: `data/durability/universe.v1.json` (public IR only).
+//! Universe: `~/.config/collab-finder/packs/universe.json` (see `operator_pack`).
 //! Persistence: SQLite snapshots (see `db.rs` v9). Not Neo4j — see README.
 
 use serde::{Deserialize, Serialize};
 
-const UNIVERSE_JSON: &str = include_str!("../../data/durability/universe.v1.json");
 pub const ALGORITHM_VERSION: &str = "v1";
 
 const DEPTH_SLOTS: usize = 7;
@@ -168,24 +167,26 @@ fn clamp_axis(v: u8) -> i32 {
     i32::from(v.min(4))
 }
 
-fn score_one(firm: &FirmRecord) -> Scored<'_> {
+fn score_one<'a>(firm: &'a FirmRecord, cfg: &crate::rank_config::RankConfig) -> Scored<'a> {
     let (env_bonus, legal_ease, place_id) =
         crate::environment::bonuses_for(&firm.id, firm.depth_geo);
     // Citizenship work-right is a cash-path option, not a life-quality medal.
     let geo_bonus = env_bonus + legal_ease;
-    let quality = 8 * clamp_axis(firm.spacexai_vector)
-        + 7 * clamp_axis(firm.fortress)
-        + 6 * clamp_axis(firm.ai_tsunami)
-        + 6 * clamp_axis(firm.product_moat)
-        + 5 * clamp_axis(firm.hiring_signal);
+    let w = &cfg.weights;
+    let quality = w.spacexai * clamp_axis(firm.spacexai_vector)
+        + w.fortress * clamp_axis(firm.fortress)
+        + w.ai_tsunami * clamp_axis(firm.ai_tsunami)
+        + w.product_moat * clamp_axis(firm.product_moat)
+        + w.hiring * clamp_axis(firm.hiring_signal);
 
-    let (admitted, exclude_reason) = if firm.theater_saas {
+    let g = &cfg.gates;
+    let (admitted, exclude_reason) = if g.theater_saas && firm.theater_saas {
         (false, Some("theater_saas"))
     } else if firm.hiring_signal == 0 {
         (false, Some("hiring_theatre"))
-    } else if firm.fortress < 2 {
+    } else if firm.fortress < g.fortress_min {
         (false, Some("fortress_lt_2"))
-    } else if firm.product_moat < 2 {
+    } else if firm.product_moat < g.product_moat_min {
         (false, Some("product_moat_lt_2"))
     } else {
         (true, None)
@@ -458,8 +459,48 @@ fn sort_admitted(mut rows: Vec<Scored<'_>>) -> Vec<Scored<'_>> {
     rows
 }
 
+fn firms_from_value(v: &serde_json::Value) -> Vec<FirmRecord> {
+    let arr = v
+        .get("firms")
+        .and_then(|x| x.as_array())
+        .or_else(|| v.as_array());
+    let Some(arr) = arr else {
+        return Vec::new();
+    };
+    arr.iter()
+        .filter_map(|x| serde_json::from_value(x.clone()).ok())
+        .collect()
+}
+
+fn merge_firms(mut base: Vec<FirmRecord>, extra: Vec<FirmRecord>) -> Vec<FirmRecord> {
+    let mut index: std::collections::HashMap<String, usize> = base
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.id.clone(), i))
+        .collect();
+    for item in extra {
+        if let Some(&i) = index.get(&item.id) {
+            base[i] = item;
+        } else {
+            index.insert(item.id.clone(), base.len());
+            base.push(item);
+        }
+    }
+    base
+}
+
 pub fn load_universe() -> Result<UniverseFile, String> {
-    serde_json::from_str(UNIVERSE_JSON).map_err(|e| format!("durability universe: {e}"))
+    let baked: UniverseFile = serde_json::from_str(&crate::operator_pack::universe_json())
+        .map_err(|e| format!("durability universe: {e}"))?;
+    let mut firms = baked.firms;
+    for v in crate::rank_config::pack_json_values(&["universe.json", "firms.json"]) {
+        firms = merge_firms(firms, firms_from_value(&v));
+    }
+    Ok(UniverseFile {
+        algorithm_version: baked.algorithm_version,
+        scored_at: baked.scored_at,
+        firms,
+    })
 }
 
 pub fn run_iteration() -> IterationResult {
@@ -469,8 +510,9 @@ pub fn run_iteration() -> IterationResult {
 /// Next top-10: same procedure, skip `exclude` firm ids (prior waves).
 pub fn run_wave(exclude: &[String], wave: u32) -> IterationResult {
     let uni = load_universe().expect("universe.v1.json must parse");
+    let cfg = crate::rank_config::load();
     let skip: std::collections::HashSet<&str> = exclude.iter().map(String::as_str).collect();
-    let scored: Vec<Scored<'_>> = uni.firms.iter().map(score_one).collect();
+    let scored: Vec<Scored<'_>> = uni.firms.iter().map(|f| score_one(f, &cfg)).collect();
 
     let gated: Vec<RankedFirm> = scored
         .iter()
@@ -548,10 +590,11 @@ pub fn run_wave(exclude: &[String], wave: u32) -> IterationResult {
 
 pub fn score_for_id(id: &str) -> Option<RankedFirm> {
     let uni = load_universe().ok()?;
+    let cfg = crate::rank_config::load();
     uni.firms
         .iter()
         .find(|f| f.id == id)
-        .map(|f| to_ranked(&score_one(f)))
+        .map(|f| to_ranked(&score_one(f, &cfg)))
 }
 
 #[cfg(test)]
@@ -559,105 +602,145 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
+    fn with_fixtures<F: FnOnce()>(run: F) {
+        let _guard = crate::operator_pack::install_test_fixtures();
+        run();
+        crate::operator_pack::clear_test_fixtures();
+    }
+
     #[test]
     fn universe_parses_and_has_evidence() {
-        let uni = load_universe().unwrap();
-        assert_eq!(uni.algorithm_version, "v1");
-        assert!(uni.firms.len() >= 20);
-        let ericsson = uni.firms.iter().find(|f| f.id == "ericsson").unwrap();
-        let cash = ericsson.cash.as_ref().unwrap();
-        assert_eq!(cash.revenue, Some(236.681));
-        assert_eq!(cash.net_cash, Some(61.2));
+        with_fixtures(|| {
+            let uni = load_universe().unwrap();
+            assert_eq!(uni.algorithm_version, "v1");
+            assert!(uni.firms.len() >= 20);
+            let ericsson = uni.firms.iter().find(|f| f.id == "ericsson").unwrap();
+            let cash = ericsson.cash.as_ref().unwrap();
+            assert_eq!(cash.revenue, Some(236.681));
+            assert_eq!(cash.net_cash, Some(61.2));
+        });
     }
 
     #[test]
     fn gates_drop_theater_and_venture() {
-        let it = run_iteration();
-        let excluded: HashSet<&str> = it
-            .excluded
-            .iter()
-            .map(|r| r.firm_id.as_str())
-            .collect();
-        for id in [
-            "klarna", "spotify", "wolt", "gitlab", "hive", "einride", "figure", "agility", "pi",
-            "onex", "bolt",
-        ] {
-            assert!(excluded.contains(id), "{id} should be excluded");
-        }
-        assert!(it
-            .excluded
-            .iter()
-            .all(|r| !r.admitted && r.exclude_reason.is_some()));
+        with_fixtures(|| {
+            let it = run_iteration();
+            let excluded: HashSet<&str> = it
+                .excluded
+                .iter()
+                .map(|r| r.firm_id.as_str())
+                .collect();
+            for id in [
+                "klarna", "spotify", "wolt", "gitlab", "hive", "einride", "figure", "agility", "pi",
+                "onex", "bolt",
+            ] {
+                assert!(excluded.contains(id), "{id} should be excluded");
+            }
+            assert!(it
+                .excluded
+                .iter()
+                .all(|r| !r.admitted && r.exclude_reason.is_some()));
+        });
     }
 
     #[test]
     fn estonia_has_no_admitted_fortress() {
-        let it = run_iteration();
-        assert!(it
-            .depth
-            .iter()
-            .all(|r| r.depth_geo != DepthGeo::Estonia));
+        with_fixtures(|| {
+            let it = run_iteration();
+            assert!(it
+                .depth
+                .iter()
+                .all(|r| r.depth_geo != DepthGeo::Estonia));
+        });
     }
 
     #[test]
     fn iteration_top10_is_seven_depth_three_width() {
-        let it = run_iteration();
-        assert_eq!(it.top10.len(), 10);
-        let depth_n = it.top10.iter().filter(|r| r.band == "depth").count();
-        let width_n = it.top10.iter().filter(|r| r.band == "width").count();
-        assert_eq!(depth_n, DEPTH_SLOTS);
-        assert_eq!(width_n, WIDTH_SLOTS);
-        assert!(it.top10.iter().all(|r| r.admitted));
-        assert!(it.top10.iter().any(|r| r.firm_id == "spacexai"));
-        assert!(it.top10.iter().any(|r| r.firm_id == "saab"));
-        assert!(it.top10.iter().any(|r| r.firm_id == "atlas_copco"));
-        assert!(it.top10.iter().any(|r| r.firm_id == "abb"));
-        assert!(!it.top10.iter().any(|r| r.firm_id == "klarna"));
+        with_fixtures(|| {
+            let it = run_iteration();
+            assert_eq!(it.top10.len(), 10);
+            let depth_n = it.top10.iter().filter(|r| r.band == "depth").count();
+            let width_n = it.top10.iter().filter(|r| r.band == "width").count();
+            assert_eq!(depth_n, DEPTH_SLOTS);
+            assert_eq!(width_n, WIDTH_SLOTS);
+            assert!(it.top10.iter().all(|r| r.admitted));
+            assert!(it.top10.iter().any(|r| r.firm_id == "spacexai"));
+            assert!(it.top10.iter().any(|r| r.firm_id == "saab"));
+            assert!(it.top10.iter().any(|r| r.firm_id == "atlas_copco"));
+            assert!(it.top10.iter().any(|r| r.firm_id == "abb"));
+            assert!(!it.top10.iter().any(|r| r.firm_id == "klarna"));
+        });
     }
 
     #[test]
     fn abb_outranks_consumer_auto_on_depth() {
-        let it = run_iteration();
-        let abb = it.depth.iter().find(|r| r.firm_id == "abb").unwrap();
-        let cars = score_for_id("volvo_cars").unwrap();
-        assert!(abb.total > cars.total);
-        assert!(cars.admitted);
+        with_fixtures(|| {
+            let it = run_iteration();
+            let abb = it.depth.iter().find(|r| r.firm_id == "abb").unwrap();
+            let cars = score_for_id("volvo_cars").unwrap();
+            assert!(abb.total > cars.total);
+            assert!(cars.admitted);
+        });
     }
 
     #[test]
     fn next_wave_does_not_repeat_ids() {
-        let w1 = run_iteration();
-        let ids: Vec<String> = w1.top10.iter().map(|r| r.firm_id.clone()).collect();
-        let w2 = run_wave(&ids, 2);
-        let overlap: Vec<_> = w2
-            .top10
-            .iter()
-            .filter(|r| ids.iter().any(|id| id == &r.firm_id))
-            .collect();
-        assert!(overlap.is_empty(), "wave2 overlapped {overlap:?}");
-        assert!(!w2.top10.is_empty());
-        assert!(w2.wave == 2);
+        with_fixtures(|| {
+            let w1 = run_iteration();
+            let ids: Vec<String> = w1.top10.iter().map(|r| r.firm_id.clone()).collect();
+            let w2 = run_wave(&ids, 2);
+            let overlap: Vec<_> = w2
+                .top10
+                .iter()
+                .filter(|r| ids.iter().any(|id| id == &r.firm_id))
+                .collect();
+            assert!(overlap.is_empty(), "wave2 overlapped {overlap:?}");
+            assert!(!w2.top10.is_empty());
+            assert!(w2.wave == 2);
+        });
     }
 
     #[test]
     fn profile_prefers_abb_over_theatre() {
-        let uni = load_universe().unwrap();
-        let abb = uni.firms.iter().find(|f| f.id == "abb").unwrap();
-        let klarna = uni.firms.iter().find(|f| f.id == "klarna").unwrap();
-        assert!(profile_match_firm(abb).score > profile_match_firm(klarna).score);
-        let role = local_role_match(
-            "Senior Software Engineer",
-            "Saab",
-            "Stockholm",
-            "Rust embedded autonomy",
-        );
-        assert!(role.score >= 36);
+        with_fixtures(|| {
+            let uni = load_universe().unwrap();
+            let abb = uni.firms.iter().find(|f| f.id == "abb").unwrap();
+            let klarna = uni.firms.iter().find(|f| f.id == "klarna").unwrap();
+            assert!(profile_match_firm(abb).score > profile_match_firm(klarna).score);
+            let role = local_role_match(
+                "Senior Software Engineer",
+                "Saab",
+                "Stockholm",
+                "Rust embedded autonomy",
+            );
+            assert!(role.score >= 36);
+        });
     }
 
     #[test]
     fn place_board_is_embedded() {
-        let it = run_iteration();
-        assert_eq!(it.places.top10[0].place_id, "nl_eindhoven");
-        assert!(it.places.critic.iter().any(|c| c.contains("Sweden-first")));
+        with_fixtures(|| {
+            let it = run_iteration();
+            assert_eq!(it.places.top10[0].place_id, "nl_eindhoven");
+            assert!(it.places.critic.iter().any(|c| c.contains("Sweden-first")));
+        });
+    }
+
+    #[test]
+    fn user_pack_overrides_baked_firm_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let packs = tmp.path().join("packs");
+        std::fs::create_dir_all(&packs).unwrap();
+        std::fs::write(
+            packs.join("universe.json"),
+            r#"{"algorithm_version":"v1","scored_at":"t","firms":[{"id":"ericsson","name":"UserOverride","hq":"US","depth_geo":"united_states","product_class":"x","theater_saas":false,"product_moat":4,"ai_tsunami":4,"fortress":4,"hiring_signal":3,"spacexai_vector":4}]}"#,
+        )
+        .unwrap();
+        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+        crate::operator_pack::set_test_packs_dir(Some(packs));
+        let uni = load_universe().unwrap();
+        let ericsson = uni.firms.iter().find(|f| f.id == "ericsson").unwrap();
+        assert_eq!(ericsson.name, "UserOverride");
+        crate::operator_pack::clear_test_fixtures();
     }
 }

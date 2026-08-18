@@ -14,36 +14,16 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri::State;
 
-/// Matches `data/distillation/cv-packet-distilled.txt` (+ `queries.json` defaultCvSummary). Rust fallback when IPC omits cv_summary.
-const DEFAULT_CV_PACKET: &str = include_str!("../../data/distillation/cv-packet-distilled.txt");
-
-/// Strict dual-fit constraints (from curation/candidate-preferences.md extract).
-const CANDIDATE_CONSTRAINTS_STRICT: &str =
-    include_str!("../../data/distillation/curation/candidate-constraints-compact.txt");
-
-/// Relaxed simple-fitness constraints (relevant experience; no ML/robotics mission veto).
-const CANDIDATE_CONSTRAINTS_RELAXED: &str =
-    include_str!("../../data/distillation/curation/candidate-constraints-relaxed.txt");
+/// Fallback when IPC omits cv_summary — loaded from operator pack on disk.
+fn default_cv_packet() -> String {
+    crate::operator_pack::cv_packet()
+}
 
 /// Alias for tests / call sites that mean “default strict compact packet”.
 #[allow(dead_code)]
-const CANDIDATE_CONSTRAINTS: &str = CANDIDATE_CONSTRAINTS_STRICT;
-
-/// Proof / exceptional-work variant bank (role-class mapping source of truth).
-const PROOF_VARIANTS_MD: &str =
-    include_str!("../../data/distillation/curation/proof-variants.md");
-
-/// Focused public GitHub projects (description + topics) — richer than cvdata for prep/cover letters.
-const PUBLIC_PROJECTS_FOCUSED_JSON: &str =
-    include_str!("../../data/distillation/public-projects-focused-flatten.json");
-
-/// Slim repo list (name/url/description/topics) — fills gaps not in focused list.
-const PUBLIC_PROJECTS_SLIM_JSON: &str =
-    include_str!("../../data/distillation/public-projects.json");
-
-/// Full GitHub descriptions (no API ellipsis) — upgrades truncated slim blurbs.
-const PUBLIC_PROJECTS_CLEAN_JSON: &str =
-    include_str!("../../data/distillation/public-projects-clean.json");
+fn candidate_constraints() -> String {
+    crate::operator_pack::constraints_strict()
+}
 
 const PACKET_PREVIEW_MAX_CHARS: usize = 8000;
 
@@ -75,11 +55,11 @@ pub(crate) fn parse_fit_mode(raw: &str) -> &'static str {
     }
 }
 
-pub(crate) fn resolve_constraints(mode: &str) -> &'static str {
+pub(crate) fn resolve_constraints(mode: &str) -> String {
     if parse_fit_mode(mode) == FIT_MODE_RELAXED {
-        CANDIDATE_CONSTRAINTS_RELAXED
+        crate::operator_pack::constraints_relaxed()
     } else {
-        CANDIDATE_CONSTRAINTS_STRICT
+        crate::operator_pack::constraints_strict()
     }
 }
 
@@ -534,7 +514,7 @@ pub(crate) fn parse_public_projects_bank(focused_json: &str, slim_json: &str) ->
         }
     }
 
-    merge_clean_repo_descriptions(&mut by_name, PUBLIC_PROJECTS_CLEAN_JSON);
+    merge_clean_repo_descriptions(&mut by_name, &crate::operator_pack::public_projects_clean_json());
 
     by_name.into_values().collect()
 }
@@ -1019,8 +999,8 @@ fn load_pruned_cv_from_devprofile(base: &str) -> Option<String> {
 /// Resolve CV packet for analyze/prep.
 /// Priority: if cv_summary (from UI textarea/IPC) non-empty, use it (allows override even when path set).
 /// Else if devprofile_path configured, load pruned cvdata.json from it.
+/// Else if kanithanj.cv installed with cvdata, load from there.
 /// Else fallback to in-repo DEFAULT_CV_PACKET.
-/// This fixes the union bug while satisfying AC2 (pruned used when no summary + path set).
 fn resolve_cv_packet(cv_summary: Option<String>, devprofile_path: Option<String>) -> (String, CvPacketResolved) {
     let trimmed = cv_summary
         .map(|s| s.trim().to_string())
@@ -1038,7 +1018,14 @@ fn resolve_cv_packet(cv_summary: Option<String>, devprofile_path: Option<String>
         }
     }
 
-    let text = DEFAULT_CV_PACKET.to_string();
+    if let Some(home) = crate::cv_home::resolve_home() {
+        if let Some(pruned) = load_pruned_cv_from_devprofile(&home.display().to_string()) {
+            let chars = pruned.chars().count() as u32;
+            return (pruned, CvPacketResolved { ipc_chars: chars, used_fallback: false });
+        }
+    }
+
+    let text = default_cv_packet();
     (
         text,
         CvPacketResolved { ipc_chars: 0, used_fallback: true },
@@ -1381,7 +1368,7 @@ pub(crate) async fn run_analyze_opportunity_target(
             dual_fit_json_schema(),
         )
     };
-    let user = build_analyze_user_prompt_for_mode(&cv, &jd, constraints, &fit_mode);
+    let user = build_analyze_user_prompt_for_mode(&cv, &jd, &constraints, &fit_mode);
 
     let model = get_xai_model();
     let (fit_json, usage) =
@@ -1488,9 +1475,12 @@ pub(crate) async fn run_prep_opportunity_target(
         cv.chars().count()
     );
 
-    let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+    let bank = parse_proof_variants(&crate::operator_pack::proof_variants_md());
     let variant = select_proof_variant(&jd, &bank);
-    let projects = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+    let projects = parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
     let projects_block = format_public_projects_for_prep(&projects, &jd);
     let user = build_prep_user_prompt(
         &cv,
@@ -2240,7 +2230,10 @@ pub(crate) fn build_cv_overlay_from_prep(
     );
 
     // Upsert bank projects that we featured so descriptions are rich when keys are missing from master
-    let bank = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+    let bank = parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
     let mut projects_upsert: Vec<Value> = Vec::new();
     for key in &featured {
         if let Some(p) = bank.iter().find(|p| p.name.eq_ignore_ascii_case(key) || p.name.replace('_', "-") == *key) {
@@ -2856,15 +2849,29 @@ fn path_is_under(canonical_file: &std::path::Path, root: &std::path::Path) -> bo
     canonical_file.starts_with(&root_c)
 }
 
-/// Only application_packs under app data, or generate-apply-cv PDFs under devprofile/out/apply.
+fn cv_apply_out_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(home) = crate::cv_home::resolve_home() {
+        roots.push(home.join("out").join("apply"));
+    }
+    if let Some(dev) = get_devprofile_path() {
+        let apply = PathBuf::from(dev).join("out").join("apply");
+        if !roots.iter().any(|r| r == &apply) {
+            roots.push(apply);
+        }
+    }
+    roots
+}
+
+/// Only application_packs under app data, or generate-apply-cv PDFs under kanithanj.cv / devprofile out/apply.
 fn artifact_path_allowed(canonical_file: &std::path::Path) -> bool {
     if let Ok(data) = crate::app_dirs::app_data_dir() {
         if path_is_under(canonical_file, &data.join("application_packs")) {
             return true;
         }
     }
-    if let Some(dev) = get_devprofile_path() {
-        if path_is_under(canonical_file, &std::path::PathBuf::from(dev).join("out").join("apply")) {
+    for apply_root in cv_apply_out_roots() {
+        if path_is_under(canonical_file, &apply_root) {
             return true;
         }
     }
@@ -2989,9 +2996,8 @@ fn path_is_under_allowed_dir(canonical_dir: &std::path::Path) -> bool {
             return true;
         }
     }
-    if let Some(dev) = get_devprofile_path() {
-        let apply = std::path::PathBuf::from(dev).join("out").join("apply");
-        if path_is_under(canonical_dir, &apply) {
+    for apply_root in cv_apply_out_roots() {
+        if path_is_under(canonical_dir, &apply_root) {
             return true;
         }
     }
@@ -3251,26 +3257,27 @@ fn parse_export_path_from_notes(notes: &str) -> Option<String> {
     None
 }
 
-/// Preflight: devprofile_path must contain scripts/generate-apply-cv.tsx.
-pub(crate) fn preflight_generate_apply_cv(devprofile: &std::path::Path) -> Result<PathBuf, String> {
+/// Resolved CV maker root (kanithanj.cv install, else legacy devprofile checkout).
+pub(crate) fn resolve_cv_maker_home() -> Result<PathBuf, String> {
+    if let Some(home) = crate::cv_home::resolve_home() {
+        return Ok(home);
+    }
+    let dev_path = get_devprofile_path().ok_or_else(|| {
+        "CV maker not installed — Preferences → Install kanithanj.cv (or set devprofile path)".to_string()
+    })?;
+    let devprofile = PathBuf::from(dev_path);
     if !devprofile.is_dir() {
-        return Err(format!(
-            "devprofile_path is not a directory: {}",
-            devprofile.display()
-        ));
+        return Err(format!("devprofile_path is not a directory: {}", devprofile.display()));
     }
-    let script = devprofile.join("scripts").join("generate-apply-cv.tsx");
-    if !script.is_file() {
-        return Err(format!(
-            "generate-apply-cv.tsx missing at {} — pull latest devprofile main (apply-cv scripts)",
-            script.display()
-        ));
-    }
-    Ok(script)
+    Ok(devprofile)
 }
 
-/// Resolve `bun`/`pnpm` for GUI-launched Tauri (often has a minimal PATH).
-fn resolve_tool_binary(name: &str) -> Option<PathBuf> {
+/// Preflight: kanithanj.cv or devprofile must contain scripts/generate-apply-cv.tsx.
+pub(crate) fn preflight_generate_apply_cv(root: &std::path::Path) -> Result<PathBuf, String> {
+    crate::cv_home::preflight_script(root)
+}
+
+pub(crate) fn resolve_tool_binary(name: &str) -> Option<PathBuf> {
     if let Ok(path) = std::env::var("PATH") {
         for dir in path.split(':') {
             if dir.is_empty() {
@@ -3301,7 +3308,11 @@ fn resolve_tool_binary(name: &str) -> Option<PathBuf> {
 }
 
 fn find_bun_or_pnpm() -> Result<(PathBuf, Vec<String>), String> {
-    // Prefer bun (package.json: "generate-apply-cv": "bun scripts/…")
+    // Prefer co-located kanithanj.cv CLI (~/.local/bin/kanithanj.cv)
+    if let Some(cli) = resolve_tool_binary("kanithanj.cv") {
+        return Ok((cli, vec![]));
+    }
+    // Legacy: bun/pnpm from CV maker checkout root
     if let Some(bun) = resolve_tool_binary("bun") {
         return Ok((bun, vec!["scripts/generate-apply-cv.tsx".into()]));
     }
@@ -3309,7 +3320,7 @@ fn find_bun_or_pnpm() -> Result<(PathBuf, Vec<String>), String> {
         return Ok((pnpm, vec!["generate-apply-cv".into()]));
     }
     Err(
-        "Neither bun nor pnpm found (PATH + ~/.bun/bin + ~/.local/bin). Install bun or open a shell with pnpm."
+        "Neither kanithanj.cv nor bun nor pnpm found. Preferences → Install kanithanj.cv (needs bun)."
             .into(),
     )
 }
@@ -3448,20 +3459,17 @@ fn do_generate_apply_cv_inner(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let dev_path = get_devprofile_path().ok_or_else(|| {
-        "devprofile_path not set — configure Settings → devprofile path (e.g. ~/Work/personal/devprofile)".to_string()
-    })?;
-    let devprofile = PathBuf::from(&dev_path);
-    let _script = preflight_generate_apply_cv(&devprofile)?;
+    let cv_root = resolve_cv_maker_home()?;
+    let _script = preflight_generate_apply_cv(&cv_root)?;
 
-    let link_script = devprofile.join("scripts").join("link-application-packs.mjs");
+    let link_script = cv_root.join("scripts").join("link-application-packs.mjs");
     if link_script.is_file() {
         let packs_root = crate::app_dirs::app_data_dir()
             .map_err(|e| e.to_string())?
             .join("application_packs");
         let status = std::process::Command::new("node")
             .arg(&link_script)
-            .current_dir(&devprofile)
+            .current_dir(&cv_root)
             .env("COLLAB_FINDER_PACKS", packs_root)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -3496,7 +3504,7 @@ fn do_generate_apply_cv_inner(
     let mut child = std::process::Command::new(&bin);
     child
         .args(&args)
-        .current_dir(&devprofile)
+        .current_dir(&cv_root)
         .env("PATH", &path_env)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -3515,7 +3523,7 @@ fn do_generate_apply_cv_inner(
         ));
     }
 
-    let (primary, flat, submit) = expected_pdf_paths(&devprofile, &pack_dir, &pack_slug);
+    let (primary, flat, submit) = expected_pdf_paths(&cv_root, &pack_dir, &pack_slug);
     if !primary.is_file() {
         return Err(format!(
             "generate-apply-cv finished but PDF missing at {}\nstdout:\n{}",
@@ -3646,20 +3654,17 @@ fn spawn_generate_apply_cv_for_export(
         return Err(format!("missing {}", overlay_path.display()));
     }
 
-    let dev_path = get_devprofile_path().ok_or_else(|| {
-        "devprofile_path not set — configure Settings → devprofile path".to_string()
-    })?;
-    let devprofile = PathBuf::from(&dev_path);
-    let _script = preflight_generate_apply_cv(&devprofile)?;
+    let cv_root = resolve_cv_maker_home()?;
+    let _script = preflight_generate_apply_cv(&cv_root)?;
 
-    let link_script = devprofile.join("scripts").join("link-application-packs.mjs");
+    let link_script = cv_root.join("scripts").join("link-application-packs.mjs");
     if link_script.is_file() {
         let packs_root = crate::app_dirs::app_data_dir()
             .map_err(|e| e.to_string())?
             .join("application_packs");
         let _ = std::process::Command::new("node")
             .arg(&link_script)
-            .current_dir(&devprofile)
+            .current_dir(&cv_root)
             .env("COLLAB_FINDER_PACKS", packs_root)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -3688,7 +3693,7 @@ fn spawn_generate_apply_cv_for_export(
 
     let output = std::process::Command::new(&bin)
         .args(&args)
-        .current_dir(&devprofile)
+        .current_dir(&cv_root)
         .env("PATH", &path_env)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -3705,7 +3710,7 @@ fn spawn_generate_apply_cv_for_export(
         ));
     }
 
-    let (primary, flat, submit) = expected_pdf_paths(&devprofile, &pack_dir, &pack_slug);
+    let (primary, flat, submit) = expected_pdf_paths(&cv_root, &pack_dir, &pack_slug);
     if !primary.is_file() {
         return Err(format!(
             "generate-apply-cv finished but PDF missing at {}",
@@ -3978,11 +3983,9 @@ mod tests {
 
     #[test]
     fn analyze_user_prompt_injects_constraints_from_curation_artifact() {
-        let prompt = build_analyze_user_prompt(
-            "CV_BODY_HERE",
-            "JD_BODY_HERE",
-            CANDIDATE_CONSTRAINTS_STRICT,
-        );
+        let _guard = crate::operator_pack::install_test_fixtures();
+        let strict = resolve_constraints(FIT_MODE_STRICT);
+        let prompt = build_analyze_user_prompt("CV_BODY_HERE", "JD_BODY_HERE", &strict);
         assert!(
             prompt.contains("CANDIDATE_CONSTRAINTS"),
             "must label constraints block"
@@ -3991,7 +3994,6 @@ mod tests {
             prompt.contains("CV_BODY_HERE") && prompt.contains("JD_BODY_HERE"),
             "must include cv and jd"
         );
-        // Content from real candidate-constraints-compact.txt (include_str of curation artifact)
         assert!(
             prompt.contains("GEO_HARD_NO") || prompt.contains("DEI"),
             "must carry constraints content from preferences extract"
@@ -4004,22 +4006,25 @@ mod tests {
             prompt.contains("role_to_candidate") && prompt.contains("deal_breakers_triggered"),
             "dual-fit rubric in prompt"
         );
-        // Ensure not CV+JD only (constraints section present between or alongside)
         assert!(prompt.contains(
-            CANDIDATE_CONSTRAINTS_STRICT
+            strict
                 .trim()
                 .lines()
                 .next()
                 .unwrap_or("CANDIDATE_CONSTRAINTS")
         ));
+        crate::operator_pack::clear_test_fixtures();
     }
 
     #[test]
     fn relaxed_prompt_is_simple_fitness_not_dual_fit_mission() {
+        let _guard = crate::operator_pack::install_test_fixtures();
+        let relaxed = resolve_constraints(FIT_MODE_RELAXED);
+        let strict = resolve_constraints(FIT_MODE_STRICT);
         let prompt = build_analyze_user_prompt_for_mode(
             "CV_BODY_HERE",
             "JD_BODY_HERE",
-            CANDIDATE_CONSTRAINTS_RELAXED,
+            &relaxed,
             FIT_MODE_RELAXED,
         );
         assert!(prompt.contains("SIMPLE FITNESS RUBRIC"), "relaxed rubric label");
@@ -4040,11 +4045,12 @@ mod tests {
                 || prompt.contains("DO_NOT: Require physical-world ML"),
             "must explicitly reject ML/robotics mission veto"
         );
-        assert_eq!(resolve_constraints(FIT_MODE_RELAXED), CANDIDATE_CONSTRAINTS_RELAXED);
-        assert_eq!(resolve_constraints(FIT_MODE_STRICT), CANDIDATE_CONSTRAINTS_STRICT);
+        assert_eq!(resolve_constraints(FIT_MODE_RELAXED), relaxed);
+        assert_eq!(resolve_constraints(FIT_MODE_STRICT), strict);
         assert_eq!(parse_fit_mode("relaxed"), FIT_MODE_RELAXED);
         assert_eq!(parse_fit_mode("STRICT"), FIT_MODE_STRICT);
         assert_eq!(parse_fit_mode(""), FIT_MODE_STRICT);
+        crate::operator_pack::clear_test_fixtures();
     }
 
     #[test]
@@ -4091,7 +4097,7 @@ mod tests {
 
     #[test]
     fn proof_variants_parse_from_real_bank_and_selector_maps_role_classes() {
-        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        let bank = parse_proof_variants(&crate::operator_pack::proof_variants_md());
         assert!(
             bank.len() >= 5,
             "expected multiple EW variants from proof-variants.md, got {}",
@@ -4135,9 +4141,12 @@ mod tests {
 
     #[test]
     fn prep_user_prompt_includes_selected_variant_id_and_body() {
-        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        let bank = parse_proof_variants(&crate::operator_pack::proof_variants_md());
         let v = select_proof_variant("xAI agent infrastructure role", &bank);
-        let projects = parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+        let projects = parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
         let pblock = format_public_projects_for_prep(&projects, "xAI agent infrastructure role");
         let prompt = build_prep_user_prompt(
             "MY_CV",
@@ -4164,7 +4173,10 @@ mod tests {
     #[test]
     fn public_projects_bank_parses_and_ranks_for_agent_jd() {
         let projects =
-            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+            parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
         assert!(
             projects.len() >= 10,
             "expected focused+slim merge, got {}",
@@ -4197,10 +4209,13 @@ mod tests {
     fn run_prep_prompt_path_includes_public_projects_content() {
         // Drive shipped run_prep; stub does not expose prompt, so assert via pure builders used by it.
         let projects =
-            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+            parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
         let jd = "Senior engineer for Salesforce HubSpot CRM integrations public API";
         let block = format_public_projects_for_prep(&projects, jd);
-        let bank = parse_proof_variants(PROOF_VARIANTS_MD);
+        let bank = parse_proof_variants(&crate::operator_pack::proof_variants_md());
         let v = select_proof_variant(jd, &bank);
         let prompt = build_prep_user_prompt("CV", jd, None, &v, &block);
         assert!(prompt.contains("PUBLIC_PROJECTS_BANK"));
@@ -4211,7 +4226,11 @@ mod tests {
 
     #[test]
     fn run_analyze_path_includes_constraints_in_prompt_via_stub_and_dual_fit_fields() {
-        // Drive shipped run_analyze_opportunity_target (stub structured_chat).
+        let _app = crate::app_dirs::test_harness::LOCK.lock().expect("app dir lock");
+        let app_tmp = tempfile::tempdir().expect("app tmp");
+        crate::app_dirs::test_harness::set(app_tmp.path().to_path_buf());
+        std::fs::write(app_tmp.path().join("fit_mode.txt"), "strict").expect("fit_mode");
+        let _guard = crate::operator_pack::install_test_fixtures();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let res = rt
             .block_on(run_analyze_opportunity_target(
@@ -4232,6 +4251,7 @@ mod tests {
             .and_then(|v| v.as_array())
             .is_some());
         assert!(res.cv_chars_sent > 0);
+        crate::app_dirs::test_harness::clear();
     }
 
     #[test]
@@ -4275,6 +4295,7 @@ mod tests {
 
     #[test]
     fn resolve_cv_packet_fallback_when_missing_or_blank() {
+        crate::cv_home::set_test_home(Some(None));
         let (_, meta) = resolve_cv_packet(None, None);
         assert!(meta.used_fallback);
         assert_eq!(meta.ipc_chars, 0);
@@ -4282,6 +4303,7 @@ mod tests {
         let (_, meta) = resolve_cv_packet(Some("   \n  ".to_string()), None);
         assert!(meta.used_fallback);
         assert_eq!(meta.ipc_chars, 0);
+        crate::cv_home::clear_test_home();
     }
 
     #[test]
@@ -4326,6 +4348,11 @@ mod tests {
 
     #[test]
     fn propose_cv_sidecar_for_prep_cmd_path_writes_file_and_cvdata_hash_unchanged() {
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        if !std::path::Path::new(live).is_file() {
+            eprintln!("skip propose_cv_sidecar test: devprofile cvdata not on runner");
+            return;
+        }
         // Drives do_propose_cv_sidecar_for_prep (core of the shipped propose_cv_sidecar_for_prep cmd)
         // per verif step 5. Sets up DB opp row with cv_suggestions, calls the logic (the path propose_cv_sidecar_for_prep uses),
         // asserts sidecar written + cvdata bytes unchanged (pre/post hash around the call).
@@ -4350,7 +4377,6 @@ mod tests {
         ).expect("upsert opp with prep");
 
         // Hash the actual live cvdata (before the do_propose call)
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
         let pre_bytes = std::fs::read(live).unwrap_or_default();
 
         // harness so app_data_dir returns our tmp for the write in do_
@@ -4373,6 +4399,12 @@ mod tests {
 
     #[test]
     fn integration_analyze_real_devprofile_packet_preview() {
+        let devprofile = std::path::PathBuf::from("/home/sustainableabundance/Work/personal/devprofile");
+        let cvdata = devprofile.join("src/data/cvdata.json");
+        if !cvdata.is_file() {
+            eprintln!("skip integration_analyze_real_devprofile: devprofile cvdata not on runner");
+            return;
+        }
         // Verif step 4: full analyze_opportunity_target cmd path with real devprofile_path.
         // Sets the config file, uses pasted_jd (no fetch), stubbed xAI, asserts returned packet_preview contains live cvdata token.
         // (no Write needed)
@@ -4421,6 +4453,11 @@ mod tests {
 
     #[test]
     fn integration_propose_leaves_live_cvdata_unchanged() {
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        if !std::path::Path::new(live).is_file() {
+            eprintln!("skip integration_propose_leaves_live_cvdata: devprofile cvdata not on runner");
+            return;
+        }
         // Verif step 5: call do_propose... (the logic behind the propose cmd) and hash the *actual* live cvdata before/after.
         let tmp = std::env::temp_dir().join(format!("cf_propose_live_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
@@ -4431,7 +4468,6 @@ mod tests {
         let id = store.upsert_opportunity("web", Some("u"), None, Some("t"), Some("c"), "jd", "prepped", Some(82), None, Some(prep), None).expect("ins");
 
         // live cvdata for hash (read actual before/after the cmd call)
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
         let pre = std::fs::read(live).unwrap_or_default();
 
         crate::app_dirs::test_harness::set(tmp.clone());
@@ -4595,7 +4631,10 @@ mod tests {
     #[test]
     fn bank_and_overlay_use_complete_adaptate_description() {
         let projects =
-            parse_public_projects_bank(PUBLIC_PROJECTS_FOCUSED_JSON, PUBLIC_PROJECTS_SLIM_JSON);
+            parse_public_projects_bank(
+        &crate::operator_pack::public_projects_focused_json(),
+        &crate::operator_pack::public_projects_slim_json(),
+    );
         let adaptate = projects
             .iter()
             .find(|p| p.name.eq_ignore_ascii_case("adaptate"))
@@ -4767,6 +4806,19 @@ mod tests {
             .as_deref(),
             Some("Fullstack Developer Typescript")
         );
+    }
+
+    #[test]
+    fn resolve_cv_maker_home_prefers_kanithanj_cv_test_home() {
+        crate::cv_home::clear_test_home();
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let script_dir = tmp.path().join("scripts");
+        std::fs::create_dir_all(&script_dir).expect("scripts");
+        std::fs::write(script_dir.join("generate-apply-cv.tsx"), b"// stub").expect("write");
+        crate::cv_home::set_test_home(Some(Some(tmp.path().to_path_buf())));
+        let home = resolve_cv_maker_home().expect("cv home");
+        assert_eq!(home, tmp.path().to_path_buf());
+        crate::cv_home::clear_test_home();
     }
 
     #[test]

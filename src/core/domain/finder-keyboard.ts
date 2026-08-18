@@ -13,6 +13,7 @@ export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = {
   '5': 'xplore',
   '6': 'network',
   '7': 'settings',
+  '8': 'preferences',
 }
 
 export type ShellHotkey =

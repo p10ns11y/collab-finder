@@ -1,0 +1,1117 @@
+{
+  "name": "Peramanathan Sathyamoorthy",
+  "current_role": "Dad",
+  "main_role": "Dad",
+  "latest_proffessional_role": "Senior Software Engineer",
+  "previous_role": "Senior Software Engineer",
+  "open_for_new_opportunies": true,
+  "name_with_initial": "Peramanathan S.",
+  "one_liner": "Senior Software Engineer with 9+ years in scalable web apps, JavaScript, ReactJS, and system architecture, leading teams and mentoring in innovative startups.",
+  "shorter_bio": "Senior Software Engineer with 9+ years of experience in scalable web apps and team leadership. Master's in Computer Science and Operations Research, skilled in JavaScript, ReactJS, and system architecture. Drives innovation and efficiency in startups, passionate about mentoring.",
+  "short_bio": "Senior Software Engineer with 9+ years of experience building scalable web applications and leading teams. Holds Master's degrees in Computer Science and Operations Research, with expertise in JavaScript, ReactJS, and system architecture. Proven leader in driving innovative solutions and efficiency in startups, with a passion for mentoring and fostering innovation.",
+  "profile": "Senior Software Engineer with over 9 years of experience in building scalable web applications and leading development teams. Holds Master's degrees in Computer Science and Operations Research, providing a strong foundation in both theoretical and applied aspects of technology and optimization. Proven expertise in JavaScript, ReactJS, Architectural Design and System Building. Demonstrated leadership in integrating innovative solutions and driving efficiency in startup environments. Experienced educator with a passion for mentoring and fostering innovation through technology.",
+  "contact": {
+    "email": "sathyam.peram@gmail.com",
+    "phone": "+46 737 641 917",
+    "phone_public": false,
+    "phone_hint": "Waiting for Telenor to reactivate — omit from public CV/contact until then",
+    "github": "@p10ns11y",
+    "citizenship": "Swedish"
+  },
+  "home": {
+    "location": "Stockholm, Sweden",
+    "current_location": "Stockholm, Sweden"
+  },
+  "cv_social_links": {
+    "github": "https://github.com/p10ns11y",
+    "x": "https://x.com/peramanathan",
+    "x_handle": "@peramanathan"
+  },
+  "x_content": {
+    "articles_url": "https://x.com/Peramanathan/articles",
+    "highlights_url": "https://x.com/peramanathan/highlights"
+  },
+  "social_links": [
+    {
+      "icon": "Github",
+      "href": "https://github.com/p10ns11y",
+      "label": "GitHub"
+    },
+    {
+      "icon": "X",
+      "href": "https://x.com/peramanathan",
+      "label": "X"
+    },
+    {
+      "icon": "Email",
+      "href": "mailto:sathyam.peram@gmail.com",
+      "label": "Email"
+    }
+  ],
+  "developer_handles": {
+    "active": {
+      "github": "https://github.com/p10ns11y",
+      "huggingface": "https://huggingface.co/Peramanathan"
+    },
+    "inactive": {
+      "github": [
+        "https://github.com/peramsathyam",
+        "https://github.com/peramanathan"
+      ]
+    }
+  },
+  "work_experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Oneflow AB, Digital Signature and Contract Management Platform",
+      "location": "Stockholm, Sweden",
+      "start_date": "January 2023",
+      "end_date": "December 2024",
+      "duration": "24 months",
+      "responsibilities": [
+        "Strategically integrated TypeScript into a mixed legacy codebase with FlowType and JavaScript, resulting in a 70% reduction in type-related errors, significantly enhancing code reliability and maintainability. Leveraged previously introduced Zod’s type inference for robust type hinting in business data",
+        "Automated the conversion of JavaScript modules to TypeScript with a custom script preserving the version control history, saving over 200 hours of manual work and accelerating development timelines",
+        "Unified distributed ACL permissions into a single utility module, managing complex contexts and user roles (owner, guest) to simplify maintenance, migration and enhance scalability."
+      ],
+      "tools": [
+        "TypeScript",
+        "ReactJS",
+        "Python"
+      ]
+    },
+    {
+      "title": "Engineering Team Lead",
+      "company": "Oneflow AB",
+      "location": "Stockholm, Sweden",
+      "start_date": "October 2021",
+      "end_date": "December 2022",
+      "duration": "15 months",
+      "responsibilities": [
+        "Co-led the development of a new JSON-based rich text editor seamlessly integrating with legacy HTML, increasing user satisfaction by 60% and providing a modern, cohesive editing experience.",
+        "Mentored and empowered the development team to a self-organizing model, overseeing hiring and onboarding while instilling a continuous improvement culture. This resulted in increased productivity, stronger ownership, and scalable team practices.",
+        "Pioneered an end-to-end testing transformation with Playwright, starting with an innovative approach to replicate mob testing scenarios. This significantly reduced regressions and boosted efficiency. Later, I spearheaded a complete rewrite of the end-to-end testing suite in Playwright.",
+        "Engineered a lightweight Zod-based data validation library which streamlined data validation and minimized runtime errors."
+      ],
+      "tools": [
+        "JavaScript",
+        "TypeScript",
+        "Python",
+        "ReactJS",
+        "Webpack",
+        "Jest",
+        "Zod",
+        "Testing-library",
+        "Playwright",
+        "MySQL",
+        "Nodejs",
+        "Express.js",
+        "Flask"
+      ]
+    },
+    {
+      "title": "Full Stack Integration Engineer",
+      "company": "Oneflow AB",
+      "location": "Stockholm, Sweden",
+      "start_date": "March 2019",
+      "end_date": "September 2021",
+      "duration": "31 months",
+      "responsibilities": [
+        "Established the Integration Team from the ground up, creating foundational processes and best practices for long-term scalability, while strategically aligning integration solutions with business needs.",
+        "Designed multi-client applications with Python and React.js, facilitating seamless integrations with platforms like HubSpot and SuperOffice, expanding Oneflow’s reach and interoperability. Helped Microsoft Dynamics and Salesforce Development with reviews and frontend decision making. Built connector application extensions for the CRM integrations and Teamtailor",
+        "Stabilized and enhanced the Public API, which enabled a robust third-party integration ecosystem, contributing to client satisfaction and platform versatility."
+      ],
+      "tools": [
+        "Python",
+        "Reactjs",
+        "CRMs (HubSpot, SuperOffice, Microsoft Dynamics, Salesforce)",
+        "Connexion"
+      ]
+    },
+    {
+      "title": "JavaScript Developer",
+      "company": "Oneflow AB",
+      "location": "Stockholm, Sweden",
+      "start_date": "April 2017",
+      "end_date": "February 2019",
+      "duration": "23 months",
+      "responsibilities": [
+        "Innovatively Integrated React Router into a Backbone.js-based client to build Identity and Access Management, facilitate faster prototyping cross-linked user management and efficient testing.",
+        "Optimized CI build processes, reducing build times by 40%,",
+        "Contributed to modernizing the legacy codebase by transitioning to React.js."
+      ],
+      "tools": [
+        "Python",
+        "Reactjs"
+      ]
+    },
+    {
+      "title": "Full Stack Developer",
+      "company": "Weavler AB, An accessible e-commerce artisans platform (with 1.6M SEK PTS grant)",
+      "location": "Stockholm, Sweden",
+      "start_date": "January 2016",
+      "end_date": "March 2017",
+      "duration": "15 months",
+      "responsibilities": [
+        "Managed AWS cloud infrastructure, reducing operational costs by 40%.",
+        "Integrated services like Mandrill, Slack bots, and PayPal, improving platform functionality. Implemented SEO strategies with server-side rendering.",
+        "Designed responsive email templates for email clients and browsers.",
+        "Created an intelligent notification and chat bot for onboarding and FAQs. Developed a open source babel plug-in to quickly implement translations to the entire project. Enhanced accessibility with text customization and color filters, aligned with WCAG standards. Experimented advanced features like speech synthesis and recognition, improving accessibility."
+      ],
+      "tools": [
+        "JavaScript",
+        "Express",
+        "Reactjs",
+        "Alt.js",
+        "Accessibility",
+        "SSR",
+        "MongoDB",
+        "Babel Plugin(OSS)"
+      ]
+    },
+    {
+      "title": "Software Engineer Intern (Summer Project)",
+      "company": "Bumbee Labs AB, Footfall analytics",
+      "company_url": "https://bumbeelabs.com/",
+      "location": "Stockholm, Sweden",
+      "start_date": "July 2015",
+      "end_date": "September 2015",
+      "duration": "3 months",
+      "responsibilities": [
+        "Applied MongoDB aggregation and map-reduce to generate structured reports from millions of raw data samples for footfall analytics.",
+        "Enhanced full-stack dashboard with gulp build and key performance indicators.",
+        "Explored migrating tech stack to Reactjs and Eve Python framework."
+      ],
+      "tools": [
+        "MongoDB",
+        "AngularJS",
+        "Python",
+        "Heroku",
+        "Laravel (PHP)",
+        "System Monitoring"
+      ]
+    }
+  ],
+  "skills": {
+    "product": [
+      "Adaptable Problem Solving",
+      "Proactive Problem Prevention and Elimination",
+      "System Thinking",
+      "Detail Orientation",
+      "Innovative Adjacent Thinking",
+      "Creative Solutions"
+    ],
+    "practices": [
+      "Agile",
+      "Test Driven Development",
+      "Behavior Driven Development",
+      "End-to-End Testing",
+      "Pair/Mob Programming"
+    ],
+    "categories": [
+      {
+        "title": "Frontend & Core",
+        "skills": [
+          "JavaScript",
+          "TypeScript",
+          "ReactJS",
+          "Next.js",
+          "Remix",
+          "Astro",
+          "Jest",
+          "Playwright"
+        ]
+      },
+      {
+        "title": "Backend & Data",
+        "skills": [
+          "Python",
+          "Node.js",
+          "Express",
+          "Flask",
+          "Django",
+          "MySQL",
+          "PostgreSQL",
+          "MongoDB"
+        ]
+      },
+      {
+        "title": "DevOps & AI",
+        "skills": [
+          "AWS",
+          "Terraform",
+          "Docker",
+          "Git",
+          "LangChain",
+          "LLMs",
+          "Webpack",
+          "Vite"
+        ]
+      }
+    ]
+  },
+  "courses": [
+    {
+      "name": "Cilium AI/ML Security",
+      "completionDate": "2026-03-24",
+      "url": "https://www.credly.com/badges/09e29284-43e8-4ea3-aa62-196d977d34d8",
+      "domain": "AI/ML Security",
+      "type": "course",
+      "content": "This badge certifies that the Securing AI/ML Workloads lab by Isovalent has been successfully completed. This lab is made of practical challenges, quizzes, and a final exam. The challenges include: training an ML model, deploying and securing an ML inference service, detecting and blocking data poisoning, network encryption, and sandboxing an LLM server against prompt injection consequences.",
+      "proof_of_accomplishment": "accomplishment_url",
+      "provider": "Isovalent",
+      "issuer": "Isovalent / Credly"
+    },
+    {
+      "name": "LangChain Chat with Your Data",
+      "completionDate": "2024-09-11",
+      "url": "https://learn.deeplearning.ai/accomplishments/f72f24f1-9ad2-4bc0-b8c2-33cbecb81ec2",
+      "domain": "AI",
+      "type": "course",
+      "proof_of_accomplishment": "accomplishment_url",
+      "provider": "DeepLearning.AI"
+    },
+    {
+      "name": "Build LLM Apps with LangChain.js",
+      "completionDate": "2024-09-26",
+      "url": "https://learn.deeplearning.ai/accomplishments/14907d64-9ff2-4dc7-b5f7-ce42982f8551?usp=sharing",
+      "domain": "AI",
+      "proof_of_accomplishment": "accomplishment_url",
+      "provider": "DeepLearning.AI",
+      "type": "course"
+    }
+  ],
+  "certifications": [
+    "EpicReact by Kent C. Dodds (2021)",
+    "Google: Computational Thinking for Educators(2015)",
+    "Coursera: Introduction to Meteor.js Development(2015)",
+    "Coursera: Machine Learning Foundations: A Case Study Approach (2015)",
+    "Coursera: Developing data products (2015)",
+    "Coursera: Getting and Cleaning Data(2015)",
+    "Coursera: R Programming(2015)",
+    "DataCamp: Kaggle R Tutorial on Machine Learning(2015)"
+  ],
+  "certificates": [
+    {
+      "course": "Testing JavaScript",
+      "completionDate": "2021-05-19",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "lessonsCompleted": 104,
+      "modulesCompleted": 7,
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "JavaScriptTestingCertificate.pdf",
+      "sha256Hash": "1da0d9c0f8f6726a20cbbd52c1aede5b0d28362342ebad2d0c78813d40c22864",
+      "fileSize": 93911,
+      "lastVerified": "2025-10-03T20:47:18.996Z"
+    },
+    {
+      "course": "The Data Scientist's Toolbox",
+      "reissuedDate": "Jul 28, 2025",
+      "completionDate": "2015-03-01",
+      "issuer": "Johns Hopkins University",
+      "provider": "Coursera",
+      "verifyUrl": "coursera.org/verify/0UXP2OPIYHPS",
+      "instructors": [
+        "Jeff Leek, PhD",
+        "Roger Peng, PhD",
+        "Brian Caffo, PhD"
+      ],
+      "department": "Department of Biostatistics, Johns Hopkins Bloomberg School of Public Health",
+      "type": "Online Non-Credit Course",
+      "filename": "Coursera 0UXP2OPIYHPS.pdf",
+      "sha256Hash": "b0086f859a27c1b5ba971e4e78d6f5e051bde2fc14a0729bd7fb0b886bf0b25b",
+      "fileSize": 327115,
+      "lastVerified": "2025-10-03T20:47:18.999Z"
+    },
+    {
+      "course": "Introduction to Meteor.js Development",
+      "completionDate": "2015-12-29",
+      "issuer": "University of London and Goldsmiths, University of London",
+      "provider": "Coursera",
+      "verifyUrl": "https://coursera.org/verify/5M8WT6R5VW32",
+      "instructors": [
+        "Dr Matthew Yee-King"
+      ],
+      "department": "Computing Department, Goldsmiths, University of London",
+      "type": "Online Non-Credit Course",
+      "filename": "Coursera-Meteor.pdf",
+      "sha256Hash": "40a565b0bcfff18fce4f5bfaa7f2f00bbd39ed87b4fc38a8ff321a76cc0f2b4f",
+      "fileSize": 317253,
+      "lastVerified": "2025-10-03T20:47:19.000Z"
+    },
+    {
+      "course": "R Programming",
+      "reissuedDate": "Jul 28, 2025",
+      "completionDate": "2015-03-01",
+      "issuer": "Johns Hopkins University",
+      "provider": "Coursera",
+      "verifyUrl": "coursera.org/verify/A5O6UPSB1TU2",
+      "instructors": [
+        "Jeff Leek, PhD",
+        "Roger Peng, PhD",
+        "Brian Caffo, PhD"
+      ],
+      "department": "Department of Biostatistics, Johns Hopkins Bloomberg School of Public Health",
+      "type": "Online Non-Credit Course",
+      "filename": "Coursera A5O6UPSB1TU2.pdf",
+      "sha256Hash": "a91f19d9461883f3820a8e82dca060a8fe061dc8ebbc8befea1cd94ade962859",
+      "fileSize": 326970,
+      "lastVerified": "2025-10-03T20:47:19.001Z"
+    },
+    {
+      "course": "Getting and Cleaning Data",
+      "reissuedDate": "Jul 28, 2025",
+      "completionDate": "2015-03-01",
+      "issuer": "Johns Hopkins University",
+      "provider": "Coursera",
+      "verifyUrl": "coursera.org/verify/CF3OFVOXL5DL",
+      "instructors": [
+        "Jeff Leek, PhD",
+        "Roger Peng, PhD",
+        "Brian Caffo, PhD"
+      ],
+      "department": "Department of Biostatistics, Johns Hopkins Bloomberg School of Public Health",
+      "type": "Online Non-Credit Course",
+      "filename": "Coursera CF3OFVOXL5DL.pdf",
+      "sha256Hash": "55b143c7324859739ac7284b1d6cbea0578b993aa984b6621119ecbf7507d495",
+      "fileSize": 327403,
+      "lastVerified": "2025-10-03T20:47:19.003Z"
+    },
+    {
+      "course": "Developing Data Products",
+      "reissuedDate": "2025-07-28",
+      "completionDate": "2015-03-01",
+      "issuer": "Johns Hopkins University",
+      "provider": "Coursera",
+      "verifyUrl": "coursera.org/verify/9PP3NZMJZBYQ",
+      "instructors": [
+        "Jeff Leek, PhD",
+        "Roger Peng, PhD",
+        "Brian Caffo, PhD"
+      ],
+      "department": "Department of Biostatistics, Johns Hopkins Bloomberg School of Public Health",
+      "type": "Online Non-Credit Course",
+      "filename": "Coursera-dataproducts.pdf",
+      "sha256Hash": "6325fd3a0da1bb4067f4e6604691e001cd30ef059e4a7d379c03c5679ef69818",
+      "fileSize": 327005,
+      "lastVerified": "2025-10-03T20:47:19.003Z"
+    },
+    {
+      "course": "Machine Learning Foundations: A Case Study Approach",
+      "completionDate": "2015-12-07",
+      "issuer": "University of Washington",
+      "provider": "Coursera",
+      "verifyUrl": "https://coursera.org/verify/QDDVWPVKDNEX",
+      "instructors": [
+        "Emily Fox",
+        "Carlos Guestrin"
+      ],
+      "departments": [
+        "Statistics",
+        "Computer Science and Engineering"
+      ],
+      "type": "MOOC",
+      "filename": "Coursera-ML.pdf",
+      "sha256Hash": "5645ad06600f22491235dc96d93efd2084dd043dd649784e0b717398d23ab501",
+      "fileSize": 311769,
+      "lastVerified": "2025-10-03T20:47:19.005Z"
+    },
+    {
+      "course": "Advanced React Hooks",
+      "completionDate": "2020-10-10",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "advanced-react-hooks-certificate.pdf",
+      "sha256Hash": "59af8a29c4e8d29026c6984914c2ab351ad6ff6e09756db4435cad76b52ef084",
+      "fileSize": 812396,
+      "lastVerified": "2025-10-03T20:47:19.007Z"
+    },
+    {
+      "course": "Advanced React Patterns",
+      "completionDate": "2020-10-12",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "advanced-react-patterns-certificate.pdf",
+      "sha256Hash": "635c9d643ec1eab42b52abc961f804f4fd5d87f2c40d524e2cbc7fdc4ff1c89f",
+      "fileSize": 1024613,
+      "lastVerified": "2025-10-03T20:47:19.009Z"
+    },
+    {
+      "course": "Build an Epic React App",
+      "completionDate": "2021-05-18",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Workshop",
+      "filename": "build-epic-react-app-certificate.pdf",
+      "sha256Hash": "0e7d47e2503d21261ee42d92d5e965a8af939f6b994e6420123194738f603b4f",
+      "fileSize": 1016685,
+      "lastVerified": "2025-10-03T20:47:19.012Z"
+    },
+    {
+      "course": "Human Trafficking 101 Training",
+      "completionDate": "2024-09-01",
+      "issuer": "Polaris Project",
+      "provider": "Polaris",
+      "verifyUrl": null,
+      "instructors": [],
+      "type": "Training",
+      "filename": "polaris-ht101-certificate-template.png",
+      "sha256Hash": "c3dd3d417d17db3ac4653e0e0caa76a08490e23c4d691d532d0d4754e337de83",
+      "fileSize": 208643,
+      "lastVerified": "2025-10-03T20:47:19.013Z"
+    },
+    {
+      "course": "Just JavaScript",
+      "completionDate": "2021-09-11",
+      "issuer": "Dan Abramov",
+      "provider": "Just JavaScript",
+      "episodesCompleted": 10,
+      "verifyUrl": null,
+      "instructors": [
+        "Dan Abramov"
+      ],
+      "type": "Online Course",
+      "filename": "JustJavaScript-certificate.pdf",
+      "sha256Hash": "70cb975aa2bd19795db985234f3decc440096943a31e205fa28c5154279cec86",
+      "fileSize": 45962,
+      "lastVerified": "2025-10-03T20:47:19.014Z"
+    },
+    {
+      "course": "React Fundamentals",
+      "completionDate": "2020-10-02",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "react-fundamentals-certificate.pdf",
+      "sha256Hash": "10e6c45191eb01c9aecf5b7b53afd07953786ae75a27d4204f9eff1143cc87bb",
+      "fileSize": 1012853,
+      "lastVerified": "2025-10-03T20:47:19.016Z"
+    },
+    {
+      "course": "Testing React Apps",
+      "completionDate": "2020-10-31",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "testing-react-apps-certificate.pdf",
+      "sha256Hash": "9631dc96454398bf88e4007fd25183b5014d1a24ead64983b232664745c7b2d8",
+      "fileSize": 1161945,
+      "lastVerified": "2025-10-03T20:47:19.019Z"
+    },
+    {
+      "course": "React Performance",
+      "completionDate": "2020-10-24",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "react-performance-certificate.pdf",
+      "sha256Hash": "6af504885a25d5dec524f2f3ea32c762c0fc807711ab8baaac25f15d4dffa191",
+      "fileSize": 1267659,
+      "lastVerified": "2025-10-03T20:47:19.022Z"
+    },
+    {
+      "course": "React Suspense",
+      "completionDate": "2020-11-28",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "react-suspense-certificate.pdf",
+      "sha256Hash": "3927186f452ebe6356f00037135b95516afd98923120427336fb164807a66000",
+      "fileSize": 1674394,
+      "lastVerified": "2025-10-03T20:47:19.027Z"
+    },
+    {
+      "course": "React Hooks",
+      "completionDate": "2020-10-06",
+      "issuer": "Kent C. Dodds",
+      "provider": "Epic React",
+      "verifyUrl": null,
+      "instructors": [
+        "Kent C. Dodds"
+      ],
+      "type": "Online Course",
+      "filename": "react-hooks-epic-react-certificate.pdf",
+      "sha256Hash": "a7ec44fa1c4f6ac5d2aad9f52836da5b8f91bf53e4ec10004e0bb9405d6a56de",
+      "fileSize": 1542526,
+      "lastVerified": "2025-10-03T20:47:19.030Z"
+    }
+  ],
+  "xplanation": {
+    "coursera": "https://x.com/Peramanathan/status/1954168574731276572"
+  },
+  "publications": [
+    {
+      "title": "Profiling Energy Efficiency and Data Communications for Mobile Internet of Things",
+      "url": "https://onlinelibrary.wiley.com/doi/10.1155/2017/6562915",
+      "doi_url": "https://doi.org/10.1155/2017/6562915",
+      "pdf_download_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2017/6562915?download=true",
+      "first_published": "2017-11-07",
+      "journal": {
+        "name": "Wireless Communications and Mobile Computing",
+        "link": "https://onlinelibrary.wiley.com/journal/6302",
+        "ISSN": "1530-8677",
+        "copy_right": "© John Wiley & Sons Ltd"
+      },
+      "abstact": "This paper proposes a novel power management solution for resource-constrained devices in the context of Internet of Things (IoT). We focus on smartphones in the IoT, as they are getting increasingly popular and equipped with strong sensing capabilities. Smartphones have complex and asynchronous power consumption incurred by heterogeneous components including their on-board sensors. Their interaction with the cloud allows them to offload computation tasks and access remote data storage. In this work, we aim at monitoring the power consumption behaviours of the smartphones, profiling both individual applications and the system as a whole, to make better decisions in power management. We design a cloud orchestration architecture as an epic predictor of behaviours of smart devices by extracting their application characteristics and resource utilization. We design and implement this architecture to perform energy profiling and data analysis on massive data logs. This cloud orchestration architecture coordinates a number of cloud-based services and supports dynamic workflows between service components, which can reduce energy consumption in the energy profiling process itself. Experimental results showed that small portion of applications dominate the energy consumption of smartphones. Heuristic profiling can effectively reduce energy consumption in data logging and communications without scarifying the accuracy of power monitoring."
+    },
+    {
+      "title": "Energy Efficiency as a Orchestration Service for the Mobile Internet of Things",
+      "url": "https://ieeexplore.ieee.org/document/7396150",
+      "doi_url": "https://doi.org/10.1109/CloudCom.2015.90",
+      "conference": "2015 IEEE 7th International Conference on Cloud Computing Technology and Science (CloudCom)",
+      "date": "2015-11-30 - 2015-12-03",
+      "ISBN": "978-1-4673-9560-1",
+      "publisher": "IEEE",
+      "location": "Vancouver, BC, Canada",
+      "conference_url": "https://ieeexplore.ieee.org/servlet/opac?punumber=7395249",
+      "abstact": "This paper proposes a novel power management solution for resource-constrained devices in the context of Internet of Things (IoT). We focus on smartphones in the IoT, as they are getting increasingly popular and equipped with strong sensing capabilities. Smartphones have complex and asynchronous power consumption incurred by heterogeneous components including their on-board sensors. Their interaction with the cloud allows them to offload computation tasks and access remote data storage. In this work, we aim at monitoring the power consumption behaviours of the smartphones, profiling both individual applications and the system as a whole, to make better decisions in power management. We design a cloud orchestration architecture as an epic predictor of behaviours of smart devices by extracting their application characteristics and resource utilization. We design and implement this architecture to perform energy profiling and data analysis on massive data logs. This cloud orchestration architecture coordinates a number of cloud-based services and supports dynamic workflows between service components, which can reduce energy consumption in the energy profiling process itself. Experimental results showed that small portion of applications dominate the energy consumption of smartphones. Heuristic profiling can effectively reduce energy consumption in data logging and communications without scarifying the accuracy of power monitoring."
+    }
+  ],
+  "education": [
+    {
+      "degree": "Master of Science in Computer Science",
+      "institution": "Uppsala University, Sweden",
+      "years": "2010 - 2016",
+      "level": "EQF 7",
+      "meta": {
+        "education_level_ref": "https://www.myh.se/in-english/seqf"
+      },
+      "credits_required": 120,
+      "credits_accquired": 122,
+      "converted_CGPA": "3.55 / 4",
+      "CGPA_xplanation": "https://x.com/Peramanathan/status/1950911980870496668",
+      "thesis": "Enabling Energy-Efficient Data Communication with Participatory Sensing and Mobile Cloud",
+      "thesis_highlight": [
+        "Designing self energy-efficient intelligent cloud profiler and actuator",
+        "Knowledge building while collecting data",
+        "Explore and organize the data in dynamic knowledge graphs",
+        "Cloud-assisted crowd-sourced optimization for data communication"
+      ],
+      "course_grades": {
+        "Programming Theory": {
+          "credits": 10,
+          "grade": 4
+        },
+        "Computer Networks I": {
+          "credits": 5,
+          "grade": 3
+        },
+        "Website Construction": {
+          "credits": 7.5,
+          "grade": 4
+        },
+        "Distributed Systems": {
+          "credits": 5,
+          "grade": 4
+        },
+        "Database Design I": {
+          "credits": 5,
+          "grade": 3
+        },
+        "Software Arch with Java": {
+          "credits": 5,
+          "grade": 4
+        },
+        "Advanced Algorithms": {
+          "credits": 10,
+          "grade": 5
+        },
+        "Computer Assisted Image Analysis I": {
+          "credits": 5,
+          "grade": 3
+        },
+        "Algorithms & Data Structures II": {
+          "credits": 5,
+          "grade": 5
+        },
+        "Machine Learning": {
+          "credits": 10,
+          "grade": 3
+        },
+        "Peer-to-Peer Computing": {
+          "credits": 7.5,
+          "grade": 5
+        },
+        "Data Mining I": {
+          "credits": 5,
+          "grade": 3
+        },
+        "Computer Games Development I": {
+          "credits": 7.5,
+          "grade": 4
+        },
+        "Cryptology": {
+          "credits": 5,
+          "grade": 5
+        }
+      },
+      "courses": [
+        {
+          "category": "Algorithms & Programming",
+          "courses": [
+            "Algorithms and Data Structures II",
+            "Advanced Algorithmics",
+            "Programming Theory"
+          ]
+        },
+        {
+          "category": "Networks & Systems",
+          "courses": [
+            "Computer Networks I",
+            "Peer-to-Peer",
+            "Distributed Systems",
+            "Cryptology",
+            "Website Construction"
+          ]
+        },
+        {
+          "category": "Data Science & AI",
+          "courses": [
+            "Computer Assisted Image Analysis I",
+            "Data Mining I",
+            "Machine Learning"
+          ]
+        },
+        {
+          "category": "Software Engineering & Databases",
+          "courses": [
+            "Database Design I",
+            "Software Architecture with Java",
+            "Computer Games Development I"
+          ]
+        }
+      ]
+    },
+    {
+      "degree": "Master of Science in Operations Research and Computer Applications",
+      "institution": "National Institute of Technology, Tiruchirappalli, Tamilnadu, India",
+      "years": "2007 - 2009",
+      "level": "EQF 6"
+    },
+    {
+      "degree": "Bachelor of Science in Mathematics",
+      "institution": "Kadhir Mohideen College, Affiliated to Tiruchirappalli Bharathidasan University, Adirampattinam, Thanjavur, Tamilnadu, India",
+      "years": "2004 - 2007",
+      "level": "EQF 5"
+    }
+  ],
+  "languages": {
+    "English": "Proficient",
+    "Swedish": "Basic"
+  },
+  "technologies": {
+    "Languages": [
+      "JavaScript",
+      "TypeScript",
+      "Python",
+      "Rust",
+      "C"
+    ],
+    "Frontend": [
+      "React",
+      "Next.js",
+      "TanStack",
+      "Vite",
+      "Zod",
+      "Accessibility (WCAG)"
+    ],
+    "Backend": [
+      "Node.js",
+      "Express"
+    ],
+    "Testing": [
+      "Playwright",
+      "Jest",
+      "Testing Library"
+    ],
+    "Data": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Cloud & tooling": [
+      "AWS",
+      "Vercel",
+      "Cloudflare",
+      "Tauri"
+    ]
+  },
+  "technologies_archive": {
+    "_note": "Historical / broad stack snapshot. Not rendered on CV web or PDF — only `technologies` is.",
+    "AI": [
+      "LangChainjs",
+      "Agents"
+    ],
+    "Workflow": [
+      "Graphite"
+    ],
+    "Fullstack": [
+      "Remix",
+      "Nextjs",
+      "Astro",
+      "Solid-start"
+    ],
+    "Languages": [
+      "C",
+      "C++",
+      "Java",
+      "R",
+      "Erlang",
+      "Elixir",
+      "Rust"
+    ],
+    "Data Science & ML": [
+      "R",
+      "Python",
+      "NumPy",
+      "Panda",
+      "Scikit-learn"
+    ],
+    "Front-End tools": [
+      "Esbuild",
+      "Vitejs"
+    ],
+    "API Frameworks": [
+      "Django",
+      "Eve",
+      "Flask"
+    ],
+    "Databases": [
+      "MySQL",
+      "Postgres",
+      "MongoDB"
+    ],
+    "Deployment": [
+      "AWS (EC2, S3, IAM, ELB)",
+      "Heroku",
+      "Netlify",
+      "Vercel",
+      "Fly.io"
+    ],
+    "Cloud & build": [
+      "AWS",
+      "Vercel",
+      "Webpack",
+      "Babel"
+    ],
+    "Systems & agents": [
+      "Tauri",
+      "xAI / structured LLM I/O"
+    ],
+    "Miscellaneous": [
+      "Data Visualization",
+      "KPI Implementation",
+      "SEO Optimization",
+      "Accessibility Compliance",
+      "Speech Recognition",
+      "Chat Bot Development"
+    ]
+  },
+  "projects": [
+    {
+      "id": 13,
+      "name": "Grok Dia",
+      "key": "grok-dia",
+      "description": "Extension to ask Grok for more information with whole and selected text context",
+      "type": "hobby_oss",
+      "url": "https://github.com/p10ns11y/grok-dia-extension/",
+      "technologies": [
+        "Browser Extension",
+        "AI Integration"
+      ],
+      "date": "September 2025",
+      "status": "development",
+      "is_open_source": true,
+      "meta": {
+        "app_store": false,
+        "status": "development",
+        "oss": true
+      },
+      "impact": "In page AI helper",
+      "image": "https://imagine-public.x.ai/imagine-public/images/4c1973c9-61b3-48d9-b728-e2ff145b8610.png"
+    },
+    {
+      "id": 12,
+      "name": "Selfie Signin",
+      "key": "selfie-signin",
+      "description": "Proof-of-concept: Users register by submitting multi-angle facial images to train an AWS Rekognition model, enabling seamless face-based logins",
+      "type": "hobby_oss",
+      "url": "https://github.com/p10ns11y/selfie-sign-in-flow-using-v0-xAI",
+      "technologies": [
+        "AWS Rekognition",
+        "React",
+        "TypeScript",
+        "Face Recognition",
+        "Authentication",
+        "ML",
+        "State Machines",
+        "XStateJS",
+        "UX flow"
+      ],
+      "impact": "Face-based Authentication",
+      "is_open_source": true,
+      "image": "https://imagine-public.x.ai/imagine-public/images/44862745-4ddd-4ca9-8797-11fea38eece1.png"
+    },
+    {
+      "id": 11,
+      "name": "latex-cv",
+      "key": "latex-cv",
+      "description": "A LaTeX-based CV and cover letter generator designed for efficient document creation and automation. It supports manual PDF compilation from .tex files, bulk generation via a Rust script, and integrated workflows for VSCode and GitHub Actions. The project automates PDF builds, uploads them to AWS S3 with public access for sharing, and creates pull requests for review—ideal for maintaining versioned resumes in a professional portfolio. Includes a visually appealing CV layout with a profile photo, contact details, and structured sections for work experience, skills, and education",
+      "type": "personal",
+      "url": "https://github.com/p10ns11y/latex-cv",
+      "technologies": [
+        "LaTeX",
+        "Document Generation",
+        "Rust",
+        "AWS OpenID",
+        "GitHub Actions",
+        "Automated PR",
+        "Automated S3 upload"
+      ],
+      "is_open_source": true,
+      "impact": "Bulk and highly automated and secure PDF documents generation",
+      "image": "https://imagine-public.x.ai/imagine-public/images/0c8cbea7-54e5-486b-b510-de0ae22082dc.png"
+    },
+    {
+      "id": 10,
+      "key": "adaptate",
+      "name": "Adaptate",
+      "description": "Dynamic and Adaptable Model Validator Using Zod, Interoperable with OpenAPI",
+      "type": "hobby_oss",
+      "url": "https://github.com/p10ns11y/adaptate",
+      "technologies": [
+        "Zod",
+        "TypeScript",
+        "OpenAPI",
+        "JSON Schema",
+        "Validation",
+        "Node.js"
+      ],
+      "impact": "Dynamic Validation",
+      "is_open_source": true,
+      "image": "https://imagine-public.x.ai/imagine-public/images/1513422f-f939-4e19-8977-713293d94216.png"
+    },
+    {
+      "id": 9,
+      "name": "Ask Me Anything About Me",
+      "key": "ama-about-me",
+      "description": "A personal chatbot that answers questions about me using Retrieval-Augmented Generation (RAG) with local documents. This project demonstrates a cost-effective approach to building LLM applications using free and open-source tools.",
+      "technologies": [
+        "LLMs",
+        "Langchain",
+        "Ollama",
+        "Groq",
+        "Chroma",
+        "React 19",
+        "React Server Components",
+        "Server-Sent Events",
+        "Docker"
+      ],
+      "url": "https://github.com/p10ns11y/ama-about-me",
+      "type": "hobby_oss",
+      "impact": "Cost-effective local chatbot",
+      "is_open_source": true,
+      "image": "https://imagine-public.x.ai/imagine-public/images/c4c47b59-3ce2-4473-a4f0-25ae7a0f2d83.png"
+    },
+    {
+      "id": 8,
+      "name": "zod",
+      "description": "Contributions to Zod validation library",
+      "type": "work_oss",
+      "url": "https://github.com/colinhacks/zod",
+      "technologies": [
+        "TypeScript",
+        "Validation",
+        "Zod"
+      ],
+      "is_open_source": true,
+      "meta": {
+        "company": "Oneflow AB"
+      },
+      "impact": "Fixed the critical ordering in chainable operations to preserve expected behavior and avoid debugging issues.",
+      "prs": [
+        "https://github.com/colinhacks/zod/pull/1702"
+      ],
+      "work_related": true,
+      "extra_image": "https://imagine-public.x.ai/imagine-public/images/36eb7eff-5ebc-4055-a171-ec98ef58a7d4.png",
+      "image": "https://imagine-public.x.ai/imagine-public/images/ad6c499a-29d2-42e1-8aca-fe51964896eb.png"
+    },
+    {
+      "id": 7,
+      "name": "Comments on Highlight - Interview Assignment",
+      "key": "comments-on-highlight",
+      "description": "Interview project for coding challenge",
+      "type": "interview",
+      "url": "https://github.com/p10ns11y/comment-on-highlight",
+      "technologies": [
+        "JavaScript",
+        "Development"
+      ],
+      "meta": {
+        "company": "Oneflow AB"
+      },
+      "impact": "Interview assignment",
+      "image": "https://imagine-public.x.ai/imagine-public/images/04a0269b-efd8-4f2c-b0a7-c7d33e91e17f.png"
+    },
+    {
+      "id": 6,
+      "name": "babel-plugin-react-intl-messages-generator",
+      "key": "babel-plugin-react-intl-messages-generator",
+      "description": "Babel plugin for generating react-intl message files",
+      "type": "work_oss",
+      "url": "https://github.com/p10ns11y/babel-plugin-react-intl-messages-generator",
+      "technologies": [
+        "Babel",
+        "JavaScript",
+        "react-intl"
+      ],
+      "is_open_source": true,
+      "meta": {
+        "company": "Weavler AB"
+      },
+      "prs": [
+        "https://github.com/p10ns11y/babel-plugin-react-intl-messages-generator/pull/6",
+        "https://github.com/p10ns11y/babel-plugin-react-intl-messages-generator/pull/4"
+      ],
+      "impact": "Automated project wide internationalization integration tool",
+      "image": "https://imagine-public.x.ai/imagine-public/images/65b5f554-a997-43f5-9ed3-4e1d047fd20d.png"
+    },
+    {
+      "id": 5,
+      "name": "formatjs (react-intl)",
+      "key": "formatjs",
+      "description": "Contributions to react-intl library used for internationalization",
+      "type": "oss_contribution",
+      "url": "https://github.com/formatjs/formatjs",
+      "technologies": [
+        "JavaScript",
+        "i18n",
+        "react-intl"
+      ],
+      "is_open_source": true,
+      "meta": {
+        "company": "Weavler AB"
+      },
+      "prs": [
+        "https://github.com/formatjs/formatjs/pull/837"
+      ],
+      "related_to": "react-intl",
+      "image": "https://imagine-public.x.ai/imagine-public/images/b33b9553-a975-49b9-88ef-90fbc2adf6be.png"
+    },
+    {
+      "id": 4,
+      "name": "react-boilerplate",
+      "key": "react-boilerplate",
+      "description": "Contributions to React Boilerplate project",
+      "type": "oss_contribution",
+      "url": "https://github.com/react-boilerplate/react-boilerplate",
+      "technologies": [
+        "React",
+        "JavaScript",
+        "Boilerplate"
+      ],
+      "is_open_source": true,
+      "prs": [
+        "https://github.com/react-boilerplate/react-boilerplate/pull/1355"
+      ],
+      "image": "https://imagine-public.x.ai/imagine-public/images/09d0ceb5-686c-4f63-a26a-06788eae93ec.png"
+    },
+    {
+      "id": 3,
+      "name": "kentcdodds/bookshelf",
+      "key": "kentcdodds-bookshelf",
+      "description": "Contributions to Kent C. Dodds' bookshelf project",
+      "type": "oss_contribution",
+      "url": "https://github.com/kentcdodds/bookshelf",
+      "technologies": [
+        "JavaScript",
+        "Open Source"
+      ],
+      "is_open_source": true,
+      "prs": [
+        "https://github.com/kentcdodds/bookshelf/pull/184",
+        "https://github.com/kentcdodds/bookshelf/pull/116"
+      ],
+      "image": "https://imagine-public.x.ai/imagine-public/images/279d7c2b-178f-447f-8720-eb77e7b241f4.png"
+    },
+    {
+      "id": 2,
+      "name": "testing-react-apps",
+      "key": "testing-react-apps",
+      "description": "Contributions to React testing applications documentation",
+      "type": "oss_contribution",
+      "url": "https://github.com/kentcdodds/testing-react-apps",
+      "technologies": [
+        "React",
+        "Testing",
+        "Documentation"
+      ],
+      "is_open_source": true,
+      "prs": [
+        "https://github.com/kentcdodds/testing-react-apps/pull/42",
+        "https://github.com/kentcdodds/testing-react-apps/pull/39"
+      ],
+      "image": "https://imagine-public.x.ai/imagine-public/images/2dcc47f5-dff4-4048-bc45-b4f7c9bd8702.png"
+    },
+    {
+      "id": 1,
+      "name": "Sorkalam",
+      "key": "sorkalam",
+      "description": "A google chrome extension for Tamil Language that is distraction free English-Tamil online thesaurus with auto language detection integrating Glosbe, Wiktionary and Tamil Virtual University technical glossary APIs. Technically, an optimal integration of AJAX, JSON parsing, HTML parsing, jQuery, Message passing and regular expression",
+      "type": "community",
+      "url": "#",
+      "technologies": [
+        "JavaScript",
+        "Chrome Extension",
+        "AJAX",
+        "jQuery"
+      ],
+      "date": "November 2014",
+      "status": "stopped",
+      "is_open_source": false,
+      "meta": {
+        "app_store": true,
+        "inactive": true,
+        "stopped": true,
+        "removed": true,
+        "oss": "not yet",
+        "private": true
+      },
+      "impact": "Vocabulary strengthing and in page thesaurus with multiple contexts and perspectives",
+      "image": "https://imagine-public.x.ai/imagine-public/images/40601e9d-0561-4641-9e83-9588a4dbaee5.png"
+    }
+  ]
+}
