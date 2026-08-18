@@ -398,7 +398,10 @@ pub fn set_xai_key(key: &str) -> Result<(), String> {
 
 pub fn clear_xai_key() -> Result<(), String> {
     xai_key_store::clear()?;
-    clear_xai_keyring()
+    if let Err(error) = clear_xai_keyring() {
+        eprintln!("[secrets] xAI keyring clear skipped: {error}");
+    }
+    Ok(())
 }
 
 // End of xAI key parallel block
@@ -588,7 +591,10 @@ pub fn set_x_bearer(token: &str) -> Result<(), String> {
 
 pub fn clear_x_bearer() -> Result<(), String> {
     file_store::clear()?;
-    clear_keyring()
+    if let Err(error) = clear_keyring() {
+        eprintln!("[secrets] keyring clear skipped: {error}");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -623,9 +629,13 @@ mod tests {
     }
 
     fn secret_service_available() -> bool {
-        let ok = write_keyring("__collab_finder_ci_probe__").is_ok();
-        let _ = clear_keyring();
-        ok
+        match keyring_entry() {
+            Ok(entry) => matches!(
+                entry.get_password(),
+                Ok(_) | Err(KeyringError::NoEntry)
+            ),
+            Err(_) => false,
+        }
     }
 
     #[test]
