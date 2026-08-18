@@ -60,6 +60,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     { id: 'nav-xplore', label: 'Go to Xplore (X)', msg: { type: 'ScreenChanged', screen: 'xplore' } },
     { id: 'nav-network', label: 'Go to Network', msg: { type: 'ScreenChanged', screen: 'network' } },
     { id: 'nav-settings', label: 'Go to Settings', msg: { type: 'ScreenChanged', screen: 'settings' } },
+    { id: 'nav-preferences', label: 'Go to Preferences', msg: { type: 'ScreenChanged', screen: 'preferences' } },
   ]
   return {
     model,

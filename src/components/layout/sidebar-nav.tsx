@@ -7,6 +7,7 @@ import {
   Route,
   Search,
   Settings as SettingsIcon,
+  SlidersHorizontal,
 } from 'lucide-react'
 import type { FinderScreen } from '../../core/finder/model'
 import { cn } from '../../lib/cn'
@@ -24,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'sweden', label: 'Sweden', Icon: MapPinned },
   { id: 'xplore', label: 'Xplore', Icon: Search },
   { id: 'network', label: 'Network', Icon: Network },
+  { id: 'preferences', label: 'Preferences', Icon: SlidersHorizontal },
   { id: 'settings', label: 'Settings', Icon: SettingsIcon },
 ]
 

@@ -69,6 +69,7 @@ const VALID_SCREENS: FinderScreen[] = [
   'data',
   'lookup',
   'settings',
+  'preferences',
   'xplore',
   'network',
 ]
@@ -87,6 +88,7 @@ export type FinderScreen =
   | 'data'
   | 'lookup'
   | 'settings'
+  | 'preferences'
   | 'xplore'
   | 'network'
 

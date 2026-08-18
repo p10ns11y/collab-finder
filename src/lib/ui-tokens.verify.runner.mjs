@@ -13,6 +13,7 @@ const cssPath = join(root, 'src/index.css')
 const shellPath = join(root, 'src/view/finder-app-view.tsx')
 const discoverPath = join(root, 'src/view/screens/discover-screen.tsx')
 const settingsPath = join(root, 'src/view/screens/settings-screen.tsx')
+const preferencesPath = join(root, 'src/view/screens/preferences-screen.tsx')
 const primitives = [
   'src/components/ui/panel.tsx',
   'src/components/ui/chip.tsx',
@@ -55,7 +56,9 @@ must(discover.includes('Chip'), 'discover Chip')
 must(discover.includes("from '../../components/ui/input'"), 'discover uses shared Input')
 
 const settings = readFileSync(settingsPath, 'utf8')
+const preferences = readFileSync(preferencesPath, 'utf8')
 must(settings.includes('PageHeader'), 'settings uses PageHeader')
+must(preferences.includes('PageHeader'), 'preferences uses PageHeader')
 
 // Drive real shipped cn()
 const merged = cn('px-2 py-1', 'px-4', 'ui-panel', false && 'hidden')

@@ -20,6 +20,7 @@ function assert(cond, msg) {
 const discover = read('src/view/screens/discover-screen.tsx')
 const panel = read('src/components/finder/opportunity-target-fit-panel.tsx')
 const app = read('src/app/finder-app.tsx')
+const keyboard = read('src/core/domain/finder-keyboard.ts')
 const view = read('src/view/finder-app-view.tsx')
 const header = read('src/components/layout/header.tsx')
 const css = read('src/index.css')
@@ -27,12 +28,14 @@ const selectors = read('src/core/finder/selectors.ts')
 const lib = read('src-tauri/src/lib.rs')
 const cv = read('src/components/finder/cv-summary-input.tsx')
 const settings = read('src/view/screens/settings-screen.tsx')
+const preferences = read('src/view/screens/preferences-screen.tsx')
 const decision = read('src/components/finder/decision-panel.tsx')
 
-// IA honesty
-assert(app.includes("'2': 'xplore'"), 'keyboard 2 = xplore')
-assert(app.includes("'3': 'settings'"), 'keyboard 3 = settings')
-assert(!app.includes("'2': 'stats'"), 'keyboard no longer maps to stats')
+// IA honesty (digit shortcuts live in finder-keyboard.ts)
+assert(keyboard.includes("'5': 'xplore'"), 'keyboard 5 = xplore')
+assert(keyboard.includes("'7': 'settings'"), 'keyboard 7 = settings')
+assert(keyboard.includes("'8': 'preferences'"), 'keyboard 8 = preferences')
+assert(!keyboard.includes("'2': 'stats'"), 'keyboard no longer maps 2 to stats')
 assert(!view.includes('Separate from devprofile'), 'footer manifesto removed')
 assert(!discover.includes('Resume last'), 'Resume last deleted')
 
@@ -54,8 +57,8 @@ assert(cv.includes('aria-expanded') || cv.includes('setOpen'), 'CV collapsible')
 assert(header.includes('xConnected') && header.includes('pauseCount'), 'header chips')
 
 // Prep sections + copy
-assert(panel.includes('PrepSection') || panel.includes('Copy all prep'), 'prep copy affordances')
-assert(panel.includes('Cover letter'), 'sectioned cover letter')
+assert(panel.includes("group: 'Prep'") || panel.includes('Copy all prep'), 'prep copy affordances')
+assert(panel.includes('cover-letter.md') || panel.includes('cover_letter'), 'sectioned cover letter')
 
 // Pipeline
 assert(lib.includes('update_opportunity_status_cmd'), 'status cmd registered')
@@ -64,7 +67,7 @@ assert(discover.includes('OpportunityStatusChangeRequested'), 'status dispatch f
 
 // Settings calm
 assert(!settings.match(/details open/), 'settings details not force-open')
-assert(settings.includes('About'), 'settings About')
+assert(preferences.includes('About'), 'preferences About')
 
 // Xplore honesty
 assert(decision.includes('heuristic'), 'cycle labeled heuristic')

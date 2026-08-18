@@ -13,6 +13,7 @@ import { MissionScreen } from './screens/mission-screen'
 import { SwedenScreen } from './screens/sweden-screen'
 import { NetworkScreen } from './screens/network-screen'
 import { SettingsScreen } from './screens/settings-screen'
+import { PreferencesScreen } from './screens/preferences-screen'
 import type { FinderScreen } from '../core/finder/model'
 
 type Props = {
@@ -28,6 +29,7 @@ const SCREEN_LABEL: Record<FinderScreen, string> = {
   xplore: 'Xplore',
   network: 'Network',
   settings: 'Settings',
+  preferences: 'Preferences',
   stats: 'Statistics',
   history: 'History',
   data: 'Data',
@@ -60,6 +62,8 @@ export function FinderAppView({ view, dispatch }: Props) {
         return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
+      case 'preferences':
+        return <PreferencesScreen view={view} />
       case 'network':
         return <NetworkScreen view={view} dispatch={dispatch} />
       default:

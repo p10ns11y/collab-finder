@@ -5,11 +5,6 @@ import { CredentialsStorageDetails } from '../../components/finder/credentials-s
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import { activeSourceLabel } from '../../core/domain/credentials'
 import {
-  devprofilePanelReducer,
-  initialDevprofilePanelState,
-  isDevprofilePanelBusy,
-} from '../../core/domain/devprofile-path-panel'
-import {
   displayXaiModel,
   initialXaiPanelState,
   isXaiPanelBusy,
@@ -17,28 +12,15 @@ import {
   type XaiKeyStatus,
   xaiPanelReducer,
 } from '../../core/domain/xai-key-panel'
-import {
-  parseLlmQuality,
-  type LlmQuality,
-} from '../../core/domain/llm-route'
-import {
-  DEFAULT_FIT_MODE,
-  fitModeDescription,
-  fitModeLabel,
-  parseFitMode,
-  type FitMode,
-} from '../../core/domain/fit-mode'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
 import { Badge } from '../../components/ui/badge'
-import { Chip } from '../../components/ui/chip'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { PageHeader } from '../../components/ui/page-header'
-import { SectionLabel } from '../../components/ui/section-label'
 
 type Props = {
   view: FinderViewState
@@ -46,13 +28,13 @@ type Props = {
 }
 
 export function SettingsScreen({ view, dispatch }: Props) {
-  const { model, operatorsDocUrl, operatorsReference, strategyReference, connectionFlow } = view
+  const { model, connectionFlow } = view
 
   return (
     <div className="mx-auto h-full max-w-3xl overflow-auto p-4 lg:p-6">
       <PageHeader
         title="Settings"
-        description="Connection, storage, and reference materials for the reactor."
+        description="X bearer and xAI API credentials only. Fit, rank packs, and devprofile are under Preferences."
       />
 
       <CredentialsPanel
@@ -67,132 +49,29 @@ export function SettingsScreen({ view, dispatch }: Props) {
         onClear={() => dispatch({ type: 'CredentialsClearRequested' })}
       />
 
-      {/* xAI Intelligence key — exact same UX as X bearer */}
       <div className="mt-4">
         <XaiKeyPanel />
       </div>
 
-      <div className="mt-4">
-        <LlmRoutePanel />
-      </div>
-
-      <div className="mt-4">
-        <FitModePanel />
-      </div>
-
-      <div className="mt-4">
-        <DevprofilePathPanel />
-      </div>
-
-      <div className="mt-8 space-y-3 text-xs">
-        <SectionLabel>Advanced</SectionLabel>
-        <details className="ui-panel p-3">
-          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">X search operators</summary>
-          <p className="mb-1 text-ink-muted">
-            <a
-              href={operatorsDocUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-accent underline-offset-2 hover:underline"
-            >
-              Official X API v2 docs
-            </a>
-          </p>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
-            {operatorsReference}
-          </pre>
-        </details>
-
-        <details className="ui-panel p-3">
-          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">
-            Strategy &amp; distillation
-          </summary>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border-subtle bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-faint">
-            {strategyReference}
-          </pre>
-        </details>
-
-        <details className="ui-panel p-3">
-          <summary className="mb-1 cursor-pointer text-ink-muted hover:text-ink">About</summary>
-          <p className="leading-relaxed text-ink-faint">
-            collab-finder is separate from your public devprofile. CV suggestions use sidecar-first propose
-            (no silent master write). Xplore uses official X agent patterns. Self-guards on high-stakes paths.
-          </p>
-        </details>
-      </div>
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>App preferences</CardTitle>
+          <CardDescription>
+            Fit evaluation mode, Mission ranker packs, devprofile path, analyze route, and reference
+            docs — full viewport, separate from credential storage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => dispatch({ type: 'ScreenChanged', screen: 'preferences' })}
+          >
+            Open Preferences
+          </Button>
+        </CardContent>
+      </Card>
     </div>
-  )
-}
-
-type LlmRouteStatus = {
-  quality: string
-  grok_bin: string | null
-  cursor_agent_bin: string | null
-  xai_key_present: boolean
-  short_backend: string
-  long_high_backend: string
-  long_moderate_backend: string
-}
-
-/** Quality-tier route: Grok ACP / cursor-agent / xAI API. No yolo spawn. */
-function LlmRoutePanel() {
-  const [status, setStatus] = React.useState<LlmRouteStatus | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
-  const quality = parseLlmQuality(status?.quality)
-
-  const refresh = React.useCallback(() => {
-    void safeInvoke<LlmRouteStatus>('get_llm_route_status', {}).then((res) => {
-      if (res.ok) setStatus(res.value)
-      else setNotice(res.error?.message || 'Route status failed')
-    })
-  }, [])
-
-  React.useEffect(() => {
-    refresh()
-  }, [refresh])
-
-  const setQuality = (next: LlmQuality) => {
-    void safeInvoke<void>('set_llm_route_quality', { quality: next }).then((res) => {
-      if (res.ok) {
-        setNotice(null)
-        refresh()
-      } else {
-        setNotice(res.error?.message || 'Save failed')
-      }
-    })
-  }
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle>Analyze route</CardTitle>
-        <CardDescription>
-          Evaluate and Prepare stay on the xAI API (grok-4.6 structured JSON). Local Grok Build
-          ACP/stdio is for long agent work with tools — not these two one-shot schemas. Preference
-          below is stored for a later headless <span className="font-mono">grok -p</span> path, not
-          used to spawn ACP from Evaluate.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap gap-1">
-          {(['fast', 'moderate', 'high'] as const).map((q) => (
-            <Chip key={q} active={quality === q} onClick={() => setQuality(q)}>
-              {q === 'high' ? 'High · Grok ACP' : q === 'moderate' ? 'Moderate · cursor-agent' : 'Fast · API'}
-            </Chip>
-          ))}
-        </div>
-        <p className="ui-meta">
-          Grok {status?.grok_bin ? 'found' : 'missing'} · cursor-agent{' '}
-          {status?.cursor_agent_bin ? 'found' : 'missing'} · xAI key{' '}
-          {status?.xai_key_present ? 'present' : 'absent'}
-        </p>
-        <p className="ui-meta">
-          Short → {status?.short_backend ?? '…'} · Long high → {status?.long_high_backend ?? '…'} ·
-          Long moderate → {status?.long_moderate_backend ?? '…'}
-        </p>
-        {notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}
-      </CardContent>
-    </Card>
   )
 }
 
@@ -269,9 +148,9 @@ function XaiKeyPanel() {
     }
   }
 
-  const quickSetModel = (m: string) => {
-    dispatch({ type: 'SET_MODEL_DRAFT', draft: m })
-    void saveModel(m)
+  const quickSetModel = (modelName: string) => {
+    dispatch({ type: 'SET_MODEL_DRAFT', draft: modelName })
+    void saveModel(modelName)
   }
 
   return (
@@ -335,12 +214,7 @@ function XaiKeyPanel() {
             </Button>
           )}
           {connected && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void clearKey()}
-              disabled={isBusy}
-            >
+            <Button variant="ghost" size="sm" onClick={() => void clearKey()} disabled={isBusy}>
               {panelStatus === 'clearing-key' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               ) : (
@@ -384,20 +258,10 @@ function XaiKeyPanel() {
               ) : null}
               Save model
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => quickSetModel('grok-4.6')}
-              disabled={isBusy}
-            >
+            <Button variant="ghost" size="sm" onClick={() => quickSetModel('grok-4.6')} disabled={isBusy}>
               grok-4.6
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => quickSetModel('grok-4.5')}
-              disabled={isBusy}
-            >
+            <Button variant="ghost" size="sm" onClick={() => quickSetModel('grok-4.5')} disabled={isBusy}>
               grok-4.5
             </Button>
           </div>
@@ -410,160 +274,3 @@ function XaiKeyPanel() {
     </Card>
   )
 }
-
-/**
- * Fit mode — strict dual-fit vs relaxed simple fitness (file-backed like xai model).
- */
-function FitModePanel() {
-  const [mode, setMode] = React.useState<FitMode>(DEFAULT_FIT_MODE)
-  const [busy, setBusy] = React.useState(false)
-  const [notice, setNotice] = React.useState<string | null>(null)
-
-  const refresh = React.useCallback(() => {
-    void safeInvoke<string>('get_fit_mode_cmd', {}).then((res) => {
-      if (res.ok && res.value) setMode(parseFitMode(res.value))
-    })
-  }, [])
-
-  React.useEffect(() => {
-    refresh()
-  }, [refresh])
-
-  const save = async (next: FitMode) => {
-    setBusy(true)
-    setNotice(null)
-    const res = await safeInvoke<string>('set_fit_mode_cmd', { mode: next })
-    setBusy(false)
-    if (res.ok) {
-      setMode(parseFitMode(res.value ?? next))
-      setNotice(`Saved: ${fitModeLabel(parseFitMode(res.value ?? next))}`)
-    } else {
-      setNotice(res.error?.message || 'Failed to save fit mode')
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle>Fit evaluation mode</CardTitle>
-          <CardDescription>
-            Strict keeps dual-fit (You↔Role + mission/life constraints). Relaxed is simple fitness
-            from relevant CV experience, then preparation bundle — no robotics/ML mission veto.
-          </CardDescription>
-        </div>
-        <Badge tone={mode === 'relaxed' ? 'accent' : 'neutral'}>{fitModeLabel(mode)}</Badge>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex gap-1 rounded-md border border-border-subtle p-0.5">
-          {(['strict', 'relaxed'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              disabled={busy}
-              onClick={() => void save(m)}
-              className={
-                mode === m
-                  ? 'flex-1 rounded px-2 py-1.5 text-xs font-medium bg-accent/15 text-accent'
-                  : 'flex-1 rounded px-2 py-1.5 text-xs text-ink-muted hover:text-ink'
-              }
-            >
-              {fitModeLabel(m)}
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-ink-faint leading-snug">{fitModeDescription(mode)}</p>
-        {notice && <p className="text-xs text-ink-muted">{notice}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-/**
- * Devprofile path — status-enum reducer (no busy/error boolean soup).
- * Pure machine: src/core/domain/devprofile-path-panel.ts
- */
-function DevprofilePathPanel() {
-  const [state, dispatch] = React.useReducer(devprofilePanelReducer, initialDevprofilePanelState)
-  const { draft, configuredPath, status, notice } = state
-  const busy = isDevprofilePanelBusy(status)
-
-  const refresh = React.useCallback(() => {
-    dispatch({ type: 'LOAD_START' })
-    void safeInvoke<string | null>('get_devprofile_path_cmd', {}).then((res) => {
-      if (res.ok) dispatch({ type: 'LOAD_SUCCESS', path: res.value || null })
-      else dispatch({ type: 'LOAD_SUCCESS', path: null })
-    })
-  }, [])
-
-  // External Tauri sync on mount only.
-  React.useEffect(() => {
-    refresh()
-  }, [refresh])
-
-  const save = async () => {
-    const path = draft.trim()
-    if (!path) return
-    dispatch({ type: 'SAVE_START' })
-    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path })
-    if (res.ok) dispatch({ type: 'SAVE_SUCCESS', path })
-    else dispatch({ type: 'SAVE_ERROR', message: res.error?.message || 'Save failed' })
-  }
-
-  const clear = async () => {
-    dispatch({ type: 'CLEAR_START' })
-    const res = await safeInvoke<void>('set_devprofile_path_cmd', { path: null })
-    if (res.ok) dispatch({ type: 'CLEAR_SUCCESS' })
-    else dispatch({ type: 'CLEAR_ERROR', message: res.error?.message || 'Clear failed' })
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle>devprofile path</CardTitle>
-          <CardDescription>
-            Real CV for grounding. When set, Quick Target uses pruned cvdata.json for analyze/prep
-            (textarea still overrides). Sidecar proposals read it for deltas — no auto-write.
-            Generate apply CV spawns this checkout&apos;s{' '}
-            <span className="font-mono">scripts/generate-apply-cv.tsx</span> (PDF only; never
-            mutates master cvdata).
-          </CardDescription>
-        </div>
-        <Badge tone={configuredPath ? 'success' : 'neutral'}>
-          {configuredPath ? 'Configured' : 'Default / distilled'}
-        </Badge>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Input
-          value={draft}
-          onChange={(e) => dispatch({ type: 'SET_DRAFT', draft: e.target.value })}
-          placeholder="/home/…/devprofile or leave to use distilled"
-          className="font-mono text-xs"
-        />
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => void save()} disabled={busy || !draft.trim()}>
-            {status === 'saving' ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            ) : null}
-            Save path
-          </Button>
-          {configuredPath && (
-            <Button size="sm" variant="ghost" onClick={() => void clear()} disabled={busy}>
-              {status === 'clearing' ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : null}
-              Clear
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={refresh} disabled={busy}>
-            Refresh
-          </Button>
-        </div>
-        {notice && <p className="text-xs text-ink-muted">{notice}</p>}
-        {configuredPath && <p className="ui-meta break-all">current: {configuredPath}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
