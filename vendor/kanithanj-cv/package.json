@@ -1,0 +1,14 @@
+{
+  "name": "kanithanj-cv",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "generate-apply-cv": "bun scripts/generate-apply-cv.tsx",
+    "link-application-packs": "node scripts/link-application-packs.mjs"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.3.0",
+    "react": "^19.0.0"
+  }
+}
