@@ -18,6 +18,6 @@ bash scripts/seed-testdata-for-ci.sh
 
 echo "== cargo test --lib"
 cd src-tauri
-cargo test --lib
+cargo test --lib -- --test-threads=1
 
 echo "== OK: gate passed"

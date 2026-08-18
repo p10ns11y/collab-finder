@@ -4348,6 +4348,11 @@ mod tests {
 
     #[test]
     fn propose_cv_sidecar_for_prep_cmd_path_writes_file_and_cvdata_hash_unchanged() {
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        if !std::path::Path::new(live).is_file() {
+            eprintln!("skip propose_cv_sidecar test: devprofile cvdata not on runner");
+            return;
+        }
         // Drives do_propose_cv_sidecar_for_prep (core of the shipped propose_cv_sidecar_for_prep cmd)
         // per verif step 5. Sets up DB opp row with cv_suggestions, calls the logic (the path propose_cv_sidecar_for_prep uses),
         // asserts sidecar written + cvdata bytes unchanged (pre/post hash around the call).
@@ -4372,7 +4377,6 @@ mod tests {
         ).expect("upsert opp with prep");
 
         // Hash the actual live cvdata (before the do_propose call)
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
         let pre_bytes = std::fs::read(live).unwrap_or_default();
 
         // harness so app_data_dir returns our tmp for the write in do_
@@ -4395,6 +4399,12 @@ mod tests {
 
     #[test]
     fn integration_analyze_real_devprofile_packet_preview() {
+        let devprofile = std::path::PathBuf::from("/home/sustainableabundance/Work/personal/devprofile");
+        let cvdata = devprofile.join("src/data/cvdata.json");
+        if !cvdata.is_file() {
+            eprintln!("skip integration_analyze_real_devprofile: devprofile cvdata not on runner");
+            return;
+        }
         // Verif step 4: full analyze_opportunity_target cmd path with real devprofile_path.
         // Sets the config file, uses pasted_jd (no fetch), stubbed xAI, asserts returned packet_preview contains live cvdata token.
         // (no Write needed)
@@ -4443,6 +4453,11 @@ mod tests {
 
     #[test]
     fn integration_propose_leaves_live_cvdata_unchanged() {
+        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        if !std::path::Path::new(live).is_file() {
+            eprintln!("skip integration_propose_leaves_live_cvdata: devprofile cvdata not on runner");
+            return;
+        }
         // Verif step 5: call do_propose... (the logic behind the propose cmd) and hash the *actual* live cvdata before/after.
         let tmp = std::env::temp_dir().join(format!("cf_propose_live_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
@@ -4453,7 +4468,6 @@ mod tests {
         let id = store.upsert_opportunity("web", Some("u"), None, Some("t"), Some("c"), "jd", "prepped", Some(82), None, Some(prep), None).expect("ins");
 
         // live cvdata for hash (read actual before/after the cmd call)
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
         let pre = std::fs::read(live).unwrap_or_default();
 
         crate::app_dirs::test_harness::set(tmp.clone());

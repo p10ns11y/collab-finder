@@ -16,6 +16,13 @@ pub fn packs_dir() -> Result<PathBuf, String> {
     if let Some(d) = PACKS_DIR_OVERRIDE.lock().expect("packs dir").clone() {
         return Ok(d);
     }
+    #[cfg(test)]
+    {
+        let testdata = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata");
+        if testdata.join("universe.json").is_file() {
+            return Ok(testdata);
+        }
+    }
     crate::rank_config::default_packs_dir()
 }
 
@@ -86,7 +93,19 @@ pub fn public_projects_clean_json() -> String {
 }
 
 #[cfg(test)]
-pub fn install_test_fixtures() -> tempfile::TempDir {
+pub struct TestFixturesGuard {
+    _tmpdir: tempfile::TempDir,
+}
+
+#[cfg(test)]
+impl Drop for TestFixturesGuard {
+    fn drop(&mut self) {
+        clear_test_fixtures();
+    }
+}
+
+#[cfg(test)]
+pub fn install_test_fixtures() -> TestFixturesGuard {
     use std::path::Path;
 
     let tmp = tempfile::tempdir().expect("test tempdir");
@@ -103,7 +122,7 @@ pub fn install_test_fixtures() -> tempfile::TempDir {
     }
     crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
     set_test_packs_dir(Some(packs));
-    tmp
+    TestFixturesGuard { _tmpdir: tmp }
 }
 
 #[cfg(test)]
