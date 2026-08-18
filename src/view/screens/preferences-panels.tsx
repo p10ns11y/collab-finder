@@ -61,7 +61,7 @@ export function LlmRoutePanel() {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle>Analyze route</CardTitle>
+        <CardTitle>Evaluate route</CardTitle>
         <CardDescription>
           Evaluate and Prepare stay on the xAI API (grok-4.6 structured JSON). Local Grok Build
           ACP/stdio is for long agent work with tools — not these two one-shot schemas. Preference

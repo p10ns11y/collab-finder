@@ -57,7 +57,7 @@ export function SettingsScreen({ view, dispatch }: Props) {
         <CardHeader>
           <CardTitle>App preferences</CardTitle>
           <CardDescription>
-            Fit evaluation mode, Mission ranker packs, devprofile path, analyze route, and reference
+            Fit evaluation mode, Mission ranker packs, devprofile path, evaluate route, and reference
             docs — full viewport, separate from credential storage.
           </CardDescription>
         </CardHeader>

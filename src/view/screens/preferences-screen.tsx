@@ -24,7 +24,7 @@ export function PreferencesScreen({ view }: Props) {
       <div className="shrink-0 border-b border-border-subtle px-4 py-3 lg:px-6">
         <PageHeader
           title="Preferences"
-          description="Fit mode, Mission ranker packs, devprofile path, and reference docs. X / xAI keys live under Settings."
+          description="Fit mode, evaluate route, Mission ranker packs, devprofile path, and reference docs. X / xAI keys live under Settings."
         />
       </div>
 
