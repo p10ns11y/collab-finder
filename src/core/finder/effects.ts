@@ -96,6 +96,14 @@ export type FinderPorts = {
     loadQuestThread(sessionId: string): Promise<import('../domain/quest').QuestThreadRecord | null>
     listQuestThreads(limit?: number): Promise<import('../domain/quest').QuestThreadSummary[]>
     searchQuestTurns(q: string, limit?: number): Promise<import('../domain/quest').QuestTurnHit[]>
+    listDurableFirms(next?: boolean): Promise<import('../domain/firm-durability').DurabilityIteration>
+    inspectMissionFirmLead(payload: {
+      firm_id: string
+      source: string
+      external_id: string
+      absolute_url?: string
+      location?: string
+    }): Promise<import('../domain/firm-durability').MissionInspectResult>
     searchMissionFirms(
       filter?: import('../domain/mission-firms').MissionFirmFilter,
     ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
@@ -654,6 +662,48 @@ export function platsbankenEvaluateCmd(
   }
 }
 
+export function durableFirmsCmd(ports: FinderPorts, next = false): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.listDurableFirms(next), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'DurableFirmsFailed', error: result.error })
+        return
+      }
+      dispatch({
+        type: 'DurableFirmsSucceeded',
+        iteration: result.value,
+        advanced: next,
+      })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
+export function missionLeadInspectCmd(
+  ports: FinderPorts,
+  lead: import('../domain/mission-firms').MissionFirmLead,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.inspectMissionFirmLead({
+        firm_id: lead.firm_id,
+        source: lead.source,
+        external_id: lead.external_id,
+        absolute_url: lead.absolute_url,
+        location: lead.location,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'MissionLeadInspectFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'MissionLeadInspectSucceeded', inspect: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
+    })
+  }
+}
+
 export function missionFirmsSearchCmd(
   ports: FinderPorts,
   model: FinderModel,
@@ -676,6 +726,7 @@ export function missionFirmsSearchCmd(
         return
       }
       dispatch({ type: 'MissionFirmsSearchSucceeded', leads: result.value })
+      dispatch({ type: 'HistoryRefreshRequested' })
     })
   }
 }
@@ -1310,8 +1361,20 @@ export function effectForMsg(
         : undefined
     case 'PlatsbankenEvaluateRequested':
       return platsbankenEvaluateCmd(ports, model, msg.lead)
+    case 'DurableFirmsRequested':
+      return durableFirmsCmd(ports, msg.next === true)
+    case 'DurableFirmsSucceeded':
+      return msg.advanced
+        ? (dispatch) => {
+            dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: true })
+          }
+        : undefined
+    case 'MissionLeadInspectRequested':
+      return missionLeadInspectCmd(ports, msg.lead)
     case 'MissionFirmsSearchRequested':
-      return missionFirmsSearchCmd(ports, model, { forceRefresh: msg.forceRefresh === true })
+      return missionFirmsSearchCmd(ports, model, {
+        forceRefresh: msg.forceRefresh !== false,
+      })
     case 'MissionFirmsImportRequested':
       return missionFirmsImportCmd(ports, msg.lead)
     case 'MissionFirmsFirmToggled':
@@ -1394,7 +1457,11 @@ export function effectForMsg(
     // After opportunities list arrives: if Discover has nothing selected but we know lastActiveOppId
     // (or session had one), hydrate it. Covers boot races where the first OpportunitySelected failed
     // or session restore only landed after history. Only when target is still idle (never clobber live work).
+    // Mission/Sweden Pull also refresh history — do not steal those screens with the last Discover opp.
     case 'HistoryRefreshed':
+      if (model.activeScreen !== 'discover') {
+        return undefined
+      }
       if (msg.opportunities && msg.opportunities.length > 0) {
         const targetIdle = !model.opportunityTarget || model.opportunityTarget.status === 'idle'
         if (targetIdle) {

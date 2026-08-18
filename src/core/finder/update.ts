@@ -859,6 +859,42 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    case 'DurableFirmsRequested':
+      return [{ ...model, durableFirms: { status: 'loading' } }]
+    case 'DurableFirmsSucceeded': {
+      const ids = msg.advanced
+        ? msg.iteration.top10.map((row) => row.firm_id)
+        : model.missionFirmsSelected
+      return [
+        {
+          ...model,
+          durableFirms: { status: 'ready', data: msg.iteration },
+          missionFirmsSelected: ids.length ? ids : model.missionFirmsSelected,
+        },
+      ]
+    }
+    case 'DurableFirmsFailed':
+      return [{ ...model, durableFirms: { status: 'failed', error: msg.error } }]
+    case 'MissionLeadInspectRequested':
+      return [
+        {
+          ...model,
+          missionInspect: { status: 'loading' },
+          banner: null,
+          // Drop the previous Discover/hydrate fit so HuntFitPane cannot show another job.
+          opportunityTarget: { status: 'idle' },
+          opportunityTargetUrl: msg.lead.absolute_url || undefined,
+          opportunityTargetPastedJd: undefined,
+        },
+      ]
+    case 'MissionLeadInspectSucceeded':
+      return [{ ...model, missionInspect: { status: 'ready', data: msg.inspect } }]
+    case 'MissionLeadInspectFailed':
+      return [{
+        ...model,
+        missionInspect: { status: 'failed', error: msg.error },
+        banner: msg.error,
+      }]
     case 'MissionFirmsQChanged':
       return [{ ...model, missionFirmsQ: msg.q }]
     case 'MissionFirmsFirmToggled': {

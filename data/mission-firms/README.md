@@ -1,5 +1,7 @@
 # Mission firms — Tesla listings
 
+Durability ranker (cash / AI-wave / theatre): [`../durability/README.md`](../durability/README.md).
+
 Tesla’s public careers API (`cua-api/apps/careers/state`) is often Akamai-blocked from servers/agents.
 
 | File | Git | Role |

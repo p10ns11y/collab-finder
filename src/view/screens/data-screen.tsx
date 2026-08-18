@@ -124,7 +124,7 @@ export function DataScreen({ view, dispatch }: Props) {
             )}
             {active === 'opportunities' && (
               <tr>
-                {['id', 'title', 'company', 'fit_score', 'status', 'source_url', 'last_updated'].map((k) => (
+                {['id', 'kind', 'title', 'company', 'fit_score', 'status', 'source_url', 'last_updated'].map((k) => (
                   <th key={k} className="text-left px-3 py-2 font-normal cursor-pointer select-none hover:text-ink hover:underline underline-offset-2" onClick={() => toggleSort(k)}>
                     {k} {sort.key === k ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
                   </th>
@@ -180,6 +180,7 @@ export function DataScreen({ view, dispatch }: Props) {
                 title="Load this opportunity's fit/prep into Discover (restores last work without re-analyzing)"
               >
                 <td className="px-3 py-1.5 font-mono text-accent/80">{o.id}</td>
+                <td className="px-3 py-1.5 text-ink-faint">{o.kind}</td>
                 <td className="px-3 py-1.5 truncate max-w-[28ch]">{o.title || '—'}</td>
                 <td className="px-3 py-1.5 truncate max-w-[20ch]">{o.company || '—'}</td>
                 <td className="px-3 py-1.5">{o.fit_score ?? '—'}</td>

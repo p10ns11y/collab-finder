@@ -24,12 +24,13 @@ pnpm tauri dev
 
 First launch: **Discover**. Sidebar: **Navigating · Discover · Mission · Sweden · Xplore · Network · Settings**. Navigating is the cash-path cockpit (mission-map JSON + contacts). Mission remains career-board hunt. Cluster law: `ensembly/docs/SATELLITE-CLUSTER.md`. Palette: ⌘K / Ctrl+K. Quest: header control (threads persist in SQLite).
 
-**Arch / Omarchy install name:** crate stays `collab-finder`; the PATH binary is `kanithanj.ai`.
+**Arch / Omarchy:** crate stays `collab-finder`; PATH binary is `kanithanj.ai`. No Debian/AppImage bundle.
 
 ```bash
-pnpm tauri build --no-bundle
-install -m 755 src-tauri/target/release/collab-finder ~/.local/bin/kanithanj.ai
+pnpm install:local
 ```
+
+**GitHub Release:** push a semver tag (`v0.2.0`). CI builds that commit and attaches `kanithanj.ai-linux-x86_64`. Helper: `scripts/cut-release.sh 0.2.0 --push`. See [docs/release.md](docs/release.md). Do not reuse integer tags like `v2`.
 
 ## First-run
 

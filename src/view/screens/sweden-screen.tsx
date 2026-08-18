@@ -39,14 +39,12 @@ export function SwedenScreen({ view, dispatch }: Props) {
       ? model.platsbanken.error?.message || String(model.platsbanken.error)
       : null
   const targetUrl = model.opportunityTargetUrl
-  const fitForThisHunt =
-    huntTargetIsActive(view) &&
-    (!!selectedAdId ||
-      leads.some(
-        (lead) => lead.webpage_url === targetUrl || lead.application_url === targetUrl,
-      ))
   const canSearch = !!model.platsbankenQ.trim()
   const selected = leads.find((lead) => lead.ad_id === selectedAdId)
+  const fitForThisHunt =
+    huntTargetIsActive(view) &&
+    !!selected &&
+    (selected.webpage_url === targetUrl || selected.application_url === targetUrl)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">

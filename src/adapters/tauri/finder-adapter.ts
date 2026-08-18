@@ -15,6 +15,7 @@ import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, Oppo
 import type { HireBoardFilter, HireBoardLead } from '../../core/domain/hire-board'
 import type { PlatsbankenLead, PlatsbankenSearchFilter } from '../../core/domain/platsbanken'
 import type { MissionFirmLead, MissionFirmFilter } from '../../core/domain/mission-firms'
+import type { DurabilityIteration, MissionInspectResult } from '../../core/domain/firm-durability'
 import type { NetworkGraphResult } from '../../core/domain/network-graph'
 import { safeInvoke } from './safe-invoke'
 
@@ -120,6 +121,19 @@ export function createTauriFinderPort(): FinderPort {
     loadQuestThread: (sessionId) => safeInvoke('load_quest_thread', { sessionId }),
     listQuestThreads: (limit = 12) => safeInvoke('list_quest_threads', { limit }),
     searchQuestTurns: (q, limit = 20) => safeInvoke('search_quest_turns', { q, limit }),
+    listDurableFirms: (next?: boolean) =>
+      safeInvoke<DurabilityIteration>('list_durable_firms', {
+        next: next === true,
+        advance: next === true,
+      }),
+    inspectMissionFirmLead: (payload) =>
+      safeInvoke<MissionInspectResult>('inspect_mission_firm_lead', {
+        firmId: payload.firm_id,
+        source: payload.source,
+        externalId: payload.external_id,
+        absoluteUrl: payload.absolute_url,
+        location: payload.location,
+      }),
     searchMissionFirms: (filter?: MissionFirmFilter) =>
       safeInvoke<MissionFirmLead[]>('search_mission_firms', {
         q: filter?.q,
@@ -346,6 +360,22 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async searchQuestTurns(q: string, limit?: number) {
       const result = await port.searchQuestTurns(q, limit)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async listDurableFirms(next?: boolean) {
+      const result = await port.listDurableFirms(next)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async inspectMissionFirmLead(payload: {
+      firm_id: string
+      source: string
+      external_id: string
+      absolute_url?: string
+      location?: string
+    }) {
+      const result = await port.inspectMissionFirmLead(payload)
       if (!result.ok) throw result.error
       return result.value
     },

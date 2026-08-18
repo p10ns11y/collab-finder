@@ -20,13 +20,18 @@ pnpm install
 pnpm tauri dev
 ```
 
-Production build:
+Production install (**Arch / Omarchy** — no `.deb` / `.rpm` / AppImage):
 
 ```bash
-pnpm build          # tsc + vite (frontend)
-cd src-tauri && cargo build
-pnpm tauri build    # full desktop bundle
+pnpm install:local
+# same as: tauri build --no-bundle && install -m 755 src-tauri/target/release/collab-finder ~/.local/bin/kanithanj.ai
 ```
+
+Waybar **Apply** launches that PATH binary. Close the old window first or it only focuses yesterday’s process.
+
+Do **not** run bare `pnpm tauri build` with `bundle.targets: "all"` — AppImage pulls `linuxdeploy` from GitHub and often hangs. This host does not use `pacman -U` of a `.deb`.
+
+GitHub download: **tag-driven CI** — [release.md](./release.md). `scripts/cut-release.sh 0.2.0 --push` keeps file version, git tag, and the uploaded binary on the same commit.
 
 ## Verify (commands that exist today)
 

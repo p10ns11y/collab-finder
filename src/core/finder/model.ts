@@ -36,6 +36,7 @@ import {
   type QuestContextId,
 } from '../domain/quest-context'
 import type { MissionFirmLead } from '../domain/mission-firms'
+import type { DurabilityIteration } from '../domain/firm-durability'
 import {
   MISSION_FIRMS_DEFAULT_QUERY,
   MISSION_FIRMS_DEFAULT_SELECTED,
@@ -154,6 +155,9 @@ export type FinderModel = {
   platsbankenMunicipality: string
   huntRail: HuntRail
   huntHarvested: HarvestedKey[]
+  // Durability ranker v1 (public IR). Idle until Mission mounts.
+  durableFirms: AsyncState<DurabilityIteration>
+  missionInspect: AsyncState<import('../domain/firm-durability').MissionInspectResult>
   // Mission firms (SpaceXAI + Swedish Texas/physical-AI bridges)
   missionFirms: AsyncState<MissionFirmLead[]>
   missionFirmsQ: string
@@ -292,6 +296,8 @@ export function initialFinderModel(): FinderModel {
     platsbankenMunicipality: PLATSBANKEN_DEFAULT_MUNICIPALITY,
     huntRail: 'honest',
     huntHarvested: [],
+    durableFirms: idle<DurabilityIteration>(),
+    missionInspect: idle(),
     missionFirms: idle<MissionFirmLead[]>(),
     missionFirmsQ: MISSION_FIRMS_DEFAULT_QUERY,
     missionFirmsSelected: [...MISSION_FIRMS_DEFAULT_SELECTED],

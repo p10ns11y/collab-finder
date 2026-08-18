@@ -193,6 +193,18 @@ export type FinderMsg =
   | { type: 'PlatsbankenRemoveFailed'; error: AppError }
   | { type: 'PlatsbankenEvaluateRequested'; lead: PlatsbankenLead }
 
+  // Durability ranker (Mission strip)
+  | { type: 'DurableFirmsRequested'; next?: boolean }
+  | {
+      type: 'DurableFirmsSucceeded'
+      iteration: import('../domain/firm-durability').DurabilityIteration
+      advanced?: boolean
+    }
+  | { type: 'DurableFirmsFailed'; error: AppError }
+  | { type: 'MissionLeadInspectRequested'; lead: MissionFirmLead }
+  | { type: 'MissionLeadInspectSucceeded'; inspect: import('../domain/firm-durability').MissionInspectResult }
+  | { type: 'MissionLeadInspectFailed'; error: AppError }
+
   // Mission firms (SpaceXAI Greenhouse + Swedish JobTech bridges)
   | { type: 'MissionFirmsQChanged'; q: string }
   | { type: 'MissionFirmsFirmToggled'; firmId: string }

@@ -15,6 +15,7 @@ import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, Oppo
 import type { HireBoardFilter, HireBoardLead } from '../core/domain/hire-board'
 import type { PlatsbankenLead, PlatsbankenSearchFilter } from '../core/domain/platsbanken'
 import type { MissionFirmLead, MissionFirmFilter } from '../core/domain/mission-firms'
+import type { DurabilityIteration, MissionInspectResult } from '../core/domain/firm-durability'
 import type { NetworkGraphResult } from '../core/domain/network-graph'
 import type { Result } from '../core/result'
 import type { AppError } from '../core/error'
@@ -89,6 +90,15 @@ export type FinderPort = {
     limit?: number,
   ): Promise<Result<import('../core/domain/quest').QuestTurnHit[], AppError>>
 
+  /** Fortress / AI-wave ranker v1 (public IR). next=true skips prior waves. */
+  listDurableFirms(next?: boolean): Promise<Result<DurabilityIteration, AppError>>
+  inspectMissionFirmLead(payload: {
+    firm_id: string
+    source: string
+    external_id: string
+    absolute_url?: string
+    location?: string
+  }): Promise<Result<MissionInspectResult, AppError>>
   /** SpaceXAI Greenhouse + Swedish bridge JobTech ads. */
   searchMissionFirms(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>
   importMissionFirmLead(payload: {
