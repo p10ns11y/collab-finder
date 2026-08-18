@@ -40,6 +40,8 @@ import type { DurabilityIteration } from '../domain/firm-durability'
 import {
   MISSION_FIRMS_DEFAULT_QUERY,
   MISSION_FIRMS_DEFAULT_SELECTED,
+  MISSION_FIRM_CHIPS,
+  type MissionFirmChipId,
 } from '../domain/mission-firms'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
@@ -48,6 +50,8 @@ import type { AppError } from '../error'
 // Shared localStorage keys for CV + minimal session (used by initialFinderModel for sync boot load + effects for writes/loads).
 // Central definition avoids drift (Issue 5). localStorage is the FE cache; DB is canonical for Opportunity data.
 export const CV_LS_KEY = 'cf.cvSummary'
+/** Set when user edits CV textarea; cleared on "Reset to default". */
+export const CV_USER_EDITED_LS_KEY = 'cf.cvSummaryUserEdited'
 export const SESSION_LS_KEY = 'cf.lastSession'
 /** Cap persisted paste so session JSON stays small; evaluate still sends the live textarea. */
 export const PASTED_JD_SESSION_MAX_CHARS = 24000
@@ -57,6 +61,8 @@ export type PersistedSession = {
   activeScreen?: FinderScreen
   opportunityTargetUrl?: string
   opportunityTargetPastedJd?: string
+  missionFirmsQ?: string
+  missionFirmsSelected?: string[]
 }
 
 const VALID_SCREENS: FinderScreen[] = [
@@ -73,6 +79,12 @@ const VALID_SCREENS: FinderScreen[] = [
   'xplore',
   'network',
 ]
+
+const MISSION_FIRM_ID_SET = new Set<string>(MISSION_FIRM_CHIPS.map((chip) => chip.id))
+
+function parseMissionFirmsSelected(ids: string[]): MissionFirmChipId[] {
+  return ids.filter((id): id is MissionFirmChipId => MISSION_FIRM_ID_SET.has(id))
+}
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
   return typeof s === 'string' && VALID_SCREENS.includes(s as FinderScreen)
@@ -209,6 +221,8 @@ export function initialFinderModel(): FinderModel {
   let lastActiveOppId: number | undefined = undefined
   let opportunityTargetUrl: string | undefined = undefined
   let opportunityTargetPastedJd: string | undefined = undefined
+  let missionFirmsQ = MISSION_FIRMS_DEFAULT_QUERY
+  let missionFirmsSelected: MissionFirmChipId[] = [...MISSION_FIRMS_DEFAULT_SELECTED]
   try {
     const savedCv = localStorage.getItem(CV_LS_KEY)
     const { value } = sanitizeCvPacket(savedCv, DEFAULT_CV_SUMMARY)
@@ -231,6 +245,17 @@ export function initialFinderModel(): FinderModel {
       }
       if (typeof s.opportunityTargetPastedJd === 'string' && s.opportunityTargetPastedJd.trim()) {
         opportunityTargetPastedJd = s.opportunityTargetPastedJd
+      }
+      if (typeof s.missionFirmsQ === 'string') {
+        missionFirmsQ = s.missionFirmsQ
+      }
+      if (Array.isArray(s.missionFirmsSelected) && s.missionFirmsSelected.length > 0) {
+        const restored = parseMissionFirmsSelected(
+          s.missionFirmsSelected.filter((id): id is string => typeof id === 'string'),
+        )
+        if (restored.length > 0) {
+          missionFirmsSelected = restored
+        }
       }
     }
   } catch {
@@ -301,8 +326,8 @@ export function initialFinderModel(): FinderModel {
     durableFirms: idle<DurabilityIteration>(),
     missionInspect: idle(),
     missionFirms: idle<MissionFirmLead[]>(),
-    missionFirmsQ: MISSION_FIRMS_DEFAULT_QUERY,
-    missionFirmsSelected: [...MISSION_FIRMS_DEFAULT_SELECTED],
+    missionFirmsQ,
+    missionFirmsSelected,
     missionFirmsTexasOnly: false,
     missionFirmsTerafabBias: true,
     network: idle<NetworkGraphResult>(),

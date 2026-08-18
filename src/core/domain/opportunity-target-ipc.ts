@@ -5,10 +5,19 @@ import type { Opportunity } from './history'
  * Pure contract for Quick Target IPC with the Rust side.
  * - Never injects DEFAULT_CV_SUMMARY here.
  * - Empty/blank input => undefined (so Rust receives None and can choose devprofile_path or its internal DEFAULT).
+ * - Bundled distilled default with no user edit => undefined (devprofile / kanithanj.cv / packs win on Rust).
  */
-export function cvSummaryForIpc(trimmed: string): string | undefined {
+export function cvSummaryForIpc(
+  trimmed: string,
+  options?: { distilledDefault?: string; userEdited?: boolean },
+): string | undefined {
   const t = (trimmed || '').trim()
   if (!t) return undefined
+  const isDistilledDefaultOnly =
+    options?.distilledDefault != null &&
+    options.userEdited !== true &&
+    t === options.distilledDefault.trim()
+  if (isDistilledDefaultOnly) return undefined
   return t
 }
 
