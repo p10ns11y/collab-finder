@@ -2,6 +2,7 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
+mod firm_durability;
 mod hire_board;
 mod mission_firms;
 mod network_graph;
@@ -468,6 +469,55 @@ async fn fetch_hire_board(
     Ok(leads)
 }
 
+/// Durability ranker v1. `next=true` excludes firms already in prior waves.
+#[tauri::command]
+fn list_durable_firms(
+    db: State<'_, AppDb>,
+    next: Option<bool>,
+) -> Result<firm_durability::IterationResult, String> {
+    let next = next.unwrap_or(false);
+    let store = db.0.lock().map_err(|e| e.to_string())?;
+    if !next {
+        if let Ok(Some(last)) = store.latest_durability_iteration() {
+            if !last.top10.is_empty() {
+                return Ok(last);
+            }
+        }
+    }
+    let exclude = store.admitted_durability_ids().unwrap_or_default();
+    let wave = store.durability_run_count().unwrap_or(0) + 1;
+    let result = firm_durability::run_wave(&exclude, wave);
+    let _ = store.record_durability_run(&result);
+    for row in &result.top10 {
+        let url = row
+            .source
+            .clone()
+            .filter(|s| s.starts_with("http"))
+            .unwrap_or_else(|| format!("durable://{}", row.firm_id));
+        let jd = format!(
+            "{}\n{}\nprofile {} · {}",
+            row.name, row.cash_line, row.profile.score, row.product_class
+        );
+        let _ = store.upsert_opportunity(
+            "durable_firm",
+            Some(&url),
+            Some(&format!("durable:{}", row.firm_id)),
+            Some(&row.name),
+            Some(&row.name),
+            &jd,
+            "new",
+            Some(row.profile.score),
+            None,
+            None,
+            Some(&format!(
+                "durable_wave:{}; total:{}; band:{}",
+                result.wave, row.total, row.band
+            )),
+        );
+    }
+    Ok(result)
+}
+
 /// Mission firms rail — xAI / SpaceX Greenhouse + Swedish bridge employers (JobTech).
 #[tauri::command]
 async fn search_mission_firms(
@@ -500,6 +550,64 @@ async fn search_mission_firms(
         .filter_map(|o| o.source_url.map(|u| (u, o.id)))
         .collect();
     mission_firms::mark_already_in_db(&mut leads, &known);
+
+    // Persist the pull so Data → Search runs + Opportunities survive restart.
+    if let Ok(store) = db.0.lock() {
+        let q = filter.q.clone().unwrap_or_default();
+        let _ = store.record_search_run(
+            &format!("mission_pull {q}"),
+            "mission_pull",
+            Some(leads.len() as i32),
+            None,
+            None,
+            0,
+            None,
+            None,
+        );
+        let _ = store.record_event(
+            "mission_pull",
+            Some(&format!("{{\"n\":{}}}", leads.len())),
+            None,
+            Some("mission"),
+        );
+        for lead in &leads {
+            if lead.absolute_url.trim().is_empty() {
+                continue;
+            }
+            let stub = format!(
+                "{}\n{}\n{}\n{}",
+                lead.title,
+                lead.location,
+                lead.absolute_url,
+                lead.rank_reasons.join("; ")
+            );
+            let _ = store.upsert_opportunity(
+                "mission_pull",
+                Some(&lead.absolute_url),
+                Some(&format!("{}:{}", lead.source, lead.external_id)),
+                Some(&lead.title),
+                Some(&lead.firm_label),
+                &stub,
+                "new",
+                Some(lead.rank_score.round() as i32),
+                None,
+                None,
+                Some(&format!("mission_pull; firm:{}", lead.firm_id)),
+            );
+        }
+        let known2: Vec<(String, i64)> = store
+            .get_opportunities(&db::OpportunityFilter {
+                limit: Some(800),
+                ..Default::default()
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+            .collect();
+        drop(store);
+        mission_firms::mark_already_in_db(&mut leads, &known2);
+    }
+
     Ok(leads)
 }
 
@@ -625,6 +733,59 @@ async fn import_mission_firm_lead(
     opportunity.company = Some(company);
     opportunity.source_ref = Some(source_ref);
     Ok(opportunity)
+}
+
+#[derive(serde::Serialize)]
+struct MissionInspectResult {
+    opportunity: db::Opportunity,
+    profile: firm_durability::ProfileMatch,
+}
+
+/// Click a Pull card: fetch JD, store the row, local profile match (no xAI).
+#[tauri::command]
+async fn inspect_mission_firm_lead(
+    db: State<'_, AppDb>,
+    firm_id: String,
+    source: String,
+    external_id: String,
+    absolute_url: Option<String>,
+    location: Option<String>,
+) -> Result<MissionInspectResult, String> {
+    let opportunity = import_mission_firm_lead(
+        db.clone(),
+        firm_id.clone(),
+        source,
+        external_id,
+        absolute_url,
+    )
+    .await?;
+    let firm_m = firm_durability::score_for_id(&firm_id).map(|r| r.profile);
+    let role = firm_durability::local_role_match(
+        opportunity.title.as_deref().unwrap_or(""),
+        opportunity.company.as_deref().unwrap_or(""),
+        location.as_deref().unwrap_or(""),
+        &opportunity.jd_text,
+    );
+    let profile = firm_durability::blend_match(firm_m.as_ref(), &role);
+    if let Ok(store) = db.0.lock() {
+        let _ = store.upsert_opportunity(
+            "mission_firm",
+            opportunity.source_url.as_deref(),
+            opportunity.source_ref.as_deref(),
+            opportunity.title.as_deref(),
+            opportunity.company.as_deref(),
+            &opportunity.jd_text,
+            "new",
+            Some(profile.score),
+            Some(&serde_json::to_string(&profile).unwrap_or_else(|_| "{}".into())),
+            None,
+            opportunity.notes.as_deref(),
+        );
+    }
+    Ok(MissionInspectResult {
+        opportunity,
+        profile,
+    })
 }
 
 /// Platsbanken — JobTech search, then remember each ad (dedup on source_url / ad id).
@@ -1030,8 +1191,10 @@ pub fn run() {
             clear_cluster_route,
             consume_cluster_route,
             run_local_grok_quest,
+            list_durable_firms,
             search_mission_firms,
             import_mission_firm_lead,
+            inspect_mission_firm_lead,
             load_network_graph,
             resolve_network_x_profiles,
             enrich_network_linkedin,

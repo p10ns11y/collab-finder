@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 8;
+pub const SCHEMA_VERSION: i32 = 9;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -298,6 +298,11 @@ impl SqliteStore {
             Self::record_migration(conn, 8)?;
         }
 
+        if current < 9 {
+            Self::migrate_v9(conn)?;
+            Self::record_migration(conn, 9)?;
+        }
+
         Ok(())
     }
 
@@ -583,8 +588,122 @@ CREATE INDEX IF NOT EXISTS idx_quest_turns_session ON quest_turns(session_id, id
         Ok(())
     }
 
+    /// v9: durability ranker snapshots (public IR scores — never apply state).
+    fn migrate_v9(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            r#"
+CREATE TABLE IF NOT EXISTS firm_durability_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  algorithm_version TEXT NOT NULL,
+  scored_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_durability_runs_created ON firm_durability_runs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS firm_durability_scores (
+  run_id INTEGER NOT NULL REFERENCES firm_durability_runs(id) ON DELETE CASCADE,
+  firm_id TEXT NOT NULL,
+  admitted INTEGER NOT NULL,
+  total INTEGER NOT NULL,
+  exclude_reason TEXT,
+  PRIMARY KEY (run_id, firm_id)
+);
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    /// Best-effort snapshot of a durability iteration. Never blocks ranking.
+    pub fn record_durability_run(
+        &self,
+        result: &crate::firm_durability::IterationResult,
+    ) -> Result<i64, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let payload = serde_json::to_string(result).map_err(|e| e.to_string())?;
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO firm_durability_runs (algorithm_version, scored_at, payload_json)
+             VALUES (?1, ?2, ?3)",
+            params![result.algorithm_version, result.scored_at, payload],
+        )
+        .map_err(|e| e.to_string())?;
+        let run_id = tx.last_insert_rowid();
+        for row in result
+            .top10
+            .iter()
+            .chain(result.excluded.iter())
+        {
+            tx.execute(
+                "INSERT OR REPLACE INTO firm_durability_scores
+                 (run_id, firm_id, admitted, total, exclude_reason)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    run_id,
+                    row.firm_id,
+                    if row.admitted { 1 } else { 0 },
+                    row.total,
+                    row.exclude_reason
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(run_id)
+    }
+
+    pub fn latest_durability_iteration(
+        &self,
+    ) -> Result<Option<crate::firm_durability::IterationResult>, String> {
+        if !self.is_enabled() {
+            return Ok(None);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let payload: Option<String> = guard
+            .query_row(
+                "SELECT payload_json FROM firm_durability_runs ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        match payload {
+            None => Ok(None),
+            Some(text) => Ok(serde_json::from_str(&text).ok()),
+        }
+    }
+
+    pub fn admitted_durability_ids(&self) -> Result<Vec<String>, String> {
+        if !self.is_enabled() {
+            return Ok(Vec::new());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare("SELECT DISTINCT firm_id FROM firm_durability_scores WHERE admitted = 1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+    }
+
+    pub fn durability_run_count(&self) -> Result<u32, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let n: i64 = guard
+            .query_row("SELECT COUNT(*) FROM firm_durability_runs", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        Ok(n.max(0) as u32)
     }
 
     pub fn get_network_import_fingerprint(&self, source_kind: &str) -> Result<Option<String>, String> {

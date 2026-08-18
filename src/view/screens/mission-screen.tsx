@@ -45,6 +45,12 @@ export function MissionScreen({ view, dispatch }: Props) {
     (lead) => `${lead.source}:${lead.firm_id}:${lead.external_id}` === selectedKey,
   )
 
+  React.useEffect(() => {
+    if (model.durableFirms.status === 'idle') {
+      dispatch({ type: 'DurableFirmsRequested' })
+    }
+  }, [dispatch, model.durableFirms.status])
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
       <aside
@@ -54,8 +60,8 @@ export function MissionScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Mission</SectionLabel>
             <p className="ui-meta px-0.5">
-              SpaceXAI, Tesla, Nordic/EU boards. Same query caches; new query appends. Shift+Pull
-              forces refetch.
+              Fortress ranker first (cash + AI-wave + no theatre). Then boards. Same query caches;
+              Shift+Pull refetches.
             </p>
           </div>
           <Button
@@ -75,6 +81,8 @@ export function MissionScreen({ view, dispatch }: Props) {
             {busy ? 'Pulling…' : 'Pull'}
           </Button>
         </div>
+
+        <DurabilityStrip view={view} dispatch={dispatch} />
 
         <Input
           value={model.missionFirmsQ}
@@ -169,6 +177,7 @@ export function MissionScreen({ view, dispatch }: Props) {
           <SelectedMissionLead
             lead={selected}
             dispatch={dispatch}
+            inspect={model.missionInspect}
             onClear={() => setSelectedKey(null)}
           />
         ) : null}
@@ -194,7 +203,10 @@ export function MissionScreen({ view, dispatch }: Props) {
                     key={key}
                     lead={lead}
                     active={active}
-                    onSelect={() => setSelectedKey(key)}
+                    onSelect={() => {
+                      setSelectedKey(key)
+                      dispatch({ type: 'MissionLeadInspectRequested', lead })
+                    }}
                     dispatch={dispatch}
                   />
                 )
@@ -232,13 +244,133 @@ export function MissionScreen({ view, dispatch }: Props) {
   )
 }
 
+function DurabilityStrip({
+  view,
+  dispatch,
+}: {
+  view: FinderViewState
+  dispatch: Dispatch<FinderMsg>
+}) {
+  const state = view.model.durableFirms
+  const [openId, setOpenId] = React.useState<string | null>(null)
+  const [how, setHow] = React.useState(false)
+  if (state.status === 'idle' || state.status === 'loading') {
+    return <p className="ui-meta px-0.5">Scoring fortress list…</p>
+  }
+  if (state.status === 'failed') {
+    return (
+      <p className="ui-meta px-0.5">
+        Durability ranker failed.{' '}
+        <button
+          type="button"
+          className="underline"
+          onClick={() => dispatch({ type: 'DurableFirmsRequested' })}
+        >
+          Retry
+        </button>
+      </p>
+    )
+  }
+  const it = state.data
+  const top = it.top10
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-ink-faint">
+          Wave {it.wave ?? 1} · {top.length} · left {it.remaining ?? '—'}
+        </p>
+        <button
+          type="button"
+          className="ui-meta hover:text-ink"
+          disabled={it.exhausted === true || (it.remaining ?? 1) === 0}
+          onClick={() => dispatch({ type: 'DurableFirmsRequested', next: true })}
+        >
+          Next 10
+        </button>
+      </div>
+      <button type="button" className="ui-meta hover:text-ink" onClick={() => setHow((v) => !v)}>
+        {how ? 'Hide hunt' : 'How this hunt works'}
+      </button>
+      {how && it.procedure ? (
+        <ol className="list-decimal space-y-0.5 pl-4 text-[11px] text-ink-muted">
+          {it.procedure.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+          <li>{it.procedure.weights}</li>
+          <li>{it.procedure.split}</li>
+        </ol>
+      ) : null}
+      <ol className="space-y-1">
+        {top.map((row, i) => {
+          const open = openId === row.firm_id
+          return (
+            <li key={row.firm_id} className="rounded-md border border-border-subtle bg-surface-0/50 px-2 py-1.5">
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => setOpenId(open ? null : row.firm_id)}
+              >
+                <span className="text-xs font-medium text-ink">
+                  {i + 1}. {row.name}
+                  <span className="ml-1 font-normal text-ink-faint">
+                    {row.band} · {row.total}
+                    {row.profile ? ` · you ${row.profile.score}` : ''}
+                  </span>
+                </span>
+                <p className="ui-meta truncate">{row.cash_line}</p>
+              </button>
+              {open ? (
+                <div className="mt-1.5 space-y-1 border-t border-border-subtle pt-1.5">
+                  <p className="ui-meta">
+                    moat {row.product_moat} · fortress {row.fortress} · AI-wave {row.ai_tsunami} ·
+                    hire {row.hiring_signal} · vector {row.spacexai_vector}
+                  </p>
+                  {row.profile ? (
+                    <p className="ui-meta">
+                      Match {row.profile.score}: {row.profile.hits.slice(0, 4).join(', ') || '—'}
+                      {row.profile.misses.length
+                        ? ` · miss ${row.profile.misses.slice(0, 3).join(', ')}`
+                        : ''}
+                    </p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="ui-meta hover:text-ink"
+                      onClick={() => dispatch({ type: 'MissionFirmsFirmToggled', firmId: row.firm_id })}
+                    >
+                      Rail
+                    </button>
+                    {row.source ? (
+                      <a
+                        href={row.source}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ui-meta hover:text-ink"
+                      >
+                        IR
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 function SelectedMissionLead({
   lead,
   dispatch,
+  inspect,
   onClear,
 }: {
   lead: MissionFirmLead
   dispatch: Dispatch<FinderMsg>
+  inspect: FinderViewState['model']['missionInspect']
   onClear: () => void
 }) {
   return (
@@ -254,6 +386,17 @@ function SelectedMissionLead({
             {lead.location ? ` · ${lead.location}` : ''}
             {lead.texas_match ? ' · TX' : ''}
           </p>
+          {inspect.status === 'loading' ? (
+            <p className="ui-meta">Fetching posting + local match…</p>
+          ) : null}
+          {inspect.status === 'ready' ? (
+            <p className="ui-meta">
+              Match {inspect.data.profile.score} ({inspect.data.profile.method})
+              {inspect.data.profile.hits.length
+                ? ` · ${inspect.data.profile.hits.slice(0, 4).join(', ')}`
+                : ''}
+            </p>
+          ) : null}
         </div>
         <button type="button" className="ui-meta shrink-0 hover:text-ink" onClick={onClear}>
           Clear

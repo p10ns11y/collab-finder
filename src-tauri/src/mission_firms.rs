@@ -89,6 +89,54 @@ const FIRM_REGISTRY: &[FirmDef] = &[
         mixed_sw_hw_only: false,
     },
     FirmDef {
+        id: "volvo_group",
+        label: "Volvo Group",
+        source: FirmSource::JobTech {
+            org_number: "5560295197",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "atlas_copco",
+        label: "Atlas Copco",
+        source: FirmSource::JobTech {
+            org_number: "5560142720",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "sandvik",
+        label: "Sandvik",
+        source: FirmSource::JobTech {
+            org_number: "5560003468",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "abb",
+        label: "ABB",
+        source: FirmSource::JobTech {
+            org_number: "5591930903",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "hexagon",
+        label: "Hexagon",
+        source: FirmSource::JobTech {
+            org_number: "5561904771",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "epiroc",
+        label: "Epiroc",
+        source: FirmSource::JobTech {
+            org_number: "5560779018",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
         id: "spotify",
         label: "Spotify",
         source: FirmSource::Lever { site: "spotify" },
@@ -163,6 +211,8 @@ fn firm_by_id(id: &str) -> Option<&'static FirmDef> {
         "physicalintelligence" => "pi",
         "1x" => "onex",
         "volvo" | "volvocars" => "volvo_cars",
+        "volvoab" | "volvo_ab" | "abvolvo" => "volvo_group",
+        "atlas" | "atlascopco" => "atlas_copco",
         other => other,
     };
     FIRM_REGISTRY.iter().find(|f| f.id == key)
@@ -172,13 +222,14 @@ pub fn default_firm_ids() -> Vec<String> {
     [
         "spacexai",
         "tesla",
-        "einride",
-        "ericsson",
         "saab",
-        "klarna",
-        "volvo_cars",
-        "spotify",
-        "wolt",
+        "ericsson",
+        "atlas_copco",
+        "abb",
+        "volvo_group",
+        "sandvik",
+        "hexagon",
+        "epiroc",
     ]
     .into_iter()
     .map(str::to_string)
@@ -499,29 +550,54 @@ fn score_lead(
             score += 36.0;
             reasons.push("firm:tesla_mixed_sw_hw".into());
         }
-        "einride" => {
-            score += 30.0;
-            reasons.push("firm:einride_texas_physical_ai".into());
-        }
-        "ericsson" => {
-            score += 18.0;
-            reasons.push("firm:ericsson_plano_bridge".into());
-        }
         "saab" => {
-            score += 14.0;
+            score += 28.0;
             reasons.push("firm:saab_defence_ai".into());
         }
-        "waymo" | "figure" | "agility" | "pi" | "onex" => {
+        "abb" | "atlas_copco" | "volvo_group" | "sandvik" => {
+            score += 26.0;
+            reasons.push("firm:fortress_industrial".into());
+        }
+        "ericsson" | "hexagon" | "epiroc" => {
+            score += 20.0;
+            reasons.push("firm:sweden_infra".into());
+        }
+        "einride" => {
+            score += 8.0;
+            reasons.push("firm:einride_venture".into());
+        }
+        "waymo" => {
             score += 28.0;
             reasons.push("firm:physical_ai_peer".into());
         }
-        "spotify" | "klarna" | "wolt" | "volvo_cars" => {
-            score += 16.0;
-            reasons.push("firm:nordic_eu".into());
+        "figure" | "agility" | "pi" | "onex" => {
+            score += 10.0;
+            reasons.push("firm:venture_robotics".into());
+        }
+        "spotify" | "klarna" | "wolt" | "gitlab" | "hive" => {
+            score -= 16.0;
+            reasons.push("firm:theater_saas".into());
+        }
+        "volvo_cars" => {
+            score += 12.0;
+            reasons.push("firm:nordic_auto".into());
         }
         _ => {
             score += 12.0;
             reasons.push(format!("firm:{}", firm.id));
+        }
+    }
+
+    if let Some(dur) = crate::firm_durability::score_for_id(firm.id) {
+        if dur.admitted {
+            score += (dur.total as f64) * 0.25;
+            reasons.push(format!("durability:{}", dur.total));
+        } else {
+            score -= 24.0;
+            reasons.push(format!(
+                "durability_exclude:{}",
+                dur.exclude_reason.as_deref().unwrap_or("?")
+            ));
         }
     }
 

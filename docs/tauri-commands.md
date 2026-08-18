@@ -92,6 +92,12 @@ Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcode
 
 `OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `src/core/domain/opportunity-target.ts`.
 
+## Durability ranker (Mission)
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `list_durable_firms` | — | `IterationResult` | Fortress / AI-wave / theatre gates. Reads `data/durability/universe.v1.json`. Snapshots to SQLite v9. No apply state. |
+
 ## TypeScript bridge
 
 ```

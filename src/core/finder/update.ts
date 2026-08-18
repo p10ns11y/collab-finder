@@ -859,6 +859,22 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         },
       ]
 
+    case 'DurableFirmsRequested':
+      return [{ ...model, durableFirms: { status: 'loading' } }]
+    case 'DurableFirmsSucceeded':
+      return [{ ...model, durableFirms: { status: 'ready', data: msg.iteration } }]
+    case 'DurableFirmsFailed':
+      return [{ ...model, durableFirms: { status: 'failed', error: msg.error } }]
+    case 'MissionLeadInspectRequested':
+      return [{ ...model, missionInspect: { status: 'loading' }, banner: null }]
+    case 'MissionLeadInspectSucceeded':
+      return [{ ...model, missionInspect: { status: 'ready', data: msg.inspect } }]
+    case 'MissionLeadInspectFailed':
+      return [{
+        ...model,
+        missionInspect: { status: 'failed', error: msg.error },
+        banner: msg.error,
+      }]
     case 'MissionFirmsQChanged':
       return [{ ...model, missionFirmsQ: msg.q }]
     case 'MissionFirmsFirmToggled': {
