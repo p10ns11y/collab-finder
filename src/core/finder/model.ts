@@ -230,6 +230,14 @@ export function initialFinderModel(): FinderModel {
   } catch {
     // ignore; fall back to defaults (robustness for tampered/legacy LS)
   }
+  try {
+    if (typeof window !== 'undefined') {
+      const slug = window.location.hash.replace(/^#/, '').split('?')[0]?.trim().toLowerCase()
+      if (isValidFinderScreen(slug)) activeScreen = slug
+    }
+  } catch {
+    // ignore
+  }
   return {
     query: DEFAULT_SEARCH_QUERY,
     cvSummary,

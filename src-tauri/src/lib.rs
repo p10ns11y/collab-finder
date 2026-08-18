@@ -768,21 +768,48 @@ fn read_heading_snapshot() -> Result<HeadingSnapshot, String> {
     })
 }
 
-/// One-shot route from a sibling app (`mm-waybar open`). Owner: cluster open-route file.
+fn open_route_path() -> std::path::PathBuf {
+    mission_maps_dir().join("open-route")
+}
+
+fn parse_open_route(raw: &str) -> Option<String> {
+    let t = raw.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_string())
+    }
+}
+
+/// Peek cluster route. Do not delete — hydrate / a second window must still see `heading`.
 #[tauri::command]
-fn consume_cluster_route() -> Result<Option<String>, String> {
-    let p = mission_maps_dir().join("open-route");
+fn read_cluster_route() -> Result<Option<String>, String> {
+    let p = open_route_path();
     if !p.is_file() {
         return Ok(None);
     }
     let s = std::fs::read_to_string(&p).unwrap_or_default();
-    let _ = std::fs::remove_file(&p);
-    let t = s.trim();
-    if t.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(t.to_string()))
+    Ok(parse_open_route(&s))
+}
+
+/// Drop the one-shot file after Heading is actually on screen.
+#[tauri::command]
+fn clear_cluster_route() -> Result<(), String> {
+    let p = open_route_path();
+    if p.is_file() {
+        let _ = std::fs::remove_file(&p);
     }
+    Ok(())
+}
+
+/// Legacy one-shot (peek + delete). Prefer `read_cluster_route` + `clear_cluster_route`.
+#[tauri::command]
+fn consume_cluster_route() -> Result<Option<String>, String> {
+    let v = read_cluster_route()?;
+    if v.is_some() {
+        let _ = clear_cluster_route();
+    }
+    Ok(v)
 }
 
 /// Persist one hire-board lead as Opportunity status=new (URL dedup via upsert).
@@ -999,6 +1026,8 @@ pub fn run() {
             delete_opportunity_cmd,
             open_external_url,
             read_heading_snapshot,
+            read_cluster_route,
+            clear_cluster_route,
             consume_cluster_route,
             run_local_grok_quest,
             search_mission_firms,
@@ -1027,4 +1056,19 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod open_route_tests {
+    use super::parse_open_route;
+
+    #[test]
+    fn trims_heading() {
+        assert_eq!(parse_open_route("heading\n").as_deref(), Some("heading"));
+    }
+
+    #[test]
+    fn empty_is_none() {
+        assert_eq!(parse_open_route("  \n"), None);
+    }
 }

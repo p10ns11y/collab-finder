@@ -43,7 +43,7 @@ export type FinderMsg =
   | { type: 'CvSummaryLoaded'; cvSummary: string }
   /** User-triggered: restore distilled default packet and heal localStorage cache. */
   | { type: 'CvSummaryResetToDefaultRequested' }
-  | { type: 'OpportunitySelected'; id: number; url?: string }
+  | { type: 'OpportunitySelected'; id: number; url?: string; reveal?: boolean }
   | { type: 'OpportunityTargetUrlSet'; url?: string }
   | { type: 'OpportunityTargetJdSet'; pasted_jd?: string }
   | { type: 'OpportunityTargetPastedJdChanged'; pasted_jd: string }

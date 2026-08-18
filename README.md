@@ -22,7 +22,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-First launch: **Discover**. Sidebar: **Heading · Discover · Mission · Sweden · Xplore · Network · Settings**. Heading is the cash-path cockpit (mission-map JSON + contacts). Mission remains career-board hunt. Cluster law: `ensembly/docs/SATELLITE-CLUSTER.md`. Palette: ⌘K / Ctrl+K. Quest: header control (threads persist in SQLite).
+First launch: **Discover**. Sidebar: **Navigating · Discover · Mission · Sweden · Xplore · Network · Settings**. Navigating is the cash-path cockpit (mission-map JSON + contacts). Mission remains career-board hunt. Cluster law: `ensembly/docs/SATELLITE-CLUSTER.md`. Palette: ⌘K / Ctrl+K. Quest: header control (threads persist in SQLite).
 
 **Arch / Omarchy install name:** crate stays `collab-finder`; the PATH binary is `kanithanj.ai`.
 
