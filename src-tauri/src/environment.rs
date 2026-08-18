@@ -5,8 +5,6 @@
 
 use serde::{Deserialize, Serialize};
 
-const ENV_JSON: &str = include_str!("../../data/durability/environments.v1.json");
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaceRecord {
     pub id: String,
@@ -26,7 +24,7 @@ pub struct PlaceRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct EnvFile {
+pub struct EnvFile {
     algorithm_version: String,
     scored_at: String,
     critic: Vec<String>,
@@ -63,14 +61,15 @@ fn clamp(v: u8) -> i32 {
     i32::from(v.min(4))
 }
 
-/// Life score only (no legal_ease). Max 120.
+/// Life score only (no legal_ease).
 pub fn env_total(p: &PlaceRecord) -> i32 {
-    5 * clamp(p.economic)
-        + 5 * clamp(p.ethics)
-        + 4 * clamp(p.character)
-        + 6 * clamp(p.social)
-        + 6 * clamp(p.family)
-        + 4 * clamp(p.self_fit)
+    let w = crate::rank_config::load().place_weights;
+    w.economic * clamp(p.economic)
+        + w.ethics * clamp(p.ethics)
+        + w.character * clamp(p.character)
+        + w.social * clamp(p.social)
+        + w.family * clamp(p.family)
+        + w.self_fit * clamp(p.self_fit)
 }
 
 pub fn env_bonus(p: &PlaceRecord) -> i32 {
@@ -97,8 +96,44 @@ fn to_ranked(p: &PlaceRecord) -> RankedPlace {
     }
 }
 
+fn places_from_value(v: &serde_json::Value) -> Vec<PlaceRecord> {
+    let arr = v
+        .get("places")
+        .and_then(|x| x.as_array())
+        .or_else(|| v.as_array());
+    let Some(arr) = arr else {
+        return Vec::new();
+    };
+    arr.iter()
+        .filter_map(|x| serde_json::from_value(x.clone()).ok())
+        .collect()
+}
+
+fn merge_places(mut base: Vec<PlaceRecord>, extra: Vec<PlaceRecord>) -> Vec<PlaceRecord> {
+    let mut index: std::collections::HashMap<String, usize> = base
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.id.clone(), i))
+        .collect();
+    for item in extra {
+        if let Some(&i) = index.get(&item.id) {
+            base[i] = item;
+        } else {
+            index.insert(item.id.clone(), base.len());
+            base.push(item);
+        }
+    }
+    base
+}
+
 fn load() -> EnvFile {
-    serde_json::from_str(ENV_JSON).expect("environments.v1.json must parse")
+    let baked: EnvFile =
+        serde_json::from_str(&crate::operator_pack::places_json()).expect("places pack must parse");
+    let mut places = baked.places;
+    for v in crate::rank_config::pack_json_values(&["places.json", "environments.json"]) {
+        places = merge_places(places, places_from_value(&v));
+    }
+    EnvFile { places, ..baked }
 }
 
 pub fn board() -> EnvironmentBoard {
@@ -157,20 +192,30 @@ pub fn bonuses_for(firm_id: &str, depth_geo: crate::firm_durability::DepthGeo) -
 mod tests {
     use super::*;
 
+    fn with_fixtures<F: FnOnce()>(run: F) {
+        let _guard = crate::operator_pack::install_test_fixtures();
+        run();
+        crate::operator_pack::clear_test_fixtures();
+    }
+
     #[test]
     fn eindhoven_beats_stockholm_and_tallinn() {
-        let b = board();
-        assert_eq!(b.top10[0].place_id, "nl_eindhoven");
-        assert!(b.top10.iter().all(|p| p.place_id != "ee_tallinn"));
-        let se = lookup("se_stockholm").unwrap();
-        assert!(b.top10[0].env_total > se.env_total);
+        with_fixtures(|| {
+            let b = board();
+            assert_eq!(b.top10[0].place_id, "nl_eindhoven");
+            assert!(b.top10.iter().all(|p| p.place_id != "ee_tallinn"));
+            let se = lookup("se_stockholm").unwrap();
+            assert!(b.top10[0].env_total > se.env_total);
+        });
     }
 
     #[test]
     fn legal_ease_not_in_env_total() {
-        let se = lookup("se_stockholm").unwrap();
-        let au = lookup("us_austin").unwrap();
-        assert!(se.legal_ease > au.legal_ease);
-        assert!(au.env_total > se.env_total);
+        with_fixtures(|| {
+            let se = lookup("se_stockholm").unwrap();
+            let au = lookup("us_austin").unwrap();
+            assert!(se.legal_ease > au.legal_ease);
+            assert!(au.env_total > se.env_total);
+        });
     }
 }

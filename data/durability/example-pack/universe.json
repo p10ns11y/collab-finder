@@ -1,0 +1,18 @@
+{
+  "firms": [
+    {
+      "id": "example_local",
+      "name": "Example Co",
+      "hq": "SE",
+      "depth_geo": "sweden",
+      "product_class": "example",
+      "theater_saas": false,
+      "product_moat": 3,
+      "ai_tsunami": 3,
+      "fortress": 3,
+      "hiring_signal": 3,
+      "spacexai_vector": 2,
+      "cash": { "fy": 2025, "note": "Copy this file to ~/.config/collab-finder/packs/universe.json" }
+    }
+  ]
+}
