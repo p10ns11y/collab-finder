@@ -1,0 +1,129 @@
+# Tag is the release trigger. A version bump on a branch does not publish.
+# Push v0.2.0 → this job builds the Arch-style binary and attaches it to that tag.
+# That is how tag and download stay the same commit.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing semver tag to build (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-binary:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Require tag == tauri version
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "Use a semver tag like v0.2.0 (not v2). That mismatch is what made tag v2 ≠ download."
+              exit 1
+              ;;
+          esac
+          CONF=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          WANT="${TAG#v}"
+          if [ "$CONF" != "$WANT" ]; then
+            echo "tag $TAG != src-tauri/tauri.conf.json version $CONF"
+            echo "Run scripts/cut-release.sh $WANT so files and tag match, then push the tag."
+            exit 1
+          fi
+          echo "releasing $TAG from $(git rev-parse HEAD)"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Linux WebKit/GTK (same ABI family as Arch webkit2gtk-4.1)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            pkg-config
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build binary only (no deb / rpm / AppImage)
+        run: pnpm exec tauri build --no-bundle
+
+      - name: Name asset + checksum
+        run: |
+          set -euo pipefail
+          test -x src-tauri/target/release/collab-finder
+          cp -f src-tauri/target/release/collab-finder kanithanj.ai-linux-x86_64
+          sha256sum kanithanj.ai-linux-x86_64 > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release for this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          SHA="$(git rev-parse HEAD)"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — uploading assets (clobber)."
+            gh release upload "$TAG" kanithanj.ai-linux-x86_64 SHA256SUMS --clobber
+            exit 0
+          fi
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<EOF
+          # kanithanj.ai ${TAG}
+
+          Arch / Omarchy: raw GTK 3 + WebKitGTK 4.1 binary. No \`.deb\` / AppImage.
+
+          Built by CI from \`${SHA}\` on this tag, so **tag and download are the same commit**.
+
+          \`\`\`bash
+          curl -fsSL -o kanithanj.ai \\
+            https://github.com/p10ns11y/collab-finder/releases/download/${TAG}/kanithanj.ai-linux-x86_64
+          chmod +x kanithanj.ai
+          install -m 755 kanithanj.ai ~/.local/bin/kanithanj.ai
+          \`\`\`
+
+          Verify: \`sha256sum\` against \`SHA256SUMS\` on the same release.
+          EOF
+          gh release create "$TAG" \
+            --title "kanithanj.ai ${TAG}" \
+            --notes-file "$NOTES" \
+            --verify-tag \
+            kanithanj.ai-linux-x86_64 \
+            SHA256SUMS
