@@ -38,12 +38,13 @@ export function MissionScreen({ view, dispatch }: Props) {
       ? model.missionFirms.error?.message || String(model.missionFirms.error)
       : null
   const targetUrl = model.opportunityTargetUrl
-  const fitForThisHunt =
-    huntTargetIsActive(view) &&
-    (!!selectedKey || leads.some((lead) => lead.absolute_url === targetUrl))
   const selected = leads.find(
     (lead) => `${lead.source}:${lead.firm_id}:${lead.external_id}` === selectedKey,
   )
+  const fitForThisHunt =
+    huntTargetIsActive(view) &&
+    !!selected?.absolute_url &&
+    selected.absolute_url === targetUrl
 
   React.useEffect(() => {
     if (model.durableFirms.status === 'idle') {

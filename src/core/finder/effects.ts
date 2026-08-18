@@ -1457,7 +1457,11 @@ export function effectForMsg(
     // After opportunities list arrives: if Discover has nothing selected but we know lastActiveOppId
     // (or session had one), hydrate it. Covers boot races where the first OpportunitySelected failed
     // or session restore only landed after history. Only when target is still idle (never clobber live work).
+    // Mission/Sweden Pull also refresh history — do not steal those screens with the last Discover opp.
     case 'HistoryRefreshed':
+      if (model.activeScreen !== 'discover') {
+        return undefined
+      }
       if (msg.opportunities && msg.opportunities.length > 0) {
         const targetIdle = !model.opportunityTarget || model.opportunityTarget.status === 'idle'
         if (targetIdle) {

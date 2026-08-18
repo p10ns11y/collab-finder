@@ -876,7 +876,17 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'DurableFirmsFailed':
       return [{ ...model, durableFirms: { status: 'failed', error: msg.error } }]
     case 'MissionLeadInspectRequested':
-      return [{ ...model, missionInspect: { status: 'loading' }, banner: null }]
+      return [
+        {
+          ...model,
+          missionInspect: { status: 'loading' },
+          banner: null,
+          // Drop the previous Discover/hydrate fit so HuntFitPane cannot show another job.
+          opportunityTarget: { status: 'idle' },
+          opportunityTargetUrl: msg.lead.absolute_url || undefined,
+          opportunityTargetPastedJd: undefined,
+        },
+      ]
     case 'MissionLeadInspectSucceeded':
       return [{ ...model, missionInspect: { status: 'ready', data: msg.inspect } }]
     case 'MissionLeadInspectFailed':
