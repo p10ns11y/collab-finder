@@ -245,7 +245,9 @@ fn parse_firm_ids(raw: &[String]) -> Vec<&'static FirmDef> {
             }
         }
     }
-    if out.is_empty() {
+    // Only fill defaults when the caller sent no firms. A Next-10 rail of
+    // unknown ids must not silently replay the default (stored) set.
+    if out.is_empty() && raw.iter().all(|s| s.trim().is_empty()) {
         for id in default_firm_ids() {
             if let Some(def) = firm_by_id(&id) {
                 out.push(def);
@@ -1600,5 +1602,13 @@ mod tests {
         assert_eq!(firm_by_id("1x").unwrap().id, "onex");
         assert!(firm_by_id("spotify").is_some());
         assert!(firm_by_id("volvo_cars").is_some());
+    }
+
+    #[test]
+    fn unknown_firm_list_does_not_replay_defaults() {
+        let parsed = parse_firm_ids(&["not_a_real_firm".into()]);
+        assert!(parsed.is_empty());
+        let defaults = parse_firm_ids(&[]);
+        assert!(!defaults.is_empty());
     }
 }

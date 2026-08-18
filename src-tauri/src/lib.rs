@@ -470,22 +470,44 @@ async fn fetch_hire_board(
     Ok(leads)
 }
 
-/// Durability ranker v1. `next=true` excludes firms already in prior waves.
+fn durability_exclude_ids(store: &db::SqliteStore) -> Vec<String> {
+    let mut ids = store.admitted_durability_ids().unwrap_or_default();
+    if let Ok(Some(last)) = store.latest_durability_iteration() {
+        for row in last.top10 {
+            if !ids.iter().any(|id| id == &row.firm_id) {
+                ids.push(row.firm_id);
+            }
+        }
+        for id in last.exclude_ids {
+            if !ids.iter().any(|x| x == &id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
+}
+
+/// Durability ranker. `next`/`advance` skip the last stored wave.
 #[tauri::command]
 fn list_durable_firms(
     db: State<'_, AppDb>,
     next: Option<bool>,
+    advance: Option<bool>,
 ) -> Result<firm_durability::IterationResult, String> {
-    let next = next.unwrap_or(false);
+    let go_next = next.unwrap_or(false) || advance.unwrap_or(false);
     let store = db.0.lock().map_err(|e| e.to_string())?;
-    if !next {
+    if !go_next {
         if let Ok(Some(last)) = store.latest_durability_iteration() {
             if !last.top10.is_empty() {
                 return Ok(last);
             }
         }
     }
-    let exclude = store.admitted_durability_ids().unwrap_or_default();
+    let exclude = if go_next {
+        durability_exclude_ids(&store)
+    } else {
+        Vec::new()
+    };
     let wave = store.durability_run_count().unwrap_or(0) + 1;
     let result = firm_durability::run_wave(&exclude, wave);
     let _ = store.record_durability_run(&result);

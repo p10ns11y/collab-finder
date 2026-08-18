@@ -122,7 +122,10 @@ export function createTauriFinderPort(): FinderPort {
     listQuestThreads: (limit = 12) => safeInvoke('list_quest_threads', { limit }),
     searchQuestTurns: (q, limit = 20) => safeInvoke('search_quest_turns', { q, limit }),
     listDurableFirms: (next?: boolean) =>
-      safeInvoke<DurabilityIteration>('list_durable_firms', { next: next === true }),
+      safeInvoke<DurabilityIteration>('list_durable_firms', {
+        next: next === true,
+        advance: next === true,
+      }),
     inspectMissionFirmLead: (payload) =>
       safeInvoke<MissionInspectResult>('inspect_mission_firm_lead', {
         firmId: payload.firm_id,

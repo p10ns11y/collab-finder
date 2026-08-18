@@ -60,8 +60,7 @@ export function MissionScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Mission</SectionLabel>
             <p className="ui-meta px-0.5">
-              Fortress ranker first (cash + AI-wave + no theatre). Then boards. Same query caches;
-              Shift+Pull refetches.
+              Pull always refetches boards. Next 10 advances the fortress wave and pulls those firms.
             </p>
           </div>
           <Button
@@ -69,13 +68,13 @@ export function MissionScreen({ view, dispatch }: Props) {
             variant="primary"
             size="sm"
             disabled={busy}
-            onClick={(e) =>
+            onClick={() =>
               dispatch({
                 type: 'MissionFirmsSearchRequested',
-                forceRefresh: e.shiftKey,
+                forceRefresh: true,
               })
             }
-            title="Pull career boards (Shift+click forces network refetch)"
+            title="Fetch career boards (always network, not the saved pool)"
           >
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
             {busy ? 'Pulling…' : 'Pull'}
@@ -230,7 +229,9 @@ export function MissionScreen({ view, dispatch }: Props) {
                 variant="primary"
                 size="sm"
                 disabled={busy}
-                onClick={() => dispatch({ type: 'MissionFirmsSearchRequested' })}
+                onClick={() =>
+                  dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: true })
+                }
               >
                 Pull now
               </Button>

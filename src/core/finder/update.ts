@@ -861,8 +861,18 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
 
     case 'DurableFirmsRequested':
       return [{ ...model, durableFirms: { status: 'loading' } }]
-    case 'DurableFirmsSucceeded':
-      return [{ ...model, durableFirms: { status: 'ready', data: msg.iteration } }]
+    case 'DurableFirmsSucceeded': {
+      const ids = msg.advanced
+        ? msg.iteration.top10.map((row) => row.firm_id)
+        : model.missionFirmsSelected
+      return [
+        {
+          ...model,
+          durableFirms: { status: 'ready', data: msg.iteration },
+          missionFirmsSelected: ids.length ? ids : model.missionFirmsSelected,
+        },
+      ]
+    }
     case 'DurableFirmsFailed':
       return [{ ...model, durableFirms: { status: 'failed', error: msg.error } }]
     case 'MissionLeadInspectRequested':

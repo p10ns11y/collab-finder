@@ -195,7 +195,11 @@ export type FinderMsg =
 
   // Durability ranker (Mission strip)
   | { type: 'DurableFirmsRequested'; next?: boolean }
-  | { type: 'DurableFirmsSucceeded'; iteration: import('../domain/firm-durability').DurabilityIteration }
+  | {
+      type: 'DurableFirmsSucceeded'
+      iteration: import('../domain/firm-durability').DurabilityIteration
+      advanced?: boolean
+    }
   | { type: 'DurableFirmsFailed'; error: AppError }
   | { type: 'MissionLeadInspectRequested'; lead: MissionFirmLead }
   | { type: 'MissionLeadInspectSucceeded'; inspect: import('../domain/firm-durability').MissionInspectResult }

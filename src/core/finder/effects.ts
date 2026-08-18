@@ -669,7 +669,11 @@ export function durableFirmsCmd(ports: FinderPorts, next = false): Cmd<FinderMsg
         dispatch({ type: 'DurableFirmsFailed', error: result.error })
         return
       }
-      dispatch({ type: 'DurableFirmsSucceeded', iteration: result.value })
+      dispatch({
+        type: 'DurableFirmsSucceeded',
+        iteration: result.value,
+        advanced: next,
+      })
       dispatch({ type: 'HistoryRefreshRequested' })
     })
   }
@@ -1359,10 +1363,18 @@ export function effectForMsg(
       return platsbankenEvaluateCmd(ports, model, msg.lead)
     case 'DurableFirmsRequested':
       return durableFirmsCmd(ports, msg.next === true)
+    case 'DurableFirmsSucceeded':
+      return msg.advanced
+        ? (dispatch) => {
+            dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: true })
+          }
+        : undefined
     case 'MissionLeadInspectRequested':
       return missionLeadInspectCmd(ports, msg.lead)
     case 'MissionFirmsSearchRequested':
-      return missionFirmsSearchCmd(ports, model, { forceRefresh: msg.forceRefresh === true })
+      return missionFirmsSearchCmd(ports, model, {
+        forceRefresh: msg.forceRefresh !== false,
+      })
     case 'MissionFirmsImportRequested':
       return missionFirmsImportCmd(ports, msg.lead)
     case 'MissionFirmsFirmToggled':
