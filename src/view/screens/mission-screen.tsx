@@ -52,6 +52,12 @@ export function MissionScreen({ view, dispatch }: Props) {
     }
   }, [dispatch, model.durableFirms.status])
 
+  React.useEffect(() => {
+    if (model.missionFirms.status === 'idle') {
+      dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: false })
+    }
+  }, [dispatch, model.missionFirms.status])
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
       <aside
@@ -61,7 +67,7 @@ export function MissionScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Mission</SectionLabel>
             <p className="ui-meta px-0.5">
-              Pull always refetches boards. Next 10 advances the fortress wave and pulls those firms.
+              Opening Mission restores the last cached pull. Pull refetches boards from the network.
             </p>
           </div>
           <Button
@@ -75,7 +81,7 @@ export function MissionScreen({ view, dispatch }: Props) {
                 forceRefresh: true,
               })
             }
-            title="Fetch career boards (always network, not the saved pool)"
+            title="Fetch career boards from the network (append to saved pool)"
           >
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
             {busy ? 'Pulling…' : 'Pull'}

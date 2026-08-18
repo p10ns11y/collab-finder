@@ -406,6 +406,51 @@ const PHYSICAL_AI_TERMS: &[&str] = &[
     "humanoid",
 ];
 
+/// Title tokens aligned with the operator CV packet / stack (Pull relevance boost).
+const PROFILE_BOOST_TERMS: &[&str] = &[
+    "typescript",
+    "rust",
+    "react",
+    "python",
+    "fullstack",
+    "full stack",
+    "full-stack",
+    "software engineer",
+    "software development",
+    "backend",
+    "platform",
+    "integration",
+    "integrations",
+    "public api",
+    "agent",
+    "agentic",
+    "tauri",
+    "playwright",
+    "staff",
+    "senior",
+    "infrastructure",
+    "devops",
+];
+
+fn profile_title_boost(title: &str) -> (f64, Option<String>) {
+    let packet = crate::operator_pack::cv_packet();
+    if packet.contains("Configure your CV summary") {
+        return (0.0, None);
+    }
+    let hay = title.to_ascii_lowercase();
+    let hits = PROFILE_BOOST_TERMS
+        .iter()
+        .filter(|term| hay.contains(*term))
+        .count();
+    if hits == 0 {
+        return (0.0, None);
+    }
+    (
+        4.0 * hits as f64,
+        Some(format!("profile_hits:{hits}")),
+    )
+}
+
 fn location_is_texas(loc: &str) -> bool {
     let hay = format!(" {} ", loc.to_ascii_lowercase());
     TEXAS_TERMS.iter().any(|t| hay.contains(t))
@@ -629,6 +674,12 @@ fn score_lead(
             score -= 6.0;
             reasons.push("query:weak".into());
         }
+    }
+
+    let (profile_boost, profile_reason) = profile_title_boost(title);
+    score += profile_boost;
+    if let Some(reason) = profile_reason {
+        reasons.push(reason);
     }
 
     (score, reasons, texas, terafab)

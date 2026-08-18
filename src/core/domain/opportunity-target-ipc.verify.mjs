@@ -3,9 +3,14 @@
 // Imports would be ideal, but to be runnable in plain node we embed the pure fns (they are tiny and pure).
 // This replaces the old sim_hydrate_obs theater.
 
-function cvSummaryForIpc(trimmed) {
+function cvSummaryForIpc(trimmed, options) {
   const t = (trimmed || '').trim();
   if (!t) return undefined;
+  const isDistilledDefaultOnly =
+    options?.distilledDefault != null &&
+    options?.userEdited !== true &&
+    t === options.distilledDefault.trim();
+  if (isDistilledDefaultOnly) return undefined;
   return t;
 }
 
@@ -72,6 +77,13 @@ if (a !== undefined) { console.error('FAIL empty->undefined'); passed=false; } e
 
 const b = cvSummaryForIpc('  foo bar  ');
 if (b !== 'foo bar') { console.error('FAIL explicit'); passed=false; } else { console.log('PASS explicit preserved'); }
+
+const DEFAULT = 'PROFILE\nDistilled default packet for tests.';
+const c = cvSummaryForIpc(DEFAULT, { distilledDefault: DEFAULT, userEdited: false });
+if (c !== undefined) { console.error('FAIL default without edit -> undefined'); passed=false; } else { console.log('PASS default without edit -> undefined'); }
+
+const d = cvSummaryForIpc(DEFAULT, { distilledDefault: DEFAULT, userEdited: true });
+if (d !== DEFAULT) { console.error('FAIL user edited default preserved'); passed=false; } else { console.log('PASS user edited default preserved'); }
 
 // hydrate fixture (shape from DB roundtrip with meta embedded)
 const fixture = {

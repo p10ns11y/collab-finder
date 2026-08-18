@@ -4,7 +4,7 @@ import { requireConnection, validateBearerDraft } from '../security/credentials-
 import type { Cmd } from '../mvu/engine'
 import type { FinderMsg } from './msg'
 import type { FinderModel, PersistedSession } from './model'
-import { CV_LS_KEY, PASTED_JD_SESSION_MAX_CHARS, SESSION_LS_KEY } from './model'
+import { CV_LS_KEY, CV_USER_EDITED_LS_KEY, PASTED_JD_SESSION_MAX_CHARS, SESSION_LS_KEY } from './model'
 import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-adapter'
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
@@ -726,6 +726,10 @@ export function missionFirmsSearchCmd(
         return
       }
       dispatch({ type: 'MissionFirmsSearchSucceeded', leads: result.value })
+      persistSessionToLocal({
+        missionFirmsQ: model.missionFirmsQ,
+        missionFirmsSelected: model.missionFirmsSelected,
+      })
       dispatch({ type: 'HistoryRefreshRequested' })
     })
   }
@@ -873,7 +877,7 @@ export function opportunityTargetAnalyzeCmd(
       payload.url != null && payload.url.trim()
         ? normalizeOpportunityUrl(payload.url.trim())
         : null
-    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
+    const cvForIpc = cvSummaryForAnalyzeIpc(model)
     const pastedJd =
       usableOpportunityJdText(payload.pasted_jd) ??
       usableOpportunityJdText(model.opportunityTargetPastedJd) ??
@@ -948,7 +952,7 @@ export function opportunityTargetPrepCmd(
       }
     }
 
-    const cvForIpc = cvSummaryForIpc(model.cvSummary.trim())
+    const cvForIpc = cvSummaryForAnalyzeIpc(model)
     const p = {
       opportunity_id: payload.opportunity_id,
       url: payload.url ? normalizeOpportunityUrl(payload.url) ?? undefined : undefined,
@@ -1104,6 +1108,21 @@ export function logUiEventCmd(
 // Migration note for future cv-promote-guard: treat LS as cache; on load prefer sidecar if present + reconcile;
 // on promote: sidecar-first + diff + explicit user confirm (never auto-mutate external).
 
+function cvUserEditedForIpc(): boolean {
+  try {
+    return localStorage.getItem(CV_USER_EDITED_LS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function cvSummaryForAnalyzeIpc(model: FinderModel): string | undefined {
+  return cvSummaryForIpc(model.cvSummary.trim(), {
+    distilledDefault: DEFAULT_CV_SUMMARY,
+    userEdited: cvUserEditedForIpc(),
+  })
+}
+
 function readPersistedCv(): string | null {
   try {
     return localStorage.getItem(CV_LS_KEY)
@@ -1172,6 +1191,7 @@ export function resetCvToDefaultCmd(): Cmd<FinderMsg> {
   return (dispatch) => {
     try {
       localStorage.setItem(CV_LS_KEY, DEFAULT_CV_SUMMARY)
+      localStorage.removeItem(CV_USER_EDITED_LS_KEY)
     } catch {
       console.warn('[finder] resetCvToDefault: localStorage write failed')
     }
@@ -1373,7 +1393,7 @@ export function effectForMsg(
       return missionLeadInspectCmd(ports, msg.lead)
     case 'MissionFirmsSearchRequested':
       return missionFirmsSearchCmd(ports, model, {
-        forceRefresh: msg.forceRefresh !== false,
+        forceRefresh: msg.forceRefresh === true,
       })
     case 'MissionFirmsImportRequested':
       return missionFirmsImportCmd(ports, msg.lead)
@@ -1414,6 +1434,11 @@ export function effectForMsg(
     // CV persist side-effect (localStorage cache). Triggered on every edit.
     case 'CvSummaryChanged':
       return (/*dispatch*/) => {
+        try {
+          localStorage.setItem(CV_USER_EDITED_LS_KEY, '1')
+        } catch {
+          /* ignore */
+        }
         persistCvToLocal(model.cvSummary)
       }
 
