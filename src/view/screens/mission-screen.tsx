@@ -300,6 +300,28 @@ function DurabilityStrip({
           <li>{it.procedure.split}</li>
         </ol>
       ) : null}
+      {it.places?.critic?.[0] ? (
+        <p className="ui-meta">{it.places.critic[0]}</p>
+      ) : null}
+      {it.places?.top10?.length ? (
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium text-ink-faint">Places (life, not visa)</p>
+          <ol className="space-y-1">
+            {it.places.top10.map((p, i) => (
+              <li key={p.place_id} className="rounded-md border border-border-subtle/70 px-2 py-1">
+                <span className="text-xs text-ink">
+                  {i + 1}. {p.name}
+                  <span className="ml-1 text-ink-faint">
+                    {p.env_total} · social {p.social} · family {p.family} · legal {p.legal_ease}
+                  </span>
+                </span>
+                <p className="ui-meta">{p.why}</p>
+                <p className="ui-meta">{p.cost}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
       <ol className="space-y-1">
         {top.map((row, i) => {
           const open = openId === row.firm_id

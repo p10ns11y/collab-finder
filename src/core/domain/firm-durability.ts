@@ -23,6 +23,9 @@ export type DurableFirm = {
   total: number
   quality: number
   geo_bonus: number
+  env_bonus?: number
+  legal_ease?: number
+  place_id?: string
   exclude_reason?: string | null
   product_class: string
   depth_geo: string
@@ -48,7 +51,30 @@ export type DurabilityIteration = {
   width: DurableFirm[]
   excluded: DurableFirm[]
   procedure?: SearchProcedure
+  places?: {
+    algorithm_version: string
+    critic: string[]
+    top10: RankedPlace[]
+  }
   store: string
+}
+
+export type RankedPlace = {
+  place_id: string
+  name: string
+  country: string
+  band: string
+  env_total: number
+  env_bonus: number
+  legal_ease: number
+  economic: number
+  ethics: number
+  character: number
+  social: number
+  family: number
+  self_fit: number
+  why: string
+  cost: string
 }
 
 export type MissionInspectResult = {

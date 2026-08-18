@@ -39,6 +39,7 @@ impl DepthGeo {
         )
     }
 
+    #[allow(dead_code)]
     pub fn bonus(self) -> i32 {
         match self {
             DepthGeo::Sweden => 16,
@@ -117,6 +118,9 @@ pub struct RankedFirm {
     pub total: i32,
     pub quality: i32,
     pub geo_bonus: i32,
+    pub env_bonus: i32,
+    pub legal_ease: i32,
+    pub place_id: String,
     pub exclude_reason: Option<String>,
     pub product_class: String,
     pub depth_geo: DepthGeo,
@@ -143,6 +147,7 @@ pub struct IterationResult {
     pub width: Vec<RankedFirm>,
     pub excluded: Vec<RankedFirm>,
     pub procedure: SearchProcedure,
+    pub places: crate::environment::EnvironmentBoard,
     pub store: String,
 }
 
@@ -153,6 +158,9 @@ struct Scored<'a> {
     exclude_reason: Option<&'static str>,
     quality: i32,
     geo_bonus: i32,
+    env_bonus: i32,
+    legal_ease: i32,
+    place_id: String,
     total: i32,
 }
 
@@ -161,7 +169,10 @@ fn clamp_axis(v: u8) -> i32 {
 }
 
 fn score_one(firm: &FirmRecord) -> Scored<'_> {
-    let geo_bonus = firm.depth_geo.bonus();
+    let (env_bonus, legal_ease, place_id) =
+        crate::environment::bonuses_for(&firm.id, firm.depth_geo);
+    // Citizenship work-right is a cash-path option, not a life-quality medal.
+    let geo_bonus = env_bonus + legal_ease;
     let quality = 8 * clamp_axis(firm.spacexai_vector)
         + 7 * clamp_axis(firm.fortress)
         + 6 * clamp_axis(firm.ai_tsunami)
@@ -186,6 +197,9 @@ fn score_one(firm: &FirmRecord) -> Scored<'_> {
         exclude_reason,
         quality,
         geo_bonus,
+        env_bonus,
+        legal_ease,
+        place_id,
         total: quality + geo_bonus,
     }
 }
@@ -239,7 +253,7 @@ pub fn search_procedure() -> SearchProcedure {
         steps: vec![
             "Load public-IR universe (no apply state)".into(),
             "Hard-gate: theatre SaaS, fortress<2, moat<2, hiring=0".into(),
-            "Score quality + geo (Sweden first, then Nordics/EU, then US/JP/SG)".into(),
+            "Score firm quality; add place env_bonus + legal_ease (citizenship ≠ best life)".into(),
             "Take 7 depth + 3 width (SpaceXAI held in width if still live)".into(),
             "Persist wave; next wave excludes those ids".into(),
         ],
@@ -417,6 +431,9 @@ fn to_ranked(s: &Scored<'_>) -> RankedFirm {
         total: s.total,
         quality: s.quality,
         geo_bonus: s.geo_bonus,
+        env_bonus: s.env_bonus,
+        legal_ease: s.legal_ease,
+        place_id: s.place_id.clone(),
         exclude_reason: s.exclude_reason.map(str::to_string),
         product_class: s.firm.product_class.clone(),
         depth_geo: s.firm.depth_geo,
@@ -524,6 +541,7 @@ pub fn run_wave(exclude: &[String], wave: u32) -> IterationResult {
         width: width.iter().map(to_ranked).collect(),
         excluded: gated,
         procedure: search_procedure(),
+        places: crate::environment::board(),
         store: "sqlite+json — not neo4j".into(),
     }
 }
@@ -634,5 +652,12 @@ mod tests {
             "Rust embedded autonomy",
         );
         assert!(role.score >= 36);
+    }
+
+    #[test]
+    fn place_board_is_embedded() {
+        let it = run_iteration();
+        assert_eq!(it.places.top10[0].place_id, "nl_eindhoven");
+        assert!(it.places.critic.iter().any(|c| c.contains("Sweden-first")));
     }
 }

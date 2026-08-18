@@ -39,6 +39,14 @@ total   = quality + geo
 - Estonia is a **work-location** preference, not a source of fortress industrials. Iteration v1 admits none there.
 - Live apply / intro state never enters this folder.
 
+## Places (environment board)
+
+Country lists lie. `environments.v1.json` scores **cities**: economic, ethics, character, social (friends/extrovert/network), family, self-fit. **Legal ease** (Swedish citizen can work) is a separate number and is not “best life.”
+
+Sweden-first stays a cash-path option. Stockholm is not #1 on the life board (Eindhoven is). Tallinn does not make the place top 10.
+
+Firm score now: `quality + env_bonus + legal_ease`.
+
 ## Repeatable waves
 
 Same procedure, next 10 = exclude prior admitted ids (`Next 10` in Mission).

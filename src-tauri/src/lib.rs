@@ -2,6 +2,7 @@ mod app_dirs;
 mod commands;
 mod db;
 mod finder_reactor;
+mod environment;
 mod firm_durability;
 mod hire_board;
 mod mission_firms;
