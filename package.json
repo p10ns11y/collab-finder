@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "verify": "node scripts/run-verify.mjs",
+    "gate": "bash scripts/gate.sh",
+    "complexity": "bash scripts/ci-complexity.sh",
     "install:local": "tauri build --no-bundle && install -m 755 src-tauri/target/release/collab-finder \"$HOME/.local/bin/kanithanj.ai\""
   },
   "devDependencies": {

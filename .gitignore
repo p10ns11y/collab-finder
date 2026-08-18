@@ -26,6 +26,18 @@ data/crtitical_path.pdf
 data/crtitical_path_prep.pdf
 data/distillation/public-projects-full.json
 
+# Operator identity pack — local only (universe, places, CV, constraints). Seed via scripts/seed-operator-config.sh
+data/operator/
+
+# Rust test fixtures copied from operator pack (local; regenerate via seed script)
+src-tauri/testdata/
+
+# Local CRAP / complexity CI artifacts
+.ci-venv-lizard/
+lizard-rust.xml
+crap-report.md
+src-tauri/llvm-cov-summary.json
+
 # Local scratch / screenshots
 .tmp/
 
