@@ -7,6 +7,7 @@ App ≔ Tauri desktop · Rust backend · React shell · xAI + X opportunity reac
 Autonomy ≔ self-guards · pauses · explicit approval gates
 SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md  // next_action before code
 Vocab ≔ opportunity · reactor · guard · pack  // ¬ global Thepulimaangani poem/metre naming
+Names ≔ architecture-synthesis (canonical fusion) · fusion-sage (legacy alias; both dirs in repo) · context-ignite (workflow chain, not a rename)
 
 VerifySoT:
   TS/TSX        → pnpm type-check     // tsc -b

@@ -6,6 +6,7 @@
 Playbook ≔ skills index · wiring · sync · conventions
 SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md
 Lock ≔ skills-lock.json  // p10ns11y/skills pinned hashes
+Names ≔ architecture-synthesis (canonical fusion) · fusion-sage (legacy alias; both in repo) · context-ignite (workflow, not a rename)
 ```
 
 ## Skills sync
@@ -33,6 +34,7 @@ Catalog: [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills). Ove
 |-------|------|
 | `ai-optimization` | large context · prune |
 | `architecture-synthesis` | **ignite** / architecture · surplus |
+| `fusion-sage` | legacy alias → same procedure as `architecture-synthesis` |
 | `finder-reactor` | autonomous cycle · guards |
 | `x-agent-resources` | X search · MCP |
 | `cv-promote-guard` | sidecar · preview |

@@ -14,7 +14,7 @@ Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body
 
 ## How agents discover skills
 
-- **Grok Build / this environment**: Read root `AGENTS.md`; load `SKILL.md` on match to `description`. Use `spawn_subagent`, subagent-delegation, fusion-sage for orchestration.
+- **Grok Build / this environment**: Read root `AGENTS.md`; load `SKILL.md` on match to `description`. Use `spawn_subagent`, subagent-delegation, `architecture-synthesis` for surplus (legacy alias: `fusion-sage`; both skill dirs ship in-repo).
 - **Cursor**: Recreate local symlinks under `.cursor/` (see below). **Do not commit `.cursor/`** — Git rejects many symlink layouts (`pathspec … beyond a symbolic link`); canonical sources live here in `.agents/`.
 - **Other agents**: Explicit paths or project rules.
 - **The collab-finder app itself**: Exposes finder capabilities as MCP tools + publishes its own root `SKILL.md` (so external agents can call "search X opportunities with my profile + CV", "generate prep pack with guards", etc.).
@@ -63,7 +63,7 @@ Relevant rules in `.agents/rules/` today:
 - `dev-loop.mdc` (alwaysApply: true) — read → grep → edit → AGENTS.md verify; commit only when asked.
 - `agent-workflow.mdc` (alwaysApply: true) — triage; verify table is in root `AGENTS.md`.
 - `secrets-agent-safety.mdc` (alwaysApply: true) — never dump X/xAI secrets via secret-tool or cat.
-- `fusion-sage.mdc` (alwaysApply: false) — load on "ignite" / "use fusion".
+- `fusion-sage.mdc` (alwaysApply: false) — router for `architecture-synthesis`; load on "ignite" / "use fusion". `context-ignite` is a **workflow** (fission → synthesis), not a skill rename.
 - `finder-reactor.mdc` / `tauri-agentic.mdc` — glob-scoped domain rules.
 - `control-graph.mdc` (alwaysApply: false) — structured loops; legacy trigger "looper".
 
@@ -109,6 +109,6 @@ This scaffolding (fusion + fission + X primitives + self-guards + MCP/skill) is 
 - Briefs + verify for safety on high-value features (the autonomous loop).
 - The app under development is also the tool that accelerates future dev (agents use the finder to find collabs for the project itself, or prep materials).
 
-Run agents with "use fusion" for the big reactor design; fission for tight Rust/TS loops.
+Run agents with "use fusion" / **ignite** → `architecture-synthesis` for reactor design; fission (`ai-optimization`) for tight Rust/TS loops. Cold huge repo: `context-ignite` workflow chain.
 
 See root `AGENTS.md` for full workflow, surplus format, and activation.
