@@ -1,23 +1,15 @@
 # `.cursor/rules` — Context Sage Edition (fission-only fallback)
 
-**devprofile:** use [`.agents/rules/fusion-sage.mdc`](.agents/rules/fusion-sage.mdc) as the primary router (`alwaysApply: true`). Copy this template only for fission-only mode.
+Copy to **`.cursor/rules/ai-optimization.mdc`** (`alwaysApply: false`). For fission + fusion together, also install [fusion-sage](../../fusion-sage/SKILL.md) and optionally set a fusion router rule with `alwaysApply: true`.
 
-Copy to **`.cursor/rules/ai-optimization.mdc`** (`alwaysApply: false`).
-
-In repos that keep portable rules under `.agents/rules/`, mirror the same file there and symlink into Cursor:
+In repos that keep portable rules under `.agents/rules/`, mirror and symlink:
 
 ```bash
-mkdir -p .cursor/rules .agents/rules
-cp .agents/skills/ai-optimization/assets/cursorrules-template.md .agents/rules/ai-optimization.mdc
-# Set alwaysApply: false in frontmatter; edit project-specific Language Defaults, then:
-ln -sf ../../.agents/rules/ai-optimization.mdc .cursor/rules/ai-optimization.mdc
-ln -sf ../../.agents/rules/fusion-sage.mdc .cursor/rules/fusion-sage.mdc
-```
-
-Load skills in Cursor:
-```bash
-ln -sf ../../.agents/skills/ai-optimization .cursor/skills/ai-optimization
-ln -sf ../../.agents/skills/fusion-sage .cursor/skills/fusion-sage
+mkdir -p .cursor/rules .cursor/skills
+cp ai-optimization/assets/cursorrules-template.md .cursor/rules/ai-optimization.mdc
+# Edit Language Defaults + project overlay path, then:
+ln -sf ../../path/to/skills/ai-optimization .cursor/skills/ai-optimization
+ln -sf ../../path/to/skills/fusion-sage .cursor/skills/fusion-sage
 ```
 
 ---
@@ -66,4 +58,4 @@ This used ~Xk tokens. Expand any symbol with "expand <name>".
 ```
 ```
 
-**Project overlay:** add a TypeScript bullet pointing at your repo's `references/*-typescript.md` (see devprofile example in `.agents/rules/ai-optimization.mdc`).
+**Project overlay:** add a TypeScript bullet pointing at your repo's overlay or [examples/overlays/nextjs-portfolio-typescript.md](../../examples/overlays/nextjs-portfolio-typescript.md).

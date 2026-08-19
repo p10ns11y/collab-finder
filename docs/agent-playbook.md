@@ -1,67 +1,66 @@
 # Agent playbook — collab-finder
 
-> **Load rule:** On-demand only — not sticky. Formal router: [AGENTS.md](../AGENTS.md). Kernel dialect: [~/Work/personal/skills/formal/AppGenMathPhyLang.kernel.md](~/Work/personal/skills/formal/AppGenMathPhyLang.kernel.md).
+> **Load rule:** On-demand only. **Session context stack:** [agent-session-context.md](./agent-session-context.md). Router: [AGENTS.md](../AGENTS.md).
 
 ```text
-Playbook ≔ skills index · wiring · conventions · testing
+Playbook ≔ skills index · wiring · sync · conventions
 SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md
-Library ≔ ~/Work/personal/skills  // canonical control-plane skills (symlink, don't copy)
+Lock ≔ skills-lock.json  // p10ns11y/skills pinned hashes
 ```
 
-## Life OS
+## Skills sync
 
-Thin card + dated sessions under `Projects/collab-finder/sessions/`. Agents start at `SessionSoT`; record outcome on session end.
+| Path | When |
+|------|------|
+| `npx skills experimental_install` | cold clone / teammate / CI — restore lock |
+| `./scripts/sync-agent-skills.sh --lock` | refresh lock after library bump |
+| `./scripts/sync-agent-skills.sh --pull` | local dev symlinks from `~/Work/personal/skills` |
+| `./scripts/sync-agent-skills.sh --verify` | lock + pack wiring check |
 
-## Skills (fission + fusion)
+Catalog: [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills). Overlays: `.agents/overlays/` (not in lock).
+
+## Locked portable pack (see skills-lock.json)
+
+`agent-orchestrator` · `control-graph` · `looper` (redirect) · `ai-optimization` · `architecture-synthesis` · `fusion-sage` (alias) · `finder-reactor` · `tauri-agentic` · `git-worktrees` · `concurrent-cli-agents` · `split-to-prs` · `fix-dependency-security` · `subagent-delegation` · `react-client-expert`
+
+## Project-born (git only, not in lock)
+
+`cv-promote-guard` · `tauri-ipc-debug` · `x-agent-resources` · `agentic-reactor` · CV pack / explore skills · `.agents/workflows/`
+
+## Skills (when to load)
 
 | Skill | When |
 |-------|------|
-| `ai-optimization` | large context · prompts · prune |
-| `fusion-sage` | **ignite** / **use fusion** only — synthesis · surplus |
+| `ai-optimization` | large context · prune |
+| `architecture-synthesis` | **ignite** / architecture · surplus |
 | `finder-reactor` | autonomous cycle · guards |
-| `x-agent-resources` | X search · MCP · xurl |
-| `cv-promote-guard` | sidecar · preview · confirm |
+| `x-agent-resources` | X search · MCP |
+| `cv-promote-guard` | sidecar · preview |
 | `tauri-agentic` · `tauri-ipc-debug` | shell · IPC |
-| `agent-orchestrator` | multi-worker · briefs |
-| `control-graph` | outer SM · inner DAG · HITL · routing (legacy name: looper) |
-| `git-worktrees` · `concurrent-cli-agents` | parallel slices |
-| `fix-dependency-security` · `split-to-prs` | deps · PR chunks |
+| `agent-orchestrator` | multi-worker |
+| `control-graph` | outer SM · HITL · routing |
+| `context-ignite` | **workflow** (library): fission → synthesis on cold repo |
 
-Refresh X snapshots: `./.agents/x-resources/refresh.sh`. Upstream wins when stale.
+Verify overlay for locked skills: [.agents/overlays/collab-finder-verify.md](../.agents/overlays/collab-finder-verify.md).
 
 ## Cursor wiring
 
 ```bash
 ln -sfn ../.agents/rules .cursor/rules
-ln -sfn ../.agents/skills .cursor/skills   # or per-skill symlinks
+ln -sfn ../.agents/skills .cursor/skills
 ln -sfn ../../.agents/commands/*.md .cursor/commands/
 ```
 
-Always-on rules: `dev-loop`, `agent-workflow`, `secrets-agent-safety`. Domain: globs (`finder-reactor`, `tauri-agentic`). `fusion-sage.mdc`: requestable.
-
-**Library symlinks (preferred for control-plane):**
-
-```bash
-SKILLS=~/Work/personal/skills
-ln -sfn "$SKILLS/control-graph" .agents/skills/control-graph
-ln -sfn "$SKILLS/agent-orchestrator" .agents/skills/agent-orchestrator  # if no project overlay
-```
-
-Pack pull: `~/Work/personal/skills/master-planner/scripts/pull-skills.sh --project . --pack agentic-desktop`
+Always-on: `dev-loop`, `agent-workflow`, `secrets-agent-safety`.
 
 ## Conventions
 
-- Verify: [AGENTS.md](../AGENTS.md) `VerifySoT` — **no** `pnpm lint` / `pnpm precommit`
-- React: `react-client-expert` · minimal state · desktop webview
-- Agentic code: guard + pause + structured decide output (serde/zod)
-- CV promote: never mutate external repo without user
-- Integrate worktrees via merge — never `cp`
-- Slash: `/session-start` · `/gate` · `/eva` when map is thin
+- Verify: [AGENTS.md](../AGENTS.md) VerifySoT — **no** `pnpm lint` / `pnpm precommit`
+- Slash: `/session-start` · `/gate` · `/eva`
+- Integrate via merge — never `cp`
 
 ## Testing
 
 ```text
 pnpm type-check · pnpm verify · cargo test · pnpm gate
 ```
-
-Dogfood; intervene only on real guard pauses.

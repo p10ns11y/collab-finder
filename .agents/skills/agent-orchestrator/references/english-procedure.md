@@ -21,7 +21,7 @@ Load **only if** [../SKILL.md](../SKILL.md) formal tables leave a step ambiguous
 | Spike | unknown root cause / library / arch | ≤1–2 files or readonly + recommendation |
 | Foundation | shared types/utils others need | merge before dependents |
 | Feature | clear acceptance | full brief + verify |
-| Hygiene | docs, rename | separate; never mix with risky spike |
+| Hygiene | docs, lint, rename | separate; never mix with risky spike |
 
 Concurrent workers only if **independent** paths ([concurrent-cli-agents](../../concurrent-cli-agents/SKILL.md)).
 
@@ -55,4 +55,4 @@ Multi-session plans → many reviewed PRs → user-managed Graphite stack:
 
 ## Verify fail path
 
-Write a **fix brief** with only the gap (e.g. "type-check line 42", "missing test"). Same workspace when possible. Do not re-run the whole feature from scratch.
+Write a **fix brief** with only the gap (e.g. "lint line 42", "missing Suspense"). Same workspace when possible. Do not re-run the whole feature from scratch.

@@ -1,4 +1,4 @@
-# Fusion Surplus Examples — Real Before/After Q Calculations
+# Synthesis Surplus Examples — Real Before/After Q Calculations
 
 All examples use realistic token counts from actual AI coding sessions (measured with Claude 3.5 / GPT-4o / Grok).
 
@@ -14,12 +14,12 @@ All examples use realistic token counts from actual AI coding sessions (measured
 - Total cost: **20,500 tokens**
 - Result: 4 separate files updated, 3 new hooks, 2 new API routes. No higher abstraction created.
 
-### Fusion Sage Approach
+### Architecture Synthesis Approach
 - Input tokens: 9,200 (Fusion Pass merged User + Auth + Email domains first)
 - Output tokens: 1,400
-- **Fusion Surplus generated**:
+- **Synthesis Surplus generated**:
   ```
-  ⚡ Fusion Surplus (Q ≈ 1.8)
+  ⚡ Synthesis Surplus (Q ≈ 1.8)
   Created `AuthReactor` abstraction (state machine + event sourcing).
   This single abstraction will save ~1,200 tokens on every future auth-related query.
   Estimated 47 future queries in next 30 days → **56,400 tokens saved**.
@@ -39,12 +39,12 @@ All examples use realistic token counts from actual AI coding sessions (measured
 - Output: 4,800 tokens
 - Result: Clean but still scattered across 6 files. No unified interface.
 
-### Fusion Sage
+### Architecture Synthesis
 - Input: 14,800 tokens (fused `ModelFamily` + `ExperimentTracker` first)
 - Output: 2,100 tokens
-- **Fusion Surplus**:
+- **Synthesis Surplus**:
   ```
-  ⚡ Fusion Surplus (Q ≈ 2.1)
+  ⚡ Synthesis Surplus (Q ≈ 2.1)
   Introduced `BaseModelReactor` + `ExperimentRegistry`.
   Future model additions will cost ~65% less.
   Also auto-detected that `WandbLogger` + `MLflowTracker` should be fused into single `UnifiedTracker`.
@@ -62,12 +62,12 @@ All examples use realistic token counts from actual AI coding sessions (measured
 - Output: 3,400 tokens
 - Result: 3 new modules, duplicated error handling, no shared events.
 
-### Fusion Sage
+### Architecture Synthesis
 - Input: 11,400 tokens
 - Output: 1,900 tokens
-- **Fusion Surplus**:
+- **Synthesis Surplus**:
   ```
-  ⚡ Fusion Surplus (Q ≈ 1.6)
+  ⚡ Synthesis Surplus (Q ≈ 1.6)
   Fused User + Inventory + Order into `CommerceDomain` with shared `DomainEventBus`.
   Zero-cost abstraction using Rust's type system.
   Future features (payments, shipping, refunds) will inherit the reactor for free.
@@ -85,12 +85,12 @@ All examples use realistic token counts from actual AI coding sessions (measured
 - Fix `LaunchOptions` import (wrong export)
 - Throw at config load breaks Playwright extension
 
-### Fusion Sage
+### Architecture Synthesis
 - Read 3 files: `playwright.brave.ts`, `playwright.config.ts`, `global-setup.ts` (~1.2k tokens)
 - Fused **BraveE2eReactor**: IDE-safe launch + runtime assert + correct `PlaywrightTestConfig` type
-- **Fusion Surplus (Q ≈ 1.4)**:
+- **Synthesis Surplus (Q ≈ 1.4)**:
   ```
-  Seed fusion-state.json with brave-e2e-reactor node.
+  Seed synthesis-state.json with brave-e2e-reactor node.
   Stops repeated LaunchOptions / config-load throw loops (~100k tokens/session in containers without Brave).
   ```
 

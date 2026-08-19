@@ -8,16 +8,18 @@ description: >-
 
 # looper → control-graph
 
-**Renamed to [`control-graph`](../control-graph/SKILL.md).**
+**This skill was renamed to [`control-graph`](../control-graph/SKILL.md).**
 
 ```text
-looper        ≔ legacy name
-control-graph ≔ Outer(SM | loop) + Inner(DAG | nested loop) + Budget + HITL
-Library       ≔ ~/Work/personal/skills/control-graph
+looper  ≔  legacy name
+control-graph  ≔  Outer(state machine | loop) + Inner(DAG | nested loop)
 ```
 
 1. Load **[../control-graph/SKILL.md](../control-graph/SKILL.md)** (formal SoT).  
-2. English: `control-graph/references/english-procedure.md` **only if** formal ambiguous.  
-3. Card: `control-graph/references/control-card.md`.  
-4. Rule: [../../rules/control-graph.mdc](../../rules/control-graph.mdc).  
-5. Validate: `node control-graph/scripts/validate-skill.mjs`
+2. Optional English: [../control-graph/references/english-procedure.md](../control-graph/references/english-procedure.md) only if formal is ambiguous.  
+3. Control Card: [../control-graph/references/control-card.md](../control-graph/references/control-card.md).  
+4. Cursor rule: [../rules/control-graph.mdc](../rules/control-graph.mdc).  
+5. CLT pre-filter (always-on when installed): [../rules/clt-dual-load.mdc](../rules/clt-dual-load.mdc).  
+6. Validate: `node control-graph/scripts/validate-skill.mjs`
+
+Update symlinks: `~/.cursor/skills/looper` → repoint or replace with `control-graph`.

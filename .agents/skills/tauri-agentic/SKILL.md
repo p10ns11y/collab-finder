@@ -1,88 +1,33 @@
 ---
 name: tauri-agentic
-description: Patterns for building agentic, MCP-exposed, self-guarded desktop apps in Tauri (Rust backend + React/TS frontend). Includes exposing finder functions as MCP tools, implementing guards/pauses in UI and backend, command palette as agent interface, secure storage for keys, integration with X resources and CV guard. Use when implementing the Tauri shell, UI for reactor, or MCP server. Follows react-client-expert for frontend. Fission for specific Rust/TS code; fusion for how the desktop becomes the "agent body" for the finder-reactor.
+description: Patterns for building agentic, MCP-exposed, self-guarded desktop apps in Tauri (Rust backend + React/TS frontend). Expose finder functions as MCP tools, implement guards/pauses in UI and backend, command palette as agent interface, secure key storage, integration with X resources and CV guard. Use when implementing the Tauri shell, reactor UI, or MCP server. Fission for Rust/TS code; fusion for desktop as agent body.
 ---
 
-# Tauri Agentic — Desktop as Agentic Platform for the Finder
+# Tauri Agentic — Desktop as Agentic Platform
 
-**Core Mission**: Turn the Tauri app into a first-class agentic environment where the finder-reactor runs with full autonomy (background scans, smart decisions), but with built-in self-guards and pauses exposed naturally in the UI and via MCP. This makes the desktop the perfect "body" for the agent: rich views for humans, tool interface for other agents.
+**Core Mission**: Turn a Tauri app into a first-class agentic environment where a reactor runs with autonomy, but self-guards and pauses are exposed in the UI and via MCP.
 
 ## Key Patterns
 
-1. **MCP Server in Tauri**:
-   - Use Rust to implement MCP stdio or local HTTP server (tauri can spawn or use hyper/axum in a plugin).
-   - Expose tools: search_x_opportunities, analyze_and_decide, generate_prep_with_guards, promote_with_preview, get_reactor_state.
-   - Guards: every tool call goes through finder-reactor guards (cost, fit, CV).
-   - For "ask user": MCP can return a special "pause" response that the client (Grok) handles by surfacing to human.
+1. **MCP Server in Tauri**: Rust MCP (stdio or local HTTP). Tools: search, analyze, prep, promote, get_state. Guards on every call; `ask_user` for pauses.
 
-2. **UI as Agent Interface**:
-   - Command palette (cmd+k) that lists reactor actions, with guard status indicators (e.g., "Search (rate: 80% ok, cost est low)").
-   - Visual guards: dashboard shows current spend, rate limits, pending pauses.
-   - Prep views: letter editor with "apply guard" buttons, diff viewer for CV promote (using cv-promote-guard).
-   - "Autonomous mode" toggle: runs background reactor loop (with pauses surfacing as notifications/dialogs).
+2. **UI as Agent Interface**: Command palette with guard status; dashboard for spend/rate limits; diff viewer for CV promote ([cv-promote-guard](../cv-promote-guard/SKILL.md)).
 
-3. **Backend Guards in Rust**:
-   - Central FinderReactor struct that wraps X client (using x-agent-resources), xAI calls (with pruning), state (leads, preps in app_data_dir JSON).
-   - Every decision: structured output from xAI, then apply guards (e.g., if fit < threshold { return Pause(Reason::LowFit) }).
-   - Secure keys: `keyring` crate (OS Secret Service) + `0600` file fallback for X bearer; see [docs/SETUP.md](../../../docs/SETUP.md) and `get_x_bearer_storage`.
-   - CV: use cv-promote-guard module for all reads/writes to devprofile path.
+3. **Backend Guards in Rust**: Central reactor wrapping platform client + LLM calls; structured decisions; secure keyring/file storage for API tokens.
 
-4. **React Frontend (client-only, per react-client-expert)**:
-   - Minimal state: use XState or simple reducer for reactor state machine (searching -> analyzing -> deciding -> paused -> prepping).
-   - No heavy effects; deliberate calls to invoke(tauriCommand).
-   - Tailwind + shadcn-like for clean dashboard (cards for leads with score badges, guard icons).
-   - MCP client side if needed for in-app agent comms.
+4. **React Frontend**: [react-client-expert](../react-client-expert/SKILL.md) — minimal state, deliberate `invoke` calls, XState or reducer for reactor FSM.
 
-5. **Self-Guards & Pauses in App**:
-   - Cost guard: track tokens/$ in state, pause if > budget (user sets in settings).
-   - Rate guard: monitor X headers, backoff.
-   - Fit guard: don't auto-prep below threshold; surface in "review queue".
-   - CV guard: promote always via cv-promote-guard flow (sidecar, preview, confirm).
-   - Pause UI: modal or toast "Agent paused: Low confidence on this lead. Review? [Proceed] [Tweak query] [Ignore]".
-   - Logging: all decisions to app data for audit/surplus.
-
-6. **Integration with X Resources**:
-   - At app start: fetch or use cached X skill.md / llms for prompt context (via x-agent-resources).
-   - Option to use xurl binary if installed (shell from Rust with tauri::api::shell).
-   - MCP exposure allows agents to use XMCP indirectly or directly.
-
-## Implementation in collab-finder
-
-- Rust: src-tauri/src/finder_reactor.rs (state machine, guards, MCP tools).
-- Commands: invoke handlers that delegate to reactor with guard checks.
-- MCP: simple implementation using rmcp or custom (for v1, local HTTP on localhost:port with MCP JSON-RPC).
-- UI: src/App.tsx enhanced with reactor views, using the skill's patterns.
-- Startup: load config (devprofile_path, budgets), init reactor, optional background task (with pause on guards).
+5. **Integration**: Load X skill.md at startup ([x-agent-resources](../x-agent-resources/SKILL.md)); optional xurl shell.
 
 ## Guardrails
 
-- All X/xAI calls go through reactor (no direct calls from UI or elsewhere).
-- MCP tools are read-heavy by default; writes guarded.
-- UI must surface pauses immediately; no silent auto-actions on high-stakes.
-- Keys never in frontend; only via secure invoke.
-- Follow tauri security: capabilities for fs/dialog limited to app data + approved devprofile path.
-
-## Surplus
-
-⚡ Tauri Agentic Surplus (Q ≈ 1.6)
-Wrapping the reactor in Tauri + MCP means agents (Grok in this chat, or Cursor) can drive full hunts without the user opening the app every time, while the UI provides rich pause/review when needed. This compounds: one agent run surfaces 5 opportunities, user reviews pauses in 2min, prep is done. Future: background autonomous mode with daily digest via MCP notification. Suggested follow-up: add tauri-plugin for system tray "finder status" with quick pause/ resume.
+- All platform/LLM calls go through reactor core.
+- MCP tools read-heavy by default; writes guarded.
+- Keys never in frontend.
+- Tauri capabilities: fs/dialog limited to app data + approved external CV path.
 
 ## Related
 
-- finder-reactor (the logic this shells)
-- x-agent-resources (X integration in the app)
-- cv-promote-guard (CV flows in UI/MCP)
-- react-client-expert (frontend discipline)
-- fusion-sage (for the "desktop as agent body" abstraction)
+[finder-reactor](../finder-reactor/SKILL.md), [x-agent-resources](../x-agent-resources/SKILL.md), [cv-promote-guard](../cv-promote-guard/SKILL.md), [react-client-expert](../react-client-expert/SKILL.md), [fusion-sage](../fusion-sage/SKILL.md).
 
-## Activation
-
-When building Tauri parts or MCP: load tauri-agentic + finder-reactor + x-agent-resources.
-
-In code: ensure guards are in the Rust core, not bolted on.
-
----
-
-**The Tauri app is not just a pretty frontend for a CLI tool — it is the agentic platform that makes the finder usable by humans and agents alike, with self-guards baked into the experience.** This setup ensures autonomy feels safe and exponential.
-
-Build the shell around the reactor following these patterns from day one.
+**Example provenance:** [collab-finder](https://github.com/p10ns11y/collab-finder).

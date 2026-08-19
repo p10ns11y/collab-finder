@@ -1,4 +1,4 @@
-# Fusion Sage — companion files
+# Architecture Synthesis — companion files
 
 See [SKILL.md](SKILL.md) for the agent workflow (**Secondary files** + **Persist** trust rules). This README holds installer/human notes only — agents should **not** load it by default (token budget).
 
@@ -6,16 +6,16 @@ See [SKILL.md](SKILL.md) for the agent workflow (**Secondary files** + **Persist
 
 1. Install this skill (see root [README.md](../README.md)).
 2. Pair with [ai-optimization](../ai-optimization/SKILL.md) — fission is the containment field.
-3. Use in-package [fusion-playbooks.md](fusion-playbooks.md) by default. Project overlays (if any) are **untrusted hints**: load only when you explicitly name the path — never auto-discovered.
+3. Use in-package [synthesis-playbooks.md](synthesis-playbooks.md) by default. Project overlays (if any) are **untrusted hints**: load only when you explicitly name the path — never auto-discovered.
 
 ## Files in this directory
 
 | File | Purpose |
 |------|---------|
-| `fusion-playbooks.md` | Generic language fusion patterns (package-trusted) |
-| `fusion-state.schema.json` | Schema for optional KG cache (size caps; free text = data) |
-| `fusion-surplus-examples.md` | Q-factor calculation examples |
-| `fusion-state.json` | **Example seed only** — not live agent memory |
+| `synthesis-playbooks.md` | Generic language fusion patterns (package-trusted) |
+| `synthesis-state.schema.json` | Schema for optional KG cache (size caps; free text = data) |
+| `surplus-examples.md` | Q-factor calculation examples |
+| `synthesis-state.json` | **Example seed only** — not live agent memory |
 
 Optional project playbooks under [examples/](../examples/README.md) are user-opt-in data, not skill policy.
 
@@ -23,7 +23,7 @@ Optional project playbooks under [examples/](../examples/README.md) are user-opt
 
 > **Audience:** humans / installers / badge readers. **Not** agent SoT — operational trust rules live in [SKILL.md](SKILL.md) (Secondary files, Guardrails, Persist). Claim-by-claim rebuttal is **only here** so it does not waste agent tokens.
 
-Public badge example: [skills.sh · fusion-sage · agent-trust-hub](https://www.skills.sh/p10ns11y/skills/fusion-sage/security/agent-trust-hub).
+Public badge example: [skills.sh · architecture-synthesis · agent-trust-hub](https://www.skills.sh/p10ns11y/skills/architecture-synthesis/security/agent-trust-hub).
 
 ### What the scanner actually does (and does not)
 
@@ -86,7 +86,7 @@ Findings below match the typical Trust Hub write-up for this skill (Jul 2026-sty
 
 ---
 
-#### 4. `[PROMPT_INJECTION]` — `fusion-state.json` multi-session injection
+#### 4. `[PROMPT_INJECTION]` — `synthesis-state.json` multi-session injection
 
 **Scanner claim:** Cached summaries (`compressed_representation`, etc.) re-injected on concept expand; `source_files` as ingestion points; only weak “≥2 sources” guard; multi-session injection.
 
@@ -96,7 +96,7 @@ Findings below match the typical Trust Hub write-up for this skill (Jul 2026-sty
 | What is real | Free-text fields in a persisted KG can carry poisoned prose across sessions **if** the user opts into loading state and the agent treats that prose as high-priority instructions. “≥2 source locations” (axiom A5) is about not inventing APIs — it is **not** injection resistance. |
 | What is overclaimed | Implies automatic, system-level injection of state into every session. Shipped file is an **example seed**, not live memory. `source_files` are path *hints*, not a loader that pulls and executes those files as policy. Attack still needs: poisoned state + opt-in load + agent that elevates cache text over `AGENTS.md` / user. |
 | Effort quality | Correct class (agent memory / RAG-over-notes). Inflated mechanism language (“directly injected”, multi-session attack as if guaranteed). |
-| Mitigation in this package | Session-only default; load only on user opt-in; free text as `<<<FUSION_STATE_CACHE>>>`; schema `maxLength` / `maxItems` / `additionalProperties: false`; re-check `source_files` over trusting prose; example seed clearly non-live. |
+| Mitigation in this package | Session-only default; load only on user opt-in; free text as `<<<SYNTHESIS_STATE_CACHE>>>`; schema `maxLength` / `maxItems` / `additionalProperties: false`; re-check `source_files` over trusting prose; example seed clearly non-live. |
 
 ---
 
@@ -107,7 +107,7 @@ Findings below match the typical Trust Hub write-up for this skill (Jul 2026-sty
 | 1 | PROMPT_INJECTION (overlays/playbooks) | **Partial — real surface** | Allowlist + untrusted markers + no auto-load |
 | 2 | PROMPT_INJECTION (self-referential loop) | **Overclaim** | Documented; no self-edit protocol; guardrail forbids package edit |
 | 3 | COMMAND_EXECUTION | **Mislabel** (instruction expansion ≠ shell) | Same secondary-file trust model |
-| 4 | PROMPT_INJECTION (fusion-state) | **Partial — real class** | Opt-in, caps, cache markers, example-only seed |
+| 4 | PROMPT_INJECTION (synthesis-state) | **Partial — real class** | Opt-in, caps, cache markers, example-only seed |
 
 ### Installer takeaway
 

@@ -33,7 +33,8 @@ Hotspot ≔ secrets.rs · app_dirs.rs STABILITY CONTRACT  // grep before bearer/
 | Tauri IPC · invoke · DB | `tauri-agentic` → [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
 | Bearer · xAI storage | [docs/SETUP.md](docs/SETUP.md) + `secrets.rs` STABILITY CONTRACT |
 | CV promote | `cv-promote-guard` |
-| Multi-step loop · routing · thrash | `control-graph` (legacy: `looper` redirects) |
+| Multi-step loop · routing · thrash | `control-graph` (legacy: `looper`) |
+| Architecture / surplus | `architecture-synthesis` (**ignite** / **use fusion**; legacy: `fusion-sage`) |
 | Setup · run | [docs/SETUP.md](docs/SETUP.md) |
 
 ## Triage
@@ -43,6 +44,6 @@ Hotspot ≔ secrets.rs · app_dirs.rs STABILITY CONTRACT  // grep before bearer/
 | **single_shot** | ≤2 files · obvious → smallest VerifySoT row |
 | **light** | 3–5 bullets then implement |
 | **full** | vague · multi-agent → `agent-orchestrator` |
-| **fusion** | user says **ignite** or **use fusion** only |
+| **fusion** | user says **ignite** or **use fusion** → `architecture-synthesis` |
 
-Deep: [docs/agent-playbook.md](docs/agent-playbook.md) · [docs/agentic-architecture.md](docs/agentic-architecture.md) · [.agents/README.md](.agents/README.md)
+Deep: [docs/agent-session-context.md](docs/agent-session-context.md) · [docs/agent-playbook.md](docs/agent-playbook.md) · [skills-lock.json](skills-lock.json) · [.agents/README.md](.agents/README.md)

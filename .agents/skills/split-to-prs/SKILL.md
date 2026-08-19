@@ -6,6 +6,8 @@ description: >-
 ---
 # Split to PRs
 
+> **CLT:** [../rules/clt-dual-load.mdc](../rules/clt-dual-load.mdc) — plan HITL first (chunked options); after approval, agent may execute split mechanics in parallel where independent.
+
 Turn one pile of work into a few small PRs.
 
 ## Hard rules

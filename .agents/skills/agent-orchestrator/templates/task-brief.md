@@ -22,7 +22,7 @@ Observable results when correct — bullet list. Example:
 
 - [ ] `document-viewer.tsx` loads PDF via `next/dynamic` + Suspense
 - [ ] No module-scope `require("react-pdf")` in parent file
-- [ ] `pnpm type-check` (and `pnpm verify` / `cargo test` per AGENTS.md) pass in worktree
+- [ ] `pnpm type-check` (and `pnpm verify` / `cargo test` per [AGENTS.md](../../../AGENTS.md)) pass in worktree
 
 ## Non-goals
 
@@ -32,8 +32,8 @@ Observable results when correct — bullet list. Example:
 
 ## Standards (read before coding)
 
-- [ ] [`AGENTS.md`](../../../AGENTS.md)
-- [ ] [`.agents/skills/<skill>/SKILL.md`](../../../.agents/skills/) — _list applicable_
+- [ ] Repo agent docs (`AGENTS.md` or README verification section)
+- [ ] Applicable skill `SKILL.md` files — _list paths_
 
 ## Files
 
@@ -47,10 +47,12 @@ Observable results when correct — bullet list. Example:
 cd <worktree-path>
 pnpm install --frozen-lockfile   # if needed
 pnpm type-check
-pnpm verify
-# cd src-tauri && cargo test
-# pnpm gate
+pnpm verify                        # domain machines
+# cd src-tauri && cargo test       # if Rust touched
+# pnpm gate                        # full CI parity
 ```
+
+See [.agents/overlays/collab-finder-verify.md](../../../overlays/collab-finder-verify.md).
 
 ## Worker handback
 

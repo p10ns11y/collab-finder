@@ -1,16 +1,16 @@
 ---
-description: Fusion-sage for architecture, surplus, self-improving agentic design. Load when user says ignite or use fusion.
+description: Architecture synthesis (legacy triggers: fusion, ignite). Load on ignite or use fusion.
 alwaysApply: false
 ---
 
-# fusion-sage (collab-finder)
+# architecture-synthesis (collab-finder)
 
-> **Load rule:** Formal skill: [fusion-sage/SKILL.md](../skills/fusion-sage/SKILL.md). Activate only on **ignite** / **use fusion**.
+> **Load rule:** Formal skill: [architecture-synthesis/SKILL.md](../skills/architecture-synthesis/SKILL.md). Legacy alias: [fusion-sage/SKILL.md](../skills/fusion-sage/SKILL.md). Activate only on **ignite** / **use fusion**.
 
 ```text
-Fusion ≔ synthesis · surplus · higher-order abstractions (FinderReactor, CVPromoteGuard)
-Fission ≔ ai-optimization  // speed · prune
-Ceremony ≔ budget/surplus prefixes  // only when Fusion active
+Fission ≔ ai-optimization
+Fusion  ≔ architecture-synthesis  // surplus Q>1; not sticky ceremony
+Cold repo workflow ≔ context-ignite (ai-optimization → architecture-synthesis)
 ```
 
 Domain pairs: `finder-reactor` · `tauri-agentic` · `x-agent-resources`.

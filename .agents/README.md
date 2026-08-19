@@ -19,6 +19,15 @@ Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body
 - **Other agents**: Explicit paths or project rules.
 - **The collab-finder app itself**: Exposes finder capabilities as MCP tools + publishes its own root `SKILL.md` (so external agents can call "search X opportunities with my profile + CV", "generate prep pack with guards", etc.).
 
+## Agent skills sync
+
+**Catalog:** [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills) · **Lock:** [skills-lock.json](../skills-lock.json)  
+**Restore:** `npx skills experimental_install` · **Refresh:** `./scripts/sync-agent-skills.sh --lock`  
+**Session context stack:** [docs/agent-session-context.md](../docs/agent-session-context.md)  
+**Verify overlay:** [.agents/overlays/collab-finder-verify.md](overlays/collab-finder-verify.md) (locked skills must not use phantom `pnpm lint`)
+
+Portable skills are **locked copies** under `.agents/skills/`. Project-born skills (cv-promote-guard, x-agent-resources, …) stay in git only — not in the lock.
+
 ## Core + Project Skills
 
 See [docs/agent-playbook.md](../docs/agent-playbook.md) for skills index. **Library canonical:** `~/Work/personal/skills` — symlink control-plane skills; do not vendor copies.

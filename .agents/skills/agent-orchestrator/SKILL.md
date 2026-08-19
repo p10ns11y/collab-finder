@@ -10,7 +10,7 @@ description: >-
 # agent-orchestrator
 
 > **Load rule:** Formal SoT below. Expand [references/english-procedure.md](references/english-procedure.md) **only if** a phase or handoff is still ambiguous.  
-> **CLT:** [clt-dual-load](~/Work/personal/skills/rules/clt-dual-load.mdc) — expand `~/Work/personal/skills/control-graph/references/clt-load-balance.md` only if load tradeoff ambiguous.
+> **CLT:** on-the-fly pre-filter [../rules/clt-dual-load.mdc](../rules/clt-dual-load.mdc) (A8 DualLoad) — expand [../control-graph/references/clt-load-balance.md](../control-graph/references/clt-load-balance.md) only if human/agent load tradeoff is ambiguous.
 
 ```text
 // Signature
@@ -107,23 +107,13 @@ read last brief → git log/diff/worktree list → remaining gap (1¶) → "Resu
 
 ---
 
-## Defaults — collab-finder ([AGENTS.md](../../../AGENTS.md))
+## Defaults (override from target `AGENTS.md`)
 
-```text
-VerifySoT:
-  TS/TSX        → pnpm type-check
-  domain TS     → pnpm verify
-  src-tauri/src → cd src-tauri && cargo test
-  CI parity     → pnpm gate
-  deps          → pnpm install --frozen-lockfile; pnpm audit
-  ¬ pnpm lint · ¬ pnpm precommit
-```
-
+- Frozen lockfile when deps change  
+- `type-check` + `lint`  
 - React → [react-client-expert](../react-client-expert/SKILL.md)  
 - Deps → [fix-dependency-security](../fix-dependency-security/SKILL.md)  
-- Minimal diff · no drive-by refactors  
-
-Stack handoff / Graphite: [references/english-procedure.md](references/english-procedure.md#stack-handoff) · [gt-flow](../gt-flow/SKILL.md)
+- Minimal diff  
 
 ---
 
@@ -137,7 +127,20 @@ Stack handoff / Graphite: [references/english-procedure.md](references/english-p
 | `cp` from worktree | merge / cherry-pick |
 | mega-prompt unrelated files | disjoint briefs |
 | re-delegate full scope on resume | gap-only |
-| natural feature name for final stack branch | artificial/`-stack`/plan-id |
+| Orch implements + "verifies" same large feature | separate review |
+| natural feature name for final stack branch | artificial/`-stack`/plan-id (collision risk) |
+
+---
+
+## Stack handoff (execute-plan / Graphite)
+
+```text
+Agent session often ≠ user's authenticated gt shell
+→ leave: pushed linear branch + per-PR branch SHAs + fetch/submit instructions
+→ confirm final branch name with user; never steal plausible feature/* names
+```
+
+Detail: [references/english-procedure.md](references/english-procedure.md#stack-handoff).
 
 ---
 
