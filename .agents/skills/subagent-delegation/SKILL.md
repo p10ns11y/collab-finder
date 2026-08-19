@@ -5,6 +5,8 @@ description: Delegate broad exploration to a subagent with a fixed Return format
 
 # Subagent delegation
 
+> **CLT:** [../rules/clt-dual-load.mdc](../rules/clt-dual-load.mdc) — parent stays light (extraneous ↓); subagent returns the fixed format only (no transcript dump); fan-out readonly explores when independent.
+
 ## When to use
 
 - User lists numbered exploration goals (files, entry points, data flow, pain points)

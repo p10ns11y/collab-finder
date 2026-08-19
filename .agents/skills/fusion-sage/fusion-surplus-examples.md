@@ -76,7 +76,7 @@ All examples use realistic token counts from actual AI coding sessions (measured
 
 ---
 
-## Example 4: Playwright E2E Type Fix (devprofile)
+## Example 4: Playwright E2E Type Fix (Next.js portfolio)
 
 **Task**: "Fix type hint in playwright.brave.ts; IDE shows Brave not found error"
 
@@ -103,7 +103,7 @@ All examples use realistic token counts from actual AI coding sessions (measured
 | Auth Flow (TS)       | 20,500         | 10,600        | 1.8      | +56k tokens              |
 | ML Pipeline (Python) | 35,800         | 16,900        | 2.1      | +8k tokens               |
 | Rust Microservice    | 25,400         | 13,300        | 1.6      | +120k tokens             |
-| Brave E2E (devprofile) | 6,000        | 1,200         | 1.4      | +100k tokens (IDE loops) |
+| Host-browser E2E (Next.js portfolio) | 6,000        | 1,200         | 1.4      | +100k tokens (IDE loops) |
 
 **Average Q across real sessions: 1.83**
 

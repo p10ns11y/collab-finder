@@ -11,6 +11,8 @@ description: >-
 
 Safe, incremental dependency upgrades for pnpm projects. Pair with [fix-dependency-security](../fix-dependency-security/SKILL.md) for audit and install hardening.
 
+**collab-finder:** verify with root `AGENTS.md` (`pnpm type-check`, `pnpm verify`, `pnpm gate`). There is no `pnpm lint`. The "Project-specific notes (devprofile)" table below is for the other repo — ignore Biome/Next there when working here.
+
 ## Principles
 
 1. **Prefer non-breaking upgrades** — stay within semver ranges in `package.json` (`^`, `~`) before jumping majors.
@@ -151,7 +153,7 @@ Always read codemod output and **review the git diff** — codemods are incomple
 
 ### 4.4 Manual follow-up
 
-- Fix remaining `tsc` and linter errors (`pnpm lint` — Biome in devprofile, ESLint elsewhere).
+- Fix remaining `tsc` errors (`pnpm type-check`). Run `pnpm lint` only if the host repo defines it (collab-finder does not).
 - Update `next.config.*`, `postcss.config.*`, and linter config (`biome.json` or `eslint.config.*`) per migration guides.
 - Run `pnpm build` and critical **e2e** paths (`pnpm test:e2e`).
 
@@ -199,9 +201,9 @@ Do not stack overrides to silence breakage without understanding the semver mism
 ```bash
 pnpm audit
 pnpm type-check
-pnpm lint
-pnpm build
-pnpm test:e2e          # when UI/routing/auth changed
+pnpm verify            # collab-finder domain machines; skip if host has no script
+# pnpm lint            # only if the host repo defines it
+pnpm build             # or pnpm gate for full CI parity
 ```
 
 Report to the user:

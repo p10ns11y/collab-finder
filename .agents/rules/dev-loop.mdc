@@ -1,0 +1,30 @@
+---
+description: Read → grep → minimal edit → project verify. Commit only when asked.
+alwaysApply: true
+---
+
+# dev-loop (collab-finder)
+
+> **Load rule:** Formal SoT below. Domain routing: root `AGENTS.md`. Deep how-to: [docs/agent-playbook.md](../../docs/agent-playbook.md) **only if** a step is ambiguous.
+
+```text
+// Signature
+EditLoop ≔ Read → Grep → Patch → Lint → Verify
+CommitGate ≔ user asked "commit"  // else summarize only
+VerifySoT ≔ AGENTS.md verify table  // ¬ pnpm lint · ¬ pnpm precommit
+
+// Axioms
+A1  Know path before shell that touches tree (Read/Grep); skip for git status/pwd
+A2  Rename/API change → Grep all sites → one-pass patch
+A3  Minimal diff; match existing style; no whole-file rewrite
+A4  ReadLints on touched paths after substantive edits
+A5  Smallest VerifySoT row that proves the change; fail → fix → re-run
+A6  Config edits (package.json, lockfile) still run type-check or gate
+A7  CommitGate → status+diff parallel → stage task files only → why-focused message
+```
+
+| Phase | done_when |
+|-------|-----------|
+| Before edit | target paths known; callers grepped if symbol change |
+| After edit | lints clean or N/A; verify cmd exit 0 |
+| Commit | only if CommitGate; never secrets/.env/transcripts |

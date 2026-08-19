@@ -229,12 +229,9 @@ Summarize for the user:
 
 ---
 
-## Project-specific notes (devprofile)
+## Project-specific notes
 
-- **Package manager:** pnpm 11; config in `pnpm-workspace.yaml`.
-- **Hardened workspace:** `minimumReleaseAge: 1440` (strict 1d; bump to `10080` when lockfile has no packages newer than 7d), `minimumReleaseAgeStrict`, `blockExoticSubdeps`, `trustPolicy: no-downgrade` (no `trustPolicyExclude`), `strictDepBuilds`, `verifyDepsBeforeRun: error`, `sideEffectsCache: false`, explicit `allowBuilds` whitelist.
-- **Overrides** pin transitive security packages, ONNX stack, and eslint trust fixes (`eslint-import-resolver-typescript`, `semver`).
-- **Do not** reintroduce `allowedDeprecatedVersions` for `boolean` — fixed via `onnxruntime-node` / `global-agent` bumps.
+See [examples/README.md](../examples/README.md) for hardened pnpm workspace examples (e.g. Next.js portfolio).
 
 ---
 

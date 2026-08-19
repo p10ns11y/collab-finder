@@ -1,24 +1,40 @@
 # CI and quality gates
 
-collab-finder uses a **gate** (must pass) plus **complexity** and **CRAP report** (quality signals).
+collab-finder uses a **check** job on every push/PR, plus **complexity** and **CRAP report** only when app source changes. **Full Vite + Tauri binary build** runs on **tag push** (`release.yml`), not on docs/agent-only diffs.
 
 ## Local commands
 
 ```bash
 pnpm run verify      # all domain *.verify.mjs runners (pure TS machines + wiring)
-pnpm run gate        # install + build + verify + seed testdata + cargo test --lib
+pnpm run ci-check-light  # meta/agent/docs PR parity (type-check + verify)
+pnpm run ci-check    # app-source parity (above + Rust tests)
+pnpm run gate        # ci-check + Vite build — run before push when UI/build inputs changed
 pnpm run complexity  # Lizard cyclomatic complexity (CCN ≤ 15, same default as thepulimaangani)
 ```
 
-Before push on Rust or domain logic changes, run **`pnpm run gate`**.
+Before push on Rust or domain logic changes, run **`pnpm run ci-check`** (or **`pnpm run gate`** when Vite inputs changed).
 
-## What the gate covers
+## What runs where
+
+| Layer | Local `ci-check-light` | Local `ci-check` | GitHub PR (meta diff) | GitHub PR (`src/` diff) | Tag `v*.*.*` |
+|-------|------------------------|------------------|------------------------|-------------------------|--------------|
+| TypeScript | `tsc -b` | `tsc -b` | yes | yes | yes (via release build) |
+| Domain verify | yes | yes | yes | yes | — |
+| Rust tests | — | yes | skip | yes | — |
+| WebKit apt | — | yes | skip | yes | yes |
+| Lizard CCN | — | — | skip | yes | — |
+| CRAP artifact | — | — | skip | yes | — |
+| Tauri binary | — | — | skip | skip | yes |
+
+**Docs / agent / scripts / CI config diffs**: run type-check + verify only (`ci-check-light`); skip WebKit, Rust tests, complexity, and CRAP. **WebKit + Tauri binary build** only on **`src/` or `src-tauri/`** diffs (check job) or **tag push** (`release.yml`).
+
+## What the check covers
 
 | Layer | Check | Why |
 |-------|--------|-----|
-| TypeScript | `tsc -b` + Vite build | UI compiles |
-| Domain | 16 verify runners under `src/` | Critical MVU machines, IPC contracts, keyboard/nav, wiring |
-| Rust | `cargo test --lib` (163+ tests) | Secrets stability, reactor, opportunity target, rank, cv_home |
+| TypeScript | `tsc -b` | Types + project references |
+| Domain | verify runners under `src/` | Critical MVU machines, IPC contracts, keyboard/nav, wiring |
+| Rust | `cargo test --lib` | Secrets stability, reactor, opportunity target, rank, cv_home |
 | Fixtures | `scripts/seed-testdata-for-ci.sh` | Populates gitignored `src-tauri/testdata/` from public distillation stubs |
 
 Verify runners are **behavioral** tests (not line-coverage theater): they assert invariants on pure reducers and static wiring for hiring-loop paths.
@@ -50,8 +66,9 @@ when baseline is stable.
 
 `.github/workflows/ci.yml`:
 
-- **gate** — build + verify + Rust tests (required)
-- **complexity** — Lizard CCN gate (required)
-- **crap_report** — coverage + complexity artifact upload (informational)
+- **changes** — detect `src/` / `src-tauri/` diff (`scripts/ci-paths-changed.sh`)
+- **check** — light (type-check + verify) or full (+ WebKit + Rust) based on `app_source`
+- **complexity** — Lizard CCN gate (`src/` / `src-tauri/` diffs only)
+- **crap_report** — coverage + complexity artifact (`src/` / `src-tauri/` diffs only)
 
 Release builds remain on tag push via `.github/workflows/release.yml`.

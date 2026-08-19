@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Full CI parity — run before push. Mirrors .github/workflows/ci.yml gate job.
+# Full local CI parity — Vite build + verify + Rust tests.
+# GitHub CI uses scripts/ci-check.sh (no Vite bundle); tag push uses release.yml for binary build.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

@@ -1,34 +1,28 @@
 ---
 name: explore-then-edit
-description: >
-  Map the relevant code with Glob/Grep/Read before writing. Use when the user asks
-  to change, fix, or add behavior and the touch points are unclear, or when top
-  tool sequences show Read→Grep→edit. Also for /explore-then-edit.
+description: >-
+  Map code with Glob/Grep/Read before writing. Use when touch points are unclear,
+  rename/API impact likely, or user invoked /explore-then-edit.
 ---
 
-# Explore then edit
+# explore-then-edit
 
-## When to use
+> **Load rule:** Formal SoT below. Verify: root `AGENTS.md` VerifySoT.
 
-- Request implies a change but files/symbols are unknown
-- Rename, API change, or cross-file impact likely
-- Session pattern: explore/map before implement
+```text
+// Inner DAG (bounded)
+E1 Glob/list → E2 Grep symbols → E3 Read 2–5 files → E4 map (paths only) → E5 patch → E6 verify
 
-## Steps
+// Axioms
+A1  scope unclear → no Write before E2–E3
+A2  cross-file impact → Grep all sites; one-pass patch
+A3  reply map stays short — no file dumps
+A4  E6 = smallest VerifySoT row; docs-only may be N/A
+```
 
-1. **Glob** candidate paths (or `list_dir` one level).
-2. **Grep** for symbols, imports, and config keys mentioned by the user.
-3. **Read** the 2–5 files that will actually change.
-4. Summarize touch points in one short list (paths only).
-5. Edit with minimal patches (`StrReplace` / `search_replace` / ApplyPatch).
-6. **Verify** with the smallest project check (see verify-before-done).
+| Step | done_when |
+|------|-----------|
+| E4 | touch list written (paths only) |
+| E6 | verify exit 0 or N/A stated |
 
-## Do not
-
-- Write or overwrite files before a Grep/Read pass when scope is unclear
-- Paste large file dumps into the reply — keep the map short
-- Skip verification after the edit
-
-## Done when
-
-Edits match the mapped touch list and a verify command has been run (or clearly N/A for docs-only).
+**Do not:** overwrite before map · skip verify after code edit.

@@ -1,9 +1,11 @@
-# Loop Card template
+# Control Card template
 
-Copy into the agent session (or a scratch note) at loop start. Update on every phase transition.
+Copy into the agent session (or a scratch note) at graph start. Update on every phase transition.
+
+> Formerly “Loop Card” under the `looper` name.
 
 ```markdown
-## Loop Card
+## Control Card
 
 | Field | Value |
 |-------|--------|
@@ -12,6 +14,10 @@ Copy into the agent session (or a scratch note) at loop start. Update on every p
 | **success criteria** | (observable) |
 | **verify commands** | `…` |
 | **non-goals** | … |
+| **load_diag** | actor=human\|agent\|both ; dominant=intrinsic\|extraneous\|germane ; intervene=minimize_extraneous\|chunk_intrinsic\|protect_germane\|fan_out_parallel |
+| **inner_mode** | standard \| eva |
+| **pathway_active** | (optional; set when inner_mode=eva) |
+| **token_envelope** | (optional; e.g. handoff_max_tokens — prune via ai-optimization before EXECUTE) |
 
 ### Budgets
 | Budget | Max | Remaining |
@@ -21,7 +27,9 @@ Copy into the agent session (or a scratch note) at loop start. Update on every p
 | max_step_retries | 2 | |
 | max_tool_calls_per_step | 25 | |
 
-### Inner steps (DAG)
+> CLT middle ground (A8): cut extraneous for **both** actors; keep germane; fan-out agent Inner when independent — do not cap machine parallelism at human WM. Detail: [clt-load-balance.md](clt-load-balance.md).
+
+### Inner steps (DAG or nested loop)
 | id | name | depends_on | done_when | role | status |
 |----|------|------------|-----------|------|--------|
 | S1 | | | | fast\|explore\|coding\|deep\|review | pending |
@@ -29,9 +37,9 @@ Copy into the agent session (or a scratch note) at loop start. Update on every p
 ### Now
 - **model_role:** …
 - **last progress:** (diff / test / decision — not “still reading”)
-- **pause reason:** none | …
+- **pause reason:** none \| signpost_fired \| pathway_switch \| …
 - **open_risks:** …
-- **handoff artifacts:** …
+- **handoff artifacts:** … (compact refs — not transcripts)
 ```
 
 ## Phase cheat sheet
