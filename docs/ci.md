@@ -1,32 +1,30 @@
 # CI and quality gates
 
-collab-finder uses a **check** job on every push/PR, plus **complexity** and **CRAP report** only when app source changes. **Full Vite + Tauri binary build** runs on **tag push** (`release.yml`), not on docs/agent-only diffs.
+collab-finder uses a **light check** on most PRs (type-check + verify). **WebKit + Rust tests + CRAP** run only on **version manifest** diffs; **Tauri binary** builds on **tag push** (`release.yml`).
 
 ## Local commands
 
 ```bash
-pnpm run verify      # all domain *.verify.mjs runners (pure TS machines + wiring)
-pnpm run ci-check-light  # meta/agent/docs PR parity (type-check + verify)
-pnpm run ci-check    # app-source parity (above + Rust tests)
-pnpm run gate        # ci-check + Vite build — run before push when UI/build inputs changed
-pnpm run complexity  # Lizard cyclomatic complexity (CCN ≤ 15, same default as thepulimaangani)
+pnpm run verify           # all domain *.verify.mjs runners
+pnpm run ci-check-light   # PR parity for meta / src-only diffs (no WebKit)
+pnpm run ci-check         # version-bump / pre-release parity (+ Rust tests; needs WebKit locally)
+pnpm run gate             # ci-check + Vite build — before push when UI inputs changed
+pnpm run complexity       # Lizard (CCN ≤ 15)
 ```
 
-Before push on Rust or domain logic changes, run **`pnpm run ci-check`** (or **`pnpm run gate`** when Vite inputs changed).
+Before push on Rust changes, run **`pnpm run ci-check`** locally (WebKit required on Linux). Meta/agent/docs-only: **`pnpm run ci-check-light`** is enough.
 
 ## What runs where
 
-| Layer | Local `ci-check-light` | Local `ci-check` | GitHub PR (meta diff) | GitHub PR (`src/` diff) | Tag `v*.*.*` |
-|-------|------------------------|------------------|------------------------|-------------------------|--------------|
-| TypeScript | `tsc -b` | `tsc -b` | yes | yes | yes (via release build) |
-| Domain verify | yes | yes | yes | yes | — |
-| Rust tests | — | yes | skip | yes | — |
-| WebKit apt | — | yes | skip | yes | yes |
-| Lizard CCN | — | — | skip | yes | — |
-| CRAP artifact | — | — | skip | yes | — |
-| Tauri binary | — | — | skip | skip | yes |
+| Layer | Meta / agent / scripts | `src/` only | Version bump in diff | Tag `v*.*.*` |
+|-------|------------------------|-------------|----------------------|--------------|
+| Type-check + verify | yes | yes | yes | yes (release build) |
+| Rust tests | — | — | yes (+ WebKit) | yes (+ WebKit) |
+| Lizard CCN | — | yes | yes | — |
+| CRAP artifact | — | — | yes (+ WebKit) | — |
+| Tauri binary | — | — | — | yes |
 
-**Docs / agent / scripts / CI config diffs**: run type-check + verify only (`ci-check-light`); skip WebKit, Rust tests, complexity, and CRAP. **WebKit + Tauri binary build** only on **`src/` or `src-tauri/`** diffs (check job) or **tag push** (`release.yml`).
+Version manifests: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
 
 ## What the check covers
 
@@ -66,9 +64,9 @@ when baseline is stable.
 
 `.github/workflows/ci.yml`:
 
-- **changes** — detect `src/` / `src-tauri/` diff (`scripts/ci-paths-changed.sh`)
-- **check** — light (type-check + verify) or full (+ WebKit + Rust) based on `app_source`
-- **complexity** — Lizard CCN gate (`src/` / `src-tauri/` diffs only)
-- **crap_report** — coverage + complexity artifact (`src/` / `src-tauri/` diffs only)
+- **changes** — `app_source` (`src/` / `src-tauri/`) and `release_build` (version manifests)
+- **check** — light always except version-bump diffs (then WebKit + Rust tests)
+- **complexity** — Lizard when `app_source`
+- **crap_report** — when `release_build` (needs WebKit)
 
 Release builds remain on tag push via `.github/workflows/release.yml`.
