@@ -11,6 +11,7 @@
     "tauri": "tauri",
     "verify": "node scripts/run-verify.mjs",
     "ci-check": "bash scripts/ci-check.sh",
+    "ci-check-light": "bash scripts/ci-check-light.sh",
     "gate": "bash scripts/gate.sh",
     "complexity": "bash scripts/ci-complexity.sh",
     "install:local": "tauri build --no-bundle && install -m 755 src-tauri/target/release/collab-finder \"$HOME/.local/bin/kanithanj.ai\""
