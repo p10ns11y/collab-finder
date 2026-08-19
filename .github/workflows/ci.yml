@@ -10,9 +10,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gate:
+  changes:
     runs-on: ubuntu-22.04
-    timeout-minutes: 35
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect app-source diff
+        id: paths
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: bash scripts/ci-paths-changed.sh
+
+  check:
+    needs: changes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,10 +67,12 @@ jobs:
             libssl-dev \
             pkg-config
 
-      - name: Gate (build + verify + Rust tests)
-        run: bash scripts/gate.sh
+      - name: Check (type-check + verify + Rust tests)
+        run: bash scripts/ci-check.sh
 
   complexity:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -60,6 +83,8 @@ jobs:
         run: bash scripts/ci-complexity.sh
 
   crap_report:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:

@@ -1,15 +1,18 @@
 # /gate — collab-finder CI parity
 
-Run full local gate. Do not invent `pnpm lint` / `pnpm precommit`.
+Run full local gate (includes Vite build). GitHub PR CI uses `pnpm ci-check` instead; tag push builds the binary.
+
+Do not invent `pnpm lint` / `pnpm precommit`.
 
 ## Do now
 
 From repo root:
 
 ```bash
-pnpm gate
+pnpm ci-check   # PR parity: type-check + verify + cargo test
+pnpm gate       # above + Vite build — before push when UI/build inputs changed
 ```
 
-That is `scripts/gate.sh`: frozen `pnpm install`, `pnpm build`, `pnpm verify`, seed fixtures, `cargo test --lib`.
+`scripts/gate.sh`: frozen `pnpm install`, `pnpm build`, `pnpm verify`, seed fixtures, `cargo test --lib`.
 
-If gate fails: fix forward, re-run, then report which step failed. If the user only changed TS, prefer `pnpm type-check` / `pnpm verify` unless they asked for full gate.
+If gate fails: fix forward, re-run, then report which step failed. Agent/docs-only work: `pnpm ci-check` is enough unless Vite inputs changed.

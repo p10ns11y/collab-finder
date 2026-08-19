@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Full local CI parity — Vite build + verify + Rust tests.
-# GitHub CI uses scripts/ci-check.sh (no Vite bundle); tag push uses release.yml for binary build.
+# PR/push CI — type-check, domain verify, Rust tests. No Vite bundle (release tag builds binary).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -8,8 +7,8 @@ cd "$ROOT"
 echo "== pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
 
-echo "== pnpm run build (tsc + vite)"
-pnpm run build
+echo "== pnpm type-check (tsc -b)"
+pnpm run type-check
 
 echo "== domain verify runners"
 node scripts/run-verify.mjs
@@ -21,4 +20,4 @@ echo "== cargo test --lib"
 cd src-tauri
 cargo test --lib -- --test-threads=1
 
-echo "== OK: gate passed"
+echo "== OK: ci-check passed"
