@@ -1,6 +1,6 @@
 [package]
 name = "collab-finder"
-version = "0.2.0"
+version = "1.0.0"
 description = "Intelli dashboard for jobs, collabs, side hustles and community builds on X (powered by xAI + X API)"
 authors = ["Peramanathan Sathyamoorthy <sathyam.peram@gmail.com>"]
 edition = "2021"
