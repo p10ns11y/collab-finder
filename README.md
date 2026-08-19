@@ -2,7 +2,7 @@
 
 Tauri desktop app — hunt high-fit roles, prepare application packs, track history in SQLite. You intervene when guards fire, not on every step.
 
-**Planning:** [life-os](https://github.com/p10ns11y/life-os) · **Agents:** [AGENTS.md](AGENTS.md) · **Full guide:** [docs/GUIDE.md](docs/GUIDE.md)
+**Planning:** `~/life-os/Projects/collab-finder/README.md` · **Agents:** [AGENTS.md](AGENTS.md) · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
 
 ---
 

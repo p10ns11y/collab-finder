@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "type-check": "tsc -b",
     "preview": "vite preview",
     "tauri": "tauri",
     "verify": "node scripts/run-verify.mjs",

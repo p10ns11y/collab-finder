@@ -44,7 +44,7 @@ Copy and track:
 - [ ] 5. Install behind SFW: sfw pnpm install
 - [ ] 6. Confirm: pnpm audit → clean
 - [ ] 7. Confirm: no deprecated deps (install output / pnpm why)
-- [ ] 8. Validate: pnpm type-check && pnpm lint
+- [ ] 8. Validate: pnpm type-check && pnpm verify
 ```
 
 ---
@@ -216,8 +216,8 @@ Use StepSecurity threat write-ups when investigating **npm incidents** (typosqua
 ```bash
 pnpm audit
 pnpm type-check
-pnpm lint
-pnpm build    # if user expects full verification
+pnpm verify
+pnpm build    # if user expects full verification (or pnpm gate)
 ```
 
 Summarize for the user:

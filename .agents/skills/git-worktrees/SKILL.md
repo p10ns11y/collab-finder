@@ -81,7 +81,7 @@ Safety rules are unchanged: always commit in the worktree, integrate via merge/c
 ### Do: commit in worktree → merge on integration branch
 
 1. Agent works **only** inside its worktree path.
-2. Agent runs validation (`pnpm type-check`, `pnpm lint`, …) **in that worktree**.
+2. Agent runs validation (`pnpm type-check`, `pnpm verify`, `cargo test` per `AGENTS.md`) **in that worktree**.
 3. Agent **`git commit`** on `agent/<tool>/<slug>` (never leave work only uncommitted).
 4. Coordinator checks out **integration branch** (e.g. `feat/foo` or `main`) in the **primary** worktree only.
 5. Coordinator merges **one branch at a time**, resolves conflicts in Git, runs validation again.
@@ -124,7 +124,7 @@ A smoke test that used copy-then-commit “worked” only because tasks touched 
 - [ ] 4. git worktree list — verify branch ↔ path
 - [ ] 5. Merge branches one-by-one on integration checkout (script or git merge)
 - [ ] 6. Resolve conflicts in primary worktree only — not inside agent worktrees
-- [ ] 7. Validate integration branch (type-check, lint)
+- [ ] 7. Validate integration branch (`pnpm type-check` / `pnpm verify` / `cargo test` per AGENTS.md)
 - [ ] 8. git worktree remove + optional git branch -d after merge
 - [ ] 9. **After large plans or many subagents**: run `git worktree prune` + local scripts first (see "Grok CLI worktree management"); use `grok worktree gc` / `agent-worktree-clean.sh --prune` for any global orphans or preservation — see that section
 ```

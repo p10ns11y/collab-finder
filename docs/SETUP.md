@@ -36,12 +36,13 @@ GitHub download: **tag-driven CI** — [release.md](./release.md). `scripts/cut-
 ## Verify (commands that exist today)
 
 ```bash
-pnpm build
-cd src-tauri && cargo check
+pnpm type-check          # tsc -b
+pnpm verify              # domain *.verify.mjs runners
 cd src-tauri && cargo test
+pnpm gate                # full CI parity (install + build + verify + cargo test --lib)
 ```
 
-`cargo test` covers secrets, db, reactor, and query validation (no live X token required). `package.json` does not yet define `type-check`, `lint`, or `precommit` scripts.
+`cargo test` covers secrets, db, reactor, and query validation (no live X token required). There is **no** `pnpm lint` or `pnpm precommit`. Canonical table: root [AGENTS.md](../AGENTS.md). Agent how-to: [agent-playbook.md](./agent-playbook.md).
 
 ## Secrets safety (agents & remote control)
 

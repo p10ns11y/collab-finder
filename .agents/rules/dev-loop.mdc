@@ -1,0 +1,34 @@
+---
+description: Read → grep → minimal edit → project verify. Commit only when asked.
+alwaysApply: true
+---
+
+# Dev loop (collab-finder)
+
+One always-on process rule. Domain how-to lives in `AGENTS.md` + skills.
+
+## Before edit
+
+1. **Read** the file and callers (Grep/Glob). Do not guess paths.
+2. Before renaming or changing a symbol: **Grep** imports, string literals, and config; patch all sites in one pass.
+3. Before a shell command that reads, writes, or deletes project files: know the path (Read/Grep). Skip this for `git status` / `pwd`.
+
+## After edit
+
+1. Minimal diff — StrReplace / ApplyPatch; match existing style. Do not rewrite whole files.
+2. **ReadLints** on touched paths after substantive edits.
+3. Run the **smallest command from the AGENTS.md verify table** that proves the change. If it fails, fix and re-run. Do not claim "should work."
+4. Config-only edits (`package.json`, lockfile, CMakeLists) still get a real command (`pnpm type-check` or `pnpm gate` as appropriate).
+
+There is **no** `pnpm lint` or `pnpm precommit` in this repo.
+
+## Commit when asked
+
+Only if the user asked to commit:
+
+1. `git status` and `git diff` (staged and unstaged) in parallel.
+2. Stage only task files — never secrets, transcripts, or `.env`.
+3. Message = **why**, not a file list. No LLM attribution boilerplate.
+4. Do not push unless asked. Do not `--amend` unless project git rules allow.
+
+If they did not ask: summarize and stop.

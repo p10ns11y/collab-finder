@@ -147,7 +147,7 @@ Track active sessions in `.agents/workspaces.json` (gitignored) from [templates/
 
 Follow [git-worktrees](../git-worktrees/SKILL.md): **commit in each worktree**, then merge — never `cp` files into the primary checkout.
 
-1. Per workspace: `pnpm type-check` / `pnpm lint` (or project equivalents).
+1. Per workspace: `pnpm type-check` / `pnpm verify` / `cargo test` (see root `AGENTS.md`).
 2. **`git commit`** on `agent/<tool>/<slug>` inside the worktree before integration.
 3. On integration branch (primary checkout): `agent-worktree-merge.sh --branch agent/<tool>/<slug>` one at a time; resolve conflicts there only.
 4. Push integration branch or open PR per agent branch ([split-to-prs](../split-to-prs/SKILL.md)).
@@ -180,7 +180,7 @@ git worktree list
 # per worktree
 pnpm install --frozen-lockfile
 pnpm type-check
-pnpm lint
+pnpm verify
 ```
 
 Cloud: confirm sandbox destroyed after task; no orphaned volumes with secrets.

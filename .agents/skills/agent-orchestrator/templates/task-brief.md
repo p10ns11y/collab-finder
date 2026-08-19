@@ -22,7 +22,7 @@ Observable results when correct — bullet list. Example:
 
 - [ ] `document-viewer.tsx` loads PDF via `next/dynamic` + Suspense
 - [ ] No module-scope `require("react-pdf")` in parent file
-- [ ] `pnpm type-check` and `pnpm lint` pass in worktree
+- [ ] `pnpm type-check` (and `pnpm verify` / `cargo test` per AGENTS.md) pass in worktree
 
 ## Non-goals
 
@@ -47,8 +47,9 @@ Observable results when correct — bullet list. Example:
 cd <worktree-path>
 pnpm install --frozen-lockfile   # if needed
 pnpm type-check
-pnpm lint
-# pnpm test:e2e --grep '…'   # host Brave only — optional
+pnpm verify
+# cd src-tauri && cargo test
+# pnpm gate
 ```
 
 ## Worker handback

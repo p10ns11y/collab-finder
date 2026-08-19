@@ -28,7 +28,7 @@ See root `AGENTS.md` for the full index (finder-reactor, x-agent-resources, cv-p
 | **looper** | [skills/looper/SKILL.md](skills/looper/SKILL.md) | Multi-step agent cycles, outer state machine, bounded inner steps, multi-model routing, HITL pause gates — composes with orchestrator/subagent/fusion; not domain finder logic. **Library canonical:** `~/Work/personal/skills/looper` |
 | Cursor rule (optional) | [rules/looper.mdc](rules/looper.mdc) | Discovery when loop/routing signals fire (`alwaysApply: false`) |
 
-When adding a skill, update the index in root `AGENTS.md` and this file.
+When adding a skill, update [docs/agent-playbook.md](../docs/agent-playbook.md) and this file. Keep root `AGENTS.md` as the short router only.
 
 ## Agent rules (`.agents/rules/`)
 
@@ -50,22 +50,27 @@ ls .cursor/rules/*.mdc   # should list fusion-sage.mdc, agent-workflow.mdc, …
 ```
 
 Relevant rules in `.agents/rules/` today:
-- `fusion-sage.mdc` (alwaysApply: true) — synthesis + surplus for the agentic reactor.
+- `dev-loop.mdc` (alwaysApply: true) — read → grep → edit → AGENTS.md verify; commit only when asked.
+- `agent-workflow.mdc` (alwaysApply: true) — triage; verify table is in root `AGENTS.md`.
 - `secrets-agent-safety.mdc` (alwaysApply: true) — never dump X/xAI secrets via secret-tool or cat.
-- `finder-reactor.mdc` — reactor, self-guards, pauses.
-- `tauri-agentic.mdc` — MCP exposure, Tauri command design for agents.
-- `looper.mdc` (alwaysApply: false) — structured loops, multi-model routing, HITL gates over raw ReAct.
-- `agent-workflow.mdc`, `grep-before-edit.mdc`, `read-edit-lint.mdc` — dev process.
+- `fusion-sage.mdc` (alwaysApply: false) — load on "ignite" / "use fusion".
+- `finder-reactor.mdc` / `tauri-agentic.mdc` — glob-scoped domain rules.
+- `looper.mdc` (alwaysApply: false) — structured loops, multi-model routing, HITL gates.
+
+Slash commands (canonical `.agents/commands/`; symlink into `.cursor/commands/`):
+- `session-start.md` — life-os `README.md` + verify SoT
+- `gate.md` — `pnpm gate`
 
 ## Agent skills (`.cursor/skills/`)
 
-Per-skill symlinks (not the whole `skills` folder):
+This machine uses a **whole-tree** link (fine). Per-skill links also work if you want a smaller catalog:
 
 ```bash
-ln -sfn ../../.agents/skills/<skill-name> .cursor/skills/<skill-name>
+ln -sfn ../.agents/skills .cursor/skills
+# or: ln -sfn ../../.agents/skills/<name> .cursor/skills/<name>
 ```
 
-Example: `tauri-ipc-debug`, `finder-reactor`, `fusion-sage`, `looper`.
+Prefer project domain skills (finder-reactor, tauri-*, cv-promote-guard, x-agent-resources) over duplicating the same portable skills already in `~/.cursor/skills/`.
 
 ## X Agent Resources Integration
 
@@ -81,7 +86,7 @@ Then: `x-agent-resources` skill, `data/distillation/`, `docs/x-tools.md`. Upstre
 
 - Triage with `agent-orchestrator` before any non-trivial work.
 - Every autonomous decision in code (or prompts) must have self-guard + pause path.
-- After agentic changes: `pnpm build`, `cd src-tauri && cargo check` (see docs/SETUP.md; lint/type-check scripts TBD).
+- After agentic changes: follow root `AGENTS.md` verify table (`pnpm type-check`, `pnpm verify`, `cargo test`, `pnpm gate`). No `pnpm lint` / `pnpm precommit`.
 - Surplus after major tasks (cheaper future iterations of the finder).
 - Use worktrees + concurrent agents for parallel development of reactor parts.
 - Verify-before-done, especially for CV promote paths and X write side-effects.

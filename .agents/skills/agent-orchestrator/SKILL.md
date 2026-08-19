@@ -30,7 +30,7 @@ All of the following should be true:
 | **One clear change** | Fix typo, adjust copy, rename symbol, tweak one constant |
 | **≤1–2 files**, known pattern | Lint fix, import cleanup, small type fix |
 | **Low risk** | No new deps, no auth/data model, no cross-cutting refactor |
-| **Verification is obvious** | `pnpm lint` / `pnpm type-check` on touched files |
+| **Verification is obvious** | `pnpm type-check` / `pnpm verify` / `cargo test` per root `AGENTS.md` |
 | **No concurrent workers** | Only you (or one session) touching the tree |
 
 **Still do:** read relevant file context, run verification commands after editing, minimal diff.
@@ -173,9 +173,10 @@ Use [templates/task-brief.md](templates/task-brief.md). Minimum sections:
 6. **Verification** — exact commands orchestrator will run (copy from repo):
 
    ```bash
-   pnpm type-check
-   pnpm lint
-   # optional: pnpm test:e2e --grep '…'  # host Brave — see tests/e2e/README.md
+   pnpm type-check          # TS/TSX
+   pnpm verify              # domain machines
+   # cd src-tauri && cargo test   # any Rust under src-tauri/src/
+   # pnpm gate                     # full CI parity
    ```
 
 7. **Workspace** — branch name, worktree path, or cloud sandbox id.
@@ -239,7 +240,7 @@ When picking up stale work:
 Pull from [`AGENTS.md`](../../../AGENTS.md) unless brief overrides:
 
 - `pnpm` + frozen lockfile policy when deps change
-- `pnpm type-check`, `pnpm lint` (Biome errors only)
+- `pnpm type-check`, `pnpm verify`; `cd src-tauri && cargo test` if Rust changed. No `pnpm lint` in this repo.
 - React client work → [react-client-expert](../react-client-expert/SKILL.md)
 - Dependency changes → [fix-dependency-security](../fix-dependency-security/SKILL.md)
 - Minimal diff — no drive-by refactors
@@ -287,7 +288,7 @@ After a wave completes, tell the user:
 
 ### Verified
 - `pnpm type-check` — pass
-- `pnpm lint` — pass
+- `pnpm verify` — pass (if domain machines touched)
 
 ### Integrated
 - Merged `agent/cursor/…` into `refactor/…`

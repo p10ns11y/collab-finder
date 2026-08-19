@@ -21,7 +21,7 @@ description: >
 3. **Read** the 2–5 files that will actually change.
 4. Summarize touch points in one short list (paths only).
 5. Edit with minimal patches (`StrReplace` / `search_replace` / ApplyPatch).
-6. **Verify** with the smallest project check (see verify-before-done).
+6. **Verify** with the smallest project check (root `AGENTS.md` table).
 
 ## Do not
 

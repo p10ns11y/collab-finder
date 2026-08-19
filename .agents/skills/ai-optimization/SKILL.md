@@ -157,7 +157,7 @@ Compression saves tokens; omission causes bugs. Apply these before dropping or s
 ### Before marking work "done" (multi-file edits)
 - State assumptions explicitly; never invent APIs or patterns not seen in code
 - If a body was summarized, read the full file before editing it
-- Run stated verification (`type-check`, `lint`, tests) — compression does not replace checks
+- Run stated verification from root `AGENTS.md` (`type-check`, `verify`, `cargo test`) — compression does not replace checks
 
 ### Auto-expand (do not wait for user)
 - Edge cases live in summarized bodies: error handlers, auth checks, async/effect deps
