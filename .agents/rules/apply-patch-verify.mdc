@@ -1,6 +1,0 @@
----
-description: Superseded by dev-loop.mdc — do not set alwaysApply.
-alwaysApply: false
----
-
-Superseded by [dev-loop.mdc](./dev-loop.mdc).

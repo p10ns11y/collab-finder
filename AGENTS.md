@@ -1,46 +1,48 @@
 # Agent instructions — collab-finder
 
-Tauri desktop app (Rust + React) for high-fit jobs, collabs, and community opportunities on X, with xAI analysis and guarded CV/prep flows. Autonomy with **self-guards, pauses, and explicit approval gates**.
+> **Load rule:** Sticky router only. Expand [docs/agent-playbook.md](docs/agent-playbook.md) **only if** routing or conventions are ambiguous.
 
-**Session SoT:** `~/life-os/Projects/collab-finder/README.md` — read `next_action` before coding; update energy / next_action / review_date when the session ends. If the user says "update what we are going to do in this session", edit that note first.
+```text
+App ≔ Tauri desktop · Rust backend · React shell · xAI + X opportunity reactor
+Autonomy ≔ self-guards · pauses · explicit approval gates
+SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md  // next_action before code
+Vocab ≔ opportunity · reactor · guard · pack  // ¬ global Thepulimaangani poem/metre naming
 
-**How (on demand, not sticky):** [docs/agent-playbook.md](docs/agent-playbook.md) · [docs/agentic-architecture.md](docs/agentic-architecture.md) · [.agents/README.md](.agents/README.md)
+VerifySoT:
+  TS/TSX        → pnpm type-check     // tsc -b
+  domain TS     → pnpm verify
+  src-tauri/src → cd src-tauri && cargo test
+  CI parity     → pnpm gate
+  deps/lockfile → pnpm install; pnpm audit
+  ¬ pnpm lint · ¬ pnpm precommit
+  Rust fmt      → cargo fmt; cargo clippy
 
-Ignore global Thepulimaangani (poem/metre) naming here. Use **opportunity, reactor, guard, pack** vocabulary.
+Hotspot ≔ secrets.rs · app_dirs.rs STABILITY CONTRACT  // grep before bearer/keyring edits
+```
 
-## Verify (commands that exist)
+**Session:** read `SessionSoT` `next_action` before coding; update energy / next_action / review_date when done. User says "update what we are going to do in this session" → edit life-os note **first**.
 
-| Change | Command |
-|--------|---------|
-| TS/TSX | `pnpm type-check` (`tsc -b`) |
-| Domain TS machines | `pnpm verify` |
-| Any edit under `src-tauri/src/` | `cd src-tauri && cargo test` |
-| Full CI parity | `pnpm gate` |
-| `package.json` / lockfile | `pnpm install` then `pnpm audit` |
+**Secrets:** **NEVER** `secret-tool search/lookup`, `cat` x-bearer/xai-key, log raw tokens. Metadata only. [docs/secrets-agent-safety.md](docs/secrets-agent-safety.md).
 
-There is **no** `pnpm lint` or `pnpm precommit`. Rust format: `cargo fmt` + `cargo clippy`.
+## Routing (load on match only)
 
-Hotspots (`secrets.rs` / `app_dirs.rs` **STABILITY CONTRACT**): grep headers before touching bearer/keyring. After those edits, `cargo test` plus a manual credentials-panel check.
-
-## Secrets
-
-**NEVER** `secret-tool search/lookup`, `cat` of `x-bearer`/`xai-key`, or log raw tokens. Status metadata only. Rotate if a transcript may have dumped a key. Full policy: [docs/secrets-agent-safety.md](docs/secrets-agent-safety.md).
-
-## Routing (load skill only when the task matches)
-
-| Working on | Read |
-|------------|------|
-| X API, queries, xAI prompts | `.agents/x-resources/README.md` → `skill.md` → `x-agent-resources` |
-| Finder reactor / guards | `finder-reactor` (+ x-resources if X is involved) |
-| Tauri IPC / `invoke` / history DB | `tauri-agentic` → [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
-| Bearer / xAI key storage | [docs/SETUP.md](docs/SETUP.md) + `secrets.rs` STABILITY CONTRACT |
+| Task | Read |
+|------|------|
+| X API · queries · xAI prompts | `.agents/x-resources/README.md` → `skill.md` → `x-agent-resources` |
+| Reactor · guards | `finder-reactor` (+ x-resources if X) |
+| Tauri IPC · invoke · DB | `tauri-agentic` → [docs/tauri-ipc-debugging.md](docs/tauri-ipc-debugging.md) |
+| Bearer · xAI storage | [docs/SETUP.md](docs/SETUP.md) + `secrets.rs` STABILITY CONTRACT |
 | CV promote | `cv-promote-guard` |
-| Loops / multi-model | `looper` |
-| Setup / run | [docs/SETUP.md](docs/SETUP.md) |
+| Multi-step loop · routing · thrash | `control-graph` (legacy: `looper` redirects) |
+| Setup · run | [docs/SETUP.md](docs/SETUP.md) |
 
 ## Triage
 
-- **Single-shot** (≤2 files, obvious): implement + smallest verify row above.
-- **Light**: 3–5 bullets, then implement.
-- **Full** / vague / multi-agent: `agent-orchestrator`.
-- Fusion surplus: only when the user says **"use fusion"** or **"ignite"**.
+| Mode | When |
+|------|------|
+| **single_shot** | ≤2 files · obvious → smallest VerifySoT row |
+| **light** | 3–5 bullets then implement |
+| **full** | vague · multi-agent → `agent-orchestrator` |
+| **fusion** | user says **ignite** or **use fusion** only |
+
+Deep: [docs/agent-playbook.md](docs/agent-playbook.md) · [docs/agentic-architecture.md](docs/agentic-architecture.md) · [.agents/README.md](.agents/README.md)

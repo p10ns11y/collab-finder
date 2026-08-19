@@ -3,24 +3,25 @@ description: Triage first; full orchestration only when warranted. Verify via AG
 alwaysApply: true
 ---
 
-# Agent workflow (triage first)
+# agent-workflow (collab-finder)
 
-Read [agent-orchestrator](../skills/agent-orchestrator/SKILL.md) when work is non-trivial. Verify commands: root `AGENTS.md` table.
+> **Load rule:** Formal SoT below. Full orchestration: [agent-orchestrator](../skills/agent-orchestrator/SKILL.md). Verify rows: root `AGENTS.md`.
 
-## Triage (~10s)
+```text
+Triage ∈ { single_shot, light, full }
+escalate: single_shot → ~2 files or new unknowns → light | full
+
+// Axioms
+A1  Run VerifySoT yourself — never trust "done" without cmd exit 0
+A2  Merge ≻ cp  ([git-worktrees](../skills/git-worktrees/SKILL.md))
+A3  No LLM commit boilerplate unless user confirmed that LLM on this machine
+A4  full → agent-orchestrator end-to-end
+```
 
 | Mode | When | Do |
 |------|------|-----|
-| **Single-shot** | ≤1–2 files, obvious, low risk | Implement → smallest AGENTS.md verify row. No brief, worktree, or subagents. |
-| **Light** | Small scope, one concern | Short outcome + verify bullets, then implement in one checkout. |
-| **Full** | Multi-agent, spike, merge, verify other's "done", vague/large | Orchestrator checklist, task brief, worktrees, independent verification. |
+| **single_shot** | ≤2 files · obvious · low risk | edit + smallest AGENTS.md verify row |
+| **light** | one concern · small scope | 3–5 bullets + implement |
+| **full** | multi-agent · spike · merge · vague · verify other's "done" | orchestrator + brief + worktrees |
 
-Escalate if a simple task grows past ~2 files or new unknowns appear.
-
-## Always
-
-- Minimal diff; match `AGENTS.md`.
-- Run the stated verify command yourself — do not trust "done" without it.
-- Never integrate worktrees via `cp` ([git-worktrees](../skills/git-worktrees/SKILL.md)).
-- No LLM commit boilerplate unless the user confirmed that LLM on this machine.
-- Before commit (when asked): `pnpm type-check` if TS/TSX changed; `pnpm verify` if domain machines changed; `cd src-tauri && cargo test` if Rust changed; `pnpm gate` if unsure. **No `pnpm lint` / `pnpm precommit`.**
+**Before commit (CommitGate):** `pnpm type-check` (TS) · `pnpm verify` (domain) · `cargo test` (Rust) · `pnpm gate` if unsure.

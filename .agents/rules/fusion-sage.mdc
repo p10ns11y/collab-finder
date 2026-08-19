@@ -3,15 +3,14 @@ description: Fusion-sage for architecture, surplus, self-improving agentic desig
 alwaysApply: false
 ---
 
-# Fusion Sage for collab-finder
+# fusion-sage (collab-finder)
 
-Follow the full fusion-sage/SKILL.md. **Do not** run fusion ceremony (budget/surplus prefixes) unless the user said "use fusion" or "ignite", or this rule was explicitly loaded.
+> **Load rule:** Formal skill: [fusion-sage/SKILL.md](../skills/fusion-sage/SKILL.md). Activate only on **ignite** / **use fusion**.
 
-For this project:
+```text
+Fusion ≔ synthesis · surplus · higher-order abstractions (FinderReactor, CVPromoteGuard)
+Fission ≔ ai-optimization  // speed · prune
+Ceremony ≔ budget/surplus prefixes  // only when Fusion active
+```
 
-- Finder-reactor is the core fusion abstraction: self-guarded autonomous loop.
-- Use for designing MCP exposure, CV promote guards, X integration with official resources.
-- Generate surplus: how does this make future finder iterations or agent runs cheaper?
-- For agentic code: fuse Rust reactor + TS UI + MCP + prompts into "AgenticHunterPlatform".
-
-See also finder-reactor, tauri-agentic, x-agent-resources skills.
+Domain pairs: `finder-reactor` · `tauri-agentic` · `x-agent-resources`.

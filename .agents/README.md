@@ -21,12 +21,13 @@ Each skill is a directory with `SKILL.md` (YAML frontmatter + rich markdown body
 
 ## Core + Project Skills
 
-See root `AGENTS.md` for the full index (finder-reactor, x-agent-resources, cv-promote-guard, tauri-agentic, plus portable ai-optimization, fusion-sage, bdd-strategizer, agent-orchestrator, **looper**, git-worktrees, etc.).
+See [docs/agent-playbook.md](../docs/agent-playbook.md) for skills index. **Library canonical:** `~/Work/personal/skills` — symlink control-plane skills; do not vendor copies.
 
-| Skill (portable control) | Path | When |
-|--------------------------|------|------|
-| **looper** | [skills/looper/SKILL.md](skills/looper/SKILL.md) | Multi-step agent cycles, outer state machine, bounded inner steps, multi-model routing, HITL pause gates — composes with orchestrator/subagent/fusion; not domain finder logic. **Library canonical:** `~/Work/personal/skills/looper` |
-| Cursor rule (optional) | [rules/looper.mdc](rules/looper.mdc) | Discovery when loop/routing signals fire (`alwaysApply: false`) |
+| Skill | Path | When |
+|-------|------|------|
+| **control-graph** | [skills/control-graph/SKILL.md](skills/control-graph/SKILL.md) (symlink) | Outer SM · inner DAG · HITL · routing. Legacy alias: `looper` |
+| **agent-orchestrator** | [skills/agent-orchestrator/SKILL.md](skills/agent-orchestrator/SKILL.md) | Multi-worker · briefs · verify |
+| Cursor rule | [rules/control-graph.mdc](rules/control-graph.mdc) | Loop/routing signals (`alwaysApply: false`) |
 
 When adding a skill, update [docs/agent-playbook.md](../docs/agent-playbook.md) and this file. Keep root `AGENTS.md` as the short router only.
 
@@ -55,7 +56,7 @@ Relevant rules in `.agents/rules/` today:
 - `secrets-agent-safety.mdc` (alwaysApply: true) — never dump X/xAI secrets via secret-tool or cat.
 - `fusion-sage.mdc` (alwaysApply: false) — load on "ignite" / "use fusion".
 - `finder-reactor.mdc` / `tauri-agentic.mdc` — glob-scoped domain rules.
-- `looper.mdc` (alwaysApply: false) — structured loops, multi-model routing, HITL gates.
+- `control-graph.mdc` (alwaysApply: false) — structured loops; legacy trigger "looper".
 
 Slash commands (canonical `.agents/commands/`; symlink into `.cursor/commands/`):
 - `session-start.md` — life-os `README.md` + verify SoT

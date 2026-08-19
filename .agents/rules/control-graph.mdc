@@ -1,0 +1,21 @@
+---
+description: >-
+  Agent control-graph: outer state machine / loop, inner DAG or nested loops,
+  budgets, HITL, multi-model routing, dual-actor CLT load balance. Load for
+  multi-step cycles, ReAct thrash risk, model roles, cognitive strain. Formerly looper.
+alwaysApply: false
+---
+
+# control-graph
+
+When **multi-step cycle**, long autonomous run, model routing, ReAct thrash, or cognitive-load design:
+
+1. Read [control-graph/SKILL.md](../skills/control-graph/SKILL.md) (formal SoT).
+2. Expand `control-graph/references/english-procedure.md` **only if** formal ambiguous.
+3. Open **Control Card** (phase, budgets, inner DAG, model role).
+4. Outer phases: ORIENT → PLAN → EXECUTE → VERIFY → REPAIR → REVIEW_GATE → INTEGRATE → DONE.
+5. Honor HITL + hard exits. **A8 DualLoad:** minimize extraneous; fan-out independent agent work.
+
+Compose: `agent-orchestrator` · `subagent-delegation` · `fusion-sage`/`ai-optimization`. Domain (finder/CV/X) stays in domain skills.
+
+Activation: "control-graph", "looper", "structured loop", "state machine", "SM+DAG", "model routing", infinite-loop risk.

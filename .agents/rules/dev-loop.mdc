@@ -3,32 +3,28 @@ description: Read → grep → minimal edit → project verify. Commit only when
 alwaysApply: true
 ---
 
-# Dev loop (collab-finder)
+# dev-loop (collab-finder)
 
-One always-on process rule. Domain how-to lives in `AGENTS.md` + skills.
+> **Load rule:** Formal SoT below. Domain routing: root `AGENTS.md`. Deep how-to: [docs/agent-playbook.md](../../docs/agent-playbook.md) **only if** a step is ambiguous.
 
-## Before edit
+```text
+// Signature
+EditLoop ≔ Read → Grep → Patch → Lint → Verify
+CommitGate ≔ user asked "commit"  // else summarize only
+VerifySoT ≔ AGENTS.md verify table  // ¬ pnpm lint · ¬ pnpm precommit
 
-1. **Read** the file and callers (Grep/Glob). Do not guess paths.
-2. Before renaming or changing a symbol: **Grep** imports, string literals, and config; patch all sites in one pass.
-3. Before a shell command that reads, writes, or deletes project files: know the path (Read/Grep). Skip this for `git status` / `pwd`.
+// Axioms
+A1  Know path before shell that touches tree (Read/Grep); skip for git status/pwd
+A2  Rename/API change → Grep all sites → one-pass patch
+A3  Minimal diff; match existing style; no whole-file rewrite
+A4  ReadLints on touched paths after substantive edits
+A5  Smallest VerifySoT row that proves the change; fail → fix → re-run
+A6  Config edits (package.json, lockfile) still run type-check or gate
+A7  CommitGate → status+diff parallel → stage task files only → why-focused message
+```
 
-## After edit
-
-1. Minimal diff — StrReplace / ApplyPatch; match existing style. Do not rewrite whole files.
-2. **ReadLints** on touched paths after substantive edits.
-3. Run the **smallest command from the AGENTS.md verify table** that proves the change. If it fails, fix and re-run. Do not claim "should work."
-4. Config-only edits (`package.json`, lockfile, CMakeLists) still get a real command (`pnpm type-check` or `pnpm gate` as appropriate).
-
-There is **no** `pnpm lint` or `pnpm precommit` in this repo.
-
-## Commit when asked
-
-Only if the user asked to commit:
-
-1. `git status` and `git diff` (staged and unstaged) in parallel.
-2. Stage only task files — never secrets, transcripts, or `.env`.
-3. Message = **why**, not a file list. No LLM attribution boilerplate.
-4. Do not push unless asked. Do not `--amend` unless project git rules allow.
-
-If they did not ask: summarize and stop.
+| Phase | done_when |
+|-------|-----------|
+| Before edit | target paths known; callers grepped if symbol change |
+| After edit | lints clean or N/A; verify cmd exit 0 |
+| Commit | only if CommitGate; never secrets/.env/transcripts |
