@@ -15,13 +15,14 @@ jobs:
     timeout-minutes: 5
     outputs:
       app_source: ${{ steps.paths.outputs.app_source }}
+      release_build: ${{ steps.paths.outputs.release_build }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Detect app-source diff
+      - name: Detect diff scope
         id: paths
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -48,21 +49,21 @@ jobs:
           cache: pnpm
 
       - name: Light check (type-check + verify)
-        if: needs.changes.outputs.app_source != 'true'
+        if: needs.changes.outputs.release_build != 'true'
         run: bash scripts/ci-check-light.sh
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
-        if: needs.changes.outputs.app_source == 'true'
+        if: needs.changes.outputs.release_build == 'true'
         with:
           toolchain: stable
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        if: needs.changes.outputs.app_source == 'true'
+        if: needs.changes.outputs.release_build == 'true'
         with:
           workspaces: src-tauri
 
-      - name: Linux WebKit/GTK (Tauri link — app-source diffs only)
-        if: needs.changes.outputs.app_source == 'true'
+      - name: Linux WebKit/GTK (version bump / release prep only)
+        if: needs.changes.outputs.release_build == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -74,8 +75,8 @@ jobs:
             libssl-dev \
             pkg-config
 
-      - name: Full check (type-check + verify + Rust tests)
-        if: needs.changes.outputs.app_source == 'true'
+      - name: Release check (type-check + verify + Rust tests)
+        if: needs.changes.outputs.release_build == 'true'
         run: bash scripts/ci-check.sh
 
   complexity:
@@ -92,7 +93,7 @@ jobs:
 
   crap_report:
     needs: changes
-    if: needs.changes.outputs.app_source == 'true'
+    if: needs.changes.outputs.release_build == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
