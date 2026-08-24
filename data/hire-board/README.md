@@ -26,5 +26,6 @@ Resolution order (Rust):
 | `config.example.json` | yes | Template |
 | `config.local.json` | no | Your sheet |
 | `sample.csv` | yes | Offline golden for `cargo test hire_board` |
+| `operator-sources.csv` | yes | Tier-tagged operator hunt list (copy to Sheet or use as reference) |
 
 Schema after preamble rows: `Company`, `Location`, `Career Page`, `Thread Reply Link`.
