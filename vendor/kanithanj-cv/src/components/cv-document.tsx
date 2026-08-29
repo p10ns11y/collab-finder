@@ -1,8 +1,9 @@
 import { Document, Font, Link, Page, Path, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
 import defaultData from "@/data/cvdata.json";
 import {
-  CV_FEATURED_PROJECT_KEYS,
   getCvFeaturedProjects,
+  isReachProject,
+  projectDateRangeLabel,
 } from "@/lib/cv-featured-projects";
 import {
   CV_LAYOUT_POLICY,
@@ -177,6 +178,17 @@ const styles = StyleSheet.create({
   projectItem: {
     marginBottom: 3,
   },
+  reachProjectName: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#111",
+  },
+  reachChip: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: "#444",
+    letterSpacing: 0.3,
+  },
   publicationItem: {
     marginBottom: 4,
   },
@@ -185,9 +197,68 @@ const styles = StyleSheet.create({
   },
 });
 
+function jobIsIndependentWork(job: { kind?: string }): boolean {
+  return job.kind === "independent_work";
+}
+
+function ExperienceJobList({
+  jobs,
+}: {
+  jobs: typeof defaultData.work_experience;
+}) {
+  return (
+    <>
+      {jobs.map((job, index) => {
+        const bullets = sliceJobBullets(job.responsibilities, index);
+        const tools = sliceJobTools(job.tools);
+        const companyUrl =
+          "company_url" in job && typeof (job as { company_url?: string }).company_url === "string"
+            ? (job as { company_url: string }).company_url
+            : undefined;
+        return (
+          <View key={`${job.title}-${job.start_date}`} style={{ marginBottom: CV_LAYOUT_POLICY.jobMarginBottom }}>
+            <View
+              wrap={false}
+              minPresenceAhead={CV_LAYOUT_POLICY.jobHeaderMinPresenceAhead}
+            >
+              {/* @ts-ignore */}
+              <Text
+                style={styles.jobTitle}
+                bookmark={`${job.title} | ${job.company}, ${job.location}`}
+              >
+                {job.title} |{" "}
+                {companyUrl ? (
+                  <Link src={companyUrl} style={[styles.link, { color: "#333" }]}>
+                    {job.company}
+                  </Link>
+                ) : (
+                  job.company
+                )}
+                , {job.location}
+              </Text>
+              <Text style={styles.jobDate}>
+                {job.start_date} - {job.end_date}
+              </Text>
+            </View>
+            {bullets.map((resp, bulletIndex) => (
+              <View key={bulletIndex} style={styles.listItem} wrap={false}>
+                <Text style={styles.bullet}>•</Text>
+                <Text style={styles.listText}>{resp}</Text>
+              </View>
+            ))}
+            <Text style={styles.tools} wrap={false}>
+              Tools: {tools.join(", ")}
+            </Text>
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
 const CVDocument = ({
   data = defaultData,
-  featuredKeys = CV_FEATURED_PROJECT_KEYS,
+  featuredKeys,
 }: CVDocumentProps = {}) => (
   <Document
     title="Peramanathan Sathyamoorthy - Curriculum Vitae"
@@ -278,53 +349,18 @@ const CVDocument = ({
           id="Work Experience"
           bookmark={{ title: "Work Experience", fit: false }}
         >
+          {data.work_experience.some(jobIsIndependentWork) ? (
+            <>
+              <Text style={styles.subheader}>Independent Work</Text>
+              <ExperienceJobList
+                jobs={data.work_experience.filter(jobIsIndependentWork)}
+              />
+            </>
+          ) : null}
           <Text style={styles.subheader}>Work Experience</Text>
-          {data.work_experience.map((job, index) => {
-            const bullets = sliceJobBullets(job.responsibilities, index);
-            const tools = sliceJobTools(job.tools);
-            // Optional company_url (e.g. Bumbee Labs) — type not on every job.
-            const companyUrl =
-              "company_url" in job && typeof (job as { company_url?: string }).company_url === "string"
-                ? (job as { company_url: string }).company_url
-                : undefined;
-            // soft-job (CV_LAYOUT_POLICY.flowMode): header atomic; bullets soft-flow — no voids.
-            return (
-              <View key={index} style={{ marginBottom: CV_LAYOUT_POLICY.jobMarginBottom }}>
-                <View
-                  wrap={false}
-                  minPresenceAhead={CV_LAYOUT_POLICY.jobHeaderMinPresenceAhead}
-                >
-                  {/* @ts-ignore */}
-                  <Text
-                    style={styles.jobTitle}
-                    bookmark={`${job.title} | ${job.company}, ${job.location}`}
-                  >
-                    {job.title} |{" "}
-                    {companyUrl ? (
-                      <Link src={companyUrl} style={[styles.link, { color: "#333" }]}>
-                        {job.company}
-                      </Link>
-                    ) : (
-                      job.company
-                    )}
-                    , {job.location}
-                  </Text>
-                  <Text style={styles.jobDate}>
-                    {job.start_date} - {job.end_date}
-                  </Text>
-                </View>
-                {bullets.map((resp, i) => (
-                  <View key={i} style={styles.listItem} wrap={false}>
-                    <Text style={styles.bullet}>•</Text>
-                    <Text style={styles.listText}>{resp}</Text>
-                  </View>
-                ))}
-                <Text style={styles.tools} wrap={false}>
-                  Tools: {tools.join(", ")}
-                </Text>
-              </View>
-            );
-          })}
+          <ExperienceJobList
+            jobs={data.work_experience.filter((job) => !jobIsIndependentWork(job))}
+          />
         </View>
         <View style={styles.rightColumn}>
           {/* @ts-ignore */}
@@ -346,10 +382,19 @@ const CVDocument = ({
               <View key={index} style={styles.projectItem}>
                 <Link
                   src={project.url}
-                  style={[styles.link, { fontSize: 9, fontWeight: "bold", color: "#0e0e0e" }]}
+                  style={[
+                    styles.link,
+                    isReachProject(project) ? styles.reachProjectName : { fontSize: 9, fontWeight: "bold", color: "#0e0e0e" },
+                  ]}
                 >
                   {project.name}
+                  {isReachProject(project) ? "  ·  reach" : ""}
                 </Link>
+                {projectDateRangeLabel(project) ? (
+                  <Text style={{ fontSize: 7, color: "#666", marginTop: 1 }}>
+                    {projectDateRangeLabel(project)}
+                  </Text>
+                ) : null}
                 <Text style={{ fontSize: 8, fontStyle: "italic", color: "#1c1c1c", marginTop: 1 }}>
                   {project.description}
                 </Text>

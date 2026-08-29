@@ -2,9 +2,9 @@
  * Generate a portfolio-styled apply CV from master cvdata + optional pack overlay.
  *
  * Usage:
- *   bun scripts/generate-apply-cv.tsx xai-exceptional-software-engineer-2026-07-17
- *   bun scripts/generate-apply-cv.tsx 17
- *   bun scripts/generate-apply-cv.tsx <pack> --no-submit-copy
+ *   kanithanj.cv                         # master CV → out/apply/cv.pdf
+ *   kanithanj.cv <pack|opp_N|id>         # role-fit pack PDF
+ *   bun scripts/generate-apply-cv.tsx    # same (no pack = master)
  *
  * Output filename rule (always):
  *   {name}-{role}-{id}.pdf
@@ -55,16 +55,33 @@ type PackManifest = {
 };
 
 function usage(): never {
-  console.error(
-    "Usage: bun scripts/generate-apply-cv.tsx <pack_slug|opp_N|id> [--no-submit-copy]",
-  );
-  console.error(
-    "Example: bun scripts/generate-apply-cv.tsx xai-exceptional-software-engineer-2026-07-17",
-  );
-  console.error(
-    "Output always: {name}-{role}-{id}.pdf (from cvdata name + pack title + job id)",
-  );
+  console.error(`Usage:
+  kanithanj.cv                      master CV → out/apply/cv.pdf
+  kanithanj.cv <pack|opp_N|id>      role-fit pack PDF
+  kanithanj.cv <pack> --no-submit-copy`);
   process.exit(1);
+}
+
+async function writeMasterCv(): Promise<void> {
+  const personName =
+    typeof masterData.name === "string" && masterData.name.trim()
+      ? masterData.name.trim()
+      : "candidate";
+  const namedFile = buildApplyCvFilename({
+    personName,
+    roleTitle: "cv",
+    jobId: "master",
+  });
+  const applyOutDir = join(root, "out", "apply");
+  mkdirSync(applyOutDir, { recursive: true });
+  const namedPdf = join(applyOutDir, namedFile);
+  const masterPdf = join(applyOutDir, "cv.pdf");
+  await ReactPDF.render(
+    <CVDocument data={masterData as typeof masterData} />,
+    namedPdf,
+  );
+  copyFileSync(namedPdf, masterPdf);
+  console.log(masterPdf);
 }
 
 function readManifest(packDir: string): PackManifest | null {
@@ -252,9 +269,13 @@ function synthesizeOverlayFromPackFiles(
 
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
+  if (args.includes("-h") || args.includes("--help")) usage();
   const noSubmitCopy = args.includes("--no-submit-copy");
   const packArg = args.find((a) => !a.startsWith("-"));
-  if (!packArg) usage();
+  if (!packArg) {
+    await writeMasterCv();
+    return;
+  }
 
   const packsRoot = join(root, "application_packs");
   if (!existsSync(packsRoot)) {
