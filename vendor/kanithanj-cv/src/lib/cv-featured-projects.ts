@@ -10,7 +10,6 @@ export const CV_MASTER_PROJECT_KEYS = [
   "thepulimaangani",
   "devprofile",
 ] as const;
-export const CV_REACH_PROJECT_KEY = "collab-finder";
 export const CV_FEATURED_MAX = 3;
 
 /** @deprecated Use CV_MASTER_PROJECT_KEYS. Kept for overlay-era callers. */
@@ -25,7 +24,7 @@ export type CvProjectRef = {
   description: string;
   created?: string;
   updated?: string;
-  reach?: boolean;
+  public_url?: string;
 };
 
 export type FeaturedSelectOptions = {
@@ -47,8 +46,15 @@ export function isUpdatedSince(project: CvProjectRef, since: string = CV_FEATURE
   return project.updated >= since;
 }
 
-export function isReachProject(project: CvProjectRef): boolean {
-  return project.reach === true || projectLookupId(project) === CV_REACH_PROJECT_KEY;
+/** Hostname for a live product, if `public_url` is set. Never a jargon badge. */
+export function projectPublicHostLabel(project: CvProjectRef): string | undefined {
+  const publicUrl = project.public_url?.trim();
+  if (!publicUrl) return undefined;
+  try {
+    return new URL(publicUrl).hostname.replace(/^www\./, "") || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const MONTH_LABELS = [

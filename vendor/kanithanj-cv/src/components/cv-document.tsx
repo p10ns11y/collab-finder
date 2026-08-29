@@ -2,8 +2,8 @@ import { Document, Font, Link, Page, Path, StyleSheet, Svg, Text, View } from "@
 import defaultData from "@/data/cvdata.json";
 import {
   getCvFeaturedProjects,
-  isReachProject,
   projectDateRangeLabel,
+  projectPublicHostLabel,
 } from "@/lib/cv-featured-projects";
 import {
   CV_LAYOUT_POLICY,
@@ -34,7 +34,9 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     // Slight vertical room for header; work experience stays compact below
-    padding: "10 24",
+    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingBottom: 28,
     fontFamily: "Helvetica",
     fontSize: 9,
     lineHeight: 1.28,
@@ -178,16 +180,10 @@ const styles = StyleSheet.create({
   projectItem: {
     marginBottom: 3,
   },
-  reachProjectName: {
+  projectName: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    color: "#111",
-  },
-  reachChip: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-    color: "#444",
-    letterSpacing: 0.3,
+    color: "#0e0e0e",
   },
   publicationItem: {
     marginBottom: 4,
@@ -216,11 +212,13 @@ function ExperienceJobList({
             ? (job as { company_url: string }).company_url
             : undefined;
         return (
-          <View key={`${job.title}-${job.start_date}`} style={{ marginBottom: CV_LAYOUT_POLICY.jobMarginBottom }}>
-            <View
-              wrap={false}
-              minPresenceAhead={CV_LAYOUT_POLICY.jobHeaderMinPresenceAhead}
-            >
+          <View
+            key={`${job.title}-${job.start_date}`}
+            wrap={false}
+            minPresenceAhead={CV_LAYOUT_POLICY.jobHeaderMinPresenceAhead}
+            style={{ marginBottom: CV_LAYOUT_POLICY.jobMarginBottom }}
+          >
+            <View>
               {/* @ts-ignore */}
               <Text
                 style={styles.jobTitle}
@@ -379,20 +377,15 @@ const CVDocument = ({
           <View style={styles.section} id="Projects" bookmark={{ title: "Projects", fit: false }}>
             <Text style={styles.subheader}>Projects</Text>
             {getCvFeaturedProjects(data.projects, featuredKeys).map((project, index) => (
-              <View key={index} style={styles.projectItem}>
-                <Link
-                  src={project.url}
-                  style={[
-                    styles.link,
-                    isReachProject(project) ? styles.reachProjectName : { fontSize: 9, fontWeight: "bold", color: "#0e0e0e" },
-                  ]}
-                >
+              <View key={index} style={styles.projectItem} wrap={false}>
+                <Link src={project.url} style={[styles.link, styles.projectName]}>
                   {project.name}
-                  {isReachProject(project) ? "  ·  reach" : ""}
                 </Link>
-                {projectDateRangeLabel(project) ? (
+                {projectDateRangeLabel(project) || projectPublicHostLabel(project) ? (
                   <Text style={{ fontSize: 7, color: "#666", marginTop: 1 }}>
-                    {projectDateRangeLabel(project)}
+                    {[projectDateRangeLabel(project), projectPublicHostLabel(project)]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </Text>
                 ) : null}
                 <Text style={{ fontSize: 8, fontStyle: "italic", color: "#1c1c1c", marginTop: 1 }}>
@@ -504,7 +497,17 @@ const CVDocument = ({
           </View>
         </View>
       </View>
-      <View style={{ paddingTop: 42, margin: "auto auto 0 auto", fontSize: 8 }} fixed>
+      <View
+        style={{
+          position: "absolute",
+          bottom: 10,
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          fontSize: 8,
+        }}
+        fixed
+      >
         <Text>
           {new Date(Date.now()).toLocaleDateString("sv")} © {data.name}
         </Text>
