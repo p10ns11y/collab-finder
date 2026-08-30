@@ -35,3 +35,5 @@ Master cvdata is optional at install:
 Install does not look for a sibling `devprofile` checkout.
 
 `kanithanj.cv sync` re-runs the installer from the recorded remote, or from the local vendor path when that checkout still exists.
+
+Look files (`cv-document.tsx` and the four lib helpers) are pulled from `p10ns11y/devprofile` with `scripts/pull-cv-renderer.sh`. That script copies an allowlist only. It does not copy the CLI writer.
