@@ -31,7 +31,9 @@ echo "OK cv-sot wave2 (renderer pull allowlist)"
 
 INSTALL="$ROOT/vendor/kanithanj-cv/scripts/install-kanithanj-cv.sh"
 grep -q 'set CVDATA_SRC=/path/to/cvdata.json' "$INSTALL" || fail "install must teach the cvdata pointer"
+grep -q 'drop_foreign_cvdata_link' "$INSTALL" || fail "install must drop sibling cvdata links"
 if grep -E 'DEVPROFILE=.*Work/personal/devprofile|HOME\}/Work/personal/devprofile' "$INSTALL"; then
   fail "install must not default cvdata to a sibling checkout"
 fi
+[[ -f "$ROOT/vendor/kanithanj-cv/scripts/pull-cvdata.sh" ]] || fail "pull-cvdata.sh missing"
 echo "OK cv-sot wave3 (cvdata is a pointer)"

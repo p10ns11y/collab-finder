@@ -49,7 +49,7 @@ else
   tmp="$(mktemp -d)"
   cleanup="$tmp"
   git clone --depth 1 --branch "$REF" --filter=blob:none --sparse "$REMOTE" "$tmp/repo"
-  git -C "$tmp/repo" sparse-checkout set "${ALLOWLIST[@]}"
+  git -C "$tmp/repo" sparse-checkout set src/components src/lib
   SRC="$tmp/repo"
 fi
 

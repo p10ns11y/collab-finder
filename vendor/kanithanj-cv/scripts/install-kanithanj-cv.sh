@@ -10,8 +10,9 @@
 #   KANITHANJ_CV_REMOTE  git URL (default https://github.com/p10ns11y/collab-finder.git)
 #   KANITHANJ_CV_REF     branch or tag (default main)
 #   KANITHANJ_CV_SRC     local vendor/kanithanj-cv tree
-#   CVDATA_SRC           master cvdata.json to symlink
+#   CVDATA_SRC           master cvdata.json to symlink (wins)
 #   KANITHANJ_CV_HOME    install destination
+#   KANITHANJ_CVDATA_SYNC=0  skip remote cvdata refresh on --sync
 set -euo pipefail
 
 DEST="${KANITHANJ_CV_HOME:-${HOME}/.local/share/kanithanj.cv}"
@@ -90,10 +91,51 @@ fi
 
 mkdir -p "$(dirname "$DEST")" "${HOME}/.local/bin" "$CF_DATA/application_packs" "$(dirname "$CONFIG_CVDATA")"
 
-SAVED_CVDATA=""
-if [[ -L "$DEST/src/data/cvdata.json" ]]; then
-  SAVED_CVDATA="$(readlink -f "$DEST/src/data/cvdata.json" || true)"
-fi
+drop_foreign_cvdata_link() {
+  local bundled="$DEST/src/data/cvdata.json"
+  [[ -L "$bundled" ]] || return 0
+  local target
+  target="$(readlink -f "$bundled" || true)"
+  [[ -n "$target" ]] || return 0
+  if [[ -n "${CVDATA_SRC:-}" && -f "$CVDATA_SRC" && "$target" == "$(realpath "$CVDATA_SRC")" ]]; then
+    return 0
+  fi
+  if [[ -f "$CONFIG_CVDATA" && "$target" == "$(realpath "$CONFIG_CVDATA")" ]]; then
+    return 0
+  fi
+  rm -f "$bundled"
+  echo "Dropped foreign cvdata link → $target"
+}
+
+place_cvdata() {
+  local pull="$SCRIPT_DIR/pull-cvdata.sh"
+  local should_pull=0
+  if [[ -n "${CVDATA_SRC:-}" && -f "$CVDATA_SRC" ]]; then
+    :
+  elif [[ "$SYNC" -eq 1 && "${KANITHANJ_CVDATA_SYNC:-1}" != "0" ]]; then
+    should_pull=1
+  elif [[ ! -f "$CONFIG_CVDATA" ]]; then
+    should_pull=1
+  else
+    CVDATA_SRC="$CONFIG_CVDATA"
+  fi
+  if [[ "$should_pull" -eq 1 && -f "$pull" ]]; then
+    KANITHANJ_CVDATA_DEST="$CONFIG_CVDATA" bash "$pull"
+    if [[ -f "$CONFIG_CVDATA" ]]; then
+      CVDATA_SRC="$CONFIG_CVDATA"
+    fi
+  fi
+  if [[ -n "${CVDATA_SRC:-}" && -f "$CVDATA_SRC" ]]; then
+    mkdir -p "$DEST/src/data"
+    ln -sfn "$(realpath "$CVDATA_SRC")" "$DEST/src/data/cvdata.json"
+    echo "Linked cvdata → $CVDATA_SRC"
+  else
+    echo "cvdata: no pointer (bundled placeholder kept)"
+    echo "  set CVDATA_SRC=/path/to/cvdata.json"
+    echo "  or put a file at $CONFIG_CVDATA"
+    echo "  or let install pull src/data/cvdata.json from p10ns11y/devprofile"
+  fi
+}
 
 mkdir -p "$DEST"
 if command -v rsync >/dev/null 2>&1; then
@@ -114,22 +156,8 @@ if [[ -f "$SCRIPT_DIR/install-kanithanj-cv.sh" ]]; then
   chmod +x "$DEST/scripts/install-kanithanj-cv.sh"
 fi
 
-if [[ -z "${CVDATA_SRC:-}" && -n "$SAVED_CVDATA" && -f "$SAVED_CVDATA" ]]; then
-  CVDATA_SRC="$SAVED_CVDATA"
-fi
-if [[ -z "${CVDATA_SRC:-}" && -f "$CONFIG_CVDATA" ]]; then
-  CVDATA_SRC="$CONFIG_CVDATA"
-fi
-if [[ -n "${CVDATA_SRC:-}" && -f "$CVDATA_SRC" ]]; then
-  mkdir -p "$DEST/src/data"
-  ln -sfn "$(realpath "$CVDATA_SRC")" "$DEST/src/data/cvdata.json"
-  echo "Linked cvdata → $CVDATA_SRC"
-else
-  echo "cvdata: no pointer (bundled placeholder kept)"
-  echo "  set CVDATA_SRC=/path/to/cvdata.json"
-  echo "  or put a file at $CONFIG_CVDATA"
-  echo "  then re-run install. Content is not copied."
-fi
+drop_foreign_cvdata_link
+place_cvdata
 
 PACKS="${COLLAB_FINDER_PACKS:-$CF_DATA/application_packs}"
 mkdir -p "$PACKS"

@@ -27,12 +27,12 @@ Packs resolve in this order:
 2. `$XDG_DATA_HOME/collab-finder/application_packs`
 3. `./application_packs` if it exists
 
-Master cvdata is optional at install:
+Master cvdata is an operator file at `~/.config/kanithanj.cv/cvdata.json`.
 
-- `CVDATA_SRC=/path/to/cvdata.json`
-- or `~/.config/kanithanj.cv/cvdata.json`
-
-Install does not look for a sibling `devprofile` checkout.
+- First install pulls `src/data/cvdata.json` from `p10ns11y/devprofile` (GitHub).
+- `kanithanj.cv sync` refreshes that file from GitHub. Edit facts on the site, push, then sync. No local hook.
+- Upload: write that config file yourself. Set `KANITHANJ_CVDATA_SYNC=0` so sync does not overwrite it.
+- `CVDATA_SRC` still wins when set.
 
 `kanithanj.cv sync` re-runs the installer from the recorded remote, or from the local vendor path when that checkout still exists.
 
