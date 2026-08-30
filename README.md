@@ -28,12 +28,12 @@ pnpm install:local    # → ~/.local/bin/kanithanj.ai
 | Step | Where | What |
 |------|--------|------|
 | 1 | **Settings** | X bearer + xAI API key |
-| 2 | **Preferences** | Install **kanithanj.cv**; optional devprofile path for CV grounding |
+| 2 | **Preferences** | Install **kanithanj.cv** (packs from app data; facts at `~/.config/kanithanj.cv/cvdata.json`) |
 | 3 | **Discover** | Paste URL or JD → Evaluate → Prepare → Generate apply CV |
 
-CV packet is built **locally** (textarea → devprofile / kanithanj.cv → operator pack). xAI key is only needed for Evaluate and Prepare.
+CV packet is built **locally** (textarea → checkout prune / installed cvdata → operator pack). xAI key is only needed for Evaluate and Prepare.
 
-Details: [docs/GUIDE.md](docs/GUIDE.md) · Config: [docs/config.md](docs/config.md) · Setup/troubleshooting: [docs/SETUP.md](docs/SETUP.md)
+Apply CLI how-to: [vendor/kanithanj-cv/README.md](vendor/kanithanj-cv/README.md). Details: [docs/GUIDE.md](docs/GUIDE.md) · Config: [docs/config.md](docs/config.md) · Setup/troubleshooting: [docs/SETUP.md](docs/SETUP.md)
 
 ---
 
@@ -52,6 +52,7 @@ See [docs/ci.md](docs/ci.md) for CI jobs.
 | | |
 |--|--|
 | [docs/GUIDE.md](docs/GUIDE.md) | Screens, hunt loop, architecture map |
+| [vendor/kanithanj-cv/README.md](vendor/kanithanj-cv/README.md) | How to use the apply-CV CLI |
 | [docs/SETUP.md](docs/SETUP.md) | Install, credentials, Arch notes |
 | [docs/config.md](docs/config.md) | Rank packs + operator config |
 | [docs/tauri-commands.md](docs/tauri-commands.md) | IPC / invoke reference |

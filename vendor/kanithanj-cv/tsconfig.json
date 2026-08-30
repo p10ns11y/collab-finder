@@ -9,5 +9,5 @@
     "resolveJsonModule": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["scripts/**/*.tsx", "scripts/**/*.mjs", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["scripts/**/*.ts", "scripts/**/*.tsx", "scripts/**/*.mjs", "src/**/*.ts", "src/**/*.tsx"]
 }

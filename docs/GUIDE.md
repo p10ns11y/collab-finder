@@ -66,8 +66,8 @@ Cluster law (sibling apps): `ensembly/docs/SATELLITE-CLUSTER.md`.
 
 ### 2. Preferences (grounding + rank)
 
-1. **Install kanithanj.cv** — Co-located apply-CV PDF maker (`~/.local/bin/kanithanj.cv`). One-time; links `cvdata.json` from devprofile path if set.
-2. **devprofile path** (optional) — Source for pruned CV packet when Discover textarea is empty. Never auto-writes master CV.
+1. **Install kanithanj.cv** — Apply-CV CLI (`~/.local/bin/kanithanj.cv`). One-time. Packs come from `~/.local/share/collab-finder/application_packs`. Facts live at `~/.config/kanithanj.cv/cvdata.json` (first install pulls GitHub). How-to: [vendor/kanithanj-cv/README.md](../vendor/kanithanj-cv/README.md).
+2. **devprofile path** (optional) — Checkout used for pruned CV packet when Discover textarea is empty. Never auto-writes master CV. Not the CLI facts file.
 3. **Rank packs / fit mode** — See [config.md](./config.md) for `~/.config/collab-finder/rank.json` + `packs/`.
 
 Operator identity seed (first machine): `scripts/seed-operator-config.sh`.
@@ -82,6 +82,19 @@ Quick Target sends a **CV packet** to xAI. Resolved locally, in order:
 4. Operator pack fallback → `~/.config/collab-finder/packs/cv-packet.txt`
 
 Configure grounding **before** the xAI key; Analyze/Prep need the key.
+
+### How to use kanithanj.cv
+
+```bash
+kanithanj.cv --help
+kanithanj.cv status
+kanithanj.cv list
+kanithanj.cv generate <pack-slug|opp_N>
+kanithanj.cv open last
+kanithanj.cv sync    # after you push site cvdata.json
+```
+
+Upload a facts file to `~/.config/kanithanj.cv/cvdata.json` and skip the GitHub overwrite with `KANITHANJ_CVDATA_SYNC=0 kanithanj.cv sync`. Full card: [vendor/kanithanj-cv/README.md](../vendor/kanithanj-cv/README.md).
 
 ---
 
@@ -141,6 +154,7 @@ Full system map: [agentic-architecture.md](./agentic-architecture.md).
 | Doc | Purpose |
 |-----|---------|
 | [SETUP.md](./SETUP.md) | Install, credentials, troubleshooting |
+| [vendor/kanithanj-cv/README.md](../vendor/kanithanj-cv/README.md) | How to use the apply-CV CLI |
 | [config.md](./config.md) | Rank JSON + operator packs |
 | [job-sources.md](./job-sources.md) | Curated hunt sources, tiers, Mission firms, X presets |
 | [mission-flow-relevance.md](./mission-flow-relevance.md) | Mission Pull / Next 10 / Evaluate lanes, persistence, CV packet |

@@ -1,10 +1,9 @@
 /**
  * Generate a portfolio-styled apply CV from master cvdata + optional pack overlay.
  *
- * Usage:
- *   bun scripts/generate-apply-cv.tsx xai-exceptional-software-engineer-2026-07-17
- *   bun scripts/generate-apply-cv.tsx 17
- *   bun scripts/generate-apply-cv.tsx <pack> --no-submit-copy
+ * Usage (writer — prefer `kanithanj.cv generate`):
+ *   bun scripts/generate-apply-cv.tsx              # master CV → out/apply/cv.pdf
+ *   bun scripts/generate-apply-cv.tsx <pack|opp_N> # role-fit pack PDF
  *
  * Output filename rule (always):
  *   {name}-{role}-{id}.pdf
@@ -36,6 +35,7 @@ import {
   resolveApplyJobId,
 } from "@/lib/apply-cv-filename";
 import { applyCvOverlay, type CvOverlayV1 } from "@/lib/cv-overlay";
+import { packsRootPath, resolvePacksRoot } from "@/lib/cv-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -55,16 +55,34 @@ type PackManifest = {
 };
 
 function usage(): never {
-  console.error(
-    "Usage: bun scripts/generate-apply-cv.tsx <pack_slug|opp_N|id> [--no-submit-copy]",
-  );
-  console.error(
-    "Example: bun scripts/generate-apply-cv.tsx xai-exceptional-software-engineer-2026-07-17",
-  );
-  console.error(
-    "Output always: {name}-{role}-{id}.pdf (from cvdata name + pack title + job id)",
-  );
+  console.error(`Usage:
+  bun scripts/generate-apply-cv.tsx
+  bun scripts/generate-apply-cv.tsx <pack|opp_N|id> [--no-submit-copy]
+
+Prefer: kanithanj.cv generate [pack]`);
   process.exit(1);
+}
+
+async function writeMasterCv(): Promise<void> {
+  const personName =
+    typeof masterData.name === "string" && masterData.name.trim()
+      ? masterData.name.trim()
+      : "candidate";
+  const namedFile = buildApplyCvFilename({
+    personName,
+    roleTitle: "cv",
+    jobId: "master",
+  });
+  const applyOutDir = join(root, "out", "apply");
+  mkdirSync(applyOutDir, { recursive: true });
+  const namedPdf = join(applyOutDir, namedFile);
+  const masterPdf = join(applyOutDir, "cv.pdf");
+  await ReactPDF.render(
+    <CVDocument data={masterData as typeof masterData} />,
+    namedPdf,
+  );
+  copyFileSync(namedPdf, masterPdf);
+  console.log(masterPdf);
 }
 
 function readManifest(packDir: string): PackManifest | null {
@@ -252,13 +270,22 @@ function synthesizeOverlayFromPackFiles(
 
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
+  if (args.includes("-h") || args.includes("--help")) usage();
   const noSubmitCopy = args.includes("--no-submit-copy");
   const packArg = args.find((a) => !a.startsWith("-"));
-  if (!packArg) usage();
+  if (!packArg) {
+    await writeMasterCv();
+    return;
+  }
 
-  const packsRoot = join(root, "application_packs");
-  if (!existsSync(packsRoot)) {
-    console.error("Missing application_packs/ — run: pnpm link-application-packs");
+  const resolvedPacks = resolvePacksRoot(root, process.env);
+  const packsRoot = packsRootPath(resolvedPacks);
+  if (!packsRoot) {
+    console.error("No application packs found.");
+    if (resolvedPacks.kind === "missing") {
+      console.error(`Tried: ${resolvedPacks.tried.join(", ")}`);
+    }
+    console.error("Export a pack from kanithanj.ai, or set COLLAB_FINDER_PACKS.");
     process.exit(1);
   }
 

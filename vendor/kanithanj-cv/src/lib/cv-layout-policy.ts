@@ -5,7 +5,7 @@
  * Content length (overlay PROFILE, bullets) must not reintroduce all-or-nothing
  * page jumps; those come from atomic multi-bullet job blocks, not from these knobs.
  *
- * Flow mode: soft-job — title+dates atomic; bullets soft-flow.
+ * Flow mode: atomic-job — whole role stays together across page breaks.
  * Density: clamp profile / bullets / tools so H_var stays bounded across packs.
  */
 
@@ -14,13 +14,13 @@ export const CV_LAYOUT_POLICY = {
   targetPages: 2,
 
   /**
-   * soft-job: only job header is wrap={false}.
-   * atomic-job: whole job block atomic (void risk — avoid).
+   * atomic-job: whole role stays together (no mid-job page split / footer clash).
+   * A small void at the page break is better than a split Oneflow block.
    */
-  flowMode: "soft-job" as const,
+  flowMode: "atomic-job" as const,
 
-  /** pt: room for title+dates + ~1 body line before page break. */
-  jobHeaderMinPresenceAhead: 28,
+  /** pt: do not start a role unless title+dates+first bullet can sit together. */
+  jobHeaderMinPresenceAhead: 72,
 
   /** Jobs with index <= earlyJobCount use maxBulletsEarly. */
   earlyJobCount: 2,

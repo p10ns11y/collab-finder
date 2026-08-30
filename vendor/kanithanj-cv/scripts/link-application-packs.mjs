@@ -16,14 +16,12 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const linkPath = join(root, "application_packs");
-const defaultTarget = join(homedir(), ".local/share/collab-finder/application_packs");
+const xdgData = process.env.XDG_DATA_HOME || join(homedir(), ".local/share");
+const defaultTarget = join(xdgData, "collab-finder", "application_packs");
 const target = resolve(process.env.COLLAB_FINDER_PACKS || defaultTarget);
 
 if (!existsSync(target)) {
-  console.error(`Pack source missing: ${target}`);
-  console.error("Export a pack from collab-finder first (Discover → Export pack),");
-  console.error("or set COLLAB_FINDER_PACKS to an existing packs directory.");
-  process.exit(1);
+  mkdirSync(target, { recursive: true });
 }
 
 if (existsSync(linkPath) || isSymlink(linkPath)) {

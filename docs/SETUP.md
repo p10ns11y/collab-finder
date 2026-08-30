@@ -33,6 +33,19 @@ Do **not** run bare `pnpm tauri build` with `bundle.targets: "all"` — AppImage
 
 GitHub download: **tag-driven CI** — [release.md](./release.md). `scripts/cut-release.sh 0.2.0 --push` keeps file version, git tag, and the uploaded binary on the same commit.
 
+## Apply CV CLI (kanithanj.cv)
+
+How-to: [vendor/kanithanj-cv/README.md](../vendor/kanithanj-cv/README.md).
+
+```bash
+scripts/install-kanithanj-cv.sh   # or Preferences → Install kanithanj.cv
+kanithanj.cv --help
+kanithanj.cv status
+kanithanj.cv generate <pack>
+```
+
+Facts file: `~/.config/kanithanj.cv/cvdata.json`. After you push site `cvdata.json`, run `kanithanj.cv sync`. Needs `bun` on `PATH`.
+
 ## Verify (commands that exist today)
 
 ```bash
