@@ -66,8 +66,8 @@ Cluster law (sibling apps): `ensembly/docs/SATELLITE-CLUSTER.md`.
 
 ### 2. Preferences (grounding + rank)
 
-1. **Install kanithanj.cv** — Co-located apply-CV PDF maker (`~/.local/bin/kanithanj.cv`). One-time; links `cvdata.json` from devprofile path if set.
-2. **devprofile path** (optional) — Source for pruned CV packet when Discover textarea is empty. Never auto-writes master CV.
+1. **Install kanithanj.cv** — Apply-CV CLI (`~/.local/bin/kanithanj.cv`). One-time. Packs come from `~/.local/share/collab-finder/application_packs`. Master cvdata is optional (`CVDATA_SRC` or `~/.config/kanithanj.cv/cvdata.json`).
+2. **devprofile path** (optional) — Source for pruned CV packet when Discover textarea is empty. Never auto-writes master CV. Not required to run the CLI.
 3. **Rank packs / fit mode** — See [config.md](./config.md) for `~/.config/collab-finder/rank.json` + `packs/`.
 
 Operator identity seed (first machine): `scripts/seed-operator-config.sh`.

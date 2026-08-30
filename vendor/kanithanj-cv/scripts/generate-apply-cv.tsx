@@ -1,10 +1,9 @@
 /**
  * Generate a portfolio-styled apply CV from master cvdata + optional pack overlay.
  *
- * Usage:
- *   kanithanj.cv                         # master CV → out/apply/cv.pdf
- *   kanithanj.cv <pack|opp_N|id>         # role-fit pack PDF
- *   bun scripts/generate-apply-cv.tsx    # same (no pack = master)
+ * Usage (writer — prefer `kanithanj.cv generate`):
+ *   bun scripts/generate-apply-cv.tsx              # master CV → out/apply/cv.pdf
+ *   bun scripts/generate-apply-cv.tsx <pack|opp_N> # role-fit pack PDF
  *
  * Output filename rule (always):
  *   {name}-{role}-{id}.pdf
@@ -36,6 +35,7 @@ import {
   resolveApplyJobId,
 } from "@/lib/apply-cv-filename";
 import { applyCvOverlay, type CvOverlayV1 } from "@/lib/cv-overlay";
+import { packsRootPath, resolvePacksRoot } from "@/lib/cv-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -56,9 +56,10 @@ type PackManifest = {
 
 function usage(): never {
   console.error(`Usage:
-  kanithanj.cv                      master CV → out/apply/cv.pdf
-  kanithanj.cv <pack|opp_N|id>      role-fit pack PDF
-  kanithanj.cv <pack> --no-submit-copy`);
+  bun scripts/generate-apply-cv.tsx
+  bun scripts/generate-apply-cv.tsx <pack|opp_N|id> [--no-submit-copy]
+
+Prefer: kanithanj.cv generate [pack]`);
   process.exit(1);
 }
 
@@ -277,9 +278,14 @@ async function main() {
     return;
   }
 
-  const packsRoot = join(root, "application_packs");
-  if (!existsSync(packsRoot)) {
-    console.error("Missing application_packs/ — run: pnpm link-application-packs");
+  const resolvedPacks = resolvePacksRoot(root, process.env);
+  const packsRoot = packsRootPath(resolvedPacks);
+  if (!packsRoot) {
+    console.error("No application packs found.");
+    if (resolvedPacks.kind === "missing") {
+      console.error(`Tried: ${resolvedPacks.tried.join(", ")}`);
+    }
+    console.error("Export a pack from kanithanj.ai, or set COLLAB_FINDER_PACKS.");
     process.exit(1);
   }
 

@@ -28,7 +28,7 @@ pnpm install:local    # → ~/.local/bin/kanithanj.ai
 | Step | Where | What |
 |------|--------|------|
 | 1 | **Settings** | X bearer + xAI API key |
-| 2 | **Preferences** | Install **kanithanj.cv**; optional devprofile path for CV grounding |
+| 2 | **Preferences** | Install **kanithanj.cv** (packs from app data; cvdata optional) |
 | 3 | **Discover** | Paste URL or JD → Evaluate → Prepare → Generate apply CV |
 
 CV packet is built **locally** (textarea → devprofile / kanithanj.cv → operator pack). xAI key is only needed for Evaluate and Prepare.

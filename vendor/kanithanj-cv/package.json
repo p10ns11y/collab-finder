@@ -4,8 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "kanithanj.cv": "bun scripts/kanithanj-cv.ts",
     "generate-apply-cv": "bun scripts/generate-apply-cv.tsx",
-    "link-application-packs": "node scripts/link-application-packs.mjs"
+    "link-application-packs": "node scripts/link-application-packs.mjs",
+    "test": "bun test src/lib"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",

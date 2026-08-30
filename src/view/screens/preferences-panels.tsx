@@ -406,9 +406,9 @@ export function DevprofilePathPanel() {
           <div>
             <CardTitle>kanithanj.cv</CardTitle>
             <CardDescription>
-              Co-located apply-CV PDF maker (extracted from devprofile). Install once — Generate
-              apply CV runs <span className="font-mono">~/.local/bin/kanithanj.cv</span> (PDF only;
-              never mutates master cvdata).
+              Apply-CV PDF maker from this repo. Install once — Generate apply CV runs{" "}
+              <span className="font-mono">~/.local/bin/kanithanj.cv</span> (PDF only; never mutates
+              master cvdata).
             </CardDescription>
           </div>
           <Badge tone={cvHome?.installed ? 'success' : 'neutral'}>
@@ -440,7 +440,7 @@ export function DevprofilePathPanel() {
                 cvdata:{' '}
                 {cvHome.cvdata_present
                   ? 'linked'
-                  : 'missing — set devprofile path below, then re-install'}
+                  : 'missing — set CVDATA_SRC or ~/.config/kanithanj.cv/cvdata.json, then re-install'}
               </li>
               <li>bun: {cvHome.bun_present ? 'found' : 'not found'}</li>
             </ul>
@@ -454,8 +454,8 @@ export function DevprofilePathPanel() {
             <CardTitle>devprofile path</CardTitle>
             <CardDescription>
               Optional cvdata source for Quick Target analyze/prep (textarea still overrides).
-              Sidecar proposals read it for deltas — no auto-write. Used when installing kanithanj.cv
-              to link master cvdata.json.
+              Sidecar proposals read it for deltas — no auto-write. If set, Install kanithanj.cv
+              also links that master cvdata.json. Not required for the CLI.
             </CardDescription>
           </div>
           <Badge tone={configuredPath ? 'success' : 'neutral'}>

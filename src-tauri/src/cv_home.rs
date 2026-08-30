@@ -1,4 +1,4 @@
-//! Co-located kanithanj.cv home (~/.local/share/kanithanj.cv). Apply-CV PDF maker extracted from devprofile.
+//! kanithanj.cv home (~/.local/share/kanithanj.cv). SoT is vendor/kanithanj-cv in this repo.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,13 @@ pub struct CvHomeStatus {
 pub fn default_home() -> PathBuf {
     dirs::data_local_dir()
         .map(|d| d.join(DEFAULT_SHARE_NAME))
-        .unwrap_or_else(|| PathBuf::from(format!("{}/.local/share/{}", std::env::var("HOME").unwrap_or_default(), DEFAULT_SHARE_NAME)))
+        .unwrap_or_else(|| {
+            PathBuf::from(format!(
+                "{}/.local/share/{}",
+                std::env::var("HOME").unwrap_or_default(),
+                DEFAULT_SHARE_NAME
+            ))
+        })
 }
 
 pub fn cli_path() -> PathBuf {
@@ -65,7 +71,11 @@ pub fn write_persisted_home(path: &Path) -> Result<(), String> {
 /// Resolved CV maker root: persisted cv_home → default share if script exists.
 pub fn resolve_home() -> Option<PathBuf> {
     #[cfg(test)]
-    if let Some(forced) = TEST_HOME_OVERRIDE.lock().expect("cv home test lock").clone() {
+    if let Some(forced) = TEST_HOME_OVERRIDE
+        .lock()
+        .expect("cv home test lock")
+        .clone()
+    {
         return forced;
     }
     if let Some(p) = read_persisted_home() {
@@ -104,30 +114,42 @@ pub fn status() -> CvHomeStatus {
         bun_present: crate::opportunity_target::resolve_tool_binary("bun").is_some(),
     }
 }
+
+fn configured_cvdata_src() -> Option<PathBuf> {
+    if let Some(dev) = crate::opportunity_target::get_devprofile_path() {
+        let cvdata = PathBuf::from(dev).join("src/data/cvdata.json");
+        if cvdata.is_file() {
+            return Some(cvdata);
+        }
+    }
+    let config = dirs::config_dir()?.join("kanithanj.cv").join("cvdata.json");
+    if config.is_file() {
+        return Some(config);
+    }
+    None
+}
+
 fn repo_root() -> Result<PathBuf, String> {
     // collab-finder repo when running `cargo tauri dev` from src-tauri
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     Ok(manifest.parent().ok_or("no repo root")?.to_path_buf())
 }
 
-/// Run scripts/install-kanithanj-cv.sh (bundled vendor → ~/.local/share/kanithanj.cv).
+/// Run scripts/install-kanithanj-cv.sh (vendor tree or GitHub remote → ~/.local/share/kanithanj.cv).
 pub fn install_from_vendor() -> Result<CvHomeStatus, String> {
     let root = repo_root()?;
     let script = root.join("scripts/install-kanithanj-cv.sh");
     if !script.is_file() {
         return Err(format!("install script missing at {}", script.display()));
     }
-    let devprofile = crate::opportunity_target::get_devprofile_path();
     let mut cmd = Command::new("bash");
     cmd.arg(&script).current_dir(&root);
-    if let Some(ref dev) = devprofile.filter(|d| PathBuf::from(d).is_dir()) {
-        cmd.env("DEVPROFILE_SRC", dev);
-        let cvdata = PathBuf::from(dev).join("src/data/cvdata.json");
-        if cvdata.is_file() {
-            cmd.env("CVDATA_SRC", cvdata);
-        }
+    if let Some(cvdata) = configured_cvdata_src() {
+        cmd.env("CVDATA_SRC", cvdata);
     }
-    let out = cmd.output().map_err(|e| format!("install kanithanj.cv: {e}"))?;
+    let out = cmd
+        .output()
+        .map_err(|e| format!("install kanithanj.cv: {e}"))?;
     if !out.status.success() {
         return Err(format!(
             "install kanithanj.cv failed ({}):\n{}\n{}",
