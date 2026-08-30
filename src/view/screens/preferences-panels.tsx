@@ -406,9 +406,11 @@ export function DevprofilePathPanel() {
           <div>
             <CardTitle>kanithanj.cv</CardTitle>
             <CardDescription>
-              Apply-CV PDF maker from this repo. Install once — Generate apply CV runs{" "}
-              <span className="font-mono">~/.local/bin/kanithanj.cv</span> (PDF only; never mutates
-              master cvdata).
+              Apply-CV PDF maker. Install once. Generate apply CV runs{" "}
+              <span className="font-mono">~/.local/bin/kanithanj.cv</span>. Facts live at{" "}
+              <span className="font-mono">~/.config/kanithanj.cv/cvdata.json</span> (GitHub pull on
+              install and <span className="font-mono">kanithanj.cv sync</span>). Never mutates the
+              site master.
             </CardDescription>
           </div>
           <Badge tone={cvHome?.installed ? 'success' : 'neutral'}>
@@ -439,8 +441,8 @@ export function DevprofilePathPanel() {
               <li>
                 cvdata:{' '}
                 {cvHome.cvdata_present
-                  ? 'linked'
-                  : 'missing — set CVDATA_SRC or ~/.config/kanithanj.cv/cvdata.json, then re-install'}
+                  ? 'present (~/.config/kanithanj.cv/cvdata.json or CVDATA_SRC)'
+                  : 'missing — run kanithanj.cv sync, or write ~/.config/kanithanj.cv/cvdata.json'}
               </li>
               <li>bun: {cvHome.bun_present ? 'found' : 'not found'}</li>
             </ul>
@@ -453,9 +455,10 @@ export function DevprofilePathPanel() {
           <div>
             <CardTitle>devprofile path</CardTitle>
             <CardDescription>
-              Optional cvdata source for Quick Target analyze/prep (textarea still overrides).
-              Sidecar proposals read it for deltas — no auto-write. If set, Install kanithanj.cv
-              also links that master cvdata.json. Not required for the CLI.
+              Optional checkout for Quick Target analyze/prep (textarea still overrides). Sidecar
+              proposals read it for deltas — no auto-write. Not the CLI facts file. If this path is
+              set, Preferences Install still passes it as <span className="font-mono">CVDATA_SRC</span>{" "}
+              (override). Clear it to keep the GitHub config file.
             </CardDescription>
           </div>
           <Badge tone={configuredPath ? 'success' : 'neutral'}>

@@ -56,10 +56,18 @@ export const HELP = `Usage:
   kanithanj.cv status
   kanithanj.cv open [pack|last]
   kanithanj.cv link                symlink XDG packs into this home
-  kanithanj.cv sync                pull the recorded remote or vendor tree
+  kanithanj.cv sync                refresh CLI + facts from GitHub (or local vendor)
   kanithanj.cv generate [pack]     write PDF (master if omitted)
   kanithanj.cv <pack|opp_N|id>     generate (same as generate <pack>)
   kanithanj.cv generate <pack> --no-submit-copy
+
+How to use:
+  1. Install once (Preferences or scripts/install-kanithanj-cv.sh).
+  2. kanithanj.cv list && kanithanj.cv generate <pack> && kanithanj.cv open last
+  3. After you edit and push site cvdata: kanithanj.cv sync
+  Facts file: ~/.config/kanithanj.cv/cvdata.json
+  Upload: write that file, then KANITHANJ_CVDATA_SYNC=0 kanithanj.cv sync
+  CVDATA_SRC wins when set. No local hook.
 
 Packs resolve in order: COLLAB_FINDER_PACKS, XDG collab-finder/application_packs, ./application_packs.
 generate is the only write. list / status / open do not write.
