@@ -2,7 +2,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { listPackRows, resolvePacksRoot } from "./cv-paths";
+import { listPackRows, resolveCvdataPointer, resolvePacksRoot } from "./cv-paths";
 
 function scratch(label: string): string {
   const dir = join(tmpdir(), `kanithanj-cv-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -77,6 +77,54 @@ describe("resolvePacksRoot", () => {
     if (resolved.kind !== "missing") return;
     expect(resolved.tried).toContain(join(xdgHome, "collab-finder", "application_packs"));
     expect(resolved.tried).toContain(join(home, "application_packs"));
+  });
+});
+
+describe("resolveCvdataPointer", () => {
+  test("prefers CVDATA_SRC over config and bundled", () => {
+    const root = scratch("cvdata-env");
+    const fromEnv = join(root, "master.json");
+    const configHome = join(root, "config");
+    const home = join(root, "cv-home");
+    writeFileSync(fromEnv, "{}");
+    mkdirSync(join(configHome, "kanithanj.cv"), { recursive: true });
+    writeFileSync(join(configHome, "kanithanj.cv", "cvdata.json"), "{}");
+    mkdirSync(join(home, "src", "data"), { recursive: true });
+    writeFileSync(join(home, "src", "data", "cvdata.json"), "{}");
+
+    expect(
+      resolveCvdataPointer(home, {
+        CVDATA_SRC: fromEnv,
+        XDG_CONFIG_HOME: configHome,
+      }),
+    ).toEqual({ kind: "env", path: fromEnv });
+  });
+
+  test("uses ~/.config/kanithanj.cv/cvdata.json when env is unset", () => {
+    const root = scratch("cvdata-config");
+    const configHome = join(root, "config");
+    const home = join(root, "cv-home");
+    const configFile = join(configHome, "kanithanj.cv", "cvdata.json");
+    mkdirSync(join(configHome, "kanithanj.cv"), { recursive: true });
+    writeFileSync(configFile, "{}");
+    mkdirSync(home);
+
+    expect(resolveCvdataPointer(home, { XDG_CONFIG_HOME: configHome })).toEqual({
+      kind: "config",
+      path: configFile,
+    });
+  });
+
+  test("reports missing with the paths it tried", () => {
+    const root = scratch("cvdata-missing");
+    const home = join(root, "cv-home");
+    const configHome = join(root, "empty-config");
+    mkdirSync(home);
+
+    const pointer = resolveCvdataPointer(home, { XDG_CONFIG_HOME: configHome });
+    expect(pointer.kind).toBe("missing");
+    if (pointer.kind !== "missing") return;
+    expect(pointer.tried).toContain(join(configHome, "kanithanj.cv", "cvdata.json"));
   });
 });
 

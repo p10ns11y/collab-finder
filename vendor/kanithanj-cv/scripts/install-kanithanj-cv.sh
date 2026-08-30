@@ -124,6 +124,11 @@ if [[ -n "${CVDATA_SRC:-}" && -f "$CVDATA_SRC" ]]; then
   mkdir -p "$DEST/src/data"
   ln -sfn "$(realpath "$CVDATA_SRC")" "$DEST/src/data/cvdata.json"
   echo "Linked cvdata → $CVDATA_SRC"
+else
+  echo "cvdata: no pointer (bundled placeholder kept)"
+  echo "  set CVDATA_SRC=/path/to/cvdata.json"
+  echo "  or put a file at $CONFIG_CVDATA"
+  echo "  then re-run install. Content is not copied."
 fi
 
 PACKS="${COLLAB_FINDER_PACKS:-$CF_DATA/application_packs}"

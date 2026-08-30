@@ -87,24 +87,57 @@ export function readInstallRecord(home: string): InstallRecord | null {
   }
 }
 
+export type CvdataPointer =
+  | { kind: "env"; path: string }
+  | { kind: "config"; path: string }
+  | { kind: "linked"; path: string; linkTarget: string }
+  | { kind: "bundled"; path: string }
+  | { kind: "missing"; tried: string[] };
+
+export function resolveCvdataPointer(home: string, env: EnvLike = process.env): CvdataPointer {
+  const bundled = join(home, "src", "data", "cvdata.json");
+  const configPath = defaultCvdataConfigPath(env);
+  const tried: string[] = [];
+
+  const fromEnv = env.CVDATA_SRC?.trim();
+  if (fromEnv) {
+    const path = resolve(fromEnv);
+    tried.push(path);
+    if (existsSync(path)) return { kind: "env", path };
+  }
+
+  tried.push(configPath);
+  if (existsSync(configPath)) return { kind: "config", path: configPath };
+
+  if (existsSync(bundled)) {
+    try {
+      const stat = lstatSync(bundled);
+      if (stat.isSymbolicLink()) {
+        return { kind: "linked", path: bundled, linkTarget: readlinkSync(bundled) };
+      }
+    } catch {
+      /* bundled file still counts */
+    }
+    return { kind: "bundled", path: bundled };
+  }
+
+  tried.push(bundled);
+  return { kind: "missing", tried };
+}
+
 export function cvdataStatus(home: string): {
   path: string;
   present: boolean;
   linkTarget: string | null;
 } {
-  const path = join(home, "src", "data", "cvdata.json");
-  if (!existsSync(path)) {
-    return { path, present: false, linkTarget: null };
+  const pointer = resolveCvdataPointer(home);
+  if (pointer.kind === "missing") {
+    return { path: join(home, "src", "data", "cvdata.json"), present: false, linkTarget: null };
   }
-  try {
-    const stat = lstatSync(path);
-    if (stat.isSymbolicLink()) {
-      return { path, present: true, linkTarget: readlinkSync(path) };
-    }
-  } catch {
-    /* fall through */
+  if (pointer.kind === "linked") {
+    return { path: pointer.path, present: true, linkTarget: pointer.linkTarget };
   }
-  return { path, present: true, linkTarget: null };
+  return { path: pointer.path, present: true, linkTarget: null };
 }
 
 export type PackRow = {

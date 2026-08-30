@@ -28,3 +28,10 @@ if grep -E 'HOME\}/Work/personal/devprofile|HOME/Work/personal/devprofile' "$PUL
   fail "pull-cv-renderer.sh must not default to a sibling checkout"
 fi
 echo "OK cv-sot wave2 (renderer pull allowlist)"
+
+INSTALL="$ROOT/vendor/kanithanj-cv/scripts/install-kanithanj-cv.sh"
+grep -q 'set CVDATA_SRC=/path/to/cvdata.json' "$INSTALL" || fail "install must teach the cvdata pointer"
+if grep -E 'DEVPROFILE=.*Work/personal/devprofile|HOME\}/Work/personal/devprofile' "$INSTALL"; then
+  fail "install must not default cvdata to a sibling checkout"
+fi
+echo "OK cv-sot wave3 (cvdata is a pointer)"

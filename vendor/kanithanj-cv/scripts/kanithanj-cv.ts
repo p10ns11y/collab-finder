@@ -6,11 +6,12 @@ import { stdin as stdinStream, stdout as stdoutStream } from "node:process";
 import { fileURLToPath } from "node:url";
 import { HELP, parseArgv, type Command } from "@/lib/cv-cli";
 import {
-  cvdataStatus,
   defaultCollabFinderPacks,
+  defaultCvdataConfigPath,
   listPackRows,
   packsRootPath,
   readInstallRecord,
+  resolveCvdataPointer,
   resolvePacksRoot,
   type PackRow,
 } from "@/lib/cv-paths";
@@ -59,14 +60,23 @@ function listCommand(): void {
 
 function statusCommand(): void {
   const resolved = resolvePacksRoot(home, process.env);
-  const cvdata = cvdataStatus(home);
+  const cvdata = resolveCvdataPointer(home, process.env);
   const install = readInstallRecord(home);
   const cli = join(homedir(), ".local", "bin", "kanithanj.cv");
   console.log(`home:    ${home}`);
   console.log(`cli:     ${existsSync(cli) ? cli : "missing"}`);
-  console.log(
-    `cvdata:  ${cvdata.present ? cvdata.path : "missing"}${cvdata.linkTarget ? ` → ${cvdata.linkTarget}` : ""}`,
-  );
+  if (cvdata.kind === "missing") {
+    console.log("cvdata:  missing");
+    for (const path of cvdata.tried) console.log(`  tried ${path}`);
+    console.log(`  set CVDATA_SRC or put a file at ${defaultCvdataConfigPath(process.env)}`);
+  } else if (cvdata.kind === "linked") {
+    console.log(`cvdata:  ${cvdata.kind} ${cvdata.path} → ${cvdata.linkTarget}`);
+  } else if (cvdata.kind === "bundled") {
+    console.log(`cvdata:  bundled placeholder ${cvdata.path}`);
+    console.log(`  set CVDATA_SRC or put a file at ${defaultCvdataConfigPath(process.env)}`);
+  } else {
+    console.log(`cvdata:  ${cvdata.kind} ${cvdata.path}`);
+  }
   if (resolved.kind === "missing") {
     console.log("packs:   missing");
     for (const path of resolved.tried) console.log(`  tried ${path}`);
