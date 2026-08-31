@@ -205,7 +205,10 @@ export type FinderMsg =
   | { type: 'MissionLeadInspectSucceeded'; inspect: import('../domain/firm-durability').MissionInspectResult }
   | { type: 'MissionLeadInspectFailed'; error: AppError }
 
-  // Mission firms (SpaceXAI Greenhouse + Swedish JobTech bridges)
+  // Mission firms (dynamic registry from Rust + config defaults)
+  | { type: 'MissionFirmRegistryLoaded'; chips: import('../domain/mission-firms').MissionFirmChip[]; defaults: string[] }
+  | { type: 'SearchCatalogLoaded'; query: string; presets: import('../domain/search-presets').SearchPreset[] }
+  | { type: 'HuntRailsLoaded'; missionQueryChips: import('../domain/hunt-rails').HuntRailChip[]; platsbankenRailChips: import('../domain/hunt-rails').HuntRailChip[] }
   | { type: 'MissionFirmsQChanged'; q: string }
   | { type: 'MissionFirmsFirmToggled'; firmId: string }
   | { type: 'MissionFirmsTexasOnlyToggled' }
@@ -213,6 +216,7 @@ export type FinderMsg =
   | { type: 'MissionFirmsSearchRequested'; forceRefresh?: boolean }
   | { type: 'MissionFirmsSearchSucceeded'; leads: MissionFirmLead[] }
   | { type: 'MissionFirmsSearchFailed'; error: AppError }
+  | { type: 'MissionFirmsLoadMore' }
   | { type: 'MissionFirmsImportRequested'; lead: MissionFirmLead }
   | { type: 'MissionFirmsImportSucceeded'; opportunity: Opportunity }
   | { type: 'MissionFirmsImportFailed'; error: AppError }

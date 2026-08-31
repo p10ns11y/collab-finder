@@ -5,6 +5,7 @@ import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
 import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested } from '../domain/hunt-rails'
+import { DEFAULT_SEARCH_QUERY } from '../domain/search-presets'
 import { parseQuestKind } from '../domain/quest'
 import { parseQuestContextIds } from '../domain/quest-context'
 
@@ -895,6 +896,30 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         missionInspect: { status: 'failed', error: msg.error },
         banner: msg.error,
       }]
+    case 'MissionFirmRegistryLoaded': {
+      const useDefaults =
+        model.missionFirmsSelected.length === 0 && msg.defaults.length > 0
+      return [{
+        ...model,
+        missionFirmChips: msg.chips,
+        missionFirmDefaults: msg.defaults,
+        ...(useDefaults ? { missionFirmsSelected: msg.defaults } : {}),
+      }]
+    }
+    case 'SearchCatalogLoaded': {
+      const stillStubQuery = model.query === DEFAULT_SEARCH_QUERY || model.query.length === 0
+      return [{
+        ...model,
+        searchPresets: msg.presets,
+        ...(stillStubQuery ? { query: msg.query } : {}),
+      }]
+    }
+    case 'HuntRailsLoaded':
+      return [{
+        ...model,
+        missionQueryChips: msg.missionQueryChips,
+        platsbankenRailChips: msg.platsbankenRailChips,
+      }]
     case 'MissionFirmsQChanged':
       return [{ ...model, missionFirmsQ: msg.q }]
     case 'MissionFirmsFirmToggled': {
@@ -907,12 +932,15 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [{ ...model, missionFirmsTexasOnly: !model.missionFirmsTexasOnly }]
     case 'MissionFirmsTerafabBiasToggled':
       return [{ ...model, missionFirmsTerafabBias: !model.missionFirmsTerafabBias }]
+    case 'MissionFirmsLoadMore':
+      return [{ ...model, missionFirmsVisibleCount: model.missionFirmsVisibleCount + 40 }]
     case 'MissionFirmsSearchRequested':
       return [
         {
           ...model,
           banner: null,
           missionFirms: { status: 'loading' },
+          missionFirmsVisibleCount: 40,
         },
       ]
     case 'MissionFirmsSearchSucceeded':

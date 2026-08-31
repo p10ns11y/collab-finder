@@ -2,10 +2,12 @@ import { idle, type AsyncState } from '../async'
 import {
   DEFAULT_CV_SUMMARY,
   DEFAULT_SEARCH_QUERY,
+  SEARCH_PRESETS,
   type Decision,
   type ReactorState,
   type Tweet,
 } from '../domain/finder'
+import type { SearchPreset } from '../domain/search-presets'
 import { sanitizeCvPacket } from '../domain/cv-packet'
 import type {
   DashboardStats,
@@ -23,7 +25,13 @@ import {
   PLATSBANKEN_DEFAULT_MUNICIPALITY,
   PLATSBANKEN_DEFAULT_QUERY,
 } from '../domain/platsbanken'
-import type { HarvestedKey, HuntRail } from '../domain/hunt-rails'
+import {
+  MISSION_QUERY_CHIPS,
+  PLATSBANKEN_RAIL_CHIPS,
+  type HarvestedKey,
+  type HuntRail,
+  type HuntRailChip,
+} from '../domain/hunt-rails'
 import type {
   QuestKind,
   QuestResult,
@@ -35,14 +43,9 @@ import {
   DEFAULT_QUEST_CONTEXT_IDS,
   type QuestContextId,
 } from '../domain/quest-context'
-import type { MissionFirmLead } from '../domain/mission-firms'
+import type { MissionFirmLead, MissionFirmChip, MissionFirmChipId } from '../domain/mission-firms'
 import type { DurabilityIteration } from '../domain/firm-durability'
-import {
-  MISSION_FIRMS_DEFAULT_QUERY,
-  MISSION_FIRMS_DEFAULT_SELECTED,
-  MISSION_FIRM_CHIPS,
-  type MissionFirmChipId,
-} from '../domain/mission-firms'
+import { MISSION_FIRMS_DEFAULT_QUERY } from '../domain/mission-firms'
 import type { BearerStorageStatus } from '../domain/credentials'
 import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
@@ -80,10 +83,8 @@ const VALID_SCREENS: FinderScreen[] = [
   'network',
 ]
 
-const MISSION_FIRM_ID_SET = new Set<string>(MISSION_FIRM_CHIPS.map((chip) => chip.id))
-
 function parseMissionFirmsSelected(ids: string[]): MissionFirmChipId[] {
-  return ids.filter((id): id is MissionFirmChipId => MISSION_FIRM_ID_SET.has(id))
+  return ids.filter((id): id is MissionFirmChipId => typeof id === 'string' && id.length > 0)
 }
 
 export function isValidFinderScreen(s: unknown): s is FinderScreen {
@@ -125,6 +126,7 @@ export type HistorySlice = {
 
 export type FinderModel = {
   query: string
+  searchPresets: SearchPreset[]
   cvSummary: string
   credentials: CredentialsSlice
   search: AsyncState<Tweet[]>
@@ -169,15 +171,20 @@ export type FinderModel = {
   platsbankenMunicipality: string
   huntRail: HuntRail
   huntHarvested: HarvestedKey[]
+  missionQueryChips: HuntRailChip[]
+  platsbankenRailChips: HuntRailChip[]
   // Durability ranker v1 (public IR). Idle until Mission mounts.
   durableFirms: AsyncState<DurabilityIteration>
   missionInspect: AsyncState<import('../domain/firm-durability').MissionInspectResult>
-  // Mission firms (SpaceXAI + Swedish Texas/physical-AI bridges)
+  // Mission firms (dynamic registry from Rust + config defaults)
+  missionFirmChips: MissionFirmChip[]
+  missionFirmDefaults: string[]
   missionFirms: AsyncState<MissionFirmLead[]>
   missionFirmsQ: string
   missionFirmsSelected: string[]
   missionFirmsTexasOnly: boolean
   missionFirmsTerafabBias: boolean
+  missionFirmsVisibleCount: number
   // Network graph (gitignored LinkedIn connections CSV — PII local only)
   network: AsyncState<NetworkGraphResult>
   networkFilter: NetworkFilter
@@ -222,7 +229,7 @@ export function initialFinderModel(): FinderModel {
   let opportunityTargetUrl: string | undefined = undefined
   let opportunityTargetPastedJd: string | undefined = undefined
   let missionFirmsQ = MISSION_FIRMS_DEFAULT_QUERY
-  let missionFirmsSelected: MissionFirmChipId[] = [...MISSION_FIRMS_DEFAULT_SELECTED]
+  let missionFirmsSelected: MissionFirmChipId[] = []
   try {
     const savedCv = localStorage.getItem(CV_LS_KEY)
     const { value } = sanitizeCvPacket(savedCv, DEFAULT_CV_SUMMARY)
@@ -271,6 +278,7 @@ export function initialFinderModel(): FinderModel {
   }
   return {
     query: DEFAULT_SEARCH_QUERY,
+    searchPresets: [...SEARCH_PRESETS],
     cvSummary,
     credentials: {
       connected: false,
@@ -323,13 +331,18 @@ export function initialFinderModel(): FinderModel {
     platsbankenMunicipality: PLATSBANKEN_DEFAULT_MUNICIPALITY,
     huntRail: 'honest',
     huntHarvested: [],
+    missionQueryChips: [...MISSION_QUERY_CHIPS],
+    platsbankenRailChips: [...PLATSBANKEN_RAIL_CHIPS],
     durableFirms: idle<DurabilityIteration>(),
     missionInspect: idle(),
+    missionFirmChips: [],
+    missionFirmDefaults: [],
     missionFirms: idle<MissionFirmLead[]>(),
     missionFirmsQ,
     missionFirmsSelected,
     missionFirmsTexasOnly: false,
     missionFirmsTerafabBias: true,
+    missionFirmsVisibleCount: 40,
     network: idle<NetworkGraphResult>(),
     networkFilter: 'top50',
     networkBusyAction: 'idle',

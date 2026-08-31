@@ -104,6 +104,48 @@ export const MISSION_QUERY_CHIPS: readonly HuntRailChip[] = [
   { id: 'workflows', rail: 'stretch', label: 'AI workflows', q: 'AI workflows architect' },
 ]
 
+function isRail(v: unknown): v is HuntRail {
+  return v === 'honest' || v === 'stretch'
+}
+
+function parseChip(raw: unknown): HuntRailChip | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  if (typeof row.id !== 'string' || typeof row.label !== 'string' || typeof row.q !== 'string') {
+    return null
+  }
+  if (!isRail(row.rail)) return null
+  const chip: HuntRailChip = { id: row.id, rail: row.rail, label: row.label, q: row.q }
+  if (typeof row.municipality === 'string' && row.municipality.trim()) {
+    chip.municipality = row.municipality
+  }
+  return chip
+}
+
+/** Overlay from `packs/hunt-rails.json`. Empty object → keep in-repo fallbacks. */
+export function huntRailsFromUnknown(raw: unknown): {
+  missionQueryChips: HuntRailChip[]
+  platsbankenRailChips: HuntRailChip[]
+} {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      missionQueryChips: [...MISSION_QUERY_CHIPS],
+      platsbankenRailChips: [...PLATSBANKEN_RAIL_CHIPS],
+    }
+  }
+  const file = raw as Record<string, unknown>
+  const mission = Array.isArray(file.missionQueryChips)
+    ? file.missionQueryChips.map(parseChip).filter((c): c is HuntRailChip => c !== null)
+    : []
+  const sweden = Array.isArray(file.platsbankenRailChips)
+    ? file.platsbankenRailChips.map(parseChip).filter((c): c is HuntRailChip => c !== null)
+    : []
+  return {
+    missionQueryChips: mission.length ? mission : [...MISSION_QUERY_CHIPS],
+    platsbankenRailChips: sweden.length ? sweden : [...PLATSBANKEN_RAIL_CHIPS],
+  }
+}
+
 /** Default AF query — simple tokens. `OR` collapses JobTech to a handful of junk hits. */
 export const PLATSBANKEN_DEFAULT_QUERY = PLATSBANKEN_RAIL_CHIPS[0].q
 export const PLATSBANKEN_DEFAULT_MUNICIPALITY = 'Stockholm'

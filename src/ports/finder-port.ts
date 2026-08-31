@@ -14,7 +14,7 @@ import type {
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult } from '../core/domain/opportunity-target'
 import type { HireBoardFilter, HireBoardLead } from '../core/domain/hire-board'
 import type { PlatsbankenLead, PlatsbankenSearchFilter } from '../core/domain/platsbanken'
-import type { MissionFirmLead, MissionFirmFilter } from '../core/domain/mission-firms'
+import type { MissionFirmLead, MissionFirmFilter, MissionFirmChip } from '../core/domain/mission-firms'
 import type { DurabilityIteration, MissionInspectResult } from '../core/domain/firm-durability'
 import type { NetworkGraphResult } from '../core/domain/network-graph'
 import type { Result } from '../core/result'
@@ -99,6 +99,12 @@ export type FinderPort = {
     absolute_url?: string
     location?: string
   }): Promise<Result<MissionInspectResult, AppError>>
+  /** Firm registry + config defaults from Rust. */
+  listMissionFirmRegistry(): Promise<Result<[MissionFirmChip[], string[]], AppError>>
+  /** Operator X search catalog overlay (`packs/x-search-queries.json`). */
+  getXSearchCatalog(): Promise<Result<unknown, AppError>>
+  /** Operator hunt-rail chips overlay (`packs/hunt-rails.json`). */
+  getHuntRails(): Promise<Result<unknown, AppError>>
   /** SpaceXAI Greenhouse + Swedish bridge JobTech ads. */
   searchMissionFirms(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>
   importMissionFirmLead(payload: {

@@ -10,6 +10,7 @@ const {
   classifyKey,
   PLATSBANKEN_DEFAULT_QUERY,
   PLATSBANKEN_RAIL_CHIPS,
+  huntRailsFromUnknown,
   adIdFromSavedUrl,
   leadsFromSavedOpportunities,
 } = await import(pathToFileURL(join(here, 'hunt-rails.ts')).href)
@@ -27,6 +28,16 @@ function assert(cond, msg) {
 assert(!PLATSBANKEN_DEFAULT_QUERY.includes('OR'), 'default query has no OR')
 assert(PLATSBANKEN_RAIL_CHIPS.some((c) => c.q.toLowerCase().includes('intelligence architect')), 'intel architect chip')
 assert(PLATSBANKEN_RAIL_CHIPS.some((c) => c.q.toLowerCase().includes('workflows')), 'workflows chip')
+
+const overlaid = huntRailsFromUnknown({
+  missionQueryChips: [{ id: 'honest', rail: 'honest', label: 'From employment', q: 'senior typescript react' }],
+  platsbankenRailChips: [{ id: 'honest', rail: 'honest', label: 'From employment', q: 'senior fullstack TypeScript' }],
+})
+assert(overlaid.missionQueryChips.length === 1 && overlaid.missionQueryChips[0].id === 'honest', 'pack overlay mission chips')
+assert(overlaid.platsbankenRailChips.length === 1, 'pack overlay sweden chips')
+const emptyOverlay = huntRailsFromUnknown({})
+assert(emptyOverlay.missionQueryChips.length > 0, 'empty pack keeps mission fallbacks')
+assert(emptyOverlay.platsbankenRailChips.length === PLATSBANKEN_RAIL_CHIPS.length, 'empty pack keeps sweden fallbacks')
 
 assert(jobtechSafeQuery('utvecklare OR engineer OR machine learning') === 'utvecklare engineer machine learning', 'strip OR')
 assert(jobtechSafeQuery('senior -konsult "TypeScript"') === 'senior konsult TypeScript', 'strip quotes and minus')

@@ -18,7 +18,6 @@ import {
   PLATSBANKEN_MUNI_CHIPS,
   type PlatsbankenLead,
 } from '../../core/domain/platsbanken'
-import { PLATSBANKEN_RAIL_CHIPS } from '../../core/domain/hunt-rails'
 import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -85,7 +84,7 @@ export function SwedenScreen({ view, dispatch }: Props) {
         <div>
           <p className="mb-1.5 text-[11px] font-medium text-ink-faint">Rail</p>
           <div className="flex flex-wrap gap-1">
-            {PLATSBANKEN_RAIL_CHIPS.map((chip) => (
+            {model.platsbankenRailChips.map((chip) => (
               <Chip
                 key={chip.id}
                 active={model.platsbankenQ === chip.q && model.huntRail === chip.rail}

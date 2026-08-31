@@ -1,0 +1,24 @@
+{
+  "missionQueryChips": [
+    { "id": "honest", "rail": "honest", "label": "From employment", "q": "senior typescript react" },
+    { "id": "stretch", "rail": "stretch", "label": "Autonomy software", "q": "autonomy software" },
+    { "id": "intel", "rail": "stretch", "label": "Intelligence architect", "q": "intelligence architect" },
+    { "id": "workflows", "rail": "stretch", "label": "AI workflows", "q": "AI workflows architect" }
+  ],
+  "platsbankenRailChips": [
+    {
+      "id": "honest",
+      "rail": "honest",
+      "label": "From employment",
+      "q": "senior fullstack TypeScript",
+      "municipality": ""
+    },
+    {
+      "id": "stretch",
+      "rail": "stretch",
+      "label": "Self-learned AI",
+      "q": "AI product engineer",
+      "municipality": ""
+    }
+  ]
+}

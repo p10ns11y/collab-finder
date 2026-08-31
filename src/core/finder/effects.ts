@@ -13,7 +13,8 @@ import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/o
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 import { normalizeOpportunityUrl } from '../domain/opportunity-url'
-import { jobtechSafeQuery } from '../domain/hunt-rails'
+import { huntRailsFromUnknown, jobtechSafeQuery } from '../domain/hunt-rails'
+import { catalogFromUnknown, sortSearchPresets } from '../domain/search-presets'
 import { buildQuestPrompt, snapshotFromFinder } from '../domain/quest'
 import { formatQuestContextBlock, resolveQuestContextPacks } from '../domain/quest-context'
 import {
@@ -104,6 +105,9 @@ export type FinderPorts = {
       absolute_url?: string
       location?: string
     }): Promise<import('../domain/firm-durability').MissionInspectResult>
+    listMissionFirmRegistry(): Promise<[import('../domain/mission-firms').MissionFirmChip[], string[]]>
+    getXSearchCatalog(): Promise<unknown>
+    getHuntRails(): Promise<unknown>
     searchMissionFirms(
       filter?: import('../domain/mission-firms').MissionFirmFilter,
     ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
@@ -716,7 +720,7 @@ export function missionFirmsSearchCmd(
         firms: model.missionFirmsSelected,
         texas_only: model.missionFirmsTexasOnly,
         terafab_bias: model.missionFirmsTerafabBias,
-        limit: 80,
+        limit: 250,
         force_refresh: opts?.forceRefresh === true,
       }),
       toAppError,
@@ -1315,6 +1319,26 @@ export function effectForMsg(
           }
         }
         void headingBootFromCluster(dispatch).then(startRest, startRest)
+        void ports.finder.listMissionFirmRegistry().then(([chips, defaults]) => {
+          dispatch({ type: 'MissionFirmRegistryLoaded', chips, defaults })
+        }).catch(() => { /* registry load failed; chips stay empty, user can still search */ })
+        void ports.finder.getXSearchCatalog().then((raw) => {
+          const catalog = catalogFromUnknown(raw)
+          if (!catalog) return
+          dispatch({
+            type: 'SearchCatalogLoaded',
+            query: catalog.defaultQuery,
+            presets: sortSearchPresets(catalog.presets),
+          })
+        }).catch(() => { /* keep in-repo stub catalog */ })
+        void ports.finder.getHuntRails().then((raw) => {
+          const rails = huntRailsFromUnknown(raw)
+          dispatch({
+            type: 'HuntRailsLoaded',
+            missionQueryChips: rails.missionQueryChips,
+            platsbankenRailChips: rails.platsbankenRailChips,
+          })
+        }).catch(() => { /* keep in-repo rail chips */ })
       }
 
     case 'CvSummaryResetToDefaultRequested':

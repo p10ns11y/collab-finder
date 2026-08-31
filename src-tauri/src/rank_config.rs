@@ -91,6 +91,9 @@ pub struct RankConfig {
     /// Extra directories containing `universe.json` and/or `places.json`.
     #[serde(default)]
     pub pack_dirs: Vec<String>,
+    /// Firm ids selected by default on Mission Pull. Empty = all registry firms.
+    #[serde(default)]
+    pub default_firms: Vec<String>,
 }
 
 impl Default for RankConfig {
@@ -101,6 +104,7 @@ impl Default for RankConfig {
             place_weights: PlaceWeights::default(),
             gates: RankGates::default(),
             pack_dirs: Vec::new(),
+            default_firms: Vec::new(),
         }
     }
 }
