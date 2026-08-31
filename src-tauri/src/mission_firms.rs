@@ -1321,67 +1321,57 @@ fn lead_from_tesla(
     )
 }
 
+fn map_fetched_jobs(
+    result: Result<Vec<Value>, String>,
+    firm_id: &str,
+    source: &str,
+    map_one: impl Fn(Value) -> Option<MissionFirmLead>,
+) -> Vec<MissionFirmLead> {
+    match result {
+        Ok(jobs) => jobs.into_iter().filter_map(map_one).collect(),
+        Err(error) => {
+            eprintln!("[mission_firms] {firm_id} {source} skip: {error}");
+            Vec::new()
+        }
+    }
+}
+
 async fn fetch_firm_leads(
     client: &reqwest::Client,
     firm: &FirmDef,
     filter: &MissionFirmFilter,
 ) -> Vec<MissionFirmLead> {
-    let mut out = Vec::new();
     match firm.source {
-        FirmSource::Greenhouse { board } => match fetch_greenhouse_jobs(client, board).await {
-            Ok(jobs) => {
-                for job in jobs {
-                    if let Some(lead) = lead_from_greenhouse(firm, &job, filter) {
-                        out.push(lead);
-                    }
-                }
-            }
-            Err(e) => eprintln!("[mission_firms] {} greenhouse skip: {e}", firm.id),
-        },
-        FirmSource::Lever { site } => match fetch_lever_jobs(client, site).await {
-            Ok(jobs) => {
-                for job in jobs {
-                    if let Some(lead) = lead_from_lever(firm, &job, filter) {
-                        out.push(lead);
-                    }
-                }
-            }
-            Err(e) => eprintln!("[mission_firms] {} lever skip: {e}", firm.id),
-        },
-        FirmSource::Ashby { board } => match fetch_ashby_jobs(client, board).await {
-            Ok(jobs) => {
-                for job in jobs {
-                    if let Some(lead) = lead_from_ashby(firm, &job, filter) {
-                        out.push(lead);
-                    }
-                }
-            }
-            Err(e) => eprintln!("[mission_firms] {} ashby skip: {e}", firm.id),
-        },
-        FirmSource::JobTech { org_number } => {
-            match fetch_jobtech_employer(client, org_number, 100).await {
-                Ok(hits) => {
-                    for hit in hits {
-                        if let Some(lead) = lead_from_jobtech(firm, &hit, filter) {
-                            out.push(lead);
-                        }
-                    }
-                }
-                Err(e) => eprintln!("[mission_firms] {} jobtech skip: {e}", firm.id),
-            }
+        FirmSource::Greenhouse { board } => map_fetched_jobs(
+            fetch_greenhouse_jobs(client, board).await,
+            firm.id,
+            "greenhouse",
+            |job| lead_from_greenhouse(firm, &job, filter),
+        ),
+        FirmSource::Lever { site } => map_fetched_jobs(
+            fetch_lever_jobs(client, site).await,
+            firm.id,
+            "lever",
+            |job| lead_from_lever(firm, &job, filter),
+        ),
+        FirmSource::Ashby { board } => map_fetched_jobs(
+            fetch_ashby_jobs(client, board).await,
+            firm.id,
+            "ashby",
+            |job| lead_from_ashby(firm, &job, filter),
+        ),
+        FirmSource::JobTech { org_number } => map_fetched_jobs(
+            fetch_jobtech_employer(client, org_number, 100).await,
+            firm.id,
+            "jobtech",
+            |hit| lead_from_jobtech(firm, &hit, filter),
+        ),
+        FirmSource::TeslaLocal => {
+            map_fetched_jobs(load_tesla_listings(client).await, firm.id, "tesla", |job| {
+                lead_from_tesla(firm, &job, filter)
+            })
         }
-        FirmSource::TeslaLocal => match load_tesla_listings(client).await {
-            Ok(listings) => {
-                for job in listings {
-                    if let Some(lead) = lead_from_tesla(firm, &job, filter) {
-                        out.push(lead);
-                    }
-                }
-            }
-            Err(e) => eprintln!("[mission_firms] tesla skip: {e}"),
-        },
     }
-    out
 }
 
 fn merge_firm_buckets(

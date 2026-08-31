@@ -89,8 +89,11 @@ No bulk API in app yet. Bookmark for weekly skim.
 | **NextLevelJobs.eu** | https://nextleveljobs.eu | Weekly | €100k+ scraped roles |
 | **Webbjobb.io** | https://webbjobb.io | Daily | Swedish web/IT tags |
 | **Jobanni** | https://jobanni.com | Continuous | Direct company career page links; no middleman ATS |
+| **Hiring without whiteboards** | https://github.com/poteto/hiring-without-whiteboards | Manual | Community list of firms that skip whiteboard interviews. **Do not ingest yet** — distill company names + career URLs into `packs/mission-firms.json` / hire-board in a later task. |
 
 **HN spike (future):** small prototype to parse monthly HN thread → Mission-style leads. Not shipped; manual skim + paste until then.
+
+**Hiring without whiteboards (later):** https://github.com/poteto/hiring-without-whiteboards README is a firm list (take-home / conversational process). Distill matching Greenhouse/Lever/Ashby slugs into the operator `mission-firms.json` pack — do not copy the whole catalog into git.
 
 ---
 
