@@ -36,8 +36,7 @@ pub fn read_text_or(name: &str, fallback: &str) -> String {
 }
 
 /// Minimal install when packs are empty — stranger / fresh clone.
-pub const STUB_UNIVERSE_JSON: &str =
-    r#"{"algorithm_version":"v1","scored_at":"stub","firms":[{"id":"example_co","name":"Example Co","hq":"EU","depth_geo":"europe","product_class":"example","theater_saas":false,"product_moat":3,"ai_tsunami":3,"fortress":3,"hiring_signal":2,"spacexai_vector":2}]}"#;
+pub const STUB_UNIVERSE_JSON: &str = r#"{"algorithm_version":"v1","scored_at":"stub","firms":[{"id":"example_co","name":"Example Co","hq":"EU","depth_geo":"europe","product_class":"example","theater_saas":false,"product_moat":3,"ai_tsunami":3,"fortress":3,"hiring_signal":2,"spacexai_vector":2}]}"#;
 
 pub const STUB_PLACES_JSON: &str = r#"{"algorithm_version":"v1","scored_at":"stub","notes":"","critic":[],"places":[{"id":"example_city","name":"Example City","country":"EU","band":"depth","economic":3,"ethics":3,"character":3,"social":3,"family":3,"self":3,"legal_ease":0,"why":"stub","cost":"stub"}]}"#;
 
@@ -50,7 +49,8 @@ pub const STUB_CONSTRAINTS_STRICT: &str =
 pub const STUB_CONSTRAINTS_RELAXED: &str =
     "Configure relaxed constraints in ~/.config/collab-finder/packs/constraints-relaxed.txt";
 
-pub const STUB_PROOF_VARIANTS: &str = "# Proof variants\n\nConfigure ~/.config/collab-finder/packs/proof-variants.md";
+pub const STUB_PROOF_VARIANTS: &str =
+    "# Proof variants\n\nConfigure ~/.config/collab-finder/packs/proof-variants.md";
 
 pub const STUB_PUBLIC_PROJECTS_JSON: &str = "[]";
 
@@ -81,7 +81,8 @@ pub fn proof_variants_md() -> String {
 }
 
 pub fn public_projects_focused_json() -> String {
-    read_text("public-projects-focused.json").unwrap_or_else(|| STUB_PUBLIC_PROJECTS_JSON.to_string())
+    read_text("public-projects-focused.json")
+        .unwrap_or_else(|| STUB_PUBLIC_PROJECTS_JSON.to_string())
 }
 
 pub fn public_projects_slim_json() -> String {
@@ -90,6 +91,16 @@ pub fn public_projects_slim_json() -> String {
 
 pub fn public_projects_clean_json() -> String {
     read_text("public-projects-clean.json").unwrap_or_else(|| STUB_PUBLIC_PROJECTS_JSON.to_string())
+}
+
+pub fn x_search_queries_json() -> String {
+    read_text("x-search-queries.json").unwrap_or_else(|| {
+        include_str!("../../data/distillation/x-search/queries.json").to_string()
+    })
+}
+
+pub fn hunt_rails_json() -> String {
+    read_text("hunt-rails.json").unwrap_or_else(|| "{}".to_string())
 }
 
 #[cfg(test)]

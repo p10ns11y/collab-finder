@@ -202,6 +202,97 @@ const FIRM_REGISTRY: &[FirmDef] = &[
     },
 ];
 
+/// Operator overlay — `~/.config/collab-finder/packs/mission-firms.json` (gitignored).
+#[derive(Debug, Deserialize)]
+struct PackFirmFile {
+    #[serde(default)]
+    aliases: HashMap<String, String>,
+    #[serde(default)]
+    firms: Vec<PackFirmRow>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackFirmRow {
+    id: String,
+    label: String,
+    source: String,
+    token: String,
+    #[serde(default)]
+    mixed_sw_hw_only: bool,
+    #[serde(default)]
+    score_bonus: Option<f64>,
+    #[serde(default)]
+    score_reason: Option<String>,
+}
+
+fn intern_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+fn pack_source(kind: &str, token: &'static str) -> Option<FirmSource> {
+    match kind {
+        "greenhouse" => Some(FirmSource::Greenhouse { board: token }),
+        "lever" => Some(FirmSource::Lever { site: token }),
+        "ashby" => Some(FirmSource::Ashby { board: token }),
+        "jobtech" => Some(FirmSource::JobTech { org_number: token }),
+        "tesla" => Some(FirmSource::TeslaLocal),
+        _ => None,
+    }
+}
+
+fn load_pack_firms() -> (
+    Vec<&'static FirmDef>,
+    HashMap<String, String>,
+    HashMap<String, (f64, String)>,
+) {
+    let Some(text) = crate::operator_pack::read_text("mission-firms.json") else {
+        return (Vec::new(), HashMap::new(), HashMap::new());
+    };
+    let Ok(file) = serde_json::from_str::<PackFirmFile>(&text) else {
+        return (Vec::new(), HashMap::new(), HashMap::new());
+    };
+    let aliases = file.aliases;
+    let mut bonus = HashMap::new();
+    let mut firms = Vec::new();
+    for row in file.firms {
+        let token = intern_str(row.token);
+        let Some(source) = pack_source(&row.source, token) else {
+            continue;
+        };
+        if let (Some(score_bonus), Some(score_reason)) = (row.score_bonus, row.score_reason.clone())
+        {
+            bonus.insert(row.id.clone(), (score_bonus, score_reason));
+        }
+        let def = FirmDef {
+            id: intern_str(row.id),
+            label: intern_str(row.label),
+            source,
+            mixed_sw_hw_only: row.mixed_sw_hw_only,
+        };
+        firms.push(Box::leak(Box::new(def)) as &'static FirmDef);
+    }
+    (firms, aliases, bonus)
+}
+
+fn pack_layer() -> &'static (
+    Vec<&'static FirmDef>,
+    HashMap<String, String>,
+    HashMap<String, (f64, String)>,
+) {
+    static LAYER: std::sync::OnceLock<(
+        Vec<&'static FirmDef>,
+        HashMap<String, String>,
+        HashMap<String, (f64, String)>,
+    )> = std::sync::OnceLock::new();
+    LAYER.get_or_init(load_pack_firms)
+}
+
+fn all_firm_defs() -> Vec<&'static FirmDef> {
+    let mut out: Vec<&'static FirmDef> = FIRM_REGISTRY.iter().collect();
+    out.extend(pack_layer().0.iter().copied());
+    out
+}
+
 fn firm_by_id(id: &str) -> Option<&'static FirmDef> {
     let key = id.trim().to_ascii_lowercase();
     let key = match key.as_str() {
@@ -215,25 +306,27 @@ fn firm_by_id(id: &str) -> Option<&'static FirmDef> {
         "atlas" | "atlascopco" => "atlas_copco",
         other => other,
     };
-    FIRM_REGISTRY.iter().find(|f| f.id == key)
+    let pack_alias = pack_layer().1.get(key).map(|s| s.as_str()).unwrap_or(key);
+    all_firm_defs().into_iter().find(|f| f.id == pack_alias)
 }
 
 pub fn default_firm_ids() -> Vec<String> {
-    [
-        "spacexai",
-        "tesla",
-        "saab",
-        "ericsson",
-        "atlas_copco",
-        "abb",
-        "volvo_group",
-        "sandvik",
-        "hexagon",
-        "epiroc",
-    ]
-    .into_iter()
-    .map(str::to_string)
-    .collect()
+    let configured = crate::rank_config::load().default_firms;
+    if !configured.is_empty() {
+        return configured;
+    }
+    all_firm_defs()
+        .into_iter()
+        .map(|f| f.id.to_string())
+        .collect()
+}
+
+/// All registered firm ids + labels for the frontend chip list.
+pub fn registry_chips() -> Vec<(String, String)> {
+    all_firm_defs()
+        .into_iter()
+        .map(|f| (f.id.to_string(), f.label.to_string()))
+        .collect()
 }
 
 fn parse_firm_ids(raw: &[String]) -> Vec<&'static FirmDef> {
@@ -331,7 +424,9 @@ fn query_cache_key(filter: &MissionFirmFilter, firms: &[&FirmDef]) -> String {
 }
 
 fn search_pool_path() -> Option<PathBuf> {
-    let dir = crate::app_dirs::app_data_dir().ok()?.join("mission_firms_cache");
+    let dir = crate::app_dirs::app_data_dir()
+        .ok()?
+        .join("mission_firms_cache");
     let _ = std::fs::create_dir_all(&dir);
     Some(dir.join("search_pool.json"))
 }
@@ -383,8 +478,18 @@ const TERAFAB_TERMS: &[&str] = &[
 ];
 
 const TEXAS_TERMS: &[&str] = &[
-    "texas", " tx", "tx,", "austin", "starbase", "brownsville", "bastrop", "grimes", "houston",
-    "dallas", "plano", "lewisville",
+    "texas",
+    " tx",
+    "tx,",
+    "austin",
+    "starbase",
+    "brownsville",
+    "bastrop",
+    "grimes",
+    "houston",
+    "dallas",
+    "plano",
+    "lewisville",
 ];
 
 const PHYSICAL_AI_TERMS: &[&str] = &[
@@ -392,17 +497,19 @@ const PHYSICAL_AI_TERMS: &[&str] = &[
     "autonomi",
     "robot",
     "robotik",
-    "vehicle",
+    "vehicle software",
     "fordon",
     "freight",
     "perception",
     "lidar",
-    "motion",
-    "control",
+    "motion planning",
+    "motion control",
+    "controls engineer",
+    "control systems",
     "embedded",
     "realtime",
     "real-time",
-    "physical",
+    "physical ai",
     "humanoid",
 ];
 
@@ -430,6 +537,8 @@ const PROFILE_BOOST_TERMS: &[&str] = &[
     "senior",
     "infrastructure",
     "devops",
+    "fdse",
+    "forward deployed",
 ];
 
 fn profile_title_boost(title: &str) -> (f64, Option<String>) {
@@ -445,10 +554,101 @@ fn profile_title_boost(title: &str) -> (f64, Option<String>) {
     if hits == 0 {
         return (0.0, None);
     }
-    (
-        4.0 * hits as f64,
-        Some(format!("profile_hits:{hits}")),
-    )
+    (4.0 * hits as f64, Some(format!("profile_hits:{hits}")))
+}
+
+const NON_SOFTWARE_TERMS: &[&str] = &[
+    "sales",
+    "account executive",
+    "account manager",
+    "business development",
+    "recruiter",
+    "recruiting",
+    "talent acquisition",
+    "human resources",
+    "people partner",
+    "people operations",
+    "marketing",
+    "brand manager",
+    "copywriter",
+    "legal counsel",
+    "general counsel",
+    "attorney",
+    "paralegal",
+    "export control",
+    "exportkontroll",
+    "procurement",
+    "purchasing",
+    "sourcing manager",
+    "logistics",
+    "warehouse",
+    "inventory",
+    "facilities",
+    "fleet",
+    "finance",
+    "financial",
+    "treasury",
+    "treasurer",
+    "accountant",
+    "accounting",
+    "bookkeep",
+    "payroll",
+    "financial controller",
+    "finance controller",
+    "group controller",
+    "business controller",
+    "project manager",
+    "program manager",
+    "projektledare",
+    "nursing",
+    "nurse",
+    "chef",
+    "cook",
+    "driver",
+    "mechanical engineer",
+    "mechanical design",
+    "electrical engineer",
+    "electrical design",
+    "electrician",
+    "försäljning",
+    "säljare",
+    "ekonomi",
+    "redovisning",
+    "inköp",
+    "upphandling",
+    "lager",
+    "rekrytering",
+    "rekryterare",
+    "sjuksköterska",
+    "kock",
+    "förare",
+    "mekaniker",
+    "elektriker",
+    "fastighet",
+    "jurist",
+    "marknadsföring",
+];
+
+const PROFILE_SENIORITY_ONLY: &[&str] = &["staff", "senior"];
+
+fn title_has_software_signal(title_lower: &str) -> bool {
+    PROFILE_BOOST_TERMS
+        .iter()
+        .any(|term| !PROFILE_SENIORITY_ONLY.contains(term) && title_lower.contains(term))
+}
+
+fn profile_mismatch_penalty(title: &str) -> (f64, Option<String>) {
+    let title_lower = title.to_ascii_lowercase();
+    if title_has_software_signal(&title_lower) {
+        return (0.0, None);
+    }
+    if let Some(hit) = NON_SOFTWARE_TERMS
+        .iter()
+        .find(|t| title_lower.contains(**t))
+    {
+        return (-36.0, Some(format!("profile_mismatch:non_sw:{hit}")));
+    }
+    (-10.0, Some("profile_mismatch:ambiguous".into()))
 }
 
 fn location_is_texas(loc: &str) -> bool {
@@ -588,50 +788,55 @@ fn score_lead(
     let terafab = title_terafab_adjacent(title);
     let physical = title_physical_ai(title);
 
-    match firm.id {
-        "spacexai" => {
-            score += 48.0;
-            reasons.push("firm:spacexai".into());
-        }
-        "tesla" => {
-            score += 36.0;
-            reasons.push("firm:tesla_mixed_sw_hw".into());
-        }
-        "saab" => {
-            score += 28.0;
-            reasons.push("firm:saab_defence_ai".into());
-        }
-        "abb" | "atlas_copco" | "volvo_group" | "sandvik" => {
-            score += 26.0;
-            reasons.push("firm:fortress_industrial".into());
-        }
-        "ericsson" | "hexagon" | "epiroc" => {
-            score += 20.0;
-            reasons.push("firm:sweden_infra".into());
-        }
-        "einride" => {
-            score += 8.0;
-            reasons.push("firm:einride_venture".into());
-        }
-        "waymo" => {
-            score += 28.0;
-            reasons.push("firm:physical_ai_peer".into());
-        }
-        "figure" | "agility" | "pi" | "onex" => {
-            score += 10.0;
-            reasons.push("firm:venture_robotics".into());
-        }
-        "spotify" | "klarna" | "wolt" | "gitlab" | "hive" => {
-            score -= 16.0;
-            reasons.push("firm:theater_saas".into());
-        }
-        "volvo_cars" => {
-            score += 12.0;
-            reasons.push("firm:nordic_auto".into());
-        }
-        _ => {
-            score += 12.0;
-            reasons.push(format!("firm:{}", firm.id));
+    if let Some((bonus, reason)) = pack_layer().2.get(firm.id) {
+        score += *bonus;
+        reasons.push(reason.clone());
+    } else {
+        match firm.id {
+            "spacexai" => {
+                score += 48.0;
+                reasons.push("firm:spacexai".into());
+            }
+            "tesla" => {
+                score += 36.0;
+                reasons.push("firm:tesla_mixed_sw_hw".into());
+            }
+            "saab" => {
+                score += 28.0;
+                reasons.push("firm:saab_defence_ai".into());
+            }
+            "abb" | "atlas_copco" | "volvo_group" | "sandvik" => {
+                score += 26.0;
+                reasons.push("firm:fortress_industrial".into());
+            }
+            "ericsson" | "hexagon" | "epiroc" => {
+                score += 20.0;
+                reasons.push("firm:sweden_infra".into());
+            }
+            "einride" => {
+                score += 8.0;
+                reasons.push("firm:einride_venture".into());
+            }
+            "waymo" => {
+                score += 28.0;
+                reasons.push("firm:physical_ai_peer".into());
+            }
+            "figure" | "agility" | "pi" | "onex" => {
+                score += 10.0;
+                reasons.push("firm:venture_robotics".into());
+            }
+            "spotify" | "klarna" | "wolt" | "gitlab" | "hive" => {
+                score -= 16.0;
+                reasons.push("firm:theater_saas".into());
+            }
+            "volvo_cars" => {
+                score += 12.0;
+                reasons.push("firm:nordic_auto".into());
+            }
+            _ => {
+                score += 12.0;
+                reasons.push(format!("firm:{}", firm.id));
+            }
         }
     }
 
@@ -679,6 +884,12 @@ fn score_lead(
     let (profile_boost, profile_reason) = profile_title_boost(title);
     score += profile_boost;
     if let Some(reason) = profile_reason {
+        reasons.push(reason);
+    }
+
+    let (mismatch_penalty, mismatch_reason) = profile_mismatch_penalty(title);
+    score += mismatch_penalty;
+    if let Some(reason) = mismatch_reason {
         reasons.push(reason);
     }
 
@@ -975,9 +1186,7 @@ fn lead_from_jobtech(
         .get("webpage_url")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            format!("https://arbetsformedlingen.se/platsbanken/annonser/{ad_id}")
-        });
+        .unwrap_or_else(|| format!("https://arbetsformedlingen.se/platsbanken/annonser/{ad_id}"));
     let department = hit
         .get("occupation")
         .and_then(|o| o.get("label"))
@@ -1072,12 +1281,17 @@ fn tesla_field<'a>(job: &'a Value, keys: &[&str]) -> Option<&'a str> {
     None
 }
 
-fn lead_from_tesla(firm: &FirmDef, job: &Value, filter: &MissionFirmFilter) -> Option<MissionFirmLead> {
+fn lead_from_tesla(
+    firm: &FirmDef,
+    job: &Value,
+    filter: &MissionFirmFilter,
+) -> Option<MissionFirmLead> {
     let title = tesla_field(job, &["title", "t", "jobTitle", "name"])?.to_string();
     let location = tesla_field(job, &["location", "l", "loc", "city"])
         .unwrap_or("")
         .to_string();
-    let department = tesla_field(job, &["department", "dp", "team", "family"]).map(|s| s.to_string());
+    let department =
+        tesla_field(job, &["department", "dp", "team", "family"]).map(|s| s.to_string());
     let id = job
         .get("id")
         .map(|v| match v {
@@ -1170,7 +1384,10 @@ async fn fetch_firm_leads(
     out
 }
 
-fn merge_firm_buckets(mut buckets: Vec<Vec<MissionFirmLead>>, limit: usize) -> Vec<MissionFirmLead> {
+fn merge_firm_buckets(
+    mut buckets: Vec<Vec<MissionFirmLead>>,
+    limit: usize,
+) -> Vec<MissionFirmLead> {
     if buckets.is_empty() {
         return Vec::new();
     }
@@ -1266,7 +1483,10 @@ pub async fn search_mission_firms(
 
     let cache_hit = !filter.force_refresh && pool.fetched_query_keys.contains(&key);
     if cache_hit {
-        eprintln!("[mission_firms] cache hit for query key `{key}` ({} leads in pool)", pool.leads.len());
+        eprintln!(
+            "[mission_firms] cache hit for query key `{key}` ({} leads in pool)",
+            pool.leads.len()
+        );
     } else {
         eprintln!(
             "[mission_firms] fetch+append for query key `{key}` (pool had {} leads)",
@@ -1291,10 +1511,7 @@ pub async fn search_mission_firms(
 
 pub fn mark_already_in_db(leads: &mut [MissionFirmLead], known: &[(String, i64)]) {
     for lead in leads.iter_mut() {
-        if let Some((_, id)) = known
-            .iter()
-            .find(|(url, _)| url == &lead.absolute_url)
-        {
+        if let Some((_, id)) = known.iter().find(|(url, _)| url == &lead.absolute_url) {
             lead.already_in_db = true;
             lead.opportunity_id = Some(*id);
         }

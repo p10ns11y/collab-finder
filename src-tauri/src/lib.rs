@@ -1,19 +1,19 @@
 mod app_dirs;
 mod commands;
-mod db;
-mod finder_reactor;
 mod cv_home;
+mod db;
 mod environment;
+mod finder_reactor;
 mod firm_durability;
-mod operator_pack;
-mod rank_config;
 mod hire_board;
-mod mission_firms;
-mod network_graph;
-mod platsbanken;
 mod llm_route;
 mod local_grok;
+mod mission_firms;
+mod network_graph;
+mod operator_pack;
 mod opportunity_target;
+mod platsbanken;
+mod rank_config;
 mod secrets;
 mod x_query;
 mod x_search;
@@ -23,15 +23,16 @@ use commands::{
     persist_cycle_lead, persist_cycle_search, persist_manual_search, persist_promote_event,
     promote_message,
 };
-use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
 use cv_home::{get_cv_home_status, install_kanithanj_cv};
+use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
 use llm_route::{get_llm_route_status, set_llm_route_quality};
 use local_grok::run_local_grok_quest;
 use opportunity_target::{
     analyze_opportunity_target, export_application_pack, fetch_opportunity_target_page,
     generate_apply_cv, get_devprofile_path, get_devprofile_path_cmd, get_fit_mode_cmd,
-    get_xai_model_cmd, prep_opportunity_target, propose_cv_sidecar_for_prep,
-    read_pack_artifact, open_pack_artifact, list_pack_dir, set_devprofile_path_cmd, set_fit_mode_cmd, set_xai_model_cmd,
+    get_xai_model_cmd, list_pack_dir, open_pack_artifact, prep_opportunity_target,
+    propose_cv_sidecar_for_prep, read_pack_artifact, set_devprofile_path_cmd, set_fit_mode_cmd,
+    set_xai_model_cmd,
 };
 use std::sync::Mutex as StdMutex;
 use tauri::State;
@@ -40,7 +41,9 @@ use x_search::XTweet;
 
 // Re-export OpportunityTarget*Result types at crate root for wire compatibility (TS domain mirrors "from opportunity-target.rs")
 // and any future internal refs.
-pub use opportunity_target::{OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult};
+pub use opportunity_target::{
+    OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult,
+};
 
 pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
@@ -369,9 +372,14 @@ async fn update_opportunity_status_cmd(
     status: String,
     notes: Option<String>,
 ) -> Result<(), String> {
-    let allowed = ["new", "analyzed", "prepped", "applied", "passed", "archived"];
+    let allowed = [
+        "new", "analyzed", "prepped", "applied", "passed", "archived",
+    ];
     if !allowed.contains(&status.as_str()) {
-        return Err(format!("invalid status '{status}' (allowed: {})", allowed.join(", ")));
+        return Err(format!(
+            "invalid status '{status}' (allowed: {})",
+            allowed.join(", ")
+        ));
     }
     db.0.lock()
         .map_err(|e| e.to_string())?
@@ -389,7 +397,9 @@ fn load_network_graph(
     let top = top_n.unwrap_or(50) as usize;
     let force = force_reimport.unwrap_or(false);
     let store = db.0.lock().map_err(|e| e.to_string())?;
-    if store.network_people_count().unwrap_or(0) > 0 || network_graph::resolve_connections_csv_path(path.as_deref()).is_ok() {
+    if store.network_people_count().unwrap_or(0) > 0
+        || network_graph::resolve_connections_csv_path(path.as_deref()).is_ok()
+    {
         return network_graph::load_network_graph_via_db(
             &store,
             path.as_deref(),
@@ -459,17 +469,16 @@ async fn fetch_hire_board(
     };
     leads = hire_board::filter_and_sort(leads, &filter);
 
-    let known: Vec<(String, i64)> = db
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .get_opportunities(&db::OpportunityFilter {
-            limit: Some(500),
-            ..Default::default()
-        })?
-        .into_iter()
-        .filter_map(|o| o.source_url.map(|u| (u, o.id)))
-        .collect();
+    let known: Vec<(String, i64)> =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .get_opportunities(&db::OpportunityFilter {
+                limit: Some(500),
+                ..Default::default()
+            })?
+            .into_iter()
+            .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+            .collect();
     hire_board::mark_already_in_db(&mut leads, &known);
     Ok(leads)
 }
@@ -497,9 +506,42 @@ fn get_rank_config() -> Result<rank_config::RankConfigView, String> {
 }
 
 #[tauri::command]
-fn save_rank_config(config: rank_config::RankConfig) -> Result<rank_config::RankConfigView, String> {
+fn save_rank_config(
+    config: rank_config::RankConfig,
+) -> Result<rank_config::RankConfigView, String> {
     rank_config::save(&config)?;
     rank_config::view()
+}
+
+#[derive(serde::Serialize)]
+struct FirmChip {
+    id: String,
+    label: String,
+}
+
+#[tauri::command]
+fn get_x_search_catalog() -> Result<serde_json::Value, String> {
+    serde_json::from_str(&operator_pack::x_search_queries_json()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_hunt_rails() -> Result<serde_json::Value, String> {
+    let text = operator_pack::hunt_rails_json();
+    if text.trim().is_empty() || text.trim() == "{}" {
+        return Ok(serde_json::json!({}));
+    }
+    serde_json::from_str(&text).map_err(|e| e.to_string())
+}
+
+/// Mission firm registry + config defaults for the frontend chip list.
+#[tauri::command]
+fn list_mission_firm_registry() -> Result<(Vec<FirmChip>, Vec<String>), String> {
+    let chips: Vec<FirmChip> = mission_firms::registry_chips()
+        .into_iter()
+        .map(|(id, label)| FirmChip { id, label })
+        .collect();
+    let defaults = mission_firms::default_firm_ids();
+    Ok((chips, defaults))
 }
 
 /// Durability ranker. `next`/`advance` skip the last stored wave.
@@ -578,17 +620,16 @@ async fn search_mission_firms(
         force_refresh: force_refresh.unwrap_or(false),
     };
     let mut leads = mission_firms::search_mission_firms(&filter).await?;
-    let known: Vec<(String, i64)> = db
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .get_opportunities(&db::OpportunityFilter {
-            limit: Some(500),
-            ..Default::default()
-        })?
-        .into_iter()
-        .filter_map(|o| o.source_url.map(|u| (u, o.id)))
-        .collect();
+    let known: Vec<(String, i64)> =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .get_opportunities(&db::OpportunityFilter {
+                limit: Some(500),
+                ..Default::default()
+            })?
+            .into_iter()
+            .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+            .collect();
     mission_firms::mark_already_in_db(&mut leads, &known);
 
     // Persist the pull so Data → Search runs + Opportunities survive restart.
@@ -673,18 +714,11 @@ async fn import_mission_firm_lead(
             abs
         };
         let company = mission_firms::firm_label(&firm);
-        (
-            title,
-            company,
-            url,
-            jd,
-            format!("gh:{board}:{external_id}"),
-        )
+        (title, company, url, jd, format!("gh:{board}:{external_id}"))
     } else if source == "lever" {
         let site = mission_firms::lever_site_for_firm(&firm)
             .ok_or_else(|| format!("unsupported lever firm '{firm}'"))?;
-        let (title, _loc, abs, jd) =
-            mission_firms::fetch_lever_job_jd(site, &external_id).await?;
+        let (title, _loc, abs, jd) = mission_firms::fetch_lever_job_jd(site, &external_id).await?;
         let url = if abs.is_empty() {
             absolute_url.unwrap_or_default()
         } else {
@@ -727,10 +761,8 @@ async fn import_mission_firm_lead(
             format!("jobtech:{external_id}"),
         )
     } else if source == "tesla" {
-        let (title, company, url, jd) = mission_firms::resolve_tesla_job_for_import(
-            &external_id,
-            absolute_url.as_deref(),
-        )?;
+        let (title, company, url, jd) =
+            mission_firms::resolve_tesla_job_for_import(&external_id, absolute_url.as_deref())?;
         (title, company, url, jd, format!("tesla:{external_id}"))
     } else {
         return Err(format!("unsupported source '{source}'"));
@@ -755,18 +787,17 @@ async fn import_mission_firm_lead(
         Some(&notes),
     )?;
 
-    let mut opportunity = db
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .get_opportunities(&db::OpportunityFilter {
-            id: Some(id),
-            limit: Some(1),
-            ..Default::default()
-        })?
-        .into_iter()
-        .next()
-        .ok_or_else(|| format!("opportunity {id} missing after mission firm import"))?;
+    let mut opportunity =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .get_opportunities(&db::OpportunityFilter {
+                id: Some(id),
+                limit: Some(1),
+                ..Default::default()
+            })?
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("opportunity {id} missing after mission firm import"))?;
     opportunity.jd_text = jd;
     opportunity.kind = "mission_firm".into();
     opportunity.title = Some(title);
@@ -844,10 +875,7 @@ async fn search_platsbanken(
         offset: offset.map(|n| n as usize),
     };
     let ads = platsbanken::search_ads(&filter).await?;
-    let mut leads: Vec<_> = ads
-        .into_iter()
-        .map(platsbanken::lead_from_parsed)
-        .collect();
+    let mut leads: Vec<_> = ads.into_iter().map(platsbanken::lead_from_parsed).collect();
     leads = platsbanken::rank_leads(leads);
 
     {
@@ -892,28 +920,30 @@ async fn import_platsbanken_ad(
         "platsbanken emergency; favorite_match terms may apply; municipality={}",
         ad.municipality.as_deref().unwrap_or("-")
     );
-    let id = db.0.lock().map_err(|e| e.to_string())?.remember_opportunity(
-        "platsbanken",
-        Some(&ad.webpage_url),
-        Some(&ad.ad_id),
-        Some(&ad.headline),
-        Some(&ad.employer),
-        &jd,
-        Some(&notes),
-    )?;
+    let id =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .remember_opportunity(
+                "platsbanken",
+                Some(&ad.webpage_url),
+                Some(&ad.ad_id),
+                Some(&ad.headline),
+                Some(&ad.employer),
+                &jd,
+                Some(&notes),
+            )?;
 
-    let mut opportunity = db
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .get_opportunities(&db::OpportunityFilter {
-            id: Some(id),
-            limit: Some(1),
-            ..Default::default()
-        })?
-        .into_iter()
-        .next()
-        .ok_or_else(|| format!("opportunity {id} missing after platsbanken import"))?;
+    let mut opportunity =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .get_opportunities(&db::OpportunityFilter {
+                id: Some(id),
+                limit: Some(1),
+                ..Default::default()
+            })?
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("opportunity {id} missing after platsbanken import"))?;
     // Upsert keeps prior jd_text on URL conflict; Evaluate still needs the live ad body.
     opportunity.jd_text = jd;
     opportunity.kind = "platsbanken".into();
@@ -1066,8 +1096,7 @@ async fn select_hire_board_lead(
         Some(&format!("location: {loc}")),
     )?;
 
-    db.0
-        .lock()
+    db.0.lock()
         .map_err(|e| e.to_string())?
         .get_opportunities(&db::OpportunityFilter {
             id: Some(id),
@@ -1189,7 +1218,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         // Seed reactor from Settings store (same devprofile_path.txt as analyze/prep).
-        .manage(AppReactor(Mutex::new(FinderReactor::new(get_devprofile_path()))))
+        .manage(AppReactor(Mutex::new(FinderReactor::new(
+            get_devprofile_path(),
+        ))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
         .invoke_handler(tauri::generate_handler![
             // Credential commands (stability boundary — see above). Keep bearer + xai together.
@@ -1235,8 +1266,11 @@ pub fn run() {
             run_local_grok_quest,
             get_rank_config,
             save_rank_config,
+            get_x_search_catalog,
+            get_hunt_rails,
             list_durable_firms,
             search_mission_firms,
+            list_mission_firm_registry,
             import_mission_firm_lead,
             inspect_mission_firm_lead,
             load_network_graph,

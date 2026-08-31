@@ -27,7 +27,6 @@ export const DEFAULT_SEARCH_QUERY = loaded.defaultQuery
 export const DEFAULT_CV_SUMMARY = loaded.defaultCvSummary
 export const X_OPERATORS_DOC_URL = loaded.operatorsDoc
 
-/** UI presets — priority tier first, then core, niche, community */
 const TIER_ORDER: Record<string, number> = {
   priority: 0,
   core: 1,
@@ -35,8 +34,26 @@ const TIER_ORDER: Record<string, number> = {
   community: 3,
 }
 
-export const SEARCH_PRESETS: SearchPreset[] = [...loaded.presets].sort((a, b) => {
-  const ta = TIER_ORDER[a.tier ?? 'core'] ?? 9
-  const tb = TIER_ORDER[b.tier ?? 'core'] ?? 9
-  return ta - tb
-})
+export function sortSearchPresets(presets: SearchPreset[]): SearchPreset[] {
+  return [...presets].sort((a, b) => {
+    const ta = TIER_ORDER[a.tier ?? 'core'] ?? 9
+    const tb = TIER_ORDER[b.tier ?? 'core'] ?? 9
+    return ta - tb
+  })
+}
+
+export function catalogFromUnknown(raw: unknown): QueryCatalog | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Partial<QueryCatalog>
+  if (!Array.isArray(c.presets) || typeof c.defaultQuery !== 'string') return null
+  return {
+    schemaVersion: typeof c.schemaVersion === 'number' ? c.schemaVersion : 1,
+    operatorsDoc: typeof c.operatorsDoc === 'string' ? c.operatorsDoc : loaded.operatorsDoc,
+    defaultQuery: c.defaultQuery,
+    defaultCvSummary: typeof c.defaultCvSummary === 'string' ? c.defaultCvSummary : loaded.defaultCvSummary,
+    presets: c.presets as SearchPreset[],
+  }
+}
+
+/** UI presets — stub until packs overlay loads at boot. */
+export const SEARCH_PRESETS: SearchPreset[] = sortSearchPresets(loaded.presets)

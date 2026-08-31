@@ -1,10 +1,10 @@
 import { isBusy } from '../async'
 import {
   PROFILE_STRATEGY_MD,
-  SEARCH_PRESETS,
   X_OPERATORS_DOC_URL,
   X_OPERATORS_MD,
 } from '../domain/finder'
+import type { SearchPreset } from '../domain/search-presets'
 import { canRunCycle, canSearch, deriveConnectionFlow, deriveSearchFlow } from './flows'
 import type { FinderModel, FinderScreen } from './model'
 import { bannerText, searchResults } from './update'
@@ -25,7 +25,7 @@ export type FinderViewState = {
   busy: boolean
   tweets: ReturnType<typeof searchResults>
   banner: string | null
-  presets: typeof SEARCH_PRESETS
+  presets: SearchPreset[]
   operatorsDocUrl: string
   operatorsReference: string
   strategyReference: string
@@ -71,7 +71,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     busy: isBusy(model),
     tweets: searchResults(model),
     banner: bannerText(model),
-    presets: SEARCH_PRESETS,
+    presets: model.searchPresets,
     operatorsDocUrl: X_OPERATORS_DOC_URL,
     operatorsReference: X_OPERATORS_MD,
     strategyReference: PROFILE_STRATEGY_MD,
@@ -80,7 +80,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
       { id: 'quest', label: 'Open local Grok quest', msg: { type: 'QuestToggled' } },
       { id: 'search', label: 'Search X (live)', msg: { type: 'SearchRequested' } },
       { id: 'cycle', label: 'Run autonomous cycle (heuristic)', msg: { type: 'CycleRequested' } },
-      ...SEARCH_PRESETS.filter((p) => p.tier === 'priority').map((p) => ({
+      ...model.searchPresets.filter((p) => p.tier === 'priority').map((p) => ({
         id: `preset-${p.id}`,
         label: `Query: ${p.label}`,
         msg: { type: 'PresetSelected' as const, query: p.query },

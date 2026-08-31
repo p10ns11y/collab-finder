@@ -31,9 +31,13 @@ copy_if_missing "$ROOT/data/distillation/curation/proof-variants.md" "proof-vari
 copy_if_missing "$ROOT/data/distillation/public-projects-focused-flatten.json" "public-projects-focused.json"
 copy_if_missing "$ROOT/data/distillation/public-projects.json" "public-projects.json"
 copy_if_missing "$ROOT/data/distillation/public-projects-clean.json" "public-projects-clean.json"
+copy_if_missing "$ROOT/data/distillation/x-search/queries.json" "x-search-queries.json"
+copy_if_missing "$ROOT/data/durability/example-pack/hunt-rails.json" "hunt-rails.json"
+copy_if_missing "$ROOT/data/durability/example-pack/mission-firms.json" "mission-firms.json"
 
 for f in universe.json places.json cv-packet.txt constraints-strict.txt constraints-relaxed.txt \
-  proof-variants.md public-projects-focused.json public-projects.json public-projects-clean.json; do
+  proof-variants.md public-projects-focused.json public-projects.json public-projects-clean.json \
+  x-search-queries.json hunt-rails.json mission-firms.json; do
   if [[ -f "$OPERATOR/$f" ]]; then
     cp "$OPERATOR/$f" "$PACKS/$f"
     cp "$OPERATOR/$f" "$TESTDATA/$f"

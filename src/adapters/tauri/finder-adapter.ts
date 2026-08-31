@@ -134,13 +134,20 @@ export function createTauriFinderPort(): FinderPort {
         absoluteUrl: payload.absolute_url,
         location: payload.location,
       }),
+    listMissionFirmRegistry: () =>
+      safeInvoke<[import('../../core/domain/mission-firms').MissionFirmChip[], string[]]>(
+        'list_mission_firm_registry',
+        {},
+      ),
+    getXSearchCatalog: () => safeInvoke<unknown>('get_x_search_catalog', {}),
+    getHuntRails: () => safeInvoke<unknown>('get_hunt_rails', {}),
     searchMissionFirms: (filter?: MissionFirmFilter) =>
       safeInvoke<MissionFirmLead[]>('search_mission_firms', {
         q: filter?.q,
         firms: filter?.firms,
         texasOnly: filter?.texas_only ?? false,
         terafabBias: filter?.terafab_bias ?? true,
-        limit: filter?.limit ?? 80,
+        limit: filter?.limit ?? 250,
         forceRefresh: filter?.force_refresh ?? false,
       }),
     importMissionFirmLead: (payload) =>
@@ -376,6 +383,21 @@ export function finderPortForEffects(port: FinderPort) {
       location?: string
     }) {
       const result = await port.inspectMissionFirmLead(payload)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async listMissionFirmRegistry() {
+      const result = await port.listMissionFirmRegistry()
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async getXSearchCatalog() {
+      const result = await port.getXSearchCatalog()
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async getHuntRails() {
+      const result = await port.getHuntRails()
       if (!result.ok) throw result.error
       return result.value
     },

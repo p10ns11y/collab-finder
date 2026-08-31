@@ -13,11 +13,7 @@ import { Chip } from '../../components/ui/chip'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Input } from '../../components/ui/input'
 import { SectionLabel } from '../../components/ui/section-label'
-import {
-  MISSION_FIRM_CHIPS,
-  MISSION_QUERY_CHIPS,
-  type MissionFirmLead,
-} from '../../core/domain/mission-firms'
+import { type MissionFirmLead } from '../../core/domain/mission-firms'
 import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -32,7 +28,9 @@ export function MissionScreen({ view, dispatch }: Props) {
   const { model } = view
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null)
   const busy = model.missionFirms.status === 'loading'
-  const leads = model.missionFirms.status === 'ready' ? model.missionFirms.data : []
+  const allLeads = model.missionFirms.status === 'ready' ? model.missionFirms.data : []
+  const leads = allLeads.slice(0, model.missionFirmsVisibleCount)
+  const hasMoreLeads = allLeads.length > model.missionFirmsVisibleCount
   const err =
     model.missionFirms.status === 'failed'
       ? model.missionFirms.error?.message || String(model.missionFirms.error)
@@ -103,7 +101,7 @@ export function MissionScreen({ view, dispatch }: Props) {
         <div>
           <p className="mb-1.5 text-[11px] font-medium text-ink-faint">Rail</p>
           <div className="flex flex-wrap gap-1">
-            {MISSION_QUERY_CHIPS.map((chip) => (
+            {model.missionQueryChips.map((chip) => (
               <Chip
                 key={chip.id}
                 active={model.missionFirmsQ === chip.q && model.huntRail === chip.rail}
@@ -149,7 +147,7 @@ export function MissionScreen({ view, dispatch }: Props) {
         <div>
           <p className="mb-1.5 text-[11px] font-medium text-ink-faint">Firms</p>
           <div className="flex flex-wrap gap-1">
-            {MISSION_FIRM_CHIPS.map((firm) => (
+            {model.missionFirmChips.map((firm) => (
               <Chip
                 key={firm.id}
                 active={model.missionFirmsSelected.includes(firm.id)}
@@ -199,7 +197,7 @@ export function MissionScreen({ view, dispatch }: Props) {
         {leads.length > 0 ? (
           <div className="space-y-3">
             {fitForThisHunt ? <HuntFitPane view={view} dispatch={dispatch} /> : null}
-            <SectionLabel meta={`${leads.length} postings`}>Results</SectionLabel>
+            <SectionLabel meta={`${leads.length} of ${allLeads.length} postings`}>Results</SectionLabel>
             <div className="space-y-1.5">
               {leads.map((lead) => {
                 const key = `${lead.source}:${lead.firm_id}:${lead.external_id}`
@@ -218,6 +216,15 @@ export function MissionScreen({ view, dispatch }: Props) {
                 )
               })}
             </div>
+            {hasMoreLeads ? (
+              <button
+                type="button"
+                className="mt-3 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                onClick={() => dispatch({ type: 'MissionFirmsLoadMore' })}
+              >
+                Load more ({allLeads.length - leads.length} remaining)
+              </button>
+            ) : null}
           </div>
         ) : fitForThisHunt ? (
           <HuntFitPane view={view} dispatch={dispatch} />
