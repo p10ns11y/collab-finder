@@ -13,6 +13,8 @@
     "ci-check": "bash scripts/ci-check.sh",
     "ci-check-light": "bash scripts/ci-check-light.sh",
     "gate": "bash scripts/gate.sh",
+    "export-pipeline": "node scripts/export-pipeline.mjs",
+    "backup-db": "bash scripts/backup-db.sh",
     "complexity": "bash scripts/ci-complexity.sh",
     "install:local": "tauri build --no-bundle && install -m 755 src-tauri/target/release/collab-finder \"$HOME/.local/bin/kanithanj.ai\""
   },

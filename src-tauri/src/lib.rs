@@ -361,6 +361,16 @@ async fn get_opportunities(
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn get_pipeline_opportunities(
+    db: State<'_, AppDb>,
+    limit: Option<u32>,
+) -> Result<Vec<db::Opportunity>, String> {
+    db.0.lock()
+        .map(|s| s.get_pipeline_opportunities(limit.unwrap_or(150)))
+        .map_err(|e| e.to_string())?
+}
+
 /// Pipeline status only (applied / passed / archived / …) — no xAI. Discover rail closure.
 #[tauri::command]
 async fn update_opportunity_status_cmd(
@@ -376,6 +386,33 @@ async fn update_opportunity_status_cmd(
     db.0.lock()
         .map_err(|e| e.to_string())?
         .update_opportunity_status(id, &status, notes.as_deref())
+}
+
+/// Hiring outcome after apply (waiting / screening / interview / offer / rejected / withdrawn).
+#[tauri::command]
+async fn update_opportunity_outcome_cmd(
+    db: State<'_, AppDb>,
+    id: i64,
+    outcome_status: String,
+) -> Result<(), String> {
+    let allowed = [
+        "",
+        "waiting",
+        "screening",
+        "interview",
+        "offer",
+        "rejected",
+        "withdrawn",
+    ];
+    if !allowed.contains(&outcome_status.as_str()) {
+        return Err(format!(
+            "invalid outcome_status '{outcome_status}' (allowed: {})",
+            allowed.join(", ")
+        ));
+    }
+    db.0.lock()
+        .map_err(|e| e.to_string())?
+        .update_opportunity_outcome(id, &outcome_status)
 }
 
 #[tauri::command]
@@ -1221,7 +1258,9 @@ pub fn run() {
             set_fit_mode_cmd,
             propose_cv_sidecar_for_prep,
             get_opportunities,
+            get_pipeline_opportunities,
             update_opportunity_status_cmd,
+            update_opportunity_outcome_cmd,
             fetch_hire_board,
             select_hire_board_lead,
             search_platsbanken,

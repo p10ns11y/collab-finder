@@ -62,7 +62,9 @@ export type FinderPorts = {
     // Opportunity target prep
     prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; cv_summary?: string; previous_fit?: string }): Promise<OpportunityTargetPrepResult>
     getOpportunities(filter?: OpportunityFilter): Promise<import('../domain/history').Opportunity[]>
+    getPipelineOpportunities(limit?: number): Promise<import('../domain/history').Opportunity[]>
     updateOpportunityStatus(id: number, status: string, notes?: string): Promise<void>
+    updateOpportunityOutcome(id: number, outcomeStatus: string): Promise<void>
     // Hire board
     fetchHireBoard(filter?: import('../domain/hire-board').HireBoardFilter): Promise<import('../domain/hire-board').HireBoardLead[]>
     selectHireBoardLead(payload: {
@@ -397,6 +399,37 @@ export function updateOpportunityStatusCmd(
       }
       dispatch({ type: 'OpportunityStatusChangeSucceeded', id, status })
       dispatch({ type: 'HistoryRefreshRequested' })
+      dispatch({ type: 'PipelineRefreshRequested' })
+    })
+  }
+}
+
+export function updateOpportunityOutcomeCmd(
+  ports: FinderPorts,
+  id: number,
+  outcomeStatus: string,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.updateOpportunityOutcome(id, outcomeStatus), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'OpportunityOutcomeChangeFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'OpportunityOutcomeChangeSucceeded', id, outcomeStatus })
+      dispatch({ type: 'HistoryRefreshRequested' })
+      dispatch({ type: 'PipelineRefreshRequested' })
+    })
+  }
+}
+
+export function pipelineRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(ports.finder.getPipelineOpportunities(150), toAppError).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'PipelineFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'PipelineRefreshed', opportunities: result.value })
     })
   }
 }
@@ -1026,7 +1059,7 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
       if (r.ok) dispatch({ type: 'HistoryRefreshed', pauses: r.value })
     })
     // Events for Data screen
-    void fromPromise(ports.finder.getEvents({ limit: 100 }), toAppError).then((r) => {
+    void fromPromise(ports.finder.getEvents({ limit: 250 }), toAppError).then((r) => {
       if (r.ok) dispatch({ type: 'HistoryRefreshed', events: r.value })
     })
     // Opportunities (from target analyzes) — critical for Data tab + History + Discover "Resume last"
@@ -1339,6 +1372,10 @@ export function effectForMsg(
       return generateApplyCvCmd(ports, msg.opportunity_id)
     case 'OpportunityStatusChangeRequested':
       return updateOpportunityStatusCmd(ports, msg.id, msg.status)
+    case 'OpportunityOutcomeChangeRequested':
+      return updateOpportunityOutcomeCmd(ports, msg.id, msg.outcomeStatus)
+    case 'PipelineRefreshRequested':
+      return pipelineRefreshCmd(ports)
     case 'HireBoardRefreshRequested':
       return hireBoardRefreshCmd(ports, model)
     case 'HireBoardSelectRequested':

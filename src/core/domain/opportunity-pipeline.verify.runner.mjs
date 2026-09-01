@@ -8,8 +8,10 @@ const {
   normalizePipelineStatus,
   isActivePipelineStatus,
   filterOpportunitiesForRail,
+  filterOpportunitiesForPipelineView,
   compareOpportunitiesForRail,
   pipelineStatusLabel,
+  isPipelineRelevant,
 } = mod
 
 let failed = 0
@@ -37,6 +39,20 @@ const gh = filterOpportunitiesForRail(rows, 'all', 'greenhouse')
 assert(gh.length === 1 && gh[0].id === 2, 'text filter')
 const sorted = [...rows].sort(compareOpportunitiesForRail)
 assert(sorted[0].id === 2, 'active sorts before closed')
+
+const missionNoise = [
+  { id: 99, kind: 'mission_pull', status: 'new', fit_score: 100, title: 'Noise' },
+  { id: 64, kind: 'mission_pull', status: 'new', fit_score: 105, title: 'Tesla', analysis_json: '{}' },
+  { id: 2, kind: 'web', status: 'applied', fit_score: 80, title: 'Real' },
+]
+const pipelineAll = filterOpportunitiesForPipelineView(missionNoise, 'all')
+assert(pipelineAll.length === 1 && pipelineAll[0].id === 2, 'pipeline hides mission_pull new')
+assert(!isPipelineRelevant({ id: 531, kind: 'web', status: 'analyzed', fit_score: 0 }), 'fit 0 analyzed hidden')
+const pipelineWaiting = filterOpportunitiesForPipelineView(
+  [{ id: 1, kind: 'web', status: 'applied', outcome_status: 'waiting' }],
+  'waiting',
+)
+assert(pipelineWaiting.length === 1, 'waiting filter')
 
 if (failed) {
   console.error(`\n${failed} failed`)

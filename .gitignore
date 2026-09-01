@@ -40,6 +40,7 @@ src-tauri/llvm-cov-summary.json
 
 # Local scratch / screenshots
 .tmp/
+pipeline-export.json
 
 # Impeccable: local/session (surfaces, live inject, mocks, critique). Keep on disk; do not commit.
 .impeccable/
