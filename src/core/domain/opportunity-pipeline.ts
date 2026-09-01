@@ -97,3 +97,90 @@ export function filterOpportunitiesForRail<
   list.sort(compareOpportunitiesForRail)
   return list
 }
+
+/** Post-apply hiring outcomes (orthogonal to prep pipeline status). */
+export const OUTCOME_STATUSES = [
+  'waiting',
+  'screening',
+  'interview',
+  'offer',
+  'rejected',
+  'withdrawn',
+] as const
+
+export type OutcomeStatus = (typeof OUTCOME_STATUSES)[number]
+
+export function isOutcomeStatus(s: string | undefined | null): s is OutcomeStatus {
+  return !!s && (OUTCOME_STATUSES as readonly string[]).includes(s)
+}
+
+export function outcomeStatusLabel(status: string | undefined | null): string {
+  if (!status) return '—'
+  switch (status) {
+    case 'waiting':
+      return 'Waiting'
+    case 'screening':
+      return 'Screening'
+    case 'interview':
+      return 'Interview'
+    case 'offer':
+      return 'Offer'
+    case 'rejected':
+      return 'Rejected'
+    case 'withdrawn':
+      return 'Withdrawn'
+    default:
+      return status
+  }
+}
+
+type PipelineOpp = {
+  id: number
+  kind?: string
+  status?: string
+  fit_score?: number
+  analysis_json?: string
+  prep_artifacts_json?: string
+}
+
+/** Hide mission_pull inventory that was never analyzed or prepped. */
+export function isPipelineRelevant(opp: PipelineOpp): boolean {
+  const status = normalizePipelineStatus(opp.status)
+  if (status === 'applied' || status === 'prepped' || status === 'passed' || status === 'archived') {
+    return true
+  }
+  if (status === 'analyzed' && opp.kind !== 'mission_pull') {
+    return (opp.fit_score ?? 0) > 0
+  }
+  return false
+}
+
+export type PipelineViewFilter = 'all' | 'active' | 'applied' | 'waiting' | 'closed'
+
+export function filterOpportunitiesForPipelineView<
+  T extends PipelineOpp & { outcome_status?: string },
+>(rows: T[], filter: PipelineViewFilter): T[] {
+  const relevant = rows.filter(isPipelineRelevant)
+  switch (filter) {
+    case 'active':
+      return relevant.filter((o) => isActivePipelineStatus(o.status))
+    case 'applied':
+      return relevant.filter((o) => normalizePipelineStatus(o.status) === 'applied')
+    case 'waiting':
+      return relevant.filter(
+        (o) =>
+          normalizePipelineStatus(o.status) === 'applied' &&
+          (!o.outcome_status || o.outcome_status === 'waiting' || o.outcome_status === 'screening'),
+      )
+    case 'closed':
+      return relevant.filter(
+        (o) =>
+          o.outcome_status === 'rejected' ||
+          o.outcome_status === 'withdrawn' ||
+          normalizePipelineStatus(o.status) === 'passed' ||
+          normalizePipelineStatus(o.status) === 'archived',
+      )
+    default:
+      return relevant
+  }
+}

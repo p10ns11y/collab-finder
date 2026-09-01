@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Compass,
   Crosshair,
+  Kanban,
   MapPinned,
   Network,
   Route,
@@ -21,6 +22,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'heading', label: 'Navigating', Icon: Route },
   { id: 'discover', label: 'Discover', Icon: Compass },
+  { id: 'pipeline', label: 'Pipeline', Icon: Kanban },
   { id: 'mission', label: 'Mission', Icon: Crosshair },
   { id: 'sweden', label: 'Sweden', Icon: MapPinned },
   { id: 'xplore', label: 'Xplore', Icon: Search },

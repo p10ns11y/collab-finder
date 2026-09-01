@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 9;
+pub const SCHEMA_VERSION: i32 = 10;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -109,6 +109,10 @@ pub struct Opportunity {
     pub prep_artifacts_json: Option<String>,
     pub last_updated: String,
     pub notes: Option<String>,
+    /// Post-apply hiring outcome (waiting, screening, interview, offer, rejected, withdrawn).
+    pub outcome_status: Option<String>,
+    /// First transition to pipeline status `applied` (ISO datetime).
+    pub applied_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -301,6 +305,11 @@ impl SqliteStore {
         if current < 9 {
             Self::migrate_v9(conn)?;
             Self::record_migration(conn, 9)?;
+        }
+
+        if current < 10 {
+            Self::migrate_v10(conn)?;
+            Self::record_migration(conn, 10)?;
         }
 
         Ok(())
@@ -613,6 +622,52 @@ CREATE TABLE IF NOT EXISTS firm_durability_scores (
         )
         .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    /// v10: pipeline outcome + applied_at timestamps.
+    fn migrate_v10(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            r#"
+ALTER TABLE opportunities ADD COLUMN outcome_status TEXT;
+ALTER TABLE opportunities ADD COLUMN applied_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_opp_outcome ON opportunities(outcome_status);
+CREATE INDEX IF NOT EXISTS idx_opp_applied_at ON opportunities(applied_at DESC);
+UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND applied_at IS NULL;
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// mission_pull and other bulk imports must not downgrade an in-flight or terminal pipeline status.
+    fn merge_status_on_upsert(existing: &str, incoming: &str) -> String {
+        if incoming != "new" {
+            return incoming.to_string();
+        }
+        match existing {
+            "analyzed" | "prepped" | "applied" | "passed" | "archived" => existing.to_string(),
+            _ => incoming.to_string(),
+        }
+    }
+
+    fn map_opportunity_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Opportunity> {
+        Ok(Opportunity {
+            id: r.get(0)?,
+            kind: r.get(1)?,
+            source_url: r.get(2)?,
+            source_ref: r.get(3)?,
+            title: r.get(4)?,
+            company: r.get(5)?,
+            jd_text: r.get(6)?,
+            status: r.get(7)?,
+            fit_score: r.get(8)?,
+            analysis_json: r.get(9)?,
+            prep_artifacts_json: r.get(10)?,
+            last_updated: r.get(11)?,
+            notes: r.get(12)?,
+            outcome_status: r.get(13)?,
+            applied_at: r.get(14)?,
+        })
     }
 
     fn is_enabled(&self) -> bool {
@@ -1765,59 +1820,27 @@ CREATE TABLE IF NOT EXISTS firm_durability_scores (
             let idv = filter.id.unwrap();
             let mut stmt = guard
                 .prepare(
-                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
+                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes, outcome_status, applied_at
                       FROM opportunities
                       WHERE id = ?1
                       ORDER BY last_updated DESC, fit_score DESC LIMIT ?2",
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
-                .query_map(params![idv, lim], |r| {
-                    Ok(Opportunity {
-                        id: r.get(0)?,
-                        kind: r.get(1)?,
-                        source_url: r.get(2)?,
-                        source_ref: r.get(3)?,
-                        title: r.get(4)?,
-                        company: r.get(5)?,
-                        jd_text: r.get(6)?,
-                        status: r.get(7)?,
-                        fit_score: r.get(8)?,
-                        analysis_json: r.get(9)?,
-                        prep_artifacts_json: r.get(10)?,
-                        last_updated: r.get(11)?,
-                        notes: r.get(12)?,
-                    })
-                })
+                .query_map(params![idv, lim], Self::map_opportunity_row)
                 .map_err(|e| e.to_string())?;
             rows.collect::<SqliteResult<Vec<_>>>()
                 .map_err(|e| e.to_string())?
         } else {
             let mut stmt = guard
                 .prepare(
-                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes
+                    "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes, outcome_status, applied_at
                       FROM opportunities
                       ORDER BY last_updated DESC, fit_score DESC LIMIT ?1",
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
-                .query_map(params![lim], |r| {
-                    Ok(Opportunity {
-                        id: r.get(0)?,
-                        kind: r.get(1)?,
-                        source_url: r.get(2)?,
-                        source_ref: r.get(3)?,
-                        title: r.get(4)?,
-                        company: r.get(5)?,
-                        jd_text: r.get(6)?,
-                        status: r.get(7)?,
-                        fit_score: r.get(8)?,
-                        analysis_json: r.get(9)?,
-                        prep_artifacts_json: r.get(10)?,
-                        last_updated: r.get(11)?,
-                        notes: r.get(12)?,
-                    })
-                })
+                .query_map(params![lim], Self::map_opportunity_row)
                 .map_err(|e| e.to_string())?;
             rows.collect::<SqliteResult<Vec<_>>>()
                 .map_err(|e| e.to_string())?
@@ -1849,6 +1872,35 @@ CREATE TABLE IF NOT EXISTS firm_durability_scores (
         }
 
         Ok(out)
+    }
+
+    /// Hunt pipeline rows only — not recency-limited mission_pull inventory.
+    /// Includes every applied/prepped/archived/passed row plus non-mission analyzed targets.
+    pub fn get_pipeline_opportunities(&self, limit: u32) -> Result<Vec<Opportunity>, String> {
+        if !self.is_enabled() {
+            return Ok(vec![]);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let lim = limit.clamp(1, 300) as i64;
+        let mut stmt = guard
+            .prepare(
+                "SELECT id, kind, source_url, source_ref, title, company, jd_text, status, fit_score, analysis_json, prep_artifacts_json, last_updated, notes, outcome_status, applied_at
+                 FROM opportunities
+                 WHERE status IN ('prepped', 'applied', 'passed', 'archived')
+                    OR (status = 'analyzed' AND kind != 'mission_pull' AND COALESCE(fit_score, 0) > 0)
+                    OR (outcome_status IS NOT NULL AND outcome_status != '')
+                 ORDER BY
+                   CASE status WHEN 'applied' THEN 0 WHEN 'prepped' THEN 1 WHEN 'analyzed' THEN 2 ELSE 3 END,
+                   COALESCE(applied_at, last_updated) DESC,
+                   id DESC
+                 LIMIT ?1",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![lim], Self::map_opportunity_row)
+            .map_err(|e| e.to_string())?;
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     /// Insert or update an opportunity. Returns the id.
@@ -1888,9 +1940,17 @@ CREATE TABLE IF NOT EXISTS firm_durability_scores (
             .map_err(|e| e.to_string())?;
             tx.last_insert_rowid()
         } else if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+            let existing_status: String = tx
+                .query_row(
+                    "SELECT status FROM opportunities WHERE id = ?1",
+                    params![existing],
+                    |r| r.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            let merged_status = Self::merge_status_on_upsert(&existing_status, status);
             tx.execute(
                 "UPDATE opportunities SET last_updated = datetime('now'), status = ?1, fit_score = COALESCE(?2, fit_score), analysis_json = COALESCE(?3, analysis_json), prep_artifacts_json = COALESCE(?4, prep_artifacts_json), notes = COALESCE(?5, notes) WHERE id = ?6",
-                params![status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
+                params![merged_status, fit_score, analysis_json, prep_artifacts_json, notes, existing],
             )
             .map_err(|e| e.to_string())?;
             existing
@@ -2026,8 +2086,22 @@ CREATE TABLE IF NOT EXISTS firm_durability_scores (
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         guard
             .execute(
-                "UPDATE opportunities SET status = ?1, notes = COALESCE(?2, notes), last_updated = datetime('now') WHERE id = ?3",
+                "UPDATE opportunities SET status = ?1, notes = COALESCE(?2, notes), last_updated = datetime('now'), applied_at = CASE WHEN ?1 = 'applied' AND applied_at IS NULL THEN datetime('now') ELSE applied_at END WHERE id = ?3",
                 params![status, notes, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn update_opportunity_outcome(&self, id: i64, outcome_status: &str) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "UPDATE opportunities SET outcome_status = NULLIF(?1, ''), last_updated = datetime('now') WHERE id = ?2",
+                params![outcome_status, id],
             )
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -2100,6 +2174,68 @@ mod tests {
         );
         assert!(store.get_recent_searches(10).unwrap().is_empty());
         assert_eq!(store.get_dashboard_stats().unwrap().total_searches, 0);
+    }
+
+    #[test]
+    fn get_pipeline_opportunities_includes_applied_not_in_recency_window() {
+        let (_dir, store) = temp_store();
+        store
+            .upsert_opportunity(
+                "web",
+                Some("https://example.com/old-applied"),
+                None,
+                Some("Old Applied"),
+                Some("Co"),
+                "jd",
+                "applied",
+                Some(85),
+                None,
+                None,
+                None,
+            )
+            .expect("insert applied");
+        for i in 0..320 {
+            store
+                .upsert_opportunity(
+                    "mission_pull",
+                    Some(&format!("https://mission.example/{i}")),
+                    None,
+                    Some("Mission noise"),
+                    Some("SpaceXAI"),
+                    "stub",
+                    "new",
+                    Some(100),
+                    None,
+                    None,
+                    Some("mission_pull"),
+                )
+                .expect("insert noise");
+        }
+        let pipeline = store.get_pipeline_opportunities(150).expect("pipeline");
+        assert!(
+            pipeline.iter().any(|o| o.status == "applied"),
+            "pipeline must include applied rows outside top-300 recency"
+        );
+        assert!(
+            !pipeline.iter().any(|o| o.kind == "mission_pull" && o.status == "new"),
+            "pipeline must exclude mission_pull inventory"
+        );
+    }
+
+    #[test]
+    fn merge_status_on_upsert_preserves_progress() {
+        assert_eq!(
+            SqliteStore::merge_status_on_upsert("applied", "new"),
+            "applied"
+        );
+        assert_eq!(
+            SqliteStore::merge_status_on_upsert("prepped", "new"),
+            "prepped"
+        );
+        assert_eq!(
+            SqliteStore::merge_status_on_upsert("new", "analyzed"),
+            "analyzed"
+        );
     }
 
     #[test]

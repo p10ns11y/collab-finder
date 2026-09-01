@@ -42,8 +42,10 @@ export type FinderPort = {
   analyzeOpportunityTarget(payload: { url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string }): Promise<Result<OpportunityTargetAnalysisResult, AppError>>
   prepOpportunityTarget(payload: { opportunity_id?: number; url?: string; pasted_jd?: string; title?: string; company?: string; cv_summary?: string; previous_fit?: string }): Promise<Result<OpportunityTargetPrepResult, AppError>>
   getOpportunities(filter?: OpportunityFilter): Promise<Result<Opportunity[], AppError>>
+  getPipelineOpportunities(limit?: number): Promise<Result<Opportunity[], AppError>>
   /** Pipeline status only (applied/passed/archived/…) — no xAI. */
   updateOpportunityStatus(id: number, status: string, notes?: string): Promise<Result<void, AppError>>
+  updateOpportunityOutcome(id: number, outcomeStatus: string): Promise<Result<void, AppError>>
 
   /** Public hire sheet → ranked ephemeral leads (no bulk DB write). */
   fetchHireBoard(filter?: HireBoardFilter): Promise<Result<HireBoardLead[], AppError>>

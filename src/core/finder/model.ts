@@ -79,6 +79,7 @@ const VALID_SCREENS: FinderScreen[] = [
   'lookup',
   'settings',
   'preferences',
+  'pipeline',
   'xplore',
   'network',
 ]
@@ -102,6 +103,7 @@ export type FinderScreen =
   | 'lookup'
   | 'settings'
   | 'preferences'
+  | 'pipeline'
   | 'xplore'
   | 'network'
 
@@ -147,6 +149,7 @@ export type FinderModel = {
   quest: AsyncState<QuestResult>
   banner: AppError | null
   history: HistorySlice
+  pipeline: AsyncState<Opportunity[]>
   // Multi-screen shell
   activeScreen: FinderScreen
   // Lookup (FTS + run replay + hydrate)
@@ -314,6 +317,7 @@ export function initialFinderModel(): FinderModel {
       opportunities: idle(),
       lastRefreshed: null,
     },
+    pipeline: idle<Opportunity[]>(),
     activeScreen,
     lookup: idle(),
     lookupQuery: '',

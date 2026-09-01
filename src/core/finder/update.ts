@@ -405,20 +405,81 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
     case 'OpportunityStatusChangeRequested':
       return [{ ...model, banner: null }]
     case 'OpportunityStatusChangeSucceeded': {
-      // Optimistic patch of opportunities list so rail updates before history refresh returns.
       const h = { ...model.history }
       if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
         h.opportunities = {
           status: 'ready',
           data: h.opportunities.data.map((o) =>
-            o.id === msg.id ? { ...o, status: msg.status } : o,
+            o.id === msg.id
+              ? {
+                  ...o,
+                  status: msg.status,
+                  applied_at:
+                    msg.status === 'applied' ? o.applied_at ?? new Date().toISOString() : o.applied_at,
+                }
+              : o,
           ),
         }
       }
-      return [{ ...model, history: h, banner: null }]
+      const pipeline =
+        model.pipeline.status === 'ready'
+          ? {
+              status: 'ready' as const,
+              data: model.pipeline.data.map((o) =>
+                o.id === msg.id
+                  ? {
+                      ...o,
+                      status: msg.status,
+                      applied_at:
+                        msg.status === 'applied'
+                          ? o.applied_at ?? new Date().toISOString()
+                          : o.applied_at,
+                    }
+                  : o,
+              ),
+            }
+          : model.pipeline
+      return [{ ...model, history: h, pipeline, banner: null }]
     }
     case 'OpportunityStatusChangeFailed':
       return [{ ...model, banner: msg.error }]
+
+    case 'OpportunityOutcomeChangeRequested':
+      return [{ ...model, banner: null }]
+    case 'OpportunityOutcomeChangeSucceeded': {
+      const h = { ...model.history }
+      if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {
+        h.opportunities = {
+          status: 'ready',
+          data: h.opportunities.data.map((o) =>
+            o.id === msg.id
+              ? { ...o, outcome_status: msg.outcomeStatus || undefined }
+              : o,
+          ),
+        }
+      }
+      const pipeline =
+        model.pipeline.status === 'ready'
+          ? {
+              status: 'ready' as const,
+              data: model.pipeline.data.map((o) =>
+                o.id === msg.id
+                  ? { ...o, outcome_status: msg.outcomeStatus || undefined }
+                  : o,
+              ),
+            }
+          : model.pipeline
+      return [{ ...model, history: h, pipeline, banner: null }]
+    }
+    case 'OpportunityOutcomeChangeFailed':
+      return [{ ...model, banner: msg.error }]
+
+    case 'PipelineRefreshRequested':
+      return [{ ...model, pipeline: { status: 'loading' } }]
+    case 'PipelineRefreshed':
+      return [{ ...model, pipeline: { status: 'ready', data: msg.opportunities } }]
+    case 'PipelineFailed':
+      return [{ ...model, pipeline: { status: 'failed', error: msg.error } }]
 
     case 'HistoryRefreshRequested':
       // Do NOT blank all slices to loading (old behavior caused History + Data to appear empty

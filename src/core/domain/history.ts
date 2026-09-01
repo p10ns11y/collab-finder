@@ -103,6 +103,8 @@ export type Opportunity = {
   prep_artifacts_json?: string;
   last_updated: string;
   notes?: string;
+  outcome_status?: string;
+  applied_at?: string;
 };
 
 export type OpportunityFilter = {

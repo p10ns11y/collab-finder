@@ -160,6 +160,14 @@ export type FinderMsg =
   | { type: 'OpportunityStatusChangeSucceeded'; id: number; status: string }
   | { type: 'OpportunityStatusChangeFailed'; error: AppError }
 
+  | { type: 'OpportunityOutcomeChangeRequested'; id: number; outcomeStatus: string }
+  | { type: 'OpportunityOutcomeChangeSucceeded'; id: number; outcomeStatus: string }
+  | { type: 'OpportunityOutcomeChangeFailed'; error: AppError }
+
+  | { type: 'PipelineRefreshRequested' }
+  | { type: 'PipelineRefreshed'; opportunities: import('../domain/history').Opportunity[] }
+  | { type: 'PipelineFailed'; error: AppError }
+
   // Hire board (sheet skim → Select/Evaluate)
   | { type: 'HireBoardQChanged'; q: string }
   | { type: 'HireBoardGeoToggled'; tag: string }

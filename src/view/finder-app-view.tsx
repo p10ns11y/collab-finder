@@ -8,6 +8,7 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { PipelineScreen } from './screens/pipeline-screen'
 import { HeadingScreen } from './screens/heading-screen'
 import { MissionScreen } from './screens/mission-screen'
 import { SwedenScreen } from './screens/sweden-screen'
@@ -24,6 +25,7 @@ type Props = {
 const SCREEN_LABEL: Record<FinderScreen, string> = {
   heading: 'Navigating',
   discover: 'Discover',
+  pipeline: 'Pipeline',
   mission: 'Mission',
   sweden: 'Sweden',
   xplore: 'Xplore',
@@ -52,6 +54,8 @@ export function FinderAppView({ view, dispatch }: Props) {
         return <HeadingScreen dispatch={dispatch} />
       case 'discover':
         return <DiscoverScreen view={view} dispatch={dispatch} />
+      case 'pipeline':
+        return <PipelineScreen view={view} dispatch={dispatch} />
       case 'mission':
         return <MissionScreen view={view} dispatch={dispatch} />
       case 'sweden':

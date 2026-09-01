@@ -68,8 +68,12 @@ export function createTauriFinderPort(): FinderPort {
         previousFit: payload.previous_fit,
       }),
     getOpportunities: (filter) => safeInvoke<Opportunity[]>('get_opportunities', filter ?? {}),
+    getPipelineOpportunities: (limit) =>
+      safeInvoke<Opportunity[]>('get_pipeline_opportunities', { limit: limit ?? 150 }),
     updateOpportunityStatus: (id, status, notes) =>
       safeInvoke<void>('update_opportunity_status_cmd', { id, status, notes }),
+    updateOpportunityOutcome: (id, outcomeStatus) =>
+      safeInvoke<void>('update_opportunity_outcome_cmd', { id, outcomeStatus }),
     fetchHireBoard: (filter?: HireBoardFilter) =>
       safeInvoke<HireBoardLead[]>('fetch_hire_board', {
         sheetUrl: filter?.sheet_url,
@@ -268,8 +272,18 @@ export function finderPortForEffects(port: FinderPort) {
       if (!result.ok) throw result.error
       return result.value
     },
+    async getPipelineOpportunities(limit?: number) {
+      const result = await port.getPipelineOpportunities(limit)
+      if (!result.ok) throw result.error
+      return result.value
+    },
     async updateOpportunityStatus(id: number, status: string, notes?: string) {
       const result = await port.updateOpportunityStatus(id, status, notes)
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async updateOpportunityOutcome(id: number, outcomeStatus: string) {
+      const result = await port.updateOpportunityOutcome(id, outcomeStatus)
       if (!result.ok) throw result.error
       return result.value
     },

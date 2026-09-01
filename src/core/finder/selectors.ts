@@ -38,6 +38,8 @@ export type FinderViewState = {
   historyEvents: import('../domain/history').Event[]
   historyOpportunities: import('../domain/history').Opportunity[]
   historyLastRefreshed: number | null  // for freshness / TD-009 race visibility in secondary views and debug
+  pipelineOpportunities: import('../domain/history').Opportunity[]
+  pipelineBusy: boolean
   // Screen + lookup projections
   activeScreen: FinderScreen
   lookupResults: import('../domain/finder').Tweet[]
@@ -55,6 +57,7 @@ export function selectFinderView(model: FinderModel): FinderViewState {
   const screenNavItems: PaletteItem[] = [
     { id: 'nav-heading', label: 'Go to Navigating', msg: { type: 'ScreenChanged', screen: 'heading' } },
     { id: 'nav-discover', label: 'Go to Discover', msg: { type: 'ScreenChanged', screen: 'discover' } },
+    { id: 'nav-pipeline', label: 'Go to Pipeline', msg: { type: 'ScreenChanged', screen: 'pipeline' } },
     { id: 'nav-mission', label: 'Go to Mission', msg: { type: 'ScreenChanged', screen: 'mission' } },
     { id: 'nav-sweden', label: 'Go to Sweden', msg: { type: 'ScreenChanged', screen: 'sweden' } },
     { id: 'nav-xplore', label: 'Go to Xplore (X)', msg: { type: 'ScreenChanged', screen: 'xplore' } },
@@ -103,6 +106,8 @@ export function selectFinderView(model: FinderModel): FinderViewState {
     historyEvents: h.events.status === 'ready' ? h.events.data : [],
     historyOpportunities: h.opportunities.status === 'ready' ? h.opportunities.data : [],
     historyLastRefreshed: h.lastRefreshed,
+    pipelineOpportunities: model.pipeline.status === 'ready' ? model.pipeline.data : [],
+    pipelineBusy: model.pipeline.status === 'loading',
     activeScreen: model.activeScreen,
     lookupResults: model.lookup.status === 'ready' ? model.lookup.data : [],
     lookupBusy: model.lookup.status === 'loading',
