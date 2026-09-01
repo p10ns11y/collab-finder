@@ -1,18 +1,10 @@
 #!/usr/bin/env node
-/**
- * Export collab-finder pipeline rows (non-mission_pull noise) to JSON.
- * Optional: LIFE_OS_PRIVATE=~/life-os/private writes career/pipeline-snapshot.json
- * and upserts pulse-memory traces for applied/waiting counts.
- */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { loadPipelineConfig } from './load-pipeline-config.mjs'
 
-const dbPath = join(homedir(), '.local/share/collab-finder/collab-finder.db')
-const pulseDb = join(homedir(), '.local/share/pulse-memory/pulse.sqlite')
-const lifeOsPrivate = process.env.LIFE_OS_PRIVATE || join(homedir(), 'life-os/private')
+const { dbPath, pulseDbPath, privateMirrorDir, repoRoot } = loadPipelineConfig()
 
 function sql(query) {
   return execFileSync('sqlite3', ['-json', dbPath, query], { encoding: 'utf8' }).trim()
@@ -35,46 +27,47 @@ ORDER BY
 
 const snapshot = {
   exported_at: new Date().toISOString(),
-  source: dbPath,
+  source: 'collab-finder-db',
   count: rows.length,
-  applied: rows.filter((r) => r.status === 'applied').length,
+  applied: rows.filter((row) => row.status === 'applied').length,
   waiting: rows.filter(
-    (r) => r.status === 'applied' && (!r.outcome_status || r.outcome_status === 'waiting'),
+    (row) =>
+      row.status === 'applied' && (!row.outcome_status || row.outcome_status === 'waiting'),
   ).length,
   rows,
 }
 
-const outDir = join(dirname(fileURLToPath(import.meta.url)), '..')
-const localOut = join(outDir, 'pipeline-export.json')
+const localOut = join(repoRoot, 'pipeline-export.json')
 writeFileSync(localOut, JSON.stringify(snapshot, null, 2))
 
-const privateCareer = join(lifeOsPrivate, 'career')
-const privateOut = join(privateCareer, 'pipeline-snapshot.json')
-try {
-  mkdirSync(privateCareer, { recursive: true })
-  writeFileSync(privateOut, JSON.stringify(snapshot, null, 2))
-} catch {
-  // optional private mirror
+if (privateMirrorDir) {
+  try {
+    mkdirSync(privateMirrorDir, { recursive: true })
+    writeFileSync(join(privateMirrorDir, 'pipeline-snapshot.json'), JSON.stringify(snapshot, null, 2))
+  } catch {
+    // optional private mirror
+  }
 }
 
-try {
-  const applied = snapshot.applied
-  const waiting = snapshot.waiting
-  const snippet = `${applied} applied in pipeline SoT; ${waiting} waiting on employer reply.`
-  const now = new Date().toISOString()
-  execFileSync(
-    'sqlite3',
-    [
-      pulseDb,
-      `INSERT INTO memory_traces (nat_key, snippet, source, time, status, kind, lock)
-       VALUES ('career/pipeline/applied-count', '${snippet.replace(/'/g, "''")}', 'tool:export-pipeline', '${now}', 'tool-verified', 'data', 'open')
-       ON CONFLICT(nat_key) DO UPDATE SET snippet=excluded.snippet, time=excluded.time, status=excluded.status;`,
-    ],
-    { stdio: 'ignore' },
-  )
-} catch {
-  // pulse-memory optional
+if (pulseDbPath) {
+  try {
+    const applied = snapshot.applied
+    const waiting = snapshot.waiting
+    const snippet = `${applied} applied in pipeline SoT; ${waiting} waiting on employer reply.`
+    const now = new Date().toISOString()
+    execFileSync(
+      'sqlite3',
+      [
+        pulseDbPath,
+        `INSERT INTO memory_traces (nat_key, snippet, source, time, status, kind, lock)
+         VALUES ('career/pipeline/applied-count', '${snippet.replace(/'/g, "''")}', 'tool:export-pipeline', '${now}', 'tool-verified', 'data', 'open')
+         ON CONFLICT(nat_key) DO UPDATE SET snippet=excluded.snippet, time=excluded.time, status=excluded.status;`,
+      ],
+      { stdio: 'ignore' },
+    )
+  } catch {
+    // pulse-memory optional
+  }
 }
 
-console.log(`pipeline-export: ${rows.length} rows → ${localOut}`)
-if (privateOut) console.log(`private mirror: ${privateOut}`)
+console.log(`pipeline-export: ${rows.length} rows written`)

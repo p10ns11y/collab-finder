@@ -1,0 +1,6 @@
+{
+  "db_path": "/path/to/your/collab-finder.db",
+  "backup_dir": "/path/to/your/collab-finder-backups",
+  "pulse_db_path": "",
+  "private_mirror_dir": ""
+}

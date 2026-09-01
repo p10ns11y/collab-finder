@@ -15,6 +15,9 @@ dist-ssr
 # Hire board — personal Google Sheet id/url (copy from config.example.json)
 data/hire-board/config.local.json
 
+# Pipeline export/backup — local db paths (copy from data/pipeline/config.example.json)
+data/pipeline/config.local.json
+
 # Personal contact / network exports (PII — never commit)
 # Use data/connections.sample.csv + data/contacts.sample.csv for local demos
 data/contacts.csv
