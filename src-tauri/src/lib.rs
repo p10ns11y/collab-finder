@@ -1305,6 +1305,7 @@ pub fn run() {
             run_local_grok_quest,
             get_rank_config,
             save_rank_config,
+            operator_pack::get_operator_pack_status,
             get_x_search_catalog,
             get_hunt_rails,
             list_durable_firms,
