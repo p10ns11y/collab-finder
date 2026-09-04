@@ -23,6 +23,12 @@ copy "$ROOT/data/distillation/curation/proof-variants.md" "proof-variants.md"
 copy "$ROOT/data/distillation/public-projects-focused-flatten.json" "public-projects-focused.json"
 copy "$ROOT/data/distillation/public-projects.json" "public-projects.json"
 copy "$ROOT/data/distillation/public-projects-clean.json" "public-projects-clean.json"
+copy "$ROOT/data/distillation/x-search/queries.json" "x-search-queries.json"
+copy "$ROOT/data/durability/example-pack/hunt-rails.json" "hunt-rails.json"
+copy "$ROOT/data/durability/example-pack/mission-firms.json" "mission-firms.json"
 
 test -f "$TESTDATA/universe.json" || { echo "missing universe.json seed source" >&2; exit 1; }
+test -f "$TESTDATA/x-search-queries.json" || { echo "missing x-search-queries.json seed source" >&2; exit 1; }
+test -f "$TESTDATA/hunt-rails.json" || { echo "missing hunt-rails.json seed source" >&2; exit 1; }
+test -f "$TESTDATA/mission-firms.json" || { echo "missing mission-firms.json seed source" >&2; exit 1; }
 echo "Seeded Rust testdata → $TESTDATA ($(ls -1 "$TESTDATA" | wc -l) files)"
