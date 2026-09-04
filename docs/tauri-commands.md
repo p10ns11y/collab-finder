@@ -98,6 +98,14 @@ Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcode
 |---------|------|---------|-------|
 | `list_durable_firms` | — | `IterationResult` | Fortress / AI-wave / theatre gates. Reads `data/durability/universe.v1.json`. Snapshots to SQLite v9. No apply state. |
 
+## Preferences (operator pack + rank)
+
+| Command | Args | Returns | Notes |
+|---------|------|---------|-------|
+| `get_rank_config` | — | `RankConfigView` | Preferences → Rank packs. Paths + pack JSON listing. |
+| `save_rank_config` | `{ config }` | `RankConfigView` | Persist `rank.json` under `~/.config/collab-finder/`. |
+| `get_operator_pack_status` | — | `OperatorPackStatus` | Preferences → Operator pack health. Local filesystem only — file list, size/mtime, stub vs seeded. |
+
 ## TypeScript bridge
 
 ```

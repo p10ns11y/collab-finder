@@ -185,6 +185,202 @@ type RankConfigView = {
   pack_files: string[]
 }
 
+type PackFileKind = 'ok' | 'missing' | 'unreadable' | 'stub' | 'invalid'
+type OperatorPackHealth = 'healthy' | 'degraded' | 'stub' | 'missing'
+
+type PackFileStatus = {
+  name: string
+  present: boolean
+  readable: boolean
+  size_bytes: number | null
+  modified_secs: number | null
+  kind: PackFileKind
+  detail: string | null
+  critical: boolean
+}
+
+type OperatorPackStatus = {
+  packs_dir: string
+  dir_present: boolean
+  dir_readable: boolean
+  health: OperatorPackHealth
+  seeded: boolean
+  seed_hint: string
+  fix_hint: string | null
+  files: PackFileStatus[]
+  extra_files: string[]
+}
+
+function formatPackBytes(bytes: number | null): string {
+  if (bytes == null) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatPackMtime(secs: number | null): string {
+  if (secs == null) return '—'
+  return new Date(secs * 1000).toLocaleString()
+}
+
+function packHealthLabel(health: OperatorPackHealth): string {
+  switch (health) {
+    case 'healthy':
+      return 'Seeded'
+    case 'degraded':
+      return 'Degraded'
+    case 'stub':
+      return 'Stub identity'
+    case 'missing':
+      return 'Missing'
+  }
+}
+
+function packHealthTone(health: OperatorPackHealth): 'success' | 'warning' | 'danger' | 'neutral' {
+  switch (health) {
+    case 'healthy':
+      return 'success'
+    case 'degraded':
+      return 'warning'
+    case 'stub':
+    case 'missing':
+      return 'danger'
+  }
+}
+
+function packFileKindLabel(kind: PackFileKind): string {
+  switch (kind) {
+    case 'ok':
+      return 'ok'
+    case 'missing':
+      return 'missing'
+    case 'unreadable':
+      return 'unreadable'
+    case 'stub':
+      return 'stub'
+    case 'invalid':
+      return 'invalid'
+  }
+}
+
+function packFileKindTone(kind: PackFileKind): 'success' | 'warning' | 'danger' | 'neutral' {
+  switch (kind) {
+    case 'ok':
+      return 'success'
+    case 'missing':
+    case 'stub':
+    case 'invalid':
+    case 'unreadable':
+      return kind === 'missing' ? 'neutral' : 'danger'
+  }
+}
+
+/** Operator identity packs on disk — seeded vs stub, no network. */
+export function OperatorPackHealthPanel() {
+  const [status, setStatus] = React.useState<OperatorPackStatus | null>(null)
+  const [notice, setNotice] = React.useState<string | null>(null)
+
+  const refresh = React.useCallback(() => {
+    void safeInvoke<OperatorPackStatus>('get_operator_pack_status', {}).then((res) => {
+      if (res.ok) {
+        setStatus(res.value)
+        setNotice(null)
+      } else {
+        setNotice(res.error?.message || 'Pack health check failed')
+      }
+    })
+  }, [])
+
+  React.useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  if (!status) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Operator pack health</CardTitle>
+          <CardDescription>Loading pack status…</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  const health = status.health
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Operator pack health</CardTitle>
+          <CardDescription>
+            Identity files under the packs directory (CV packet, universe, constraints). Evaluate and
+            Next 10 read these — not compiled into the binary. No network required for this check.
+          </CardDescription>
+        </div>
+        <Badge tone={packHealthTone(health)}>{packHealthLabel(health)}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="ui-meta break-all">packs: {status.packs_dir}</p>
+        {!status.dir_present ? (
+          <p className="text-xs text-danger">
+            Directory missing — Evaluate falls back to stub CV text until you seed packs.
+          </p>
+        ) : null}
+        {status.fix_hint ? (
+          <p className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-xs text-danger">
+            {status.fix_hint}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" onClick={refresh}>
+            Refresh status
+          </Button>
+        </div>
+        <div className="overflow-x-auto rounded-md border border-border-subtle">
+          <table className="w-full min-w-[32rem] text-left text-[11px]">
+            <thead className="border-b border-border-subtle bg-surface-2 text-ink-muted">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">File</th>
+                <th className="px-2 py-1.5 font-medium">Status</th>
+                <th className="px-2 py-1.5 font-medium">Size</th>
+                <th className="px-2 py-1.5 font-medium">Modified</th>
+              </tr>
+            </thead>
+            <tbody>
+              {status.files.map((file) => (
+                <tr key={file.name} className="border-b border-border-subtle/60 last:border-0">
+                  <td className="px-2 py-1.5 font-mono">
+                    {file.name}
+                    {file.critical ? (
+                      <span className="ml-1 text-[10px] uppercase text-ink-faint">critical</span>
+                    ) : null}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <Badge tone={packFileKindTone(file.kind)}>{packFileKindLabel(file.kind)}</Badge>
+                    {file.detail ? (
+                      <p className="mt-0.5 text-ink-faint leading-snug">{file.detail}</p>
+                    ) : null}
+                  </td>
+                  <td className="px-2 py-1.5 text-ink-muted">{formatPackBytes(file.size_bytes)}</td>
+                  <td className="px-2 py-1.5 text-ink-muted">{formatPackMtime(file.modified_secs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {status.extra_files.length > 0 ? (
+          <p className="ui-meta">
+            Extra files: {status.extra_files.join(', ')}
+          </p>
+        ) : null}
+        <p className="text-[11px] text-ink-faint leading-snug">{status.seed_hint}</p>
+        {notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function RankConfigPanel() {
   const [view, setView] = React.useState<RankConfigView | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
