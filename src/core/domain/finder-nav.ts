@@ -3,9 +3,11 @@
  */
 import type { FinderScreen } from '../finder/model'
 
+/** Hash-routable screens. Primary sidebar order: navigating → discover → pipeline → mission → … */
 const HASH_SCREENS: readonly FinderScreen[] = [
   'heading',
   'discover',
+  'pipeline',
   'mission',
   'sweden',
   'stats',
