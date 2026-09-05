@@ -1070,16 +1070,6 @@ fn clear_cluster_route() -> Result<(), String> {
     Ok(())
 }
 
-/// Legacy one-shot (peek + delete). Prefer `read_cluster_route` + `clear_cluster_route`.
-#[tauri::command]
-fn consume_cluster_route() -> Result<Option<String>, String> {
-    let v = read_cluster_route()?;
-    if v.is_some() {
-        let _ = clear_cluster_route();
-    }
-    Ok(v)
-}
-
 /// Persist one hire-board lead as Opportunity status=new (URL dedup via upsert).
 #[tauri::command]
 async fn select_hire_board_lead(
@@ -1301,7 +1291,6 @@ pub fn run() {
             read_heading_snapshot,
             read_cluster_route,
             clear_cluster_route,
-            consume_cluster_route,
             run_local_grok_quest,
             get_rank_config,
             save_rank_config,
