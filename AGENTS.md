@@ -37,6 +37,7 @@ Hotspot ≔ secrets.rs · app_dirs.rs STABILITY CONTRACT  // grep before bearer/
 | Multi-step loop · routing · thrash | `control-graph` (legacy: `looper`) |
 | Architecture / surplus | `architecture-synthesis` (**ignite** / **use fusion**; legacy: `fusion-sage`) |
 | Setup · run | [docs/SETUP.md](docs/SETUP.md) |
+| Prove Gate · PR verification · VerifySoT map | `verify-collab-finder` |
 
 ## Triage
 

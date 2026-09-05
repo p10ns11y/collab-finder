@@ -61,7 +61,7 @@ CI parity     → pnpm gate
 | `pack_status_healthy_with_test_fixtures` | `health == Healthy`, `seeded`, cv-packet size > 100 |
 | `pack_status_detects_stub_cv_packet` | `health == Stub`, `!seeded` |
 
-**Fixture gap (known):** `seed-testdata-for-ci.sh` copies 9 files; `EXPECTED_PACK_FILES` lists 11 (+ `mission-firms.json` display-only). Missing `x-search-queries.json` / `hunt-rails.json` yields **Degraded**, so `pack_status_healthy_with_test_fixtures` fails until seed script includes them or test expects Degraded. Do not paper over in docs — file as product/CI gap.
+**Seed fixtures:** `scripts/seed-testdata-for-ci.sh` copies 12 files into `src-tauri/testdata/`, matching all `EXPECTED_PACK_FILES` in `operator_pack.rs` (including `x-search-queries.json`, `hunt-rails.json`, `mission-firms.json`). After seeding, `pack_status_healthy_with_test_fixtures` asserts **Healthy** + `seeded`.
 
 ## Pipeline hash + Meta+3 — expected test matrix
 

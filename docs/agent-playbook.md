@@ -26,7 +26,7 @@ Catalog: [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills). Ove
 
 ## Project-born (git only, not in lock)
 
-`cv-promote-guard` · `tauri-ipc-debug` · `x-agent-resources` · `agentic-reactor` · CV pack / explore skills · `.agents/workflows/`
+`cv-promote-guard` · `tauri-ipc-debug` · `verify-collab-finder` · `x-agent-resources` · `agentic-reactor` · CV pack / explore skills · `.agents/workflows/`
 
 ## Skills (when to load)
 
@@ -42,6 +42,7 @@ Catalog: [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills). Ove
 | `agent-orchestrator` | multi-worker |
 | `control-graph` | outer SM · HITL · routing |
 | `context-ignite` | **workflow** (library): fission → synthesis on cold repo |
+| `verify-collab-finder` | Prove Gate · PR validation · VerifySoT map · pack health / nav verify |
 
 Verify overlay for locked skills: [.agents/overlays/collab-finder-verify.md](../.agents/overlays/collab-finder-verify.md).
 
