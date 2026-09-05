@@ -2,7 +2,7 @@
  * Sweden — full-viewport Platsbanken / JobTech AF runway (peer to Discover).
  * THESIS: Sweden-specific hunt with room for AF workflows; not a Discover side panel.
  * OWN-WORLD: collab-finder instrument (surfaces, chips, amber accent).
- * STORY: Search → select → Import/Evaluate → fit/prep for benefits reporting.
+ * STORY: Search → select → Evaluate → fit/prep for benefits reporting.
  * FIRST VIEWPORT: left query + municipality chips; right ad list (or fit after evaluate).
  * FORM: Discover φ-split; list is the hero for Swedish emergency/runway work.
  */

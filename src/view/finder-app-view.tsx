@@ -53,7 +53,7 @@ export function FinderAppView({ view, dispatch }: Props) {
       case 'heading':
         return <HeadingScreen dispatch={dispatch} />
       case 'discover':
-        return <DiscoverScreen view={view} dispatch={dispatch} />
+        return <DiscoverScreen key="discover" view={view} dispatch={dispatch} mode="discover" />
       case 'pipeline':
         return <PipelineScreen view={view} dispatch={dispatch} />
       case 'mission':
@@ -61,9 +61,7 @@ export function FinderAppView({ view, dispatch }: Props) {
       case 'sweden':
         return <SwedenScreen view={view} dispatch={dispatch} />
       case 'xplore':
-        // Xplore: X search/cycle to discover new opportunities on X.
-        // DiscoverScreen branches based on activeScreen (Discover = opportunity management + quick target; Xplore = pure X).
-        return <DiscoverScreen view={view} dispatch={dispatch} />
+        return <DiscoverScreen key="xplore" view={view} dispatch={dispatch} mode="xplore" />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       case 'preferences':

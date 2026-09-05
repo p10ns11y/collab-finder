@@ -37,15 +37,16 @@ import type { FinderMsg } from '../../core/finder/msg'
 type Props = {
   view: FinderViewState
   dispatch: Dispatch<FinderMsg>
+  mode: 'discover' | 'xplore'
 }
 
 /**
  * Discover = opportunity memory + quick target + fit/prep (hero right pane).
  * Mission / Sweden = dedicated full-viewport hunt screens (not stacked here).
- * Xplore = X hunt (same component, mode via activeScreen).
+ * Xplore = X hunt only (CV + opportunity rail live on Discover).
  * Layout: φ split (~38% controls / ~62% results).
  */
-export function DiscoverScreen({ view, dispatch }: Props) {
+export function DiscoverScreen({ view, dispatch, mode }: Props) {
   const { model } = view
   const hasXResults = view.tweets.length > 0
   const historyOpportunities = view.historyOpportunities || []
@@ -57,12 +58,12 @@ export function DiscoverScreen({ view, dispatch }: Props) {
     })
   }, [])
 
-  const setFitModePersisted = React.useCallback(async (mode: FitMode) => {
-    setFitMode(mode)
-    const res = await safeInvoke<string>('set_fit_mode_cmd', { mode })
+  const setFitModePersisted = React.useCallback(async (nextMode: FitMode) => {
+    setFitMode(nextMode)
+    const res = await safeInvoke<string>('set_fit_mode_cmd', { mode: nextMode })
     if (res.ok && res.value) setFitMode(parseFitMode(res.value))
   }, [])
-  const isDiscover = view.activeScreen === 'discover'
+  const isDiscover = mode === 'discover'
 
   const targetState = model.opportunityTarget ?? { status: 'idle' as const }
   const targetBusy = targetState.status === 'loading'
@@ -85,6 +86,13 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const [railFilter, setRailFilter] = React.useState<PipelineFilter>('active')
   const [railQuery, setRailQuery] = React.useState('')
   const [showAll, setShowAll] = React.useState(false)
+
+  React.useEffect(() => {
+    setFitMode(DEFAULT_FIT_MODE)
+    setRailFilter('active')
+    setRailQuery('')
+    setShowAll(false)
+  }, [mode])
 
   const filtered = React.useMemo(
     () => filterOpportunitiesForRail(historyOpportunities, railFilter, railQuery),

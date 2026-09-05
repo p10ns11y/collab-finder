@@ -193,7 +193,6 @@ export type FinderMsg =
   | { type: 'PlatsbankenSearchRequested' }
   | { type: 'PlatsbankenSearchSucceeded'; leads: PlatsbankenLead[] }
   | { type: 'PlatsbankenSearchFailed'; error: AppError }
-  | { type: 'PlatsbankenImportRequested'; lead: PlatsbankenLead }
   | { type: 'PlatsbankenImportSucceeded'; opportunity: Opportunity }
   | { type: 'PlatsbankenImportFailed'; error: AppError }
   | { type: 'PlatsbankenRemoveRequested'; lead: PlatsbankenLead }
