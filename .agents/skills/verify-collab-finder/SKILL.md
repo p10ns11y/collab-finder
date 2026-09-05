@@ -3,7 +3,8 @@ name: verify-collab-finder
 description: >
   Prove Gate verification map for collab-finder features. Use when validating a PR,
   running VerifySoT, or proving a surface (Tauri IPC + UI) with surviving evidence.
-  Triggers: verify collab-finder, Prove Gate, pack health, Preferences operator pack.
+  Triggers: verify collab-finder, Prove Gate, pack health, Preferences operator pack,
+  pipeline hash, Meta+3 Pipeline.
 ---
 
 # verify-collab-finder
@@ -27,6 +28,7 @@ CI parity     → pnpm gate
 | Rank packs | Preferences → `RankConfigPanel` | `get_rank_config`, `save_rank_config` | domain verify + Rust rank tests | `rank.json` via seed script |
 | Fit mode | Preferences → `FitModePanel` | (view state) | `pnpm verify` | — |
 | LLM route | Preferences → `LlmRoutePanel` | (view state) | `pnpm verify` | — |
+| **Pipeline nav** | Sidebar **Pipeline** · `#pipeline` · **Meta+3** | `finder-nav.ts` (`HASH_SCREENS`) · `finder-keyboard.ts` (`SCREEN_BY_DIGIT['3']`) | `pnpm verify` → `finder-nav.verify` + `finder-keyboard.verify` | Docs: `docs/GUIDE.md` Navigation (Meta+1…9) |
 
 ### Operator pack health — UI contract
 
@@ -60,6 +62,17 @@ CI parity     → pnpm gate
 | `pack_status_detects_stub_cv_packet` | `health == Stub`, `!seeded` |
 
 **Fixture gap (known):** `seed-testdata-for-ci.sh` copies 9 files; `EXPECTED_PACK_FILES` lists 11 (+ `mission-firms.json` display-only). Missing `x-search-queries.json` / `hunt-rails.json` yields **Degraded**, so `pack_status_healthy_with_test_fixtures` fails until seed script includes them or test expects Degraded. Do not paper over in docs — file as product/CI gap.
+
+## Pipeline hash + Meta+3 — expected test matrix
+
+| Test | Asserts |
+|------|---------|
+| `finder-nav.verify` `#pipeline → pipeline` | `screenFromHash('#pipeline') === 'pipeline'` (`HASH_SCREENS` includes `pipeline`) |
+| `finder-nav.verify` `pipeline → #pipeline` | `hashFromScreen('pipeline') === '#pipeline'` |
+| `finder-keyboard.verify` `digit 3 → pipeline` | `SCREEN_BY_DIGIT['3'] === 'pipeline'` (SidebarNav order; **not** Mission) |
+| `finder-keyboard.verify` `meta+3 → pipeline` | `resolveShellHotkey('3', { meta: true })` → `{ kind: 'screen', screen: 'pipeline' }` |
+
+Dogfood scar (#38): Meta+3 used to land on Mission. GUIDE Navigation is Meta+1…9 with Pipeline at **3**. Prove Gate for nav: run the two verify runners above; do not treat Preferences pack-health as coverage.
 
 ## Done when
 
