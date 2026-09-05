@@ -8,6 +8,7 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { XploreScreen } from './screens/xplore-screen'
 import { PipelineScreen } from './screens/pipeline-screen'
 import { HeadingScreen } from './screens/heading-screen'
 import { MissionScreen } from './screens/mission-screen'
@@ -53,7 +54,7 @@ export function FinderAppView({ view, dispatch }: Props) {
       case 'heading':
         return <HeadingScreen dispatch={dispatch} />
       case 'discover':
-        return <DiscoverScreen key="discover" view={view} dispatch={dispatch} mode="discover" />
+        return <DiscoverScreen view={view} dispatch={dispatch} />
       case 'pipeline':
         return <PipelineScreen view={view} dispatch={dispatch} />
       case 'mission':
@@ -61,7 +62,7 @@ export function FinderAppView({ view, dispatch }: Props) {
       case 'sweden':
         return <SwedenScreen view={view} dispatch={dispatch} />
       case 'xplore':
-        return <DiscoverScreen key="xplore" view={view} dispatch={dispatch} mode="xplore" />
+        return <XploreScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       case 'preferences':

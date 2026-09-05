@@ -18,6 +18,7 @@ function assert(cond, msg) {
 }
 
 const discover = read('src/view/screens/discover-screen.tsx')
+const xplore = read('src/view/screens/xplore-screen.tsx')
 const panel = read('src/components/finder/opportunity-target-fit-panel.tsx')
 const app = read('src/app/finder-app.tsx')
 const keyboard = read('src/core/domain/finder-keyboard.ts')
@@ -74,7 +75,12 @@ assert(discover.includes('OpportunityStatusChangeRequested'), 'status dispatch f
 assert(!settings.match(/details open/), 'settings details not force-open')
 assert(preferences.includes('About'), 'preferences About')
 
-// Xplore honesty
+// Xplore honesty — separate screen modules (no dual-mode DiscoverScreen)
+assert(!discover.includes('SearchWorkspace'), 'discover screen does not host X search')
+assert(!discover.includes("mode: 'discover'"), 'discover screen has no mode prop')
+assert(xplore.includes('SearchWorkspace'), 'xplore screen owns X search workspace')
+assert(xplore.includes('TweetFeed'), 'xplore screen owns tweet feed')
+assert(view.includes('XploreScreen'), 'finder routes xplore to XploreScreen')
 assert(decision.includes('heuristic'), 'cycle labeled heuristic')
 assert(selectors.includes('heuristic'), 'palette cycle heuristic label')
 
