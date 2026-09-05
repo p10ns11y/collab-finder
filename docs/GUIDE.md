@@ -38,18 +38,19 @@ pnpm install:local   # build + install to ~/.local/bin/kanithanj.ai
 
 ## Navigation
 
-Sidebar screens (Meta+1 … Meta+8):
+Sidebar screens (Meta+1 … Meta+9; order matches SidebarNav):
 
 | # | Screen | Role |
 |---|--------|------|
 | 1 | **Navigating** | Cash-path cockpit (mission-map JSON + contacts) |
 | 2 | **Discover** | Opportunity rail, hire-board skim, Quick Target |
-| 3 | **Mission** | Career-board hunt (SpaceXAI / Tesla / Nordic–EU) |
-| 4 | **Sweden** | Platsbanken via JobTech API |
-| 5 | **Xplore** | Live X search + autonomous cycle |
-| 6 | **Network** | Local LinkedIn graph (PII stays on disk) |
-| 7 | **Settings** | X bearer + xAI API key only |
+| 3 | **Pipeline** | Hunt progress / outcome tracking |
+| 4 | **Mission** | Career-board hunt (SpaceXAI / Tesla / Nordic–EU) |
+| 5 | **Sweden** | Platsbanken via JobTech API |
+| 6 | **Xplore** | Live X search + autonomous cycle |
+| 7 | **Network** | Local LinkedIn graph (PII stays on disk) |
 | 8 | **Preferences** | Fit mode, rank packs, CV maker, references |
+| 9 | **Settings** | X bearer + xAI API key only |
 
 Palette: **⌘K / Ctrl+K**. Quest: header control (threads persist in SQLite).
 

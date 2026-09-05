@@ -10,8 +10,12 @@ must(screenFromHash('#heading') === 'heading', '#heading → heading')
 must(screenFromHash('heading') === 'heading', 'heading → heading')
 must(screenFromHash('#navigating') === 'heading', '#navigating → heading')
 must(screenFromHash('#discover') === 'discover', '#discover → discover')
+must(screenFromHash('#pipeline') === 'pipeline', '#pipeline → pipeline')
+must(screenFromHash('pipeline') === 'pipeline', 'pipeline → pipeline')
+must(screenFromHash('#mission') === 'mission', '#mission → mission')
 must(screenFromHash('#nope') === null, '#nope → null')
 must(hashFromScreen('heading') === '#navigating', 'heading → #navigating')
+must(hashFromScreen('pipeline') === '#pipeline', 'pipeline → #pipeline')
 
 console.log('=== finder-nav.verify ===')
 if (failures.length) {
