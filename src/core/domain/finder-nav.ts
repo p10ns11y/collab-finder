@@ -3,20 +3,28 @@
  */
 import type { FinderScreen } from '../finder/model'
 
-const HASH_SCREENS: readonly FinderScreen[] = [
+/** Sidebar order — Meta+N shortcuts must stay aligned with this list. */
+export const SIDEBAR_SCREENS = [
   'heading',
   'discover',
+  'pipeline',
   'mission',
   'sweden',
+  'xplore',
+  'network',
+  'preferences',
+  'settings',
+] as const satisfies readonly FinderScreen[]
+
+/** Hash-routable screens that are not in the sidebar. */
+const HASH_ONLY_SCREENS: readonly FinderScreen[] = [
   'stats',
   'history',
   'data',
   'lookup',
-  'settings',
-  'preferences',
-  'xplore',
-  'network',
 ]
+
+const HASH_SCREENS: readonly FinderScreen[] = [...SIDEBAR_SCREENS, ...HASH_ONLY_SCREENS]
 
 /** Presentation slug for the heading cockpit. Wire id stays `heading`. */
 const HASH_SLUG_BY_SCREEN: Partial<Record<FinderScreen, string>> = {

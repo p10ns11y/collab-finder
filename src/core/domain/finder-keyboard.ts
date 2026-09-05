@@ -3,18 +3,12 @@
  * Used by React shell; testable without DOM.
  */
 import type { FinderScreen } from '../finder/model'
+import { SIDEBAR_SCREENS } from './finder-nav'
 
-/** Primary screens — digit shortcuts match sidebar order. */
-export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = {
-  '1': 'heading',
-  '2': 'discover',
-  '3': 'mission',
-  '4': 'sweden',
-  '5': 'xplore',
-  '6': 'network',
-  '7': 'settings',
-  '8': 'preferences',
-}
+/** Primary screens — digit shortcuts match sidebar order (SIDEBAR_SCREENS). */
+export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = Object.fromEntries(
+  SIDEBAR_SCREENS.map((screen, index) => [String(index + 1), screen]),
+)
 
 export type ShellHotkey =
   | { kind: 'palette' }

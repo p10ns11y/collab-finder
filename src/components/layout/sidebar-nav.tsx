@@ -10,26 +10,26 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
 } from 'lucide-react'
+import { SIDEBAR_SCREENS } from '../../core/domain/finder-nav'
 import type { FinderScreen } from '../../core/finder/model'
 import { cn } from '../../lib/cn'
 
-type NavItem = {
-  id: FinderScreen
+type NavMeta = {
   label: string
   Icon: LucideIcon
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'heading', label: 'Navigating', Icon: Route },
-  { id: 'discover', label: 'Discover', Icon: Compass },
-  { id: 'pipeline', label: 'Pipeline', Icon: Kanban },
-  { id: 'mission', label: 'Mission', Icon: Crosshair },
-  { id: 'sweden', label: 'Sweden', Icon: MapPinned },
-  { id: 'xplore', label: 'Xplore', Icon: Search },
-  { id: 'network', label: 'Network', Icon: Network },
-  { id: 'preferences', label: 'Preferences', Icon: SlidersHorizontal },
-  { id: 'settings', label: 'Settings', Icon: SettingsIcon },
-]
+const NAV_META: Record<(typeof SIDEBAR_SCREENS)[number], NavMeta> = {
+  heading: { label: 'Navigating', Icon: Route },
+  discover: { label: 'Discover', Icon: Compass },
+  pipeline: { label: 'Pipeline', Icon: Kanban },
+  mission: { label: 'Mission', Icon: Crosshair },
+  sweden: { label: 'Sweden', Icon: MapPinned },
+  xplore: { label: 'Xplore', Icon: Search },
+  network: { label: 'Network', Icon: Network },
+  preferences: { label: 'Preferences', Icon: SlidersHorizontal },
+  settings: { label: 'Settings', Icon: SettingsIcon },
+}
 
 type Props = {
   active: FinderScreen
@@ -47,7 +47,8 @@ export function SidebarNav({ active, onNavigate, className }: Props) {
       aria-label="Screen navigation"
     >
       <div className="flex flex-1 flex-col gap-1 px-1.5">
-        {NAV_ITEMS.map(({ id, label, Icon }) => {
+        {SIDEBAR_SCREENS.map((id) => {
+          const { label, Icon } = NAV_META[id]
           const isActive = active === id
           return (
             <button
