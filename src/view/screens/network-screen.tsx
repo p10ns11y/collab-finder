@@ -135,7 +135,7 @@ export function NetworkScreen({ view, dispatch }: Props) {
             type="button"
             onClick={() => dispatch({ type: 'NetworkFilterChanged', filter: f.id })}
             className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-              model.networkFilter === f.id || (f.id === 'top50' && model.networkFilter === 'top20')
+              model.networkFilter === f.id
                 ? 'bg-accent-soft border-accent/40 text-accent'
                 : 'border-border-subtle text-ink-muted hover:text-ink'
             }`}

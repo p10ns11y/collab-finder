@@ -71,8 +71,6 @@ export type NetworkFilter =
   | 'has_x'
   | 'location_match'
   | 'top50'
-  /** @deprecated alias of top50 */
-  | 'top20'
 
 export function filterNetworkPeople(
   people: NetworkPerson[],
@@ -91,7 +89,6 @@ export function filterNetworkPeople(
     case 'location_match':
       return people.filter((p) => p.categories.includes('location_match'))
     case 'top50':
-    case 'top20':
       return people.filter((p) => topIds.includes(p.id))
     default:
       return people

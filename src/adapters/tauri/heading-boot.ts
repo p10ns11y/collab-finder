@@ -30,11 +30,6 @@ export function clearClusterRoute() {
   return safeInvoke<void>('clear_cluster_route', {})
 }
 
-/** @deprecated peek+delete — use readClusterRoute + clearClusterRoute */
-export function consumeClusterRoute() {
-  return safeInvoke<string | null>('consume_cluster_route', {})
-}
-
 function applyHeading(
   dispatch: (msg: { type: 'ScreenChanged'; screen: 'heading' }) => void,
 ): true {
@@ -51,16 +46,7 @@ export function headingBootFromCluster(
     if (routeResult.ok && routeResult.value === 'heading') {
       return applyHeading(dispatch)
     }
-    if (routeResult.ok) {
-      return false
-    }
-    // Old binaries only expose consume (peek+delete).
-    return consumeClusterRoute().then((legacy) => {
-      if (legacy.ok && legacy.value === 'heading') {
-        return applyHeading(dispatch)
-      }
-      return false
-    })
+    return false
   })
 }
 
