@@ -3,7 +3,7 @@
  * Used by React shell; testable without DOM.
  */
 import type { FinderScreen } from '../finder/model'
-import { SIDEBAR_SCREENS } from './finder-nav'
+import { SIDEBAR_SCREENS } from './finder-nav.ts'
 
 /** Primary screens — digit shortcuts match sidebar order (SIDEBAR_SCREENS). */
 export const SCREEN_BY_DIGIT: Readonly<Record<string, FinderScreen>> = Object.fromEntries(
