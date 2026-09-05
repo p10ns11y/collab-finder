@@ -21,6 +21,7 @@ const discover = read('src/view/screens/discover-screen.tsx')
 const panel = read('src/components/finder/opportunity-target-fit-panel.tsx')
 const app = read('src/app/finder-app.tsx')
 const keyboard = read('src/core/domain/finder-keyboard.ts')
+const finderNav = read('src/core/domain/finder-nav.ts')
 const view = read('src/view/finder-app-view.tsx')
 const header = read('src/components/layout/header.tsx')
 const css = read('src/index.css')
@@ -31,10 +32,27 @@ const settings = read('src/view/screens/settings-screen.tsx')
 const preferences = read('src/view/screens/preferences-screen.tsx')
 const decision = read('src/components/finder/decision-panel.tsx')
 
-// IA honesty (digit shortcuts live in finder-keyboard.ts)
-assert(keyboard.includes("'5': 'xplore'"), 'keyboard 5 = xplore')
-assert(keyboard.includes("'7': 'settings'"), 'keyboard 7 = settings')
-assert(keyboard.includes("'8': 'preferences'"), 'keyboard 8 = preferences')
+// IA honesty — Meta+N follows SIDEBAR_SCREENS (sidebar order), not leftover literals
+const sidebarBlock = finderNav.match(/export const SIDEBAR_SCREENS = \[([\s\S]*?)\] as const/)
+const sidebar = sidebarBlock
+  ? [...sidebarBlock[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1])
+  : []
+assert(
+  JSON.stringify(sidebar) ===
+    JSON.stringify([
+      'heading',
+      'discover',
+      'pipeline',
+      'mission',
+      'sweden',
+      'xplore',
+      'network',
+      'preferences',
+      'settings',
+    ]),
+  'SIDEBAR_SCREENS order (Meta+3 = pipeline)',
+)
+assert(keyboard.includes('SIDEBAR_SCREENS'), 'SCREEN_BY_DIGIT derived from SIDEBAR_SCREENS')
 assert(!keyboard.includes("'2': 'stats'"), 'keyboard no longer maps 2 to stats')
 assert(!view.includes('Separate from devprofile'), 'footer manifesto removed')
 assert(!discover.includes('Resume last'), 'Resume last deleted')
