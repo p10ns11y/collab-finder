@@ -13,4 +13,4 @@ pnpm run type-check
 echo "== domain verify runners"
 node scripts/run-verify.mjs
 
-echo "== OK: ci-check-light passed (no app-source diff — skipped Rust/WebKit)"
+echo "== OK: ci-check-light passed (release_build=false — skipped Rust/WebKit)"
