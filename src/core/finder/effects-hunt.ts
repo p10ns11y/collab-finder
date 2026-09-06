@@ -158,6 +158,8 @@ export function missionFirmsSearchCmd(
   model: FinderModel,
   opts?: { forceRefresh?: boolean },
 ): Cmd<FinderMsg> {
+  const queryReady = (model.missionFirmsQ || '').trim().length > 0
+  const forceRefresh = opts?.forceRefresh === true && queryReady
   return (dispatch) => {
     void fromPromise(
       ports.finder.searchMissionFirms({
@@ -166,7 +168,7 @@ export function missionFirmsSearchCmd(
         texas_only: model.missionFirmsTexasOnly,
         terafab_bias: model.missionFirmsTerafabBias,
         limit: 250,
-        force_refresh: opts?.forceRefresh === true,
+        force_refresh: forceRefresh,
       }),
       toAppError,
     ).then((result) => {

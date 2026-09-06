@@ -13,7 +13,7 @@ import { Chip } from '../../components/ui/chip'
 import { EmptyState } from '../../components/ui/empty-state'
 import { Input } from '../../components/ui/input'
 import { SectionLabel } from '../../components/ui/section-label'
-import { type MissionFirmLead } from '../../core/domain/mission-firms'
+import { type MissionFirmLead, missionHasPullQueryKey } from '../../core/domain/mission-firms'
 import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -43,6 +43,17 @@ export function MissionScreen({ view, dispatch }: Props) {
     huntTargetIsActive(view) &&
     !!selected?.absolute_url &&
     selected.absolute_url === targetUrl
+  const pullQueryReady = missionHasPullQueryKey(model.missionFirmsQ)
+
+  const requestMissionSearch = React.useCallback(
+    (forceRefresh: boolean) => {
+      dispatch({
+        type: 'MissionFirmsSearchRequested',
+        forceRefresh: forceRefresh && pullQueryReady,
+      })
+    },
+    [dispatch, pullQueryReady],
+  )
 
   React.useEffect(() => {
     if (model.durableFirms.status === 'idle') {
@@ -65,21 +76,21 @@ export function MissionScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Mission</SectionLabel>
             <p className="ui-meta px-0.5">
-              Opening Mission restores the last cached pull. Pull refetches boards from the network.
+              Opening Mission restores the last cached pull. Network Pull needs a rail chip or title
+              filter.
             </p>
           </div>
           <Button
             type="button"
             variant="primary"
             size="sm"
-            disabled={busy}
-            onClick={() =>
-              dispatch({
-                type: 'MissionFirmsSearchRequested',
-                forceRefresh: true,
-              })
+            disabled={busy || !pullQueryReady}
+            onClick={() => requestMissionSearch(true)}
+            title={
+              pullQueryReady
+                ? 'Fetch career boards from the network (append to saved pool)'
+                : 'Pick a rail chip or type a title filter before network Pull'
             }
-            title="Fetch career boards from the network (append to saved pool)"
           >
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
             {busy ? 'Pulling…' : 'Pull'}
@@ -92,7 +103,7 @@ export function MissionScreen({ view, dispatch }: Props) {
           value={model.missionFirmsQ}
           onChange={(e) => dispatch({ type: 'MissionFirmsQChanged', q: e.target.value })}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') dispatch({ type: 'MissionFirmsSearchRequested' })
+            if (e.key === 'Enter') requestMissionSearch(false)
           }}
           placeholder="Optional title filter…"
           className="h-8 font-mono text-xs"
@@ -119,6 +130,12 @@ export function MissionScreen({ view, dispatch }: Props) {
             ))}
           </div>
         </div>
+
+        {!pullQueryReady ? (
+          <p className="rounded-md border border-border-subtle bg-surface-0/60 px-2 py-1.5 text-xs text-ink-muted">
+            Cached results only until you pick a rail chip or add a title filter, then Pull.
+          </p>
+        ) : null}
 
         {model.huntHarvested.length > 0 ? (
           <div>
@@ -236,19 +253,23 @@ export function MissionScreen({ view, dispatch }: Props) {
         ) : model.missionFirms.status === 'idle' ? (
           <EmptyState
             title="Pull mission postings"
-            description="Select firms on the left, optionally add a title filter, then Pull. Results fill this pane."
+            description={
+              pullQueryReady
+                ? 'Select firms on the left, optionally refine the title filter, then Pull. Results fill this pane.'
+                : 'Pick a rail chip or type a title filter to enable network Pull. Opening Mission still restores any saved cache.'
+            }
             action={
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: true })
-                }
-              >
-                Pull now
-              </Button>
+              pullQueryReady ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => requestMissionSearch(true)}
+                >
+                  Pull now
+                </Button>
+              ) : undefined
             }
           />
         ) : busy ? (
