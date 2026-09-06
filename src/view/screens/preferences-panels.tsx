@@ -14,6 +14,15 @@ import {
   type FitMode,
 } from '../../core/domain/fit-mode'
 import { parseLlmQuality, type LlmQuality } from '../../core/domain/llm-route'
+import {
+  formatPackBytes,
+  formatPackMtime,
+  packFileKindLabel,
+  packFileKindTone,
+  packHealthLabel,
+  packHealthTone,
+  type OperatorPackStatus,
+} from '../../core/domain/operator-pack-health'
 import { Badge } from '../../components/ui/badge'
 import { Chip } from '../../components/ui/chip'
 import { Button } from '../../components/ui/button'
@@ -183,96 +192,6 @@ type RankConfigView = {
   config: RankConfigDto
   config_path: string
   pack_files: string[]
-}
-
-type PackFileKind = 'ok' | 'missing' | 'unreadable' | 'stub' | 'invalid'
-type OperatorPackHealth = 'healthy' | 'degraded' | 'stub' | 'missing'
-
-type PackFileStatus = {
-  name: string
-  present: boolean
-  readable: boolean
-  size_bytes: number | null
-  modified_secs: number | null
-  kind: PackFileKind
-  detail: string | null
-  critical: boolean
-}
-
-type OperatorPackStatus = {
-  packs_dir: string
-  dir_present: boolean
-  dir_readable: boolean
-  health: OperatorPackHealth
-  seeded: boolean
-  seed_hint: string
-  fix_hint: string | null
-  files: PackFileStatus[]
-  extra_files: string[]
-}
-
-function formatPackBytes(bytes: number | null): string {
-  if (bytes == null) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatPackMtime(secs: number | null): string {
-  if (secs == null) return '—'
-  return new Date(secs * 1000).toLocaleString()
-}
-
-function packHealthLabel(health: OperatorPackHealth): string {
-  switch (health) {
-    case 'healthy':
-      return 'Seeded'
-    case 'degraded':
-      return 'Degraded'
-    case 'stub':
-      return 'Stub identity'
-    case 'missing':
-      return 'Missing'
-  }
-}
-
-function packHealthTone(health: OperatorPackHealth): 'success' | 'warning' | 'danger' | 'neutral' {
-  switch (health) {
-    case 'healthy':
-      return 'success'
-    case 'degraded':
-      return 'warning'
-    case 'stub':
-    case 'missing':
-      return 'danger'
-  }
-}
-
-function packFileKindLabel(kind: PackFileKind): string {
-  switch (kind) {
-    case 'ok':
-      return 'ok'
-    case 'missing':
-      return 'missing'
-    case 'unreadable':
-      return 'unreadable'
-    case 'stub':
-      return 'stub'
-    case 'invalid':
-      return 'invalid'
-  }
-}
-
-function packFileKindTone(kind: PackFileKind): 'success' | 'warning' | 'danger' | 'neutral' {
-  switch (kind) {
-    case 'ok':
-      return 'success'
-    case 'missing':
-    case 'stub':
-    case 'invalid':
-    case 'unreadable':
-      return kind === 'missing' ? 'neutral' : 'danger'
-  }
 }
 
 /** Operator identity packs on disk — seeded vs stub, no network. */

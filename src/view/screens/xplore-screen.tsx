@@ -1,4 +1,5 @@
 import { DecisionPanel } from '../../components/finder/decision-panel'
+import { CvCycleContextPanel } from '../../components/finder/cv-cycle-context-panel'
 import { PauseLog } from '../../components/finder/pause-log'
 import { SearchWorkspace } from '../../components/finder/search-workspace'
 import { TweetFeed } from '../../components/finder/tweet-feed'
@@ -13,7 +14,7 @@ type Props = {
 }
 
 /**
- * Xplore — live X search + autonomous cycle (no opportunity rail / CV; those live on Discover).
+ * Xplore — live X search + autonomous cycle (no opportunity rail; CV editor on Discover).
  * Layout: φ split (~38% controls / ~62% results).
  */
 export function XploreScreen({ view, dispatch }: Props) {
@@ -36,6 +37,10 @@ export function XploreScreen({ view, dispatch }: Props) {
           onPresetSelect={(query) => dispatch({ type: 'PresetSelected', query })}
           onSearch={() => dispatch({ type: 'SearchRequested' })}
           onAutonomousCycle={() => dispatch({ type: 'CycleRequested' })}
+        />
+        <CvCycleContextPanel
+          cvSummary={model.cvSummary}
+          onEditOnDiscover={() => dispatch({ type: 'ScreenChanged', screen: 'discover' })}
         />
         {!view.canSearch && (
           <p className="ui-meta px-0.5">

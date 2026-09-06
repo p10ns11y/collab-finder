@@ -103,7 +103,9 @@ export function FinderAppView({ view, dispatch }: Props) {
               <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />
             </div>
           )}
-          <div className="ui-viewport flex min-h-0 flex-1 flex-col">{viewportContent}</div>
+          <div key={activeScreen} className="ui-viewport flex min-h-0 flex-1 flex-col">
+            {viewportContent}
+          </div>
         </div>
       </AppShell>
 
