@@ -9,6 +9,7 @@ import {
   DevprofilePathPanel,
   FitModePanel,
   LlmRoutePanel,
+  MaintainedFirmListPanel,
   OperatorPackHealthPanel,
   RankConfigPanel,
 } from './preferences-panels'
@@ -25,7 +26,7 @@ export function PreferencesScreen({ view }: Props) {
       <div className="shrink-0 border-b border-border-subtle px-4 py-3 lg:px-6">
         <PageHeader
           title="Preferences"
-          description="Fit mode, evaluate route, operator pack health, Mission ranker packs, devprofile path, and reference docs. X / xAI keys live under Settings."
+          description="Fit mode, evaluate route, operator pack health, Mission firm list, ranker packs, devprofile path, and reference docs. X / xAI keys live under Settings."
         />
       </div>
 
@@ -35,6 +36,9 @@ export function PreferencesScreen({ view }: Props) {
           <LlmRoutePanel />
           <div className="lg:col-span-2">
             <OperatorPackHealthPanel />
+          </div>
+          <div className="lg:col-span-2">
+            <MaintainedFirmListPanel />
           </div>
           <div className="lg:col-span-2">
             <RankConfigPanel />

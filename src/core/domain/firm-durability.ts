@@ -1,5 +1,53 @@
 /** Mirror of Rust `firm_durability` wave types. */
 
+export type MaintainedFirmStatus = 'active' | 'watch' | 'pause' | 'excluded'
+
+export type MaintainedFirmRow = {
+  firm_id: string
+  name: string
+  fortress: number
+  hiring_signal: number
+  economic_note: string
+  status: MaintainedFirmStatus
+  note?: string | null
+  source?: string | null
+}
+
+export type MaintainedFirmList = {
+  algorithm_version: string
+  scored_at: string
+  firms: MaintainedFirmRow[]
+  edit_hint: string
+}
+
+export function maintainedFirmStatusLabel(status: MaintainedFirmStatus): string {
+  switch (status) {
+    case 'active':
+      return 'Active'
+    case 'watch':
+      return 'Watch'
+    case 'pause':
+      return 'Pause'
+    case 'excluded':
+      return 'Excluded'
+  }
+}
+
+export function maintainedFirmStatusTone(
+  status: MaintainedFirmStatus,
+): 'success' | 'warning' | 'neutral' | 'danger' {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'watch':
+      return 'warning'
+    case 'pause':
+      return 'neutral'
+    case 'excluded':
+      return 'danger'
+  }
+}
+
 export type ProfileMatch = {
   score: number
   hits: string[]

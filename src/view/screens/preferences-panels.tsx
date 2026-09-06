@@ -23,6 +23,12 @@ import {
   packHealthTone,
   type OperatorPackStatus,
 } from '../../core/domain/operator-pack-health'
+import {
+  maintainedFirmStatusLabel,
+  maintainedFirmStatusTone,
+  type MaintainedFirmList,
+  type MaintainedFirmStatus,
+} from '../../core/domain/firm-durability'
 import { Badge } from '../../components/ui/badge'
 import { Chip } from '../../components/ui/chip'
 import { Button } from '../../components/ui/button'
@@ -294,6 +300,141 @@ export function OperatorPackHealthPanel() {
           </p>
         ) : null}
         <p className="text-[11px] text-ink-faint leading-snug">{status.seed_hint}</p>
+        {notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Living firm registry — wired to universe.v1.json (+ operator overlay), not LLM rewrite. */
+export function MaintainedFirmListPanel() {
+  const [list, setList] = React.useState<MaintainedFirmList | null>(null)
+  const [notice, setNotice] = React.useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = React.useState<'all' | MaintainedFirmStatus>('all')
+
+  const refresh = React.useCallback(() => {
+    void safeInvoke<MaintainedFirmList>('list_maintained_firms_cmd', {}).then((res) => {
+      if (res.ok) {
+        setList(res.value)
+        setNotice(null)
+      } else {
+        setNotice(res.error?.message || 'Firm list failed')
+      }
+    })
+  }, [])
+
+  React.useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  if (!list) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Mission firm list</CardTitle>
+          <CardDescription>Loading maintained registry…</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  const counts = list.firms.reduce(
+    (acc, row) => {
+      acc[row.status] = (acc[row.status] ?? 0) + 1
+      return acc
+    },
+    {} as Partial<Record<MaintainedFirmStatus, number>>,
+  )
+  const rows =
+    statusFilter === 'all' ? list.firms : list.firms.filter((row) => row.status === statusFilter)
+  const watchCount = counts.watch ?? 0
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Mission firm list</CardTitle>
+          <CardDescription>
+            Living registry from <code>universe.v1.json</code> — stability, hire climate, and
+            economic notes. Edit the data file (or operator pack overlay); do not re-LLM the whole
+            list. Mission ranker and Pull boards read the same ids.
+          </CardDescription>
+        </div>
+        <Badge tone={watchCount > 0 ? 'warning' : 'success'}>
+          {list.firms.length} firms · scored {list.scored_at}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-[11px] text-ink-faint leading-snug">{list.edit_hint}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={refresh}>
+            Refresh list
+          </Button>
+          <div className="flex flex-wrap gap-1">
+            <Chip active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
+              All {list.firms.length}
+            </Chip>
+            {(['active', 'watch', 'pause', 'excluded'] as const).map((status) => {
+              const n = counts[status] ?? 0
+              if (status !== 'active' && n === 0) return null
+              return (
+                <Chip
+                  key={status}
+                  active={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {maintainedFirmStatusLabel(status)} {n}
+                </Chip>
+              )
+            })}
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-md border border-border-subtle">
+          <table className="w-full min-w-[40rem] text-left text-[11px]">
+            <thead className="border-b border-border-subtle bg-surface-2 text-ink-muted">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Firm</th>
+                <th className="px-2 py-1.5 font-medium">Fortress</th>
+                <th className="px-2 py-1.5 font-medium">Hiring</th>
+                <th className="px-2 py-1.5 font-medium">Status</th>
+                <th className="px-2 py-1.5 font-medium">Economic / operator note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.firm_id} className="border-b border-border-subtle/60 align-top last:border-0">
+                  <td className="px-2 py-1.5">
+                    <p className="font-medium text-ink">{row.name}</p>
+                    <p className="font-mono text-[10px] text-ink-faint">{row.firm_id}</p>
+                    {row.source ? (
+                      <a
+                        href={row.source}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-accent hover:underline"
+                      >
+                        IR
+                      </a>
+                    ) : null}
+                  </td>
+                  <td className="px-2 py-1.5 tabular-nums text-ink-muted">{row.fortress}</td>
+                  <td className="px-2 py-1.5 tabular-nums text-ink-muted">{row.hiring_signal}</td>
+                  <td className="px-2 py-1.5">
+                    <Badge tone={maintainedFirmStatusTone(row.status)}>
+                      {maintainedFirmStatusLabel(row.status)}
+                    </Badge>
+                  </td>
+                  <td className="px-2 py-1.5 text-ink-muted leading-snug">
+                    <p>{row.economic_note}</p>
+                    {row.note && row.note !== row.economic_note ? (
+                      <p className="mt-1 text-ink-faint">{row.note}</p>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}
       </CardContent>
     </Card>

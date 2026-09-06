@@ -569,6 +569,12 @@ fn get_hunt_rails() -> Result<serde_json::Value, String> {
     serde_json::from_str(&text).map_err(|e| e.to_string())
 }
 
+/// Maintained firm registry — full universe list for Preferences (no rank wave / SQLite).
+#[tauri::command]
+fn list_maintained_firms_cmd() -> Result<firm_durability::MaintainedFirmList, String> {
+    firm_durability::list_maintained_firms()
+}
+
 /// Durability ranker. `next`/`advance` skip the last stored wave.
 #[tauri::command]
 fn list_durable_firms(
@@ -932,6 +938,7 @@ pub fn run() {
             operator_pack::get_operator_pack_status,
             get_x_search_catalog,
             get_hunt_rails,
+            list_maintained_firms_cmd,
             list_durable_firms,
             list_cached_mission_leads,
             search_mission_firms,
