@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Regenerate data/mission-firms/FIRM-LIST.md from data/durability/universe.v1.json.
- * Run: node scripts/generate-firm-list.mjs
+ * Run: pnpm firm-list
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -74,7 +74,7 @@ const lines = [
   '',
   '**Status:** `active` passes gates; `watch` admitted with weak hire signal or operator flag; `pause` operator hold; `excluded` fails durability gates.',
   '',
-  'Regenerate: `node scripts/generate-firm-list.mjs`',
+  'Regenerate: `pnpm firm-list`',
   '',
 ]
 

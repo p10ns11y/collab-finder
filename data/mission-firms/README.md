@@ -7,7 +7,7 @@
 | Source | Path | Role |
 |--------|------|------|
 | Baked universe | [`../durability/universe.v1.json`](../durability/universe.v1.json) | Stability (`fortress`), hire climate (`hiring_signal`), economic notes (`cash`) |
-| Scannable table | [`FIRM-LIST.md`](FIRM-LIST.md) | All firms — regenerate: `node scripts/generate-firm-list.mjs` |
+| Scannable table | [`FIRM-LIST.md`](FIRM-LIST.md) | All firms — regenerate: `pnpm firm-list` |
 | Operator overlay | `~/.config/collab-finder/packs/universe.json` | Same `id` replaces a baked row |
 | Pull boards | `FIRM_REGISTRY` in `mission_firms.rs` + `~/.config/collab-finder/packs/mission-firms.json` | JobTech / Greenhouse / Lever / Ashby — orthogonal to durability |
 

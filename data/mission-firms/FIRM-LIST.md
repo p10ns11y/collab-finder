@@ -38,4 +38,4 @@ Edit the universe file for stability (`fortress`), hire climate (`hiring_signal`
 
 **Status:** `active` passes gates; `watch` admitted with weak hire signal or operator flag; `pause` operator hold; `excluded` fails durability gates.
 
-Regenerate: `node scripts/generate-firm-list.mjs`
+Regenerate: `pnpm firm-list`
