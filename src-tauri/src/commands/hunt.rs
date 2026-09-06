@@ -23,6 +23,39 @@ pub fn list_mission_firm_registry() -> Result<(Vec<FirmChip>, Vec<String>), Stri
     Ok((chips, defaults))
 }
 
+/// Mission boot / filter — read hull cache only (no network Pull).
+#[tauri::command]
+pub fn list_cached_mission_leads(
+    db: State<'_, AppDb>,
+    q: Option<String>,
+    firms: Option<Vec<String>>,
+    texas_only: Option<bool>,
+    terafab_bias: Option<bool>,
+    limit: Option<u32>,
+) -> Result<Vec<mission_firms::MissionFirmLead>, String> {
+    let filter = mission_firms::MissionFirmFilter {
+        q,
+        firms: firms.unwrap_or_default(),
+        texas_only: texas_only.unwrap_or(false),
+        terafab_bias: terafab_bias.unwrap_or(true),
+        limit: limit.map(|n| n as usize),
+        force_refresh: false,
+    };
+    let mut leads = mission_firms::list_cached_mission_leads(&filter);
+    let known: Vec<(String, i64)> =
+        db.0.lock()
+            .map_err(|e| e.to_string())?
+            .get_opportunities(&db::OpportunityFilter {
+                limit: Some(500),
+                ..Default::default()
+            })?
+            .into_iter()
+            .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+            .collect();
+    mission_firms::mark_already_in_db(&mut leads, &known);
+    Ok(leads)
+}
+
 /// Mission firms rail — xAI / SpaceX Greenhouse + Swedish bridge employers (JobTech).
 #[tauri::command]
 pub async fn search_mission_firms(

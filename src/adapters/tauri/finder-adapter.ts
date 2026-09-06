@@ -145,6 +145,14 @@ export function createTauriFinderPort(): FinderPort {
       ),
     getXSearchCatalog: () => safeInvoke<unknown>('get_x_search_catalog', {}),
     getHuntRails: () => safeInvoke<unknown>('get_hunt_rails', {}),
+    listCachedMissionLeads: (filter?: MissionFirmFilter) =>
+      safeInvoke<MissionFirmLead[]>('list_cached_mission_leads', {
+        q: filter?.q,
+        firms: filter?.firms,
+        texasOnly: filter?.texas_only ?? false,
+        terafabBias: filter?.terafab_bias ?? true,
+        limit: filter?.limit ?? 250,
+      }),
     searchMissionFirms: (filter?: MissionFirmFilter) =>
       safeInvoke<MissionFirmLead[]>('search_mission_firms', {
         q: filter?.q,
@@ -412,6 +420,11 @@ export function finderPortForEffects(port: FinderPort) {
     },
     async getHuntRails() {
       const result = await port.getHuntRails()
+      if (!result.ok) throw result.error
+      return result.value
+    },
+    async listCachedMissionLeads(filter?: MissionFirmFilter) {
+      const result = await port.listCachedMissionLeads(filter)
       if (!result.ok) throw result.error
       return result.value
     },

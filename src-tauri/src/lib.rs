@@ -22,7 +22,8 @@ mod xai;
 use commands::{
     hunt::{
         import_mission_firm_lead, import_platsbanken_ad, inspect_mission_firm_lead,
-        list_mission_firm_registry, search_mission_firms, search_platsbanken,
+        list_cached_mission_leads, list_mission_firm_registry, search_mission_firms,
+        search_platsbanken,
     },
     persist_cycle_lead, persist_cycle_search, persist_manual_search, persist_promote_event,
     promote_message,
@@ -932,6 +933,7 @@ pub fn run() {
             get_x_search_catalog,
             get_hunt_rails,
             list_durable_firms,
+            list_cached_mission_leads,
             search_mission_firms,
             list_mission_firm_registry,
             import_mission_firm_lead,

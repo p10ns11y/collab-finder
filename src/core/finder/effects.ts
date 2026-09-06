@@ -35,6 +35,7 @@ import {
   durableFirmsCmd,
   missionFirmsEvaluateCmd,
   missionFirmsImportCmd,
+  missionFirmsListCachedCmd,
   missionFirmsSearchCmd,
   missionLeadInspectCmd,
   platsbankenEvaluateCmd,
@@ -47,6 +48,7 @@ export {
   importOpportunityThenAnalyze,
   missionFirmsEvaluateCmd,
   missionFirmsImportCmd,
+  missionFirmsListCachedCmd,
   missionFirmsSearchCmd,
   missionLeadInspectCmd,
   platsbankenEvaluateCmd,
@@ -133,6 +135,9 @@ export type FinderPorts = {
     listMissionFirmRegistry(): Promise<[import('../domain/mission-firms').MissionFirmChip[], string[]]>
     getXSearchCatalog(): Promise<unknown>
     getHuntRails(): Promise<unknown>
+    listCachedMissionLeads(
+      filter?: import('../domain/mission-firms').MissionFirmFilter,
+    ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
     searchMissionFirms(
       filter?: import('../domain/mission-firms').MissionFirmFilter,
     ): Promise<import('../domain/mission-firms').MissionFirmLead[]>
@@ -1229,16 +1234,16 @@ export function effectForMsg(
     case 'MissionLeadInspectRequested':
       return missionLeadInspectCmd(ports, msg.lead)
     case 'MissionFirmsSearchRequested':
-      return missionFirmsSearchCmd(ports, model, {
-        forceRefresh: msg.forceRefresh === true,
-      })
+      return msg.forceRefresh === true
+        ? missionFirmsSearchCmd(ports, model, { forceRefresh: true })
+        : missionFirmsListCachedCmd(ports, model)
     case 'MissionFirmsImportRequested':
       return missionFirmsImportCmd(ports, msg.lead)
     case 'MissionFirmsFirmToggled':
     case 'MissionFirmsTexasOnlyToggled':
     case 'MissionFirmsTerafabBiasToggled':
       return model.missionFirms.status === 'ready' || model.missionFirms.status === 'failed'
-        ? missionFirmsSearchCmd(ports, model)
+        ? missionFirmsListCachedCmd(ports, model)
         : undefined
     case 'MissionFirmsEvaluateRequested':
       return missionFirmsEvaluateCmd(ports, model, msg.lead, opportunityTargetAnalyzeCmd)

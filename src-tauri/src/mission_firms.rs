@@ -1517,6 +1517,20 @@ fn leads_from_pool_for_filter(
     by_firm.into_values().collect()
 }
 
+/// Read `search_pool.json` and filter/score leads — no HTTP, no pool mutation.
+pub fn list_cached_mission_leads(filter: &MissionFirmFilter) -> Vec<MissionFirmLead> {
+    let firms = parse_firm_ids(&filter.firms);
+    let key = query_cache_key(filter, &firms);
+    let pool = load_search_pool();
+    eprintln!(
+        "[mission_firms] list cached for query key `{key}` ({} leads in pool)",
+        pool.leads.len()
+    );
+    let buckets = leads_from_pool_for_filter(&pool, &firms, filter);
+    let limit = filter.limit.unwrap_or(100).clamp(1, 250);
+    merge_firm_buckets(buckets, limit)
+}
+
 pub async fn search_mission_firms(
     filter: &MissionFirmFilter,
 ) -> Result<Vec<MissionFirmLead>, String> {
@@ -1948,5 +1962,43 @@ mod tests {
         assert!(parsed.is_empty());
         let defaults = parse_firm_ids(&[]);
         assert!(!defaults.is_empty());
+    }
+
+    #[test]
+    fn list_cached_filters_pool_without_query_key_gate() {
+        let mut pool = SearchPoolCache {
+            version: 1,
+            fetched_query_keys: HashSet::new(),
+            leads: HashMap::new(),
+        };
+        let lead = MissionFirmLead {
+            firm_id: "ericsson".into(),
+            firm_label: "Ericsson".into(),
+            source: "jobtech".into(),
+            external_id: "e1".into(),
+            title: "Rust Platform Engineer".into(),
+            location: "Stockholm".into(),
+            absolute_url: "https://example.test/e/1".into(),
+            department: None,
+            rank_score: 30.0,
+            rank_reasons: vec![],
+            texas_match: false,
+            terafab_adjacent: false,
+            already_in_db: false,
+            opportunity_id: None,
+        };
+        pool.leads.insert(lead.cache_key(), lead);
+        let firms = parse_firm_ids(&["ericsson".into()]);
+        let filter = MissionFirmFilter {
+            q: Some("rust".into()),
+            firms: vec!["ericsson".into()],
+            ..Default::default()
+        };
+        let key = query_cache_key(&filter, &firms);
+        assert!(!pool.fetched_query_keys.contains(&key));
+        let buckets = leads_from_pool_for_filter(&pool, &firms, &filter);
+        let out = merge_firm_buckets(buckets, 100);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].title, "Rust Platform Engineer");
     }
 }
