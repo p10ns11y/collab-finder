@@ -48,7 +48,7 @@ CI parity     → pnpm gate
    cd src-tauri && cargo test pack_status_tests -- --nocapture
    ```
    Linux deps if link fails: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libssl-dev`, `pkg-config`. Rust **stable ≥ 1.98** (edition2024 crates).
-5. **Domain verify** — `pnpm verify` (report pass ratio; known `.ts` runner gaps are pre-existing).
+5. **Domain verify** — `pnpm verify` (all `*.verify.mjs` runners via `run-verify.mjs`; exit 0 required).
 6. **Full gate** (optional) — `pnpm gate` = build + verify + seed + `cargo test --lib`.
 7. **GUI interview** (when Tauri runs) — open Preferences, confirm badge + file table + Refresh; screenshot to `/opt/cursor/artifacts/`.
 8. **Evidence** — write `summary.json` under `/opt/cursor/artifacts/prove-gate-<pr>/` with commands, exit codes, and verdict.
