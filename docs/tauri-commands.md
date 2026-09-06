@@ -96,7 +96,7 @@ Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcode
 
 | Command | Args | Returns | Notes |
 |---------|------|---------|-------|
-| `list_maintained_firms_cmd` | — | `MaintainedFirmList` | Preferences → Mission firm list. Full registry from `universe.v1.json` + operator overlay. Read-only — no rank wave or SQLite write. |
+| `list_maintained_firms_cmd` | — | `MaintainedFirmList` | Preferences → Mission firm list. Full registry from `universe.v1.json` + operator overlay. Read-only — no rank wave or SQLite write. Prove Gate: `verify-collab-finder` → `firm-maintained-list.verify` + `cargo test list_maintained_firms`. |
 | `list_durable_firms` | — | `IterationResult` | Fortress / AI-wave / theatre gates. Reads `data/durability/universe.v1.json`. Snapshots to SQLite v9. No apply state. |
 
 ## Preferences (operator pack + rank)

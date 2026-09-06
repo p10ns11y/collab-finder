@@ -14,7 +14,7 @@ Deterministic ranker for **kanithanj.ai** (crate `collab-finder`). Iteration v1 
 | `note` | Operator stability / restructuring context (optional) |
 | `status` | `active` · `watch` · `pause` · `excluded` (optional override; see [`FIRM-LIST.md`](../mission-firms/FIRM-LIST.md)) |
 
-Scannable table: [`data/mission-firms/FIRM-LIST.md`](../mission-firms/FIRM-LIST.md) (regenerate with `node scripts/generate-firm-list.mjs`).
+Scannable table: [`data/mission-firms/FIRM-LIST.md`](../mission-firms/FIRM-LIST.md) (regenerate with `pnpm firm-list`).
 
 Operator overlay: copy rows into `~/.config/collab-finder/packs/universe.json` (same `id` replaces baked row). Pull boards stay in `mission_firms.rs` / `mission-firms.json` — orthogonal to durability axes.
 

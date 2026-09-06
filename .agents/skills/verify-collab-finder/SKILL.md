@@ -4,7 +4,7 @@ description: >
   Prove Gate verification map for collab-finder features. Use when validating a PR,
   running VerifySoT, or proving a surface (Tauri IPC + UI) with surviving evidence.
   Triggers: verify collab-finder, Prove Gate, pack health, Preferences operator pack,
-  pipeline hash, Meta+3 Pipeline.
+  Mission firm list, list_maintained_firms_cmd, pipeline hash, Meta+3 Pipeline.
 ---
 
 # verify-collab-finder
@@ -29,6 +29,7 @@ CI parity     → pnpm gate
 | Fit mode | Preferences → `FitModePanel` | (view state) | `pnpm verify` | — |
 | LLM route | Preferences → `LlmRoutePanel` | (view state) | `pnpm verify` | — |
 | **Pipeline nav** | Sidebar **Pipeline** · `#pipeline` · **Meta+3** | `finder-nav.ts` (`HASH_SCREENS`) · `finder-keyboard.ts` (`SCREEN_BY_DIGIT['3']`) | `pnpm verify` → `finder-nav.verify` + `finder-keyboard.verify` | Docs: `docs/GUIDE.md` Navigation (Meta+1…9) |
+| **Maintained firm list** | Preferences → `MaintainedFirmListPanel` | `list_maintained_firms_cmd` (`src-tauri/src/firm_durability.rs`) | `pnpm verify` → `firm-maintained-list.verify`; Rust: `cargo test list_maintained_firms` | `data/durability/universe.v1.json`; overlay: `~/.config/collab-finder/packs/universe.json`; table: `pnpm firm-list` → `data/mission-firms/FIRM-LIST.md` |
 
 ### Operator pack health — UI contract
 
@@ -73,6 +74,27 @@ CI parity     → pnpm gate
 | `finder-keyboard.verify` `meta+3 → pipeline` | `resolveShellHotkey('3', { meta: true })` → `{ kind: 'screen', screen: 'pipeline' }` |
 
 Dogfood scar (#38): Meta+3 used to land on Mission. GUIDE Navigation is Meta+1…9 with Pipeline at **3**. Prove Gate for nav: run the two verify runners above; do not treat Preferences pack-health as coverage.
+
+### Maintained firm list — UI contract
+
+- **Route:** App → **Preferences** (`preferences-screen.tsx`) → **Mission firm list** card (`MaintainedFirmListPanel` in `preferences-panels.tsx`).
+- **IPC:** `list_maintained_firms_cmd` → `MaintainedFirmList` (read-only; no rank wave or SQLite write). Contract: `docs/tauri-commands.md` Durability ranker table.
+- **Data SoT:** `data/durability/universe.v1.json`; operator overlay replaces rows by `id` via `packs/universe.json`.
+- **Status chips:** `active` · `watch` · `pause` · `excluded` — labels/tones from `firm-durability.ts` (`maintainedFirmStatusLabel` / `maintainedFirmStatusTone`).
+- **Actions:** **Refresh list** re-invokes IPC (no network). **Edit hint** in panel footer points at universe file + `pnpm firm-list` for markdown table.
+- **Do not** re-LLM the registry; Pull boards (`mission_firms.rs` / `mission-firms.json`) are orthogonal — see `data/mission-firms/README.md`.
+
+## Maintained firm list — expected test matrix
+
+| Test | Asserts |
+|------|---------|
+| `firm-maintained-list.verify` | Status label/tone map; `volvo_cars` watch fixture in universe; IPC registered + Preferences invoke; `tauri-commands.md` entry |
+| `list_maintained_firms_sorted_with_volvo_cars_watch` (Rust) | `firms.len() >= 25`, sorted by `firm_id`, `volvo_cars` → `Watch`, economic note contains revenue |
+
+**Headless Rust proof:**
+```bash
+cd src-tauri && cargo test list_maintained_firms -- --nocapture
+```
 
 ## Done when
 
