@@ -179,7 +179,7 @@ export type FinderMsg =
   | { type: 'HireBoardSelectFailed'; error: AppError }
   | { type: 'HireBoardEvaluateRequested'; lead: HireBoardLead }
 
-  // Platsbanken emergency rail (JobTech → Import/Evaluate → fit/prep/export)
+  // Platsbanken emergency rail (JobTech → Evaluate → fit/prep/export)
   | { type: 'PlatsbankenQChanged'; q: string }
   | { type: 'PlatsbankenMunicipalityChanged'; municipality: string }
   | {
@@ -191,7 +191,7 @@ export type FinderMsg =
     }
   | { type: 'HuntHarvestKeyApplied'; key: string; surface: 'sweden' | 'mission' }
   | { type: 'PlatsbankenSearchRequested' }
-  | { type: 'PlatsbankenSearchSucceeded'; leads: PlatsbankenLead[] }
+  | { type: 'PlatsbankenSearchSucceeded'; leads: PlatsbankenLead[]; droppedNotice?: string | null }
   | { type: 'PlatsbankenSearchFailed'; error: AppError }
   | { type: 'PlatsbankenImportSucceeded'; opportunity: Opportunity }
   | { type: 'PlatsbankenImportFailed'; error: AppError }

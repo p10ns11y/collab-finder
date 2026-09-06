@@ -1,6 +1,6 @@
 /**
  * Platsbanken emergency rail — JobTech JobSearch (AF runway / benefits reporting).
- * Import → existing fit / prep / export pack. Favorites boost ML/AI/Robotics; volume stays visible.
+ * Search auto-persists snippets; Evaluate fetches full JD → fit / prep / export pack.
  */
 
 export type PlatsbankenLead = {

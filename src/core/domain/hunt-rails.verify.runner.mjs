@@ -5,6 +5,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const {
   jobtechSafeQuery,
+  prepareJobtechQuery,
+  jobtechDroppedTokensMessage,
   harvestKeysFromTexts,
   mergeHarvested,
   classifyKey,
@@ -41,6 +43,15 @@ assert(emptyOverlay.platsbankenRailChips.length === PLATSBANKEN_RAIL_CHIPS.lengt
 
 assert(jobtechSafeQuery('utvecklare OR engineer OR machine learning') === 'utvecklare engineer machine learning', 'strip OR')
 assert(jobtechSafeQuery('senior -konsult "TypeScript"') === 'senior konsult TypeScript', 'strip quotes and minus')
+
+const emptyPrep = prepareJobtechQuery('   ')
+assert(emptyPrep.query === '' && emptyPrep.dropped.length === 0, 'empty raw query')
+const orOnly = prepareJobtechQuery('OR and NOT')
+assert(orOnly.query === '' && orOnly.dropped.length === 3, 'boolean-only query empties')
+assert(
+  jobtechDroppedTokensMessage(['OR', 'NOT']) === 'Removed from JobTech query: OR, NOT',
+  'dropped token message',
+)
 
 const harvested = harvestKeysFromTexts([
   'Senior Fullstack Engineer (Stockholm, EU only)',

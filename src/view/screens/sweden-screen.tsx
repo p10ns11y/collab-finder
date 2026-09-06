@@ -2,7 +2,7 @@
  * Sweden — full-viewport Platsbanken / JobTech AF runway (peer to Discover).
  * THESIS: Sweden-specific hunt with room for AF workflows; not a Discover side panel.
  * OWN-WORLD: collab-finder instrument (surfaces, chips, amber accent).
- * STORY: Search → select → Evaluate → fit/prep for benefits reporting.
+ * STORY: Search (auto-persist) → select → Evaluate → fit/prep for benefits reporting.
  * FIRST VIEWPORT: left query + municipality chips; right ad list (or fit after evaluate).
  * FORM: Discover φ-split; list is the hero for Swedish emergency/runway work.
  */
@@ -18,7 +18,8 @@ import {
   PLATSBANKEN_MUNI_CHIPS,
   type PlatsbankenLead,
 } from '../../core/domain/platsbanken'
-import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
+import { HuntFitPane, huntFitVisibleForLeads } from '../../components/finder/hunt-fit-pane'
+import { prepareJobtechQuery } from '../../core/domain/hunt-rails'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -37,13 +38,13 @@ export function SwedenScreen({ view, dispatch }: Props) {
     model.platsbanken.status === 'failed'
       ? model.platsbanken.error?.message || String(model.platsbanken.error)
       : null
-  const targetUrl = model.opportunityTargetUrl
-  const canSearch = !!model.platsbankenQ.trim()
+  const queryPrep = prepareJobtechQuery(model.platsbankenQ)
+  const canSearch = !!queryPrep.query.trim()
+  const droppedHint = queryPrep.dropped.length
+    ? `Removed from query: ${queryPrep.dropped.join(', ')}`
+    : null
   const selected = leads.find((lead) => lead.ad_id === selectedAdId)
-  const fitForThisHunt =
-    huntTargetIsActive(view) &&
-    !!selected &&
-    (selected.webpage_url === targetUrl || selected.application_url === targetUrl)
+  const fitForThisHunt = huntFitVisibleForLeads(view, leads)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
@@ -54,8 +55,9 @@ export function SwedenScreen({ view, dispatch }: Props) {
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Sweden</SectionLabel>
             <p className="ui-meta px-0.5">
-              JobTech API (same as Evaluate on a Platsbanken URL) — skips the website cookie wall.
-              Tokens are AND (no OR). Employment-grounded vs self-learned AI/agentic.
+              JobTech API (Evaluate fetches the full ad) — skips the website cookie wall. Search
+              auto-saves ads locally. Tokens are AND (no OR). Employment-grounded vs self-learned
+              AI/agentic.
             </p>
           </div>
           <Button
@@ -64,7 +66,11 @@ export function SwedenScreen({ view, dispatch }: Props) {
             size="sm"
             disabled={busy || !canSearch}
             onClick={() => dispatch({ type: 'PlatsbankenSearchRequested' })}
-            title="Search JobTech JobSearch (Arbetsförmedlingen)"
+            title={
+              canSearch
+                ? 'Search JobTech JobSearch (Arbetsförmedlingen)'
+                : 'Enter at least one searchable term (municipality alone is blocked)'
+            }
           >
             <Search className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-pulse' : ''}`} />
             {busy ? 'Searching…' : 'Search'}
@@ -80,6 +86,12 @@ export function SwedenScreen({ view, dispatch }: Props) {
           placeholder="JobTech query…"
           className="h-8 font-mono text-xs"
         />
+
+        {droppedHint ? (
+          <p className="rounded-md border border-border-subtle bg-surface-0/60 px-2 py-1.5 text-xs text-ink-muted">
+            {droppedHint}
+          </p>
+        ) : null}
 
         <div>
           <p className="mb-1.5 text-[11px] font-medium text-ink-faint">Rail</p>
@@ -197,7 +209,7 @@ export function SwedenScreen({ view, dispatch }: Props) {
             }
             description={
               model.history.opportunities.status === 'ready'
-                ? 'No saved Platsbanken ads yet. Search to persist this rail.'
+                ? 'No saved Platsbanken ads yet. Search to fetch and persist this rail.'
                 : 'Restoring the last saved Sweden list from the local database.'
             }
             action={
