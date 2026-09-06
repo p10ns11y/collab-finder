@@ -1,5 +1,7 @@
 //! Tauri command implementations (testable without the IPC macro layer).
 
+pub mod hunt;
+
 use crate::db::SqliteStore;
 use crate::finder_reactor::{CycleResult, Decision, FinderReactor};
 use crate::x_search::{XRateInfo, XTweet};

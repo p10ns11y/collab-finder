@@ -32,6 +32,8 @@ const heading = resolveShellHotkey('1', { meta: true, ctrl: false })
 must(heading.kind === 'screen' && heading.screen === 'heading', 'meta+1 → heading')
 const mission = resolveShellHotkey('4', { meta: true, ctrl: false })
 must(mission.kind === 'screen' && mission.screen === 'mission', 'meta+4 → mission')
+const xplore = resolveShellHotkey('6', { meta: true, ctrl: false })
+must(xplore.kind === 'screen' && xplore.screen === 'xplore', 'meta+6 → xplore')
 const settings = resolveShellHotkey('9', { meta: true, ctrl: false })
 must(settings.kind === 'screen' && settings.screen === 'settings', 'meta+9 → settings')
 

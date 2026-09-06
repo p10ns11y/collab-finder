@@ -850,8 +850,6 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           banner: msg.error,
         },
       ]
-    case 'PlatsbankenImportRequested':
-      return [{ ...model, banner: null }]
     case 'PlatsbankenImportSucceeded': {
       const h = { ...model.history }
       if (h.opportunities.status === 'ready' && Array.isArray(h.opportunities.data)) {

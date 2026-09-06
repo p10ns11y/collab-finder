@@ -8,6 +8,7 @@ import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
 import { DiscoverScreen } from './screens/discover-screen'
+import { XploreScreen } from './screens/xplore-screen'
 import { PipelineScreen } from './screens/pipeline-screen'
 import { HeadingScreen } from './screens/heading-screen'
 import { MissionScreen } from './screens/mission-screen'
@@ -61,9 +62,7 @@ export function FinderAppView({ view, dispatch }: Props) {
       case 'sweden':
         return <SwedenScreen view={view} dispatch={dispatch} />
       case 'xplore':
-        // Xplore: X search/cycle to discover new opportunities on X.
-        // DiscoverScreen branches based on activeScreen (Discover = opportunity management + quick target; Xplore = pure X).
-        return <DiscoverScreen view={view} dispatch={dispatch} />
+        return <XploreScreen view={view} dispatch={dispatch} />
       case 'settings':
         return <SettingsScreen view={view} dispatch={dispatch} />
       case 'preferences':
