@@ -107,8 +107,10 @@ export type FinderPort = {
   getXSearchCatalog(): Promise<Result<unknown, AppError>>
   /** Operator hunt-rail chips overlay (`packs/hunt-rails.json`). */
   getHuntRails(): Promise<Result<unknown, AppError>>
-  /** SpaceXAI Greenhouse + Swedish bridge JobTech ads. */
+  /** SpaceXAI Greenhouse + Swedish bridge JobTech ads — Pull (network + cache append). */
   searchMissionFirms(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>
+  /** Mission boot / filter — hull cache only (no network Pull). */
+  listCachedMissionLeads(filter?: MissionFirmFilter): Promise<Result<MissionFirmLead[], AppError>>
   importMissionFirmLead(payload: {
     firm_id: string
     source: string

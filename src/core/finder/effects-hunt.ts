@@ -167,6 +167,34 @@ export function missionLeadInspectCmd(
   }
 }
 
+export function missionFirmsListCachedCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+): Cmd<FinderMsg> {
+  return (dispatch) => {
+    void fromPromise(
+      ports.finder.listCachedMissionLeads({
+        q: model.missionFirmsQ || undefined,
+        firms: model.missionFirmsSelected,
+        texas_only: model.missionFirmsTexasOnly,
+        terafab_bias: model.missionFirmsTerafabBias,
+        limit: 250,
+      }),
+      toAppError,
+    ).then((result) => {
+      if (!result.ok) {
+        dispatch({ type: 'MissionFirmsSearchFailed', error: result.error })
+        return
+      }
+      dispatch({ type: 'MissionFirmsSearchSucceeded', leads: result.value })
+      persistSessionToLocal({
+        missionFirmsQ: model.missionFirmsQ,
+        missionFirmsSelected: model.missionFirmsSelected,
+      })
+    })
+  }
+}
+
 export function missionFirmsSearchCmd(
   ports: FinderPorts,
   model: FinderModel,
