@@ -32,7 +32,7 @@ Edit the universe file for stability (`fortress`), hire climate (`hiring_signal`
 | spacexai | SpaceXAI | 3 | 3 | Private. Fortress is capital + operating product, not a filed profit. | active | 2026-09-06 |
 | spotify | Spotify | 3 | 0 | Excluded: content stream is AI-substitutable; hiring theatre. | excluded | 2026-09-06 |
 | tesla | Tesla | 3 | 3 | FY2025 rev 94.827 USDb · gaap_net_income 3.794 · fcf 6.22 | active | 2026-09-06 |
-| volvo_cars | Volvo Cars | 2 | 1 | Consumer auto, Geely-majority; weaker fortress than Volvo Group. FY2025 revenue/profit not pulled this pass. Restructuring: ~3000 white-collar cuts (2025); Stockholm office → Gothenburg by 1 Mar 2027 (~450 staff, Cision Aug 2026). | watch | 2026-09-06 |
+| volvo_cars | Volvo Cars | 2 | 1 | FY2025 rev 357.3 SEKb (−11% vs 400.2 in 2024). Adj. operating income 12.5 SEKb (3.5% margin); reported EBIT 0.3 SEKb incl. impairment/restructuring. FCF 2.4 SEKb. Revenue down, thin margins, cost/cash actions ongoing. Consumer auto, Geely-majority — weaker fortress than Volvo Group. | watch | 2026-09-06 |
 | volvo_group | Volvo Group | 4 | 3 | FY2025 rev 479.2 SEKb · adjusted_operating_income 51.218 · fcf 21.837 · net cash 63 | active | 2026-09-06 |
 | wolt | Wolt | 2 | 0 | Excluded: marketplace, not a fortress product. | excluded | 2026-09-06 |
 

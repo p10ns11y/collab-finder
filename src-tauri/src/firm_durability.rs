@@ -766,6 +766,10 @@ mod tests {
             let cars = uni.firms.iter().find(|f| f.id == "volvo_cars").unwrap();
             assert_eq!(cars.hiring_signal, 1);
             assert_eq!(cars.status, Some(FirmStatus::Watch));
+            let cash = cars.cash.as_ref().unwrap();
+            assert_eq!(cash.revenue, Some(357.3));
+            assert_eq!(cash.profit, Some(12.5));
+            assert_eq!(cash.fcf, Some(2.4));
             assert!(cars.note.as_ref().is_some_and(|n| n.contains("Stockholm")));
             let ranked = score_for_id("volvo_cars").unwrap();
             assert!(ranked.admitted);
