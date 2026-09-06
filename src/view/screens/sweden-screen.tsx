@@ -19,6 +19,7 @@ import {
   type PlatsbankenLead,
 } from '../../core/domain/platsbanken'
 import { HuntFitPane, huntFitVisibleForLeads } from '../../components/finder/hunt-fit-pane'
+import { HuntPresetsRow } from '../../components/finder/hunt-presets-row'
 import { prepareJobtechQuery } from '../../core/domain/hunt-rails'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -85,6 +86,13 @@ export function SwedenScreen({ view, dispatch }: Props) {
           }}
           placeholder="JobTech query…"
           className="h-8 font-mono text-xs"
+        />
+
+        <HuntPresetsRow
+          presets={model.huntPresets}
+          activeId={model.activeHuntPresetId}
+          surface="sweden"
+          dispatch={dispatch}
         />
 
         {droppedHint ? (

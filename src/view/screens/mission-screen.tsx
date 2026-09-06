@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/input'
 import { SectionLabel } from '../../components/ui/section-label'
 import { type MissionFirmLead, missionHasPullQueryKey } from '../../core/domain/mission-firms'
 import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
+import { HuntPresetsRow } from '../../components/finder/hunt-presets-row'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -107,6 +108,13 @@ export function MissionScreen({ view, dispatch }: Props) {
           }}
           placeholder="Optional title filter…"
           className="h-8 font-mono text-xs"
+        />
+
+        <HuntPresetsRow
+          presets={model.huntPresets}
+          activeId={model.activeHuntPresetId}
+          surface="mission"
+          dispatch={dispatch}
         />
 
         <div>

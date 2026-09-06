@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "description": "Track A role packs — expert kernel/HITL, evals/applied-AI, hungry Rust builders. Copied into packs/hunt-rails.json huntPresets array.",
+  "huntPresets": [
+    {
+      "id": "track-a-kernel",
+      "label": "Kernel / HITL",
+      "q": "rust local-first agent runtime HITL workflow",
+      "rail": "stretch"
+    },
+    {
+      "id": "track-a-evals",
+      "label": "Evals / reliability",
+      "q": "agent evaluation LLM eval harness workflow evaluation AI reliability",
+      "rail": "stretch"
+    },
+    {
+      "id": "track-a-hungry",
+      "label": "Hungry Rust builders",
+      "q": "founding engineer rust junior systems open source agent",
+      "rail": "stretch"
+    }
+  ]
+}

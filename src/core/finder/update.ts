@@ -4,7 +4,14 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
-import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested, prepareJobtechQuery } from '../domain/hunt-rails'
+import {
+  applyHuntPresetToModel,
+  harvestFromHuntLeads,
+  leadsFromSavedOpportunities,
+  mergeHarvested,
+  prepareJobtechQuery,
+  snapshotHuntPresetUndo,
+} from '../domain/hunt-rails'
 import { DEFAULT_SEARCH_QUERY } from '../domain/search-presets'
 import { parseQuestKind } from '../domain/quest'
 import { parseQuestContextIds } from '../domain/quest-context'
@@ -802,7 +809,12 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       ]
 
     case 'PlatsbankenQChanged':
-      return [{ ...model, platsbankenQ: msg.q }]
+      return [{
+        ...model,
+        platsbankenQ: msg.q,
+        activeHuntPresetId: undefined,
+        huntPresetUndo: undefined,
+      }]
     case 'HuntRailChipApplied':
       return [
         {
@@ -814,6 +826,8 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
               ? msg.municipality
               : model.platsbankenMunicipality,
           missionFirmsQ: msg.surface === 'mission' ? msg.q : model.missionFirmsQ,
+          activeHuntPresetId: undefined,
+          huntPresetUndo: undefined,
         },
       ]
     case 'HuntHarvestKeyApplied':
@@ -822,8 +836,52 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           ...model,
           platsbankenQ: msg.surface === 'sweden' ? msg.key : model.platsbankenQ,
           missionFirmsQ: msg.surface === 'mission' ? msg.key : model.missionFirmsQ,
+          activeHuntPresetId: undefined,
+          huntPresetUndo: undefined,
         },
       ]
+    case 'HuntPresetSelected': {
+      if (model.activeHuntPresetId === msg.id) {
+        const undo = model.huntPresetUndo
+        if (!undo) {
+          return [{ ...model, activeHuntPresetId: undefined, huntPresetUndo: undefined }]
+        }
+        return [
+          {
+            ...model,
+            ...undo,
+            activeHuntPresetId: undefined,
+            huntPresetUndo: undefined,
+          },
+        ]
+      }
+      const preset = model.huntPresets.find((p) => p.id === msg.id)
+      if (!preset) return [model]
+      const undo = model.huntPresetUndo ?? snapshotHuntPresetUndo(model)
+      const applied = applyHuntPresetToModel(model, preset, msg.surface)
+      return [
+        {
+          ...model,
+          ...applied,
+          activeHuntPresetId: preset.id,
+          huntPresetUndo: undo,
+        },
+      ]
+    }
+    case 'HuntPresetCleared': {
+      const undo = model.huntPresetUndo
+      if (!undo) {
+        return [{ ...model, activeHuntPresetId: undefined, huntPresetUndo: undefined }]
+      }
+      return [
+        {
+          ...model,
+          ...undo,
+          activeHuntPresetId: undefined,
+          huntPresetUndo: undefined,
+        },
+      ]
+    }
     case 'PlatsbankenMunicipalityChanged':
       return [{ ...model, platsbankenMunicipality: msg.municipality }]
     case 'PlatsbankenSearchRequested': {
@@ -997,9 +1055,15 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
         ...model,
         missionQueryChips: msg.missionQueryChips,
         platsbankenRailChips: msg.platsbankenRailChips,
+        huntPresets: msg.huntPresets,
       }]
     case 'MissionFirmsQChanged':
-      return [{ ...model, missionFirmsQ: msg.q }]
+      return [{
+        ...model,
+        missionFirmsQ: msg.q,
+        activeHuntPresetId: undefined,
+        huntPresetUndo: undefined,
+      }]
     case 'MissionFirmsFirmToggled': {
       const set = new Set(model.missionFirmsSelected)
       if (set.has(msg.firmId)) set.delete(msg.firmId)

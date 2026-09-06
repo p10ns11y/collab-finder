@@ -28,7 +28,10 @@ import {
 import {
   MISSION_QUERY_CHIPS,
   PLATSBANKEN_RAIL_CHIPS,
+  TRACK_A_HUNT_PRESETS,
   type HarvestedKey,
+  type HuntPreset,
+  type HuntPresetUndo,
   type HuntRail,
   type HuntRailChip,
 } from '../domain/hunt-rails'
@@ -176,6 +179,9 @@ export type FinderModel = {
   huntHarvested: HarvestedKey[]
   missionQueryChips: HuntRailChip[]
   platsbankenRailChips: HuntRailChip[]
+  huntPresets: HuntPreset[]
+  activeHuntPresetId?: string
+  huntPresetUndo?: HuntPresetUndo
   // Durability ranker v1 (public IR). Idle until Mission mounts.
   durableFirms: AsyncState<DurabilityIteration>
   missionInspect: AsyncState<import('../domain/firm-durability').MissionInspectResult>
@@ -337,6 +343,9 @@ export function initialFinderModel(): FinderModel {
     huntHarvested: [],
     missionQueryChips: [...MISSION_QUERY_CHIPS],
     platsbankenRailChips: [...PLATSBANKEN_RAIL_CHIPS],
+    huntPresets: [...TRACK_A_HUNT_PRESETS],
+    activeHuntPresetId: undefined,
+    huntPresetUndo: undefined,
     durableFirms: idle<DurabilityIteration>(),
     missionInspect: idle(),
     missionFirmChips: [],

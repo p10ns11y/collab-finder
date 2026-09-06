@@ -13,8 +13,8 @@ Solo operator / builder (primary: the project author) on a desktop Tauri app. Co
 Desktop dark instrument panel. Primary screens:
 
 - **Discover** — opportunity memory, hire board skim, quick target fit/prep/export
-- **Mission** — SpaceXAI / Tesla / Nordic–EU career boards (query-keyed cache; Import → Evaluate → fit/prep)
-- **Sweden** — Platsbanken / JobTech AF benefits runway (municipality chips; Sweden-specific workflows)
+- **Mission** — SpaceXAI / Tesla / Nordic–EU career boards (query-keyed cache; hunt presets; Import → Evaluate → fit/prep)
+- **Sweden** — Platsbanken / JobTech AF benefits runway (municipality chips; hunt presets; Sweden-specific workflows)
 - **Xplore** — live X search + autonomous cycle
 - **Network** — local LinkedIn graph (PII stays on disk)
 - **Settings** — X bearer, xAI key, paths

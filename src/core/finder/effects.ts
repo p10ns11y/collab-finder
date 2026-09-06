@@ -1151,6 +1151,7 @@ export function effectForMsg(
             type: 'HuntRailsLoaded',
             missionQueryChips: rails.missionQueryChips,
             platsbankenRailChips: rails.platsbankenRailChips,
+            huntPresets: rails.huntPresets,
           })
         }).catch(() => { /* keep in-repo rail chips */ })
       }

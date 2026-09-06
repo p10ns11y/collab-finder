@@ -16,7 +16,23 @@ Identity and preferences live on disk — **nothing personal is compiled into th
     public-projects-focused.json           # GitHub project bank (focused)
     public-projects.json                   # slim repo list
     public-projects-clean.json             # full descriptions
+    hunt-rails.json                        # rail chips + hunt presets (Mission / Sweden)
+    x-search-queries.json                  # Xplore search presets
 ```
+
+`hunt-rails.json` shape (extend `huntPresets` to add operator hunts without code changes):
+
+```json
+{
+  "missionQueryChips": [{ "id": "honest", "rail": "honest", "label": "…", "q": "…" }],
+  "platsbankenRailChips": [{ "id": "honest", "rail": "honest", "label": "…", "q": "…", "municipality": "" }],
+  "huntPresets": [
+    { "id": "track-a-kernel", "label": "Kernel / HITL", "q": "rust local-first agent runtime HITL workflow", "rail": "stretch" }
+  ]
+}
+```
+
+Example Track A packs: `data/hunt-presets/track-a.json` (copy `huntPresets` into your pack).
 
 Gitignored source bundle (copy from legacy once): `data/operator/` — see `data/operator/README.md`.
 

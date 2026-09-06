@@ -15,6 +15,26 @@ export type HuntRailChip = {
   municipality?: string
 }
 
+/** Named operator hunt preset — loadable from Mission / Sweden / Discover. */
+export type HuntPreset = {
+  id: string
+  label: string
+  q: string
+  rail?: HuntRail
+  /** Mission firm ids to select when applying (optional). */
+  firms?: string[]
+  /** Sweden municipality hint when applying on JobTech surface. */
+  municipality?: string
+}
+
+export type HuntPresetUndo = {
+  missionFirmsQ: string
+  huntRail: HuntRail
+  missionFirmsSelected: string[]
+  platsbankenQ: string
+  platsbankenMunicipality: string
+}
+
 export type HarvestedKey = {
   key: string
   rail: HuntRail
@@ -104,6 +124,28 @@ export const MISSION_QUERY_CHIPS: readonly HuntRailChip[] = [
   { id: 'workflows', rail: 'stretch', label: 'AI workflows', q: 'AI workflows architect' },
 ]
 
+/** Track A role packs (enssembly) — in-repo fallback until pack overlay loads. */
+export const TRACK_A_HUNT_PRESETS: readonly HuntPreset[] = [
+  {
+    id: 'track-a-kernel',
+    label: 'Kernel / HITL',
+    q: 'rust local-first agent runtime HITL workflow',
+    rail: 'stretch',
+  },
+  {
+    id: 'track-a-evals',
+    label: 'Evals / reliability',
+    q: 'agent evaluation LLM eval harness workflow evaluation AI reliability',
+    rail: 'stretch',
+  },
+  {
+    id: 'track-a-hungry',
+    label: 'Hungry Rust builders',
+    q: 'founding engineer rust junior systems open source agent',
+    rail: 'stretch',
+  },
+]
+
 function isRail(v: unknown): v is HuntRail {
   return v === 'honest' || v === 'stretch'
 }
@@ -122,15 +164,88 @@ function parseChip(raw: unknown): HuntRailChip | null {
   return chip
 }
 
+function parseHuntPreset(raw: unknown): HuntPreset | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  if (typeof row.id !== 'string' || typeof row.label !== 'string' || typeof row.q !== 'string') {
+    return null
+  }
+  const preset: HuntPreset = { id: row.id, label: row.label, q: row.q }
+  if (row.rail !== undefined) {
+    if (!isRail(row.rail)) return null
+    preset.rail = row.rail
+  }
+  if (Array.isArray(row.firms)) {
+    const firms = row.firms.filter((f): f is string => typeof f === 'string' && f.trim().length > 0)
+    if (firms.length) preset.firms = firms
+  }
+  if (typeof row.municipality === 'string' && row.municipality.trim()) {
+    preset.municipality = row.municipality
+  }
+  return preset
+}
+
+export function applyHuntPresetToModel(
+  model: {
+    missionFirmsQ: string
+    huntRail: HuntRail
+    missionFirmsSelected: string[]
+    platsbankenQ: string
+    platsbankenMunicipality: string
+  },
+  preset: HuntPreset,
+  surface: 'mission' | 'sweden',
+): {
+  missionFirmsQ: string
+  huntRail: HuntRail
+  missionFirmsSelected: string[]
+  platsbankenQ: string
+  platsbankenMunicipality: string
+} {
+  const rail = preset.rail ?? 'stretch'
+  const next = { ...model, huntRail: rail }
+  if (surface === 'mission' || preset.firms?.length) {
+    next.missionFirmsQ = preset.q
+    if (preset.firms?.length) {
+      next.missionFirmsSelected = [...preset.firms]
+    }
+  }
+  if (surface === 'sweden') {
+    next.platsbankenQ = jobtechSafeQuery(preset.q)
+    if (preset.municipality) {
+      next.platsbankenMunicipality = preset.municipality
+    }
+  }
+  return next
+}
+
+export function snapshotHuntPresetUndo(model: {
+  missionFirmsQ: string
+  huntRail: HuntRail
+  missionFirmsSelected: string[]
+  platsbankenQ: string
+  platsbankenMunicipality: string
+}): HuntPresetUndo {
+  return {
+    missionFirmsQ: model.missionFirmsQ,
+    huntRail: model.huntRail,
+    missionFirmsSelected: [...model.missionFirmsSelected],
+    platsbankenQ: model.platsbankenQ,
+    platsbankenMunicipality: model.platsbankenMunicipality,
+  }
+}
+
 /** Overlay from `packs/hunt-rails.json`. Empty object → keep in-repo fallbacks. */
 export function huntRailsFromUnknown(raw: unknown): {
   missionQueryChips: HuntRailChip[]
   platsbankenRailChips: HuntRailChip[]
+  huntPresets: HuntPreset[]
 } {
   if (!raw || typeof raw !== 'object') {
     return {
       missionQueryChips: [...MISSION_QUERY_CHIPS],
       platsbankenRailChips: [...PLATSBANKEN_RAIL_CHIPS],
+      huntPresets: [...TRACK_A_HUNT_PRESETS],
     }
   }
   const file = raw as Record<string, unknown>
@@ -140,9 +255,13 @@ export function huntRailsFromUnknown(raw: unknown): {
   const sweden = Array.isArray(file.platsbankenRailChips)
     ? file.platsbankenRailChips.map(parseChip).filter((c): c is HuntRailChip => c !== null)
     : []
+  const presets = Array.isArray(file.huntPresets)
+    ? file.huntPresets.map(parseHuntPreset).filter((p): p is HuntPreset => p !== null)
+    : []
   return {
     missionQueryChips: mission.length ? mission : [...MISSION_QUERY_CHIPS],
     platsbankenRailChips: sweden.length ? sweden : [...PLATSBANKEN_RAIL_CHIPS],
+    huntPresets: presets.length ? presets : [...TRACK_A_HUNT_PRESETS],
   }
 }
 
