@@ -12,7 +12,10 @@ const {
   classifyKey,
   PLATSBANKEN_DEFAULT_QUERY,
   PLATSBANKEN_RAIL_CHIPS,
+  TRACK_A_HUNT_PRESETS,
   huntRailsFromUnknown,
+  applyHuntPresetToModel,
+  snapshotHuntPresetUndo,
   adIdFromSavedUrl,
   leadsFromSavedOpportunities,
 } = await import(pathToFileURL(join(here, 'hunt-rails.ts')).href)
@@ -40,6 +43,34 @@ assert(overlaid.platsbankenRailChips.length === 1, 'pack overlay sweden chips')
 const emptyOverlay = huntRailsFromUnknown({})
 assert(emptyOverlay.missionQueryChips.length > 0, 'empty pack keeps mission fallbacks')
 assert(emptyOverlay.platsbankenRailChips.length === PLATSBANKEN_RAIL_CHIPS.length, 'empty pack keeps sweden fallbacks')
+assert(emptyOverlay.huntPresets.length === TRACK_A_HUNT_PRESETS.length, 'empty pack keeps hunt presets')
+
+const withPresets = huntRailsFromUnknown({
+  huntPresets: [{ id: 'custom', label: 'Custom', q: 'rust agent', rail: 'stretch' }],
+})
+assert(withPresets.huntPresets.length === 1 && withPresets.huntPresets[0].id === 'custom', 'pack overlay hunt presets')
+
+const snap = snapshotHuntPresetUndo({
+  missionFirmsQ: 'before',
+  huntRail: 'honest',
+  missionFirmsSelected: ['spacexai'],
+  platsbankenQ: 'sweden before',
+  platsbankenMunicipality: 'Stockholm',
+})
+const applied = applyHuntPresetToModel(
+  {
+    missionFirmsQ: 'before',
+    huntRail: 'honest',
+    missionFirmsSelected: [],
+    platsbankenQ: 'sweden before',
+    platsbankenMunicipality: 'Stockholm',
+  },
+  { id: 'track-a-kernel', label: 'Kernel', q: 'rust local-first', rail: 'stretch', firms: ['spacexai'] },
+  'mission',
+)
+assert(applied.missionFirmsQ === 'rust local-first' && applied.huntRail === 'stretch', 'preset applies mission q + rail')
+assert(applied.missionFirmsSelected.includes('spacexai'), 'preset applies firm hints')
+assert(snap.missionFirmsQ === 'before', 'undo snapshot preserves prior q')
 
 assert(jobtechSafeQuery('utvecklare OR engineer OR machine learning') === 'utvecklare engineer machine learning', 'strip OR')
 assert(jobtechSafeQuery('senior -konsult "TypeScript"') === 'senior konsult TypeScript', 'strip quotes and minus')

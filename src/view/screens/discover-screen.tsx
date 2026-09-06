@@ -4,6 +4,7 @@ import { PauseLog } from '../../components/finder/pause-log'
 import { CvSummaryInput } from '../../components/finder/cv-summary-input'
 import { OpportunityTargetFitPanel } from '../../components/finder/opportunity-target-fit-panel'
 import { HireBoardPanel } from '../../components/finder/hire-board-panel'
+import { HuntPresetsRow } from '../../components/finder/hunt-presets-row'
 import {
   DEFAULT_FIT_MODE,
   fitModeDescription,
@@ -97,6 +98,14 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           hireBoardQ={model.hireBoardQ}
           hireBoardGeo={model.hireBoardGeo}
           dispatch={dispatch}
+        />
+
+        <HuntPresetsRow
+          presets={model.huntPresets}
+          activeId={model.activeHuntPresetId}
+          surface="mission"
+          dispatch={dispatch}
+          navigateTo="mission"
         />
 
         <Panel dense className="space-y-2.5">

@@ -190,6 +190,8 @@ export type FinderMsg =
       surface: 'sweden' | 'mission'
     }
   | { type: 'HuntHarvestKeyApplied'; key: string; surface: 'sweden' | 'mission' }
+  | { type: 'HuntPresetSelected'; id: string; surface: 'sweden' | 'mission' }
+  | { type: 'HuntPresetCleared' }
   | { type: 'PlatsbankenSearchRequested' }
   | { type: 'PlatsbankenSearchSucceeded'; leads: PlatsbankenLead[]; droppedNotice?: string | null }
   | { type: 'PlatsbankenSearchFailed'; error: AppError }
@@ -215,7 +217,7 @@ export type FinderMsg =
   // Mission firms (dynamic registry from Rust + config defaults)
   | { type: 'MissionFirmRegistryLoaded'; chips: import('../domain/mission-firms').MissionFirmChip[]; defaults: string[] }
   | { type: 'SearchCatalogLoaded'; query: string; presets: import('../domain/search-presets').SearchPreset[] }
-  | { type: 'HuntRailsLoaded'; missionQueryChips: import('../domain/hunt-rails').HuntRailChip[]; platsbankenRailChips: import('../domain/hunt-rails').HuntRailChip[] }
+  | { type: 'HuntRailsLoaded'; missionQueryChips: import('../domain/hunt-rails').HuntRailChip[]; platsbankenRailChips: import('../domain/hunt-rails').HuntRailChip[]; huntPresets: import('../domain/hunt-rails').HuntPreset[] }
   | { type: 'MissionFirmsQChanged'; q: string }
   | { type: 'MissionFirmsFirmToggled'; firmId: string }
   | { type: 'MissionFirmsTexasOnlyToggled' }
