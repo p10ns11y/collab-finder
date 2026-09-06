@@ -255,13 +255,16 @@ fn load_pack_firms() -> (
     let mut bonus = HashMap::new();
     let mut firms = Vec::new();
     for row in file.firms {
+        if let (Some(score_bonus), Some(score_reason)) = (row.score_bonus, row.score_reason.clone())
+        {
+            bonus.insert(row.id.clone(), (score_bonus, score_reason));
+        }
         let token = intern_str(row.token);
         let Some(source) = pack_source(&row.source, token) else {
             continue;
         };
-        if let (Some(score_bonus), Some(score_reason)) = (row.score_bonus, row.score_reason.clone())
-        {
-            bonus.insert(row.id.clone(), (score_bonus, score_reason));
+        if FIRM_REGISTRY.iter().any(|f| f.id == row.id) {
+            continue;
         }
         let def = FirmDef {
             id: intern_str(row.id),
@@ -885,8 +888,14 @@ fn score_lead(
                 reasons.push("firm:theater_saas".into());
             }
             "volvo_cars" => {
-                score += 12.0;
-                reasons.push("firm:nordic_auto".into());
+                let loc = location.to_ascii_lowercase();
+                if loc.contains("stockholm") {
+                    score += 4.0;
+                    reasons.push("firm:volvo_cars_stockholm_watch".into());
+                } else {
+                    score += 12.0;
+                    reasons.push("firm:nordic_auto".into());
+                }
             }
             _ => {
                 score += 12.0;

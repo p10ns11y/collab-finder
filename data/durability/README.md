@@ -2,6 +2,22 @@
 
 Deterministic ranker for **kanithanj.ai** (crate `collab-finder`). Iteration v1 answers: *can this employer operate for ten years, stay relevant after an AI wave, and is the loop worth a Swedish citizen’s scarce apply hours?*
 
+## Living firm list (Mission pack quality)
+
+**`universe.v1.json` is the maintained firm list.** Edit this file when employer facts change — do not re-LLM or one-shot rewrite the whole registry.
+
+| Axis / field | Meaning |
+|--------------|---------|
+| `fortress` | **Stability** — decade operate-from-cash / backlog evidence (0–4) |
+| `hiring_signal` | **Hire climate** — process signal; `0` = theatre gate |
+| `cash` + `cash.note` | **Economic progression** — public IR snapshot; missing = `null`, never invented |
+| `note` | Operator stability / restructuring context (optional) |
+| `status` | `active` · `watch` · `pause` · `excluded` (optional override; see [`FIRM-LIST.md`](../mission-firms/FIRM-LIST.md)) |
+
+Scannable table: [`data/mission-firms/FIRM-LIST.md`](../mission-firms/FIRM-LIST.md) (regenerate with `node scripts/generate-firm-list.mjs`).
+
+Operator overlay: copy rows into `~/.config/collab-finder/packs/universe.json` (same `id` replaces baked row). Pull boards stay in `mission_firms.rs` / `mission-firms.json` — orthogonal to durability axes.
+
 ## Data plane (what lives where)
 
 | Store | Role | Why this, not that |

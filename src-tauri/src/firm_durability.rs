@@ -68,6 +68,33 @@ pub struct CashEvidence {
     pub note: Option<String>,
 }
 
+/// Operator-maintained list status. Does not affect scoring gates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FirmStatus {
+    Active,
+    Watch,
+    Pause,
+    Excluded,
+}
+
+impl FirmStatus {
+    /// Derive from axes when `status` is omitted in universe JSON.
+    pub fn derive(firm: &FirmRecord) -> Self {
+        if firm.theater_saas
+            || firm.hiring_signal == 0
+            || firm.fortress < 2
+            || firm.product_moat < 2
+        {
+            return FirmStatus::Excluded;
+        }
+        if firm.hiring_signal == 1 {
+            return FirmStatus::Watch;
+        }
+        FirmStatus::Active
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FirmRecord {
     pub id: String,
@@ -82,6 +109,12 @@ pub struct FirmRecord {
     pub hiring_signal: u8,
     pub spacexai_vector: u8,
     pub cash: Option<CashEvidence>,
+    /// Operator override; when absent, [`FirmStatus::derive`] applies.
+    #[serde(default)]
+    pub status: Option<FirmStatus>,
+    /// Stability / economic progression note (product voice; not coach meta).
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -727,7 +760,23 @@ mod tests {
     }
 
     #[test]
-    fn user_pack_overrides_baked_firm_id() {
+    fn volvo_cars_watch_status_and_hiring() {
+        with_fixtures(|| {
+            let uni = load_universe().unwrap();
+            let cars = uni.firms.iter().find(|f| f.id == "volvo_cars").unwrap();
+            assert_eq!(cars.hiring_signal, 1);
+            assert_eq!(cars.status, Some(FirmStatus::Watch));
+            let cash = cars.cash.as_ref().unwrap();
+            assert_eq!(cash.revenue, Some(357.3));
+            assert_eq!(cash.profit, Some(12.5));
+            assert_eq!(cash.fcf, Some(2.4));
+            assert!(cars.note.as_ref().is_some_and(|n| n.contains("Stockholm")));
+            let ranked = score_for_id("volvo_cars").unwrap();
+            assert!(ranked.admitted);
+        });
+    }
+
+    #[test]
         let tmp = tempfile::tempdir().unwrap();
         let packs = tmp.path().join("packs");
         std::fs::create_dir_all(&packs).unwrap();

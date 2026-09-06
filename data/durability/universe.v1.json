@@ -1,6 +1,6 @@
 {
   "algorithm_version": "v1",
-  "scored_at": "2026-08-18",
+  "scored_at": "2026-09-06",
   "notes": "Public IR only. Amounts in the company's reporting currency; scale is billions unless noted. profit_kind and fcf_kind are labels, not GAAP restatements.",
   "firms": [
     {
@@ -202,16 +202,22 @@
       "product_moat": 3,
       "ai_tsunami": 2,
       "fortress": 2,
-      "hiring_signal": 2,
+      "hiring_signal": 1,
       "spacexai_vector": 1,
+      "status": "watch",
+      "note": "Stockholm office closes 1 Mar 2027 (~450 staff) → Gothenburg (Cision/Reuters, 31 Aug 2026). Prior ~3000 white-collar cut wave (2025).",
       "cash": {
         "fy": 2025,
         "currency": "SEK",
         "scale": "billion",
-        "revenue": null,
-        "profit": null,
-        "source": "https://investors.volvocars.com/en",
-        "note": "Consumer auto, Geely-owned. Weaker fortress than Volvo Group."
+        "revenue": 357.3,
+        "profit": 12.5,
+        "profit_kind": "adjusted_operating_income",
+        "operating_margin_pct": 3.5,
+        "fcf": 2.4,
+        "fcf_kind": "free_cash_flow",
+        "source": "https://news.cision.com/volvo-car-ab--publ-/r/volvo-cars-q4-2025--turnaround-plan-on-track--but-challenging-external-environment,c4302907",
+        "note": "FY2025 rev 357.3 SEKb (−11% vs 400.2 in 2024). Adj. operating income 12.5 SEKb (3.5% margin); reported EBIT 0.3 SEKb incl. impairment/restructuring. FCF 2.4 SEKb. Revenue down, thin margins, cost/cash actions ongoing. Consumer auto, Geely-majority — weaker fortress than Volvo Group."
       }
     },
     {

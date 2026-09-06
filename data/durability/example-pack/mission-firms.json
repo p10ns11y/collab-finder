@@ -1,4 +1,13 @@
 {
   "aliases": {},
-  "firms": []
+  "firms": [
+    {
+      "id": "volvo_cars",
+      "label": "Volvo Cars",
+      "source": "jobtech",
+      "token": "5560743089",
+      "score_bonus": -6,
+      "score_reason": "firm:stockholm_office_closing_2027"
+    }
+  ]
 }
