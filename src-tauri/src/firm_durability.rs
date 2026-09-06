@@ -536,6 +536,72 @@ pub fn load_universe() -> Result<UniverseFile, String> {
     })
 }
 
+/// Effective list status — explicit `status` in JSON wins; else derive from axes.
+pub fn effective_status(firm: &FirmRecord) -> FirmStatus {
+    firm.status.unwrap_or_else(|| FirmStatus::derive(firm))
+}
+
+/// Economic progression line for operators — mirrors `scripts/generate-firm-list.mjs`.
+pub fn economic_note(firm: &FirmRecord) -> String {
+    if let Some(c) = firm.cash.as_ref() {
+        if let Some(note) = c.note.as_ref() {
+            return note.clone();
+        }
+    }
+    if let Some(note) = firm.note.as_ref() {
+        return note.clone();
+    }
+    cash_line(firm)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaintainedFirmRow {
+    pub firm_id: String,
+    pub name: String,
+    pub fortress: u8,
+    pub hiring_signal: u8,
+    pub economic_note: String,
+    pub status: FirmStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaintainedFirmList {
+    pub algorithm_version: String,
+    pub scored_at: String,
+    pub firms: Vec<MaintainedFirmRow>,
+    pub edit_hint: String,
+}
+
+/// Full maintained registry for Preferences / agents — no rank wave, no SQLite write.
+pub fn list_maintained_firms() -> Result<MaintainedFirmList, String> {
+    let uni = load_universe()?;
+    let mut firms: Vec<MaintainedFirmRow> = uni
+        .firms
+        .iter()
+        .map(|f| MaintainedFirmRow {
+            firm_id: f.id.clone(),
+            name: f.name.clone(),
+            fortress: f.fortress,
+            hiring_signal: f.hiring_signal,
+            economic_note: economic_note(f),
+            status: effective_status(f),
+            note: f.note.clone(),
+            source: f.cash.as_ref().and_then(|c| c.source.clone()),
+        })
+        .collect();
+    firms.sort_by(|a, b| a.firm_id.cmp(&b.firm_id));
+    Ok(MaintainedFirmList {
+        algorithm_version: uni.algorithm_version,
+        scored_at: uni.scored_at,
+        firms,
+        edit_hint: "Edit data/durability/universe.v1.json or ~/.config/collab-finder/packs/universe.json (same id replaces row). Regenerate table: pnpm firm-list".into(),
+    })
+}
+
 pub fn run_iteration() -> IterationResult {
     run_wave(&[], 1)
 }
@@ -777,6 +843,28 @@ mod tests {
     }
 
     #[test]
+    fn list_maintained_firms_sorted_with_volvo_cars_watch() {
+        with_fixtures(|| {
+            let list = list_maintained_firms().unwrap();
+            assert!(list.firms.len() >= 25);
+            assert!(list
+                .firms
+                .windows(2)
+                .all(|w| w[0].firm_id <= w[1].firm_id));
+            let cars = list
+                .firms
+                .iter()
+                .find(|f| f.firm_id == "volvo_cars")
+                .expect("volvo_cars");
+            assert_eq!(cars.status, FirmStatus::Watch);
+            assert_eq!(cars.hiring_signal, 1);
+            assert!(cars.note.as_ref().is_some_and(|n| n.contains("Stockholm")));
+            assert!(cars.economic_note.contains("357.3"));
+        });
+    }
+
+    #[test]
+    fn operator_universe_overlay_replaces_row() {
         let tmp = tempfile::tempdir().unwrap();
         let packs = tmp.path().join("packs");
         std::fs::create_dir_all(&packs).unwrap();
