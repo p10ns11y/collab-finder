@@ -5,7 +5,7 @@ import type { AppError } from '../error'
 import type { FinderMsg } from './msg'
 import type { FinderModel } from './model'
 import type { Opportunity } from '../domain/history'
-import { jobtechSafeQuery } from '../domain/hunt-rails'
+import { jobtechDroppedTokensMessage, prepareJobtechQuery } from '../domain/hunt-rails'
 import type { FinderPorts } from './effects'
 import { persistSessionToLocal } from './effects-session'
 
@@ -49,10 +49,20 @@ export function importOpportunityThenAnalyze(
 }
 
 export function platsbankenSearchCmd(ports: FinderPorts, model: FinderModel): Cmd<FinderMsg> {
+  const prep = prepareJobtechQuery(model.platsbankenQ)
+  if (!prep.query.trim()) {
+    return (dispatch) => {
+      const message = prep.dropped.length
+        ? `JobTech query is empty after removing: ${prep.dropped.join(', ')}. Add searchable terms.`
+        : 'Enter a JobTech query — municipality-only search is blocked (too much unrelated volume).'
+      dispatch({ type: 'PlatsbankenSearchFailed', error: toAppError(new Error(message)) })
+    }
+  }
+  const droppedNotice = jobtechDroppedTokensMessage(prep.dropped)
   return (dispatch) => {
     void fromPromise(
       ports.finder.searchPlatsbanken({
-        q: jobtechSafeQuery(model.platsbankenQ) || undefined,
+        q: prep.query,
         municipality: model.platsbankenMunicipality || undefined,
         limit: 30,
       }),
@@ -62,7 +72,11 @@ export function platsbankenSearchCmd(ports: FinderPorts, model: FinderModel): Cm
         dispatch({ type: 'PlatsbankenSearchFailed', error: result.error })
         return
       }
-      dispatch({ type: 'PlatsbankenSearchSucceeded', leads: result.value })
+      dispatch({
+        type: 'PlatsbankenSearchSucceeded',
+        leads: result.value,
+        droppedNotice,
+      })
       dispatch({ type: 'HistoryRefreshRequested' })
     })
   }

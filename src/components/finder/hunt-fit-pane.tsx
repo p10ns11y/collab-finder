@@ -96,3 +96,27 @@ export function huntTargetIsActive(view: FinderViewState): boolean {
     targetState.status === 'failed'
   )
 }
+
+type HuntLeadUrl = {
+  webpage_url: string
+  application_url?: string | null
+}
+
+export function huntLeadMatchesTargetUrl(
+  targetUrl: string | undefined,
+  lead: HuntLeadUrl,
+): boolean {
+  if (!targetUrl) return false
+  return lead.webpage_url === targetUrl || lead.application_url === targetUrl
+}
+
+/** Sweden/Mission fit pane — active target must match a lead in the current hunt list (not sidebar selection alone). */
+export function huntFitVisibleForLeads(
+  view: FinderViewState,
+  leads: HuntLeadUrl[],
+): boolean {
+  if (!huntTargetIsActive(view)) return false
+  const targetUrl = view.model.opportunityTargetUrl
+  if (!targetUrl) return false
+  return leads.some((lead) => huntLeadMatchesTargetUrl(targetUrl, lead))
+}

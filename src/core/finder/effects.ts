@@ -13,7 +13,7 @@ import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/o
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 import { normalizeOpportunityUrl } from '../domain/opportunity-url'
-import { huntRailsFromUnknown } from '../domain/hunt-rails'
+import { huntRailsFromUnknown, prepareJobtechQuery } from '../domain/hunt-rails'
 import { catalogFromUnknown, sortSearchPresets } from '../domain/search-presets'
 import { buildQuestPrompt, snapshotFromFinder } from '../domain/quest'
 import { formatQuestContextBlock, resolveQuestContextPacks } from '../domain/quest-context'
@@ -1207,10 +1207,12 @@ export function effectForMsg(
     case 'QuestThreadLoadRequested':
       return loadQuestThreadCmd(ports, msg.sessionId)
     case 'PlatsbankenSearchRequested':
+      if (!prepareJobtechQuery(model.platsbankenQ).query.trim()) return undefined
       return platsbankenSearchCmd(ports, model)
     case 'PlatsbankenRemoveRequested':
       return platsbankenRemoveCmd(ports, msg.lead)
     case 'PlatsbankenMunicipalityChanged':
+      if (!prepareJobtechQuery(model.platsbankenQ).query.trim()) return undefined
       return model.platsbanken.status === 'ready' || model.platsbanken.status === 'failed'
         ? platsbankenSearchCmd(ports, model)
         : undefined

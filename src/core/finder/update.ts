@@ -4,7 +4,7 @@ import type { Cmd } from '../mvu/engine'
 import type { FinderModel } from './model'
 import type { FinderMsg } from './msg'
 import type { OpportunityTargetResult } from '../domain/opportunity-target'
-import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested } from '../domain/hunt-rails'
+import { harvestFromHuntLeads, leadsFromSavedOpportunities, mergeHarvested, prepareJobtechQuery } from '../domain/hunt-rails'
 import { DEFAULT_SEARCH_QUERY } from '../domain/search-presets'
 import { parseQuestKind } from '../domain/quest'
 import { parseQuestContextIds } from '../domain/quest-context'
@@ -826,20 +826,39 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       ]
     case 'PlatsbankenMunicipalityChanged':
       return [{ ...model, platsbankenMunicipality: msg.municipality }]
-    case 'PlatsbankenSearchRequested':
+    case 'PlatsbankenSearchRequested': {
+      const prep = prepareJobtechQuery(model.platsbankenQ)
+      if (!prep.query.trim()) {
+        const message = prep.dropped.length
+          ? `JobTech query is empty after removing: ${prep.dropped.join(', ')}. Add searchable terms.`
+          : 'Enter a JobTech query — municipality-only search is blocked (too much unrelated volume).'
+        return [
+          {
+            ...model,
+            banner: appError('unknown', message),
+            platsbanken:
+              model.platsbanken.status === 'ready' ? model.platsbanken : { status: 'idle' },
+          },
+        ]
+      }
+      const droppedNotice = prep.dropped.length
+        ? `Removed from JobTech query: ${prep.dropped.join(', ')}`
+        : null
       return [
         {
           ...model,
-          banner: null,
+          banner: droppedNotice ? appError('unknown', droppedNotice) : null,
           platsbanken: { status: 'loading' },
         },
       ]
+    }
     case 'PlatsbankenSearchSucceeded':
       return [
         {
           ...model,
           platsbanken: { status: 'ready', data: msg.leads },
           huntHarvested: mergeHarvested(model.huntHarvested, harvestFromHuntLeads(msg.leads)),
+          banner: msg.droppedNotice ? appError('unknown', msg.droppedNotice) : null,
         },
       ]
     case 'PlatsbankenSearchFailed':

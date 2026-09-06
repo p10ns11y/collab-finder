@@ -152,14 +152,36 @@ export const PLATSBANKEN_DEFAULT_MUNICIPALITY = 'Stockholm'
 
 const BOOLEAN_TOKEN = /^(or|and|not)$/i
 
+export type JobtechQueryPrep = {
+  /** Sanitized AND-style freetext for JobTech `q`. */
+  query: string
+  /** Tokens stripped (boolean operators, punctuation-only). */
+  dropped: string[]
+}
+
 /** Strip Google-style operators JobTech treats as literal tokens. */
+export function prepareJobtechQuery(raw: string): JobtechQueryPrep {
+  const dropped: string[] = []
+  const kept: string[] = []
+  for (const token of raw.replace(/[+"'()-]/g, ' ').split(/\s+/)) {
+    const t = token.trim()
+    if (!t) continue
+    if (BOOLEAN_TOKEN.test(t)) {
+      dropped.push(t)
+      continue
+    }
+    kept.push(t)
+  }
+  return { query: kept.join(' '), dropped }
+}
+
 export function jobtechSafeQuery(raw: string): string {
-  return raw
-    .replace(/[+"'()-]/g, ' ')
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0 && !BOOLEAN_TOKEN.test(t))
-    .join(' ')
+  return prepareJobtechQuery(raw).query
+}
+
+export function jobtechDroppedTokensMessage(dropped: string[]): string | null {
+  if (!dropped.length) return null
+  return `Removed from JobTech query: ${dropped.join(', ')}`
 }
 
 function normalize(s: string): string {

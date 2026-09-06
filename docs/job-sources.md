@@ -11,7 +11,7 @@ Curated sources for **fast URL → Evaluate → Apply** in collab-finder. Tiers 
 | Path | Screen | When |
 |------|--------|------|
 | **Mission Pull** | Mission | Firm on Greenhouse/Lever/Ashby/JobTech — one-click import + JD |
-| **Sweden search** | Sweden | Platsbanken/JobTech — skips cookie wall |
+| **Sweden search** | Sweden | Platsbanken/JobTech — Evaluate fetches full JD; Search auto-persists ads |
 | **Quick Target** | Discover | Paste any career URL or JD |
 | **Hire board** | Discover | Curated sheet (`data/hire-board/operator-sources.csv`) |
 | **Xplore** | Xplore | Live posts with `has:links` presets |
