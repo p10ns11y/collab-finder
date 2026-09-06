@@ -37,4 +37,9 @@ export type MissionFirmFilter = {
 /** Empty default — change query (or a rail chip) to trigger a new fetch+append. */
 export const MISSION_FIRMS_DEFAULT_QUERY = ''
 
+/** Network Pull requires a rail chip, harvested key, or non-empty title filter. */
+export function missionHasPullQueryKey(q: string): boolean {
+  return q.trim().length > 0
+}
+
 export { MISSION_QUERY_CHIPS } from './hunt-rails'

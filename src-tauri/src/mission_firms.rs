@@ -541,15 +541,70 @@ const PROFILE_BOOST_TERMS: &[&str] = &[
     "forward deployed",
 ];
 
+fn cv_packet_is_stub(packet: &str) -> bool {
+    packet.contains("Configure your CV summary")
+}
+
+/// Pull a few noun-like tokens from the operator CV packet for title boost (not full CV-rank).
+fn extract_packet_boost_terms(packet: &str) -> Vec<String> {
+    if cv_packet_is_stub(packet) {
+        return Vec::new();
+    }
+    let packet_lower = packet.to_ascii_lowercase();
+    let mut terms: Vec<String> = PROFILE_BOOST_TERMS
+        .iter()
+        .filter(|term| packet_lower.contains(*term))
+        .map(|term| (*term).to_string())
+        .collect();
+    for token in packet_lower.split(|c: char| !c.is_ascii_alphanumeric() && c != '-') {
+        let t = token.trim_matches('-').trim();
+        if t.len() < 4 || t.len() > 24 {
+            continue;
+        }
+        if !t.chars().any(|c| c.is_ascii_alphabetic()) {
+            continue;
+        }
+        if terms.iter().any(|existing| existing == t) {
+            continue;
+        }
+        if PROFILE_BOOST_TERMS.contains(&t) {
+            continue;
+        }
+        terms.push(t.to_string());
+        if terms.len() >= PROFILE_BOOST_TERMS.len() + 6 {
+            break;
+        }
+    }
+    terms
+}
+
+fn profile_boost_terms() -> &'static [String] {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<Vec<String>> = OnceLock::new();
+    CACHE.get_or_init(|| {
+        let packet = crate::operator_pack::cv_packet();
+        let mut terms: Vec<String> = PROFILE_BOOST_TERMS
+            .iter()
+            .map(|term| (*term).to_string())
+            .collect();
+        for extra in extract_packet_boost_terms(&packet) {
+            if !terms.iter().any(|existing| existing == &extra) {
+                terms.push(extra);
+            }
+        }
+        terms
+    })
+}
+
 fn profile_title_boost(title: &str) -> (f64, Option<String>) {
     let packet = crate::operator_pack::cv_packet();
-    if packet.contains("Configure your CV summary") {
+    if cv_packet_is_stub(&packet) {
         return (0.0, None);
     }
     let hay = title.to_ascii_lowercase();
-    let hits = PROFILE_BOOST_TERMS
+    let hits = profile_boost_terms()
         .iter()
-        .filter(|term| hay.contains(*term))
+        .filter(|term| hay.contains(term.as_str()))
         .count();
     if hits == 0 {
         return (0.0, None);
@@ -632,9 +687,9 @@ const NON_SOFTWARE_TERMS: &[&str] = &[
 const PROFILE_SENIORITY_ONLY: &[&str] = &["staff", "senior"];
 
 fn title_has_software_signal(title_lower: &str) -> bool {
-    PROFILE_BOOST_TERMS
-        .iter()
-        .any(|term| !PROFILE_SENIORITY_ONLY.contains(term) && title_lower.contains(term))
+    profile_boost_terms().iter().any(|term| {
+        !PROFILE_SENIORITY_ONLY.contains(&term.as_str()) && title_lower.contains(term.as_str())
+    })
 }
 
 fn profile_mismatch_penalty(title: &str) -> (f64, Option<String>) {
@@ -1465,19 +1520,13 @@ fn leads_from_pool_for_filter(
 pub async fn search_mission_firms(
     filter: &MissionFirmFilter,
 ) -> Result<Vec<MissionFirmLead>, String> {
-    let client = http_client()?;
     let firms = parse_firm_ids(&filter.firms);
     let key = query_cache_key(filter, &firms);
     let mut pool = load_search_pool();
     pool.version = SEARCH_CACHE_VERSION;
 
-    let cache_hit = !filter.force_refresh && pool.fetched_query_keys.contains(&key);
-    if cache_hit {
-        eprintln!(
-            "[mission_firms] cache hit for query key `{key}` ({} leads in pool)",
-            pool.leads.len()
-        );
-    } else {
+    if filter.force_refresh {
+        let client = http_client()?;
         eprintln!(
             "[mission_firms] fetch+append for query key `{key}` (pool had {} leads)",
             pool.leads.len()
@@ -1488,10 +1537,19 @@ pub async fn search_mission_firms(
                 pool.leads.insert(lead.cache_key(), lead);
             }
         }
-        pool.fetched_query_keys.insert(key);
-        // stamp unused but useful for debugging
+        pool.fetched_query_keys.insert(key.clone());
         let _ = now_secs();
         save_search_pool(&pool);
+    } else if pool.fetched_query_keys.contains(&key) {
+        eprintln!(
+            "[mission_firms] cache hit for query key `{key}` ({} leads in pool)",
+            pool.leads.len()
+        );
+    } else {
+        eprintln!(
+            "[mission_firms] cache-only filter for query key `{key}` ({} leads in pool, no fetch)",
+            pool.leads.len()
+        );
     }
 
     let buckets = leads_from_pool_for_filter(&pool, &firms, filter);
@@ -1754,6 +1812,28 @@ fn strip_html_light(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extract_packet_boost_terms_skips_stub() {
+        assert!(extract_packet_boost_terms("Configure your CV summary").is_empty());
+    }
+
+    #[test]
+    fn extract_packet_boost_terms_picks_nouns() {
+        let terms = extract_packet_boost_terms(
+            "Senior TypeScript engineer; Rust systems; Playwright automation.",
+        );
+        assert!(terms.iter().any(|t| t.contains("typescript")));
+        assert!(terms.iter().any(|t| t.contains("rust")));
+    }
+
+    #[test]
+    fn packet_boost_terms_match_title() {
+        let terms = extract_packet_boost_terms("Senior kubernetes platform engineer");
+        let hay = "platform engineer kubernetes".to_ascii_lowercase();
+        let hits = terms.iter().filter(|t| hay.contains(t.as_str())).count();
+        assert!(hits >= 1);
+    }
 
     #[test]
     fn query_key_stable() {
