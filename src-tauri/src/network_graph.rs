@@ -1181,6 +1181,25 @@ pub fn linkedin_vanity_slug(url: &str) -> Option<String> {
     }
 }
 
+/// X `GET /2/users/by` rejects anything outside `^[A-Za-z0-9_]{1,15}$`.
+pub fn is_valid_x_username(s: &str) -> bool {
+    let len = s.len();
+    (1..=15).contains(&len) && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// LinkedIn vanity URLs often append `-{8 hex}` (not an X handle).
+fn linkedin_slug_without_member_id(slug: &str) -> &str {
+    if let Some((head, tail)) = slug.rsplit_once('-') {
+        if !head.is_empty()
+            && (6..=12).contains(&tail.len())
+            && tail.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return head;
+        }
+    }
+    slug
+}
+
 pub fn username_candidates(person: &NetworkPerson) -> Vec<String> {
     let mut out = Vec::new();
     let mut push = |s: String| {
@@ -1188,14 +1207,14 @@ pub fn username_candidates(person: &NetworkPerson) -> Vec<String> {
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
             .collect();
-        if cleaned.len() >= 3 && !out.iter().any(|x| x == &cleaned) {
+        if is_valid_x_username(&cleaned) && !out.iter().any(|x| x == &cleaned) {
             out.push(cleaned);
         }
     };
     if let Some(slug) = linkedin_vanity_slug(&person.linkedin_url) {
+        let slug = linkedin_slug_without_member_id(&slug);
         push(slug.replace('-', "_"));
         push(slug.replace('-', ""));
-        // keep hyphen-stripped already; also try original alnum-only from slug
         let alnum: String = slug.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
         push(alnum);
     }
@@ -1253,6 +1272,11 @@ fn pick_best_x_user(person: &NetworkPerson, users: &[XUserData]) -> Option<XProf
 }
 
 async fn lookup_x_usernames(bearer: &str, usernames: &[String]) -> Result<Vec<XUserData>, String> {
+    let usernames: Vec<&str> = usernames
+        .iter()
+        .map(String::as_str)
+        .filter(|s| is_valid_x_username(s))
+        .collect();
     if usernames.is_empty() {
         return Ok(Vec::new());
     }
@@ -1663,6 +1687,25 @@ Mel,Learn,https://profiles.example/in/mel-learn,,PriorLabs,Machine Learning Engi
         assert_eq!(linkedin_vanity_slug(&ada.linkedin_url).as_deref(), Some("ada-north"));
         let c = username_candidates(ada);
         assert!(c.iter().any(|u| u.contains("ada")));
+        assert!(c.iter().all(|u| is_valid_x_username(u)));
+    }
+
+    #[test]
+    fn x_usernames_reject_linkedin_member_id_slug() {
+        assert!(!is_valid_x_username("pat_lee_a1b2c3d4"));
+        assert!(is_valid_x_username("pat_lee"));
+        let csv = "\
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Pat,Lee,https://www.linkedin.com/in/pat-lee-a1b2c3d4,,Acme,Engineer,01 Jan 2024
+";
+        let people = parse_connections_csv(csv).unwrap();
+        let c = username_candidates(&people[0]);
+        assert!(
+            !c.iter().any(|u| u.contains("a1b2c3d4")),
+            "linkedin member id must not be sent to X: {c:?}"
+        );
+        assert!(c.iter().all(|u| is_valid_x_username(u)));
+        assert!(c.iter().any(|u| u == "pat_lee" || u == "patlee"));
     }
 
     #[test]

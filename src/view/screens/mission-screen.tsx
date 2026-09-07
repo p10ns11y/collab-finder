@@ -3,7 +3,7 @@
  * THESIS: Scan ranked postings in the major pane; filters stay on the φ-minor rail.
  * OWN-WORLD: collab-finder instrument (surfaces, chips, amber accent).
  * STORY: Pull → select → Import/Evaluate → fit/prep.
- * FIRST VIEWPORT: left filters + Pull; right list (or fit after evaluate).
+ * FIRST VIEWPORT: list left; filters + Pull on the right (Discover chrome).
  * FORM: Discover φ-split extended; list is the hero, not a stacked panel.
  */
 import * as React from 'react'
@@ -16,6 +16,7 @@ import { SectionLabel } from '../../components/ui/section-label'
 import { type MissionFirmLead, missionHasPullQueryKey } from '../../core/domain/mission-firms'
 import { HuntFitPane, huntTargetIsActive } from '../../components/finder/hunt-fit-pane'
 import { HuntPresetsRow } from '../../components/finder/hunt-presets-row'
+import { HuntSplitShell } from '../../components/layout/hunt-split-shell'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
 import type { FinderMsg } from '../../core/finder/msg'
@@ -69,10 +70,9 @@ export function MissionScreen({ view, dispatch }: Props) {
   }, [dispatch, model.missionFirms.status])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
-      <aside
-        className="w-full min-w-0 shrink-0 space-y-3 overflow-x-hidden overflow-y-auto border-b border-border-subtle p-3 lg:min-w-[280px] lg:max-w-[min(420px,42%)] lg:shrink-0 lg:flex-[0_0_var(--pane-minor)] lg:border-b-0 lg:border-r lg:p-4"
-      >
+    <HuntSplitShell
+      controls={
+        <>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Mission</SectionLabel>
@@ -216,9 +216,10 @@ export function MissionScreen({ view, dispatch }: Props) {
             {err}
           </p>
         ) : null}
-      </aside>
-
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3 lg:p-5">
+        </>
+      }
+      document={
+        <>
         {leads.length > 0 ? (
           <div className="space-y-3">
             {fitForThisHunt ? <HuntFitPane view={view} dispatch={dispatch} /> : null}
@@ -263,7 +264,7 @@ export function MissionScreen({ view, dispatch }: Props) {
             title="Pull mission postings"
             description={
               pullQueryReady
-                ? 'Select firms on the left, optionally refine the title filter, then Pull. Results fill this pane.'
+                ? 'Select firms on the right, optionally refine the title filter, then Pull. Results fill this pane.'
                 : 'Pick a rail chip or type a title filter to enable network Pull. Opening Mission still restores any saved cache.'
             }
             action={
@@ -283,8 +284,9 @@ export function MissionScreen({ view, dispatch }: Props) {
         ) : busy ? (
           <EmptyState title="Pulling boards…" description="Greenhouse, Lever, Ashby, JobTech, Tesla dump." />
         ) : null}
-      </div>
-    </div>
+        </>
+      }
+    />
   )
 }
 
