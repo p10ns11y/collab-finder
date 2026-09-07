@@ -31,9 +31,29 @@ export function timelineFromEvents(events: Event[], opportunityId: number): Oppo
   return { analyzedAt, preppedAt }
 }
 
-export function formatPipelineDate(iso: string | undefined): string {
-  if (!iso) return '—'
+export function parsePipelineIso(iso: string | undefined): Date | null {
+  if (!iso) return null
   const parsed = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`)
-  if (Number.isNaN(parsed.getTime())) return iso.slice(0, 10)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+export function formatPipelineDate(iso: string | undefined): string {
+  const parsed = parsePipelineIso(iso)
+  if (!parsed) return iso ? iso.slice(0, 10) : '—'
   return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
+}
+
+/** Whole days since apply timestamp (UTC-normalized). */
+export function daysSinceApplied(iso: string | undefined, now = new Date()): number | null {
+  const applied = parsePipelineIso(iso)
+  if (!applied) return null
+  const ms = now.getTime() - applied.getTime()
+  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)))
+}
+
+export function formatDaysWaiting(days: number | null): string {
+  if (days == null) return '—'
+  if (days === 0) return 'today'
+  if (days === 1) return '1d'
+  return `${days}d`
 }

@@ -12,12 +12,28 @@ import {
   OUTCOME_STATUSES,
   PIPELINE_STATUSES,
   filterOpportunitiesForPipelineView,
+  isPipelineRelevant,
   normalizePipelineStatus,
   outcomeStatusLabel,
   pipelineStatusLabel,
   type PipelineViewFilter,
 } from '../../core/domain/opportunity-pipeline'
-import { formatPipelineDate, timelineFromEvents } from '../../core/domain/pipeline-timeline'
+import {
+  classifyReplyLane,
+  filterFollowupOpportunities,
+  isWaitingOnEmployer,
+  needsCompensatingFollowUp,
+  replyLaneLabel,
+  replyLaneShort,
+  replyWaitingHint,
+  sortForReplyTracking,
+} from '../../core/domain/apply-reply-lane'
+import {
+  daysSinceApplied,
+  formatDaysWaiting,
+  formatPipelineDate,
+  timelineFromEvents,
+} from '../../core/domain/pipeline-timeline'
 import { openExternalUrl } from '../../adapters/tauri/open-external'
 
 type Props = {
@@ -30,6 +46,7 @@ const VIEW_FILTERS: { id: PipelineViewFilter; label: string }[] = [
   { id: 'active', label: 'Active' },
   { id: 'applied', label: 'Applied' },
   { id: 'waiting', label: 'Waiting' },
+  { id: 'followup', label: 'Follow-up' },
   { id: 'closed', label: 'Closed' },
 ]
 
@@ -37,8 +54,14 @@ function rowLabel(opp: Opportunity): string {
   return opp.company || opp.title || opp.source_url || `Opportunity #${opp.id}`
 }
 
+function laneTone(lane: ReturnType<typeof classifyReplyLane>): 'neutral' | 'accent' | 'warning' {
+  if (lane === 'compensating') return 'accent'
+  if (lane === 'sweden') return 'warning'
+  return 'neutral'
+}
+
 export function PipelineScreen({ view, dispatch }: Props) {
-  const [viewFilter, setViewFilter] = useState<PipelineViewFilter>('all')
+  const [viewFilter, setViewFilter] = useState<PipelineViewFilter>('waiting')
   const [query, setQuery] = useState('')
 
   const opportunities = view.pipelineOpportunities ?? []
@@ -49,17 +72,40 @@ export function PipelineScreen({ view, dispatch }: Props) {
     dispatch({ type: 'HistoryRefreshRequested' })
   }, [dispatch])
 
+  const followUpCount = useMemo(
+    () => opportunities.filter((o) => needsCompensatingFollowUp(o)).length,
+    [opportunities],
+  )
+
   const rows = useMemo(() => {
-    const filtered = filterOpportunitiesForPipelineView(opportunities, viewFilter)
+    const base =
+      viewFilter === 'followup'
+        ? filterFollowupOpportunities(opportunities.filter(isPipelineRelevant))
+        : filterOpportunitiesForPipelineView(opportunities, viewFilter)
     const q = query.trim().toLowerCase()
-    if (!q) return filtered
-    return filtered.filter((opp) => {
-      const hay = [opp.title, opp.company, opp.source_url, String(opp.id), opp.status, opp.outcome_status]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(q)
-    })
+    const searched = q
+      ? base.filter((opp) => {
+          const hay = [
+            opp.title,
+            opp.company,
+            opp.source_url,
+            String(opp.id),
+            opp.status,
+            opp.outcome_status,
+            replyLaneLabel(classifyReplyLane(opp)),
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+          return hay.includes(q)
+        })
+      : base
+
+    if (viewFilter === 'followup') return searched
+    if (viewFilter === 'waiting' || viewFilter === 'applied' || viewFilter === 'all') {
+      return sortForReplyTracking(searched)
+    }
+    return searched
   }, [opportunities, viewFilter, query])
 
   const appliedCount = useMemo(
@@ -85,9 +131,8 @@ export function PipelineScreen({ view, dispatch }: Props) {
             Pipeline
           </div>
           <p className="mt-1 max-w-prose text-xs text-ink-faint">
-            Source of truth for your hunt. collab-finder SQLite holds prep and status. Outcome tracks
-            post-apply progress. Private narrative stays in life-os{' '}
-            <span className="font-mono">private/career/</span>.
+            Applied rows show lane tempo and days waiting. Fast-reply ATS targets surface for
+            follow-up at 2d; Sweden / AF stays visible with patient pacing.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => {
@@ -103,10 +148,12 @@ export function PipelineScreen({ view, dispatch }: Props) {
         {VIEW_FILTERS.map(({ id, label }) => (
           <Chip key={id} active={viewFilter === id} onClick={() => setViewFilter(id)}>
             {label}
+            {id === 'followup' && followUpCount > 0 ? ` (${followUpCount})` : ''}
           </Chip>
         ))}
         <span className="text-[11px] text-ink-faint">
           {rows.length} shown · {appliedCount} applied in DB
+          {followUpCount > 0 ? ` · ${followUpCount} ATS follow-up` : ''}
           {view.pipelineBusy ? ' · loading…' : ''}
         </span>
       </div>
@@ -114,7 +161,7 @@ export function PipelineScreen({ view, dispatch }: Props) {
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Filter company, title, #id…"
+        placeholder="Filter company, title, lane, #id…"
         className="mb-3 h-8 font-mono text-xs"
       />
 
@@ -124,11 +171,13 @@ export function PipelineScreen({ view, dispatch }: Props) {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto rounded border border-border-subtle">
-          <table className="w-full min-w-[56rem] text-left text-xs">
+          <table className="w-full min-w-[62rem] text-left text-xs">
             <thead className="sticky top-0 z-10 bg-surface-1/95 text-[10px] uppercase tracking-wide text-ink-faint">
               <tr>
                 <th className="px-2 py-2">#</th>
                 <th className="px-2 py-2">Role</th>
+                <th className="px-2 py-2">Lane</th>
+                <th className="px-2 py-2">Wait</th>
                 <th className="px-2 py-2">Fit</th>
                 <th className="px-2 py-2">Prep</th>
                 <th className="px-2 py-2">Outcome</th>
@@ -142,8 +191,16 @@ export function PipelineScreen({ view, dispatch }: Props) {
               {rows.map((opp) => {
                 const timeline = timelineFromEvents(events, opp.id)
                 const prepStatus = normalizePipelineStatus(opp.status)
+                const lane = classifyReplyLane(opp)
+                const waiting = isWaitingOnEmployer(opp)
+                const days = waiting ? daysSinceApplied(opp.applied_at) : null
+                const hint = replyWaitingHint(opp)
+                const followUp = needsCompensatingFollowUp(opp)
                 return (
-                  <tr key={opp.id} className="hover:bg-surface-2/40">
+                  <tr
+                    key={opp.id}
+                    className={`hover:bg-surface-2/40 ${followUp ? 'bg-warning/5' : ''}`}
+                  >
                     <td className="px-2 py-2 font-mono text-accent/90">#{opp.id}</td>
                     <td className="max-w-[14rem] px-2 py-2">
                       <button
@@ -157,6 +214,25 @@ export function PipelineScreen({ view, dispatch }: Props) {
                       {opp.title && opp.company ? (
                         <div className="truncate text-[10px] text-ink-faint">{opp.title}</div>
                       ) : null}
+                      {hint ? (
+                        <div className="mt-0.5 max-w-[16rem] text-[10px] leading-snug text-ink-faint">
+                          {hint}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Badge tone={laneTone(lane)} className="text-[10px]" title={replyLaneLabel(lane)}>
+                        {replyLaneShort(lane)}
+                      </Badge>
+                    </td>
+                    <td className="px-2 py-2 font-mono text-[10px]">
+                      {waiting ? (
+                        <span className={followUp ? 'font-semibold text-warning' : 'text-ink-muted'}>
+                          {formatDaysWaiting(days)}
+                        </span>
+                      ) : (
+                        <span className="text-ink-faint">—</span>
+                      )}
                     </td>
                     <td className="px-2 py-2">
                       {opp.fit_score != null ? (

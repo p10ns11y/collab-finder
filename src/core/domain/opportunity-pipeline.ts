@@ -155,10 +155,22 @@ export function isPipelineRelevant(opp: PipelineOpp): boolean {
   return false
 }
 
-export type PipelineViewFilter = 'all' | 'active' | 'applied' | 'waiting' | 'closed'
+export type PipelineViewFilter =
+  | 'all'
+  | 'active'
+  | 'applied'
+  | 'waiting'
+  | 'followup'
+  | 'closed'
 
 export function filterOpportunitiesForPipelineView<
-  T extends PipelineOpp & { outcome_status?: string },
+  T extends PipelineOpp & {
+    outcome_status?: string
+    applied_at?: string
+    source_url?: string
+    source_ref?: string
+    notes?: string
+  },
 >(rows: T[], filter: PipelineViewFilter): T[] {
   const relevant = rows.filter(isPipelineRelevant)
   switch (filter) {
@@ -171,6 +183,14 @@ export function filterOpportunitiesForPipelineView<
         (o) =>
           normalizePipelineStatus(o.status) === 'applied' &&
           (!o.outcome_status || o.outcome_status === 'waiting' || o.outcome_status === 'screening'),
+      )
+    case 'followup':
+      return relevant.filter(
+        (o) =>
+          normalizePipelineStatus(o.status) === 'applied' &&
+          (!o.outcome_status ||
+            o.outcome_status === 'waiting' ||
+            o.outcome_status === 'screening'),
       )
     case 'closed':
       return relevant.filter(
