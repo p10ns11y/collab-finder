@@ -36,6 +36,7 @@ import {
   missionFirmsEvaluateCmd,
   missionFirmsImportCmd,
   missionFirmsListCachedCmd,
+  missionFirmsRefilterCmd,
   missionFirmsSearchCmd,
   missionLeadInspectCmd,
   platsbankenEvaluateCmd,
@@ -49,6 +50,7 @@ export {
   missionFirmsEvaluateCmd,
   missionFirmsImportCmd,
   missionFirmsListCachedCmd,
+  missionFirmsRefilterCmd,
   missionFirmsSearchCmd,
   missionLeadInspectCmd,
   platsbankenEvaluateCmd,
@@ -1227,11 +1229,7 @@ export function effectForMsg(
     case 'DurableFirmsRequested':
       return durableFirmsCmd(ports, msg.next === true)
     case 'DurableFirmsSucceeded':
-      return msg.advanced
-        ? (dispatch) => {
-            dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: true })
-          }
-        : undefined
+      return msg.advanced ? missionFirmsRefilterCmd(ports, model) : undefined
     case 'MissionLeadInspectRequested':
       return missionLeadInspectCmd(ports, msg.lead)
     case 'MissionFirmsSearchRequested':
@@ -1243,9 +1241,15 @@ export function effectForMsg(
     case 'MissionFirmsFirmToggled':
     case 'MissionFirmsTexasOnlyToggled':
     case 'MissionFirmsTerafabBiasToggled':
-      return model.missionFirms.status === 'ready' || model.missionFirms.status === 'failed'
-        ? missionFirmsListCachedCmd(ports, model)
-        : undefined
+      return missionFirmsRefilterCmd(ports, model)
+    case 'HuntRailChipApplied':
+      return msg.surface === 'mission' ? missionFirmsRefilterCmd(ports, model) : undefined
+    case 'HuntHarvestKeyApplied':
+      return msg.surface === 'mission' ? missionFirmsRefilterCmd(ports, model) : undefined
+    case 'HuntPresetSelected':
+      return msg.surface === 'mission' ? missionFirmsRefilterCmd(ports, model) : undefined
+    case 'HuntPresetCleared':
+      return missionFirmsRefilterCmd(ports, model)
     case 'MissionFirmsEvaluateRequested':
       return missionFirmsEvaluateCmd(ports, model, msg.lead, opportunityTargetAnalyzeCmd)
     case 'NetworkLoadRequested':

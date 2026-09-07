@@ -167,6 +167,22 @@ export function missionLeadInspectCmd(
   }
 }
 
+/** Re-filter Mission list from hull cache after query/firm/rail changes — never network Pull. */
+export function missionFirmsRefilterCmd(
+  ports: FinderPorts,
+  model: FinderModel,
+): Cmd<FinderMsg> | undefined {
+  if (model.missionFirms.status === 'ready' || model.missionFirms.status === 'failed') {
+    return missionFirmsListCachedCmd(ports, model)
+  }
+  if (model.missionFirms.status === 'idle') {
+    return (dispatch) => {
+      dispatch({ type: 'MissionFirmsSearchRequested', forceRefresh: false })
+    }
+  }
+  return undefined
+}
+
 export function missionFirmsListCachedCmd(
   ports: FinderPorts,
   model: FinderModel,
