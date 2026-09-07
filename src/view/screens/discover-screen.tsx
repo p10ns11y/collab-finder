@@ -85,11 +85,23 @@ export function DiscoverScreen({ view, dispatch }: Props) {
   const [railFilter, setRailFilter] = React.useState<PipelineFilter>('active')
   const [railQuery, setRailQuery] = React.useState('')
   const [showAll, setShowAll] = React.useState(false)
-  const [intent, setIntent] = React.useState<DiscoverChromeIntent>('auto')
+  const hasEvaluateSeed = Boolean(
+    (model.opportunityTargetUrl && model.opportunityTargetUrl.trim()) ||
+      (model.opportunityTargetPastedJd && model.opportunityTargetPastedJd.trim()),
+  )
+  const [intent, setIntent] = React.useState<DiscoverChromeIntent>(() =>
+    discoverChromeIntentAfterOppChange({
+      hasResult: hasDockedResult,
+      hasEvaluateSeed,
+    }),
+  )
   const [prevSelectedOppId, setPrevSelectedOppId] = React.useState(selectedOppId)
   if (selectedOppId !== prevSelectedOppId) {
     setPrevSelectedOppId(selectedOppId)
-    const nextIntent = discoverChromeIntentAfterOppChange()
+    const nextIntent = discoverChromeIntentAfterOppChange({
+      hasResult: hasDockedResult,
+      hasEvaluateSeed,
+    })
     if (intent !== nextIntent) setIntent(nextIntent)
   }
 

@@ -66,6 +66,7 @@ assert(discover.includes('resolveDiscoverChrome'), 'DiscoverScreen uses resolveD
 assert(discover.includes("from '../../core/domain/discover-chrome'"), 'discover-chrome resolve import')
 assert(discover.includes("setIntent('evaluate')") && discover.includes('DiscoverEvaluateFloat'), 'Evaluate FAB overlay')
 assert(discover.includes('aria-label="Evaluate"'), 'sticky Evaluate control')
+assert(discover.includes('hasEvaluateSeed'), 'unevaluated row opens Evaluate when URL/JD seeded')
 assert(
   discover.indexOf('OpportunityTargetFitPanel') < discover.indexOf('HireBoardPanel'),
   'fit panel source before setup widgets',

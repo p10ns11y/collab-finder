@@ -68,7 +68,18 @@ assert(
   'result + evaluate -> overlay open',
 )
 
-assert(discoverChromeIntentAfterOppChange() === 'auto', 'opp change re-applies auto')
+assert(
+  discoverChromeIntentAfterOppChange({ hasResult: false, hasEvaluateSeed: true }) === 'evaluate',
+  'no fit + seeded URL/JD opens Evaluate',
+)
+assert(
+  discoverChromeIntentAfterOppChange({ hasResult: true, hasEvaluateSeed: true }) === 'auto',
+  'saved fit does not steal Evaluate overlay',
+)
+assert(
+  discoverChromeIntentAfterOppChange({ hasResult: false, hasEvaluateSeed: false }) === 'auto',
+  'empty Discover stays auto',
+)
 
 if (failed) {
   console.error(`\n${failed} assertion(s) failed`)

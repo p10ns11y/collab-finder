@@ -30,6 +30,10 @@ export function resolveDiscoverChrome(input: {
   }
 }
 
-export function discoverChromeIntentAfterOppChange(): DiscoverChromeIntent {
+export function discoverChromeIntentAfterOppChange(input: {
+  hasResult: boolean
+  hasEvaluateSeed: boolean
+}): DiscoverChromeIntent {
+  if (!input.hasResult && input.hasEvaluateSeed) return 'evaluate'
   return 'auto'
 }
