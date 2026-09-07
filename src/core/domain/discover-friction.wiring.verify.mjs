@@ -120,6 +120,8 @@ assert(!discover.includes('SearchWorkspace'), 'discover screen does not host X s
 assert(!discover.includes("mode: 'discover'"), 'discover screen has no mode prop')
 assert(xplore.includes('SearchWorkspace'), 'xplore screen owns X search workspace')
 assert(xplore.includes('TweetFeed'), 'xplore screen owns tweet feed')
+assert(xplore.includes('HuntSplitShell'), 'xplore uses HuntSplitShell')
+assert(xplore.indexOf('document={') < xplore.indexOf('controls={'), 'xplore results before search controls')
 assert(xplore.includes('CvCycleContextPanel'), 'xplore shows cycle CV context panel')
 assert(cvCyclePanel.includes('get_operator_pack_status'), 'cycle CV panel reads pack health')
 assert(cvCyclePanel.includes('packHealthLabel'), 'cycle CV panel uses pack health tone labels')

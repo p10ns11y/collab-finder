@@ -23,6 +23,7 @@ const effects = read('src/core/finder/effects-hunt.ts')
 const fitPane = read('src/components/finder/hunt-fit-pane.tsx')
 const update = read('src/core/finder/update.ts')
 
+assert(sweden.includes('HuntSplitShell'), 'Sweden uses HuntSplitShell')
 assert(!msg.includes('PlatsbankenImportRequested'), 'no phantom Platsbanken Import dispatch')
 assert(sweden.includes('PlatsbankenEvaluateRequested'), 'Sweden uses Evaluate')
 assert(!sweden.includes('PlatsbankenImportRequested'), 'Sweden screen has no Import button dispatch')

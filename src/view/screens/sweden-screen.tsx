@@ -3,7 +3,7 @@
  * THESIS: Sweden-specific hunt with room for AF workflows; not a Discover side panel.
  * OWN-WORLD: collab-finder instrument (surfaces, chips, amber accent).
  * STORY: Search (auto-persist) → select → Evaluate → fit/prep for benefits reporting.
- * FIRST VIEWPORT: left query + municipality chips; right ad list (or fit after evaluate).
+ * FIRST VIEWPORT: ad list left; query + municipality chips on the right (Discover chrome).
  * FORM: Discover φ-split; list is the hero for Swedish emergency/runway work.
  */
 import * as React from 'react'
@@ -20,6 +20,7 @@ import {
 } from '../../core/domain/platsbanken'
 import { HuntFitPane, huntFitVisibleForLeads } from '../../components/finder/hunt-fit-pane'
 import { HuntPresetsRow } from '../../components/finder/hunt-presets-row'
+import { HuntSplitShell } from '../../components/layout/hunt-split-shell'
 import { prepareJobtechQuery } from '../../core/domain/hunt-rails'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -48,10 +49,9 @@ export function SwedenScreen({ view, dispatch }: Props) {
   const fitForThisHunt = huntFitVisibleForLeads(view, leads)
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0/40 lg:flex-row">
-      <aside
-        className="w-full min-w-0 shrink-0 space-y-3 overflow-x-hidden overflow-y-auto border-b border-border-subtle p-3 lg:min-w-[280px] lg:max-w-[min(420px,42%)] lg:shrink-0 lg:flex-[0_0_var(--pane-minor)] lg:border-b-0 lg:border-r lg:p-4"
-      >
+    <HuntSplitShell
+      controls={
+        <>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
             <SectionLabel meta={leads.length ? `${leads.length}` : undefined}>Sweden</SectionLabel>
@@ -181,9 +181,10 @@ export function SwedenScreen({ view, dispatch }: Props) {
             {err}
           </p>
         ) : null}
-      </aside>
-
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3 lg:p-5">
+        </>
+      }
+      document={
+        <>
         {leads.length > 0 ? (
           <div className="space-y-3">
             {fitForThisHunt ? <HuntFitPane view={view} dispatch={dispatch} /> : null}
@@ -235,8 +236,9 @@ export function SwedenScreen({ view, dispatch }: Props) {
         ) : busy ? (
           <EmptyState title="Searching JobTech…" description="Open JobSearch API · Arbetsförmedlingen." />
         ) : null}
-      </div>
-    </div>
+        </>
+      }
+    />
   )
 }
 

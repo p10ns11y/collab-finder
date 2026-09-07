@@ -18,10 +18,15 @@ function assert(cond, msg) {
 }
 
 const mission = read('src/view/screens/mission-screen.tsx')
+const huntShell = read('src/components/layout/hunt-split-shell.tsx')
 const effects = read('src/core/finder/effects.ts')
 const effectsHunt = read('src/core/finder/effects-hunt.ts')
 const huntCmd = read('src-tauri/src/commands/hunt.rs')
 
+assert(mission.includes('HuntSplitShell'), 'Mission uses HuntSplitShell')
+assert(huntShell.includes('lg:border-l'), 'hunt shell docks controls with left border (right pane)')
+assert(!huntShell.includes('lg:border-r'), 'hunt shell does not dock controls on the left')
+assert(huntShell.indexOf('{document}') < huntShell.indexOf('{controls}'), 'hunt shell renders document before controls')
 assert(mission.includes('forceRefresh: false'), 'Mission idle hydrate uses cache-first')
 assert(mission.includes('missionHasPullQueryKey'), 'Mission gates network Pull on query key')
 assert(effectsHunt.includes('missionFirmsRefilterCmd'), 'refilter helper exported')
