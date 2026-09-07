@@ -89,60 +89,62 @@ pub async fn search_mission_firms(
     mission_firms::mark_already_in_db(&mut leads, &known);
 
     // Persist the pull so Data → Search runs + Opportunities survive restart.
-    if let Ok(store) = db.0.lock() {
-        let q = filter.q.clone().unwrap_or_default();
-        let _ = store.record_search_run(
-            &format!("mission_pull {q}"),
-            "mission_pull",
-            Some(leads.len() as i32),
-            None,
-            None,
-            0,
-            None,
-            None,
-        );
-        let _ = store.record_event(
-            "mission_pull",
-            Some(&format!("{{\"n\":{}}}", leads.len())),
-            None,
-            Some("mission"),
-        );
-        for lead in &leads {
-            if lead.absolute_url.trim().is_empty() {
-                continue;
-            }
-            let stub = format!(
-                "{}\n{}\n{}\n{}",
-                lead.title,
-                lead.location,
-                lead.absolute_url,
-                lead.rank_reasons.join("; ")
-            );
-            let _ = store.upsert_opportunity(
+    if filter.force_refresh {
+        if let Ok(store) = db.0.lock() {
+            let q = filter.q.clone().unwrap_or_default();
+            let _ = store.record_search_run(
+                &format!("mission_pull {q}"),
                 "mission_pull",
-                Some(&lead.absolute_url),
-                Some(&format!("{}:{}", lead.source, lead.external_id)),
-                Some(&lead.title),
-                Some(&lead.firm_label),
-                &stub,
-                "new",
-                Some(lead.rank_score.round() as i32),
+                Some(leads.len() as i32),
                 None,
                 None,
-                Some(&format!("mission_pull; firm:{}", lead.firm_id)),
+                0,
+                None,
+                None,
             );
+            let _ = store.record_event(
+                "mission_pull",
+                Some(&format!("{{\"n\":{}}}", leads.len())),
+                None,
+                Some("mission"),
+            );
+            for lead in &leads {
+                if lead.absolute_url.trim().is_empty() {
+                    continue;
+                }
+                let stub = format!(
+                    "{}\n{}\n{}\n{}",
+                    lead.title,
+                    lead.location,
+                    lead.absolute_url,
+                    lead.rank_reasons.join("; ")
+                );
+                let _ = store.upsert_opportunity(
+                    "mission_pull",
+                    Some(&lead.absolute_url),
+                    Some(&format!("{}:{}", lead.source, lead.external_id)),
+                    Some(&lead.title),
+                    Some(&lead.firm_label),
+                    &stub,
+                    "new",
+                    Some(lead.rank_score.round() as i32),
+                    None,
+                    None,
+                    Some(&format!("mission_pull; firm:{}", lead.firm_id)),
+                );
+            }
+            let known2: Vec<(String, i64)> = store
+                .get_opportunities(&db::OpportunityFilter {
+                    limit: Some(800),
+                    ..Default::default()
+                })
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|o| o.source_url.map(|u| (u, o.id)))
+                .collect();
+            drop(store);
+            mission_firms::mark_already_in_db(&mut leads, &known2);
         }
-        let known2: Vec<(String, i64)> = store
-            .get_opportunities(&db::OpportunityFilter {
-                limit: Some(800),
-                ..Default::default()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|o| o.source_url.map(|u| (u, o.id)))
-            .collect();
-        drop(store);
-        mission_firms::mark_already_in_db(&mut leads, &known2);
     }
 
     Ok(leads)
