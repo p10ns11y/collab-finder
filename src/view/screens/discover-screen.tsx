@@ -284,8 +284,16 @@ export function DiscoverScreen({ view, dispatch }: Props) {
           />
         ) : (
           <EmptyState
-            title="No opportunity selected"
-            description="Choose a row from Your opportunities, or evaluate a new target on the left."
+            title={
+              typeof model.lastActiveOppId === 'number'
+                ? `#${model.lastActiveOppId} has no saved fit`
+                : 'No opportunity selected'
+            }
+            description={
+              typeof model.lastActiveOppId === 'number'
+                ? 'URL and JD are on the left. Evaluate to build the panel.'
+                : 'Choose a row from Your opportunities, or evaluate a new target on the left.'
+            }
           />
         )}
       </div>

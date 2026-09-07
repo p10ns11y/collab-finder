@@ -38,6 +38,32 @@ export function usableOpportunityJdText(text?: string | null): string | undefine
   return text
 }
 
+export type DiscoverJdSeedInput = {
+  jd_text?: string | null
+  title?: string | null
+  company?: string | null
+  source_url?: string | null
+}
+
+/**
+ * Prefill Discover's JD box from a pipeline/history row.
+ * Prefer stored JD; otherwise company + title + URL so Evaluate still has text
+ * when analysis blobs were never saved (cloud-synced apply rows).
+ */
+export function seedDiscoverJd(input: DiscoverJdSeedInput): string | undefined {
+  const real = usableOpportunityJdText(input.jd_text)
+  if (real) return real
+  const company = input.company?.trim()
+  const title = input.title?.trim()
+  const url = input.source_url?.trim()
+  const lines: string[] = []
+  if (company && title) lines.push(`${company} · ${title}`)
+  else if (company) lines.push(company)
+  else if (title) lines.push(title)
+  if (url) lines.push(url)
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 export type OpportunityTargetPrep = {
   cover_letter: string
   cv_suggestions: string[]

@@ -1,4 +1,8 @@
-import type { OpportunityTargetAnalysisResult, OpportunityTargetFit } from './opportunity-target'
+import {
+  seedDiscoverJd,
+  type OpportunityTargetAnalysisResult,
+  type OpportunityTargetFit,
+} from './opportunity-target'
 import type { Opportunity } from './history'
 
 /**
@@ -76,6 +80,29 @@ export function reconstructAnalysisFromOpportunity(o: Opportunity): OpportunityT
     return analysis
   }
   return null
+}
+
+export type OpportunityHydratePlan = {
+  url?: string
+  pasted_jd?: string
+  analysis: OpportunityTargetAnalysisResult | null
+  /** Idle the fit panel; never wipe URL/JD (that was OpportunityTargetCleared). */
+  idleFitPanel: boolean
+}
+
+/**
+ * What Discover should show after a successful getOpportunities({id}).
+ * Missing analysis_json is normal for cloud-synced apply rows — keep the seed.
+ */
+export function hydrateOpportunityTargetPlan(o: Opportunity): OpportunityHydratePlan {
+  const analysis = reconstructAnalysisFromOpportunity(o)
+  const hasPrep = Boolean(o.prep_artifacts_json && o.prep_artifacts_json.trim())
+  return {
+    url: o.source_url?.trim() || undefined,
+    pasted_jd: seedDiscoverJd(o),
+    analysis,
+    idleFitPanel: analysis == null && !hasPrep,
+  }
 }
 
 /**

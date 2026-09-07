@@ -18,6 +18,9 @@ function assert(cond, msg) {
 }
 
 const discover = read('src/view/screens/discover-screen.tsx')
+const pipeline = read('src/view/screens/pipeline-screen.tsx')
+const effects = read('src/core/finder/effects.ts')
+const update = read('src/core/finder/update.ts')
 const xplore = read('src/view/screens/xplore-screen.tsx')
 const cvCyclePanel = read('src/components/finder/cv-cycle-context-panel.tsx')
 const panel = read('src/components/finder/opportunity-target-fit-panel.tsx')
@@ -76,6 +79,25 @@ assert(panel.includes('cover-letter.md') || panel.includes('cover_letter'), 'sec
 assert(lib.includes('update_opportunity_status_cmd'), 'status cmd registered')
 assert(panel.includes('onStatusChange') || panel.includes('Applied'), 'status actions in panel')
 assert(discover.includes('OpportunityStatusChangeRequested'), 'status dispatch from discover')
+
+// Pipeline → Discover: seed JD, do not wipe on missing analysis blobs (cloud-synced apply rows)
+assert(pipeline.includes('openInDiscover'), 'pipeline openInDiscover')
+assert(pipeline.includes('seedDiscoverJd'), 'pipeline seeds JD before Discover')
+assert(pipeline.includes("screen: 'discover'"), 'pipeline navigates to discover')
+assert(pipeline.includes('reveal: true'), 'pipeline reveal Discover after load')
+assert(pipeline.includes('table-fixed'), 'pipeline table-layout fixed (cell overflow)')
+assert(pipeline.includes('min-w-0 flex-1 overflow-auto'), 'pipeline scrollport can shrink (WebKit)')
+assert(pipeline.includes('bg-surface-1 ') || pipeline.includes('bg-surface-1 text-'), 'pipeline sticky header opaque')
+assert(effects.includes('OpportunityTargetHydrateEmpty'), 'hydrate idles panel without wipe')
+assert(effects.includes('hydrateOpportunityTargetPlan'), 'hydrate uses seed plan')
+assert(
+  !/if \(!o\.analysis_json && !o\.prep_artifacts_json\) \{\s*dispatch\(\{ type: 'OpportunityTargetCleared' \}\)/.test(
+    effects,
+  ),
+  'hydrate no longer clears URL/JD when blobs missing',
+)
+assert(update.includes("case 'OpportunityTargetHydrateEmpty'"), 'update handles HydrateEmpty')
+assert(discover.includes('has no saved fit'), 'Discover empty state names missing fit')
 
 // Settings calm
 assert(!settings.match(/details open/), 'settings details not force-open')

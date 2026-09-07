@@ -9,7 +9,7 @@ import type { LeadFilter, OpportunityFilter } from '../../adapters/tauri/finder-
 import type { Opportunity } from '../domain/history'
 import type { OpportunityTargetAnalysisResult, OpportunityTargetPrep, OpportunityTargetPrepResult, OpportunityTargetResult } from '../domain/opportunity-target'
 import { serializePreviousFitForPrep, usableOpportunityJdText } from '../domain/opportunity-target'
-import { cvSummaryForIpc, reconstructAnalysisFromOpportunity } from '../domain/opportunity-target-ipc'
+import { cvSummaryForIpc, hydrateOpportunityTargetPlan } from '../domain/opportunity-target-ipc'
 import { isPlausibleCvPacket, sanitizeCvPacket } from '../domain/cv-packet'
 import { DEFAULT_CV_SUMMARY } from '../domain/search-presets'
 import { normalizeOpportunityUrl } from '../domain/opportunity-url'
@@ -1038,26 +1038,30 @@ export function loadOpportunityCmd(
         dispatch({ type: 'OpportunityTargetCleared' })
         return
       }
-      // Persist what we now know for next restart (url for open button etc).
-      persistSessionToLocal({ lastActiveOppId: o.id, opportunityTargetUrl: o.source_url })
+      const plan = hydrateOpportunityTargetPlan(o)
+      // Persist what we now know for next restart (url + JD for Open in Discover).
+      persistSessionToLocal({
+        lastActiveOppId: o.id,
+        opportunityTargetUrl: plan.url,
+        opportunityTargetPastedJd: plan.pasted_jd
+          ? plan.pasted_jd.slice(0, PASTED_JD_SESSION_MAX_CHARS)
+          : undefined,
+      })
       // Boot/hydrate must not steal the sidebar. Only explicit Open/select (reveal) goes to Discover.
       // Waybar Apply (`open-route=heading`) holds Heading even if a caller asked to reveal.
       if (opts?.revealDiscover && !isClusterHeadingHold()) {
         dispatch({ type: 'ScreenChanged', screen: 'discover' })
       }
-      // Ensure live model has the url for panel (Open button + prep re-dispatch with correct source_url). Pure setter, no I/O.
-      dispatch({ type: 'OpportunityTargetUrlSet', url: o.source_url })
-      dispatch({ type: 'OpportunityTargetJdSet', pasted_jd: usableOpportunityJdText(o.jd_text) })
+      // Ensure live model has the url/JD for panel + Evaluate. Pure setters, no I/O.
+      dispatch({ type: 'OpportunityTargetUrlSet', url: plan.url })
+      dispatch({ type: 'OpportunityTargetJdSet', pasted_jd: plan.pasted_jd })
 
-      // Robust reconstruct using the pure contract (moved to opportunity-target-ipc for testability and honest verify).
       let fitDispatched = false
-      const reconstructed = reconstructAnalysisFromOpportunity(o)
-      if (reconstructed) {
-        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: reconstructed })
+      if (plan.analysis) {
+        dispatch({ type: 'OpportunityTargetAnalyzeSucceeded', result: plan.analysis })
         fitDispatched = true
       }
-      // If reconstruction produced a legacy stub (no cv meta), warn (the pure fn already produces the stub shape when needed).
-      if (fitDispatched && reconstructed && (reconstructed.cv_chars_sent === 0 && reconstructed.cv_ipc_chars === 0)) {
+      if (fitDispatched && plan.analysis && plan.analysis.cv_chars_sent === 0 && plan.analysis.cv_ipc_chars === 0) {
         console.warn('[finder] hydrate: legacy/ stub analysis without cv meta for id', id)
       }
 
@@ -1071,6 +1075,7 @@ export function loadOpportunityCmd(
         })
       }
 
+      let prepDispatched = false
       if (o.prep_artifacts_json) {
         try {
           const parsed = JSON.parse(o.prep_artifacts_json) as Partial<OpportunityTargetPrepResult> & { prep?: unknown }
@@ -1088,14 +1093,15 @@ export function loadOpportunityCmd(
             est_cost_usd: (parsed as { est_cost_usd?: number }).est_cost_usd ?? 0,
           }
           dispatch({ type: 'OpportunityTargetPrepSucceeded', result: prepRes })
+          prepDispatched = true
         } catch {
           console.warn('[finder] hydrate: malformed prep_artifacts_json for id', id)
           /* skip */
         }
       }
 
-      if (!o.analysis_json && !o.prep_artifacts_json) {
-        dispatch({ type: 'OpportunityTargetCleared' })
+      if (!fitDispatched && !prepDispatched) {
+        dispatch({ type: 'OpportunityTargetHydrateEmpty' })
       }
     })
   }

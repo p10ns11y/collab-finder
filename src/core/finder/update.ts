@@ -141,6 +141,8 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           lastActiveOppId: msg.id,
           // Set url if provided (from Data row or restore); enables exact "Open URL" + prep re-use with correct source after hydrate.
           ...(msg.url !== undefined ? { opportunityTargetUrl: msg.url } : {}),
+          // Optimistic JD from Pipeline/rail; loadOpportunityCmd overwrites from DB. Clear stale JD when omitted.
+          opportunityTargetPastedJd: msg.pasted_jd,
           // Mark loading for the hydrate path (succeeded will populate from DB data; no re-xAI).
           opportunityTarget: { status: 'loading' } as AsyncState<OpportunityTargetResult>,
           // Pack/PDF paths are session-only until notes hydrate — drop the previous opp's files.
@@ -665,6 +667,9 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           lastApplyCv: undefined,
         },
       ]
+
+    case 'OpportunityTargetHydrateEmpty':
+      return [{ ...model, opportunityTarget: idle() }]
 
     case 'OpportunityTargetUrlSet':
       // Pure setter (no I/O effect) used by restore/load paths to sync the display url (for panel "Open" button + prep dispatch) without triggering analyze.

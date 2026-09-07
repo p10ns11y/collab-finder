@@ -43,7 +43,7 @@ export type FinderMsg =
   | { type: 'CvSummaryLoaded'; cvSummary: string }
   /** User-triggered: restore distilled default packet and heal localStorage cache. */
   | { type: 'CvSummaryResetToDefaultRequested' }
-  | { type: 'OpportunitySelected'; id: number; url?: string; reveal?: boolean }
+  | { type: 'OpportunitySelected'; id: number; url?: string; reveal?: boolean; pasted_jd?: string }
   | { type: 'OpportunityTargetUrlSet'; url?: string }
   | { type: 'OpportunityTargetJdSet'; pasted_jd?: string }
   | { type: 'OpportunityTargetPastedJdChanged'; pasted_jd: string }
@@ -108,6 +108,8 @@ export type FinderMsg =
   | { type: 'OpportunityTargetAnalyzeSucceeded'; result: OpportunityTargetAnalysisResult }
   | { type: 'OpportunityTargetAnalyzeFailed'; error: AppError }
   | { type: 'OpportunityTargetCleared' }
+  /** Loaded a row with no reconstructable fit/prep — idle the panel, keep URL/JD. */
+  | { type: 'OpportunityTargetHydrateEmpty' }
 
   // Opportunity target prep (Slice C — Full Prep artifacts after fit evaluation)
   | { type: 'OpportunityTargetPrepRequested'; opportunity_id?: number; url?: string; pasted_jd?: string }

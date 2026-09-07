@@ -104,6 +104,53 @@ if (!rec || rec.cv_chars_sent !== 1234) { console.error('FAIL reconstruct cv>0')
 const warn = shouldShowRestoredCvWarning(rec);
 if (warn !== false) { console.error('FAIL shouldShow false'); passed=false; } else { console.log('PASS shouldShowRestoredCvWarning === false'); }
 
+function usableOpportunityJdText(text) {
+  if (text == null) return undefined;
+  const trimmed = String(text).trim();
+  if (!trimmed || trimmed === 'jd') return undefined;
+  return text;
+}
+
+function seedDiscoverJd(input) {
+  const real = usableOpportunityJdText(input.jd_text);
+  if (real) return real;
+  const company = input.company && input.company.trim();
+  const title = input.title && input.title.trim();
+  const url = input.source_url && input.source_url.trim();
+  const lines = [];
+  if (company && title) lines.push(company + ' · ' + title);
+  else if (company) lines.push(company);
+  else if (title) lines.push(title);
+  if (url) lines.push(url);
+  return lines.length > 0 ? lines.join('\n') : undefined;
+}
+
+function hydrateOpportunityTargetPlan(o) {
+  const analysis = reconstructAnalysisFromOpportunity(o);
+  const hasPrep = Boolean(o.prep_artifacts_json && o.prep_artifacts_json.trim());
+  return {
+    url: (o.source_url && o.source_url.trim()) || undefined,
+    pasted_jd: seedDiscoverJd(o),
+    analysis,
+    idleFitPanel: analysis == null && !hasPrep,
+  };
+}
+
+const emptyBlobs = hydrateOpportunityTargetPlan({
+  id: 534,
+  jd_text: 'jd',
+  company: 'Lovable',
+  title: 'Fullstack Engineer',
+  source_url: 'https://jobs.ashbyhq.com/lovable/1',
+});
+if (emptyBlobs.idleFitPanel !== true) { console.error('FAIL idle when blobs missing'); passed=false; } else { console.log('PASS idle fit panel when blobs missing'); }
+if (!emptyBlobs.pasted_jd || emptyBlobs.pasted_jd.indexOf('Lovable') < 0) { console.error('FAIL seed JD when blobs missing'); passed=false; } else { console.log('PASS seed JD when blobs missing'); }
+
+const fitOnly = hydrateOpportunityTargetPlan({ id: 532, jd_text: 'jd', fit_score: 70 });
+if (!fitOnly.analysis || fitOnly.analysis.fit.overall !== 70 || fitOnly.idleFitPanel !== false) {
+  console.error('FAIL fit_score stub should not idle'); passed=false;
+} else { console.log('PASS fit_score stub keeps panel'); }
+
 if (passed) {
   console.log('ALL GATE ASSERTS PASSED');
   process.exit(0);
