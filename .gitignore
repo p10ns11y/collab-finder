@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Operator session card pointer (copy from session-sot.example; also covered by *.local)
+session-sot.local
+# Local shortcut only — target is machine-specific; never commit
+life-os-agents
+
 # Hire board — personal Google Sheet id/url (copy from config.example.json)
 data/hire-board/config.local.json
 

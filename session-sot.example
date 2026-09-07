@@ -1,0 +1,4 @@
+# Copy to session-sot.local (gitignored via *.local and an explicit entry).
+# First non-comment line: path to the operator session card.
+# That card has frontmatter: next_action, review_date, progress.
+# Do not commit the resolved path.

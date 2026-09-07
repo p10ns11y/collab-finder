@@ -2,7 +2,7 @@
 
 Self-guarded Tauri desktop — hunt high-fit roles, prepare application packs, track pipeline in SQLite; you step in when guards fire, not every step.
 
-**Agents (router):** [AGENTS.md](AGENTS.md) · **Planning:** `~/life-os/Projects/collab-finder/README.md` · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
+**Agents:** [AGENTS.md](AGENTS.md) · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
 
 ---
 

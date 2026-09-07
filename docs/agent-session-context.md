@@ -15,7 +15,7 @@ L5  Skills catalog             // name + description index every turn (not full 
 L6  Skill bodies               // Read / match / slash / @ — on demand
 L7  Plugins + MCP              // agenc, Vercel, calendar, … tool schemas when enabled
 L8  Slash commands             // .cursor/commands, /session-start, /gate, /eva
-L9  @ attachments              // files, life-os note, folders
+L9  @ attachments              // files, session card, folders
 L10 Conversation history        // prior turns in this chat
 L11 User message                // current turn
 ```
@@ -27,7 +27,7 @@ L11 User message                // current turn
 | **L0–L1** | Cursor / IDE / your global settings | Every turn | How the agent uses tools, commits, communicates |
 | **L2** | `~/.cursor/rules/` | Every turn (unless scoped off) | Portfolio habits — **may not fit this repo** (e.g. poem naming) |
 | **L3** | `.agents/rules/` → `.cursor/rules` | Every turn | Project process: dev-loop, triage, secrets |
-| **L4** | `AGENTS.md` | Every turn | Short router: VerifySoT, domain routing, life-os pointer |
+| **L4** | `AGENTS.md` | Every turn | Short router: VerifySoT, domain routing, session pointer |
 | **L5** | Skill index | Every turn | Discovery blurbs — **token cost scales with plugin count** |
 | **L6** | `.agents/skills/*/SKILL.md` | On match / Read / slash | Formal SoT for a concern (orchestrator, reactor, control-graph) |
 | **L7** | MCP servers, Cursor plugins | When enabled | External tools (marketplace, calendar, …) |
@@ -99,7 +99,7 @@ See [.agents/overlays/collab-finder-verify.md](../.agents/overlays/collab-finder
 
 ```text
 1. User opens chat (L0–L5 already loaded)
-2. /session-start  OR  @ life-os README     → L8/L9 session scope
+2. /session-start  OR  session card         → L8/L9 session scope
 3. Agent triages (agent-workflow / AGENTS)    → L3–L4
 4. Task matches domain                        → Read skill L6 (e.g. finder-reactor)
 5. Multi-step / thrash risk                   → control-graph + Card
@@ -127,4 +127,4 @@ ln -sfn ../../.agents/commands/gate.md .cursor/commands/gate.md
 | Plugin skill catalog bloat | Disable unused plugin packs (e.g. Vercel when not on Next) |
 | Duplicate global + project skills | Prefer lockfile or symlinks; don’t vendor portable copies by hand |
 | Stale locked skills | `./scripts/sync-agent-skills.sh --lock` + commit lockfile |
-| Life-os SoT missing | `@~/life-os/Projects/collab-finder/README.md` or `/session-start` |
+| Session SoT missing | `/session-start` or gitignored `session-sot.local`. Do not guess a vault path |
