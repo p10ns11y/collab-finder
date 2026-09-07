@@ -850,7 +850,7 @@ export function historyRefreshCmd(ports: FinderPorts): Cmd<FinderMsg> {
     // during/after analyze/prep/search/cycle. Tradeoff: timing races between slices.
     // Mitigation: model.history.lastRefreshed (set on every HistoryRefreshed) + keep-old-data.
     // Future: coordinated snapshot (Promise.allSettled + single dispatch) or per-slice freshness.
-    // See life-os/Projects/collab-finder/Collab Finder.md for session tracking of this item.
+    // Session tracking for this item lives on the operator session card.
     // The rest are independent (no longer chained inside searches success).
     // This ensures that after a target analyze/prep (which only affects opportunities),
     // the Data "Opportunities" + History slices still get refreshed even if

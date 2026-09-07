@@ -176,7 +176,7 @@ stateDiagram-v2
 - [x-tools.md](./x-tools.md) — official X agent resources
 - [data/distillation/](../data/distillation/README.md) — qualified X queries, curation context, xAI analyze prompts
 - [.agents/x-resources/README.md](../.agents/x-resources/README.md) — official X skill/llms snapshots + agent read order
-- **Interactive canvas (Cursor only):** [collab-finder-architecture.canvas.tsx](/home/sustainableabundance/.cursor/projects/home-sustainableabundance-Work-personal-collab-finder/canvases/collab-finder-architecture.canvas.tsx) — open beside chat via the canvas link (not in-repo TSX)
+- **Interactive canvas (Cursor only):** Cursor canvas (`collab-finder-architecture.canvas.tsx`, local IDE only). Open beside chat via the canvas link. Not in-repo TSX.
 
 ## Exponential development
 
