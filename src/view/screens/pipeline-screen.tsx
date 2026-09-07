@@ -35,6 +35,7 @@ import {
   timelineFromEvents,
 } from '../../core/domain/pipeline-timeline'
 import { openExternalUrl } from '../../adapters/tauri/open-external'
+import { seedDiscoverJd } from '../../core/domain/opportunity-target'
 
 type Props = {
   view: FinderViewState
@@ -118,6 +119,8 @@ export function PipelineScreen({ view, dispatch }: Props) {
       type: 'OpportunitySelected',
       id: opp.id,
       url: opp.source_url || undefined,
+      pasted_jd: seedDiscoverJd(opp),
+      reveal: true,
     })
     dispatch({ type: 'ScreenChanged', screen: 'discover' })
   }
@@ -170,9 +173,22 @@ export function PipelineScreen({ view, dispatch }: Props) {
           No pipeline rows match. Analyze or prep a target on Discover, or widen the filter.
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded border border-border-subtle">
-          <table className="w-full min-w-[62rem] text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-surface-1/95 text-[10px] uppercase tracking-wide text-ink-faint">
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto rounded border border-border-subtle">
+          <table className="w-full min-w-[64rem] table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-14" />
+              <col />
+              <col className="w-20" />
+              <col className="w-14" />
+              <col className="w-14" />
+              <col className="w-28" />
+              <col className="w-28" />
+              <col className="w-20" />
+              <col className="w-20" />
+              <col className="w-20" />
+              <col className="w-12" />
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-surface-1 text-[10px] uppercase tracking-wide text-ink-faint shadow-[0_1px_0_0_var(--color-border-subtle)]">
               <tr>
                 <th className="px-2 py-2">#</th>
                 <th className="px-2 py-2">Role</th>
@@ -196,36 +212,37 @@ export function PipelineScreen({ view, dispatch }: Props) {
                 const days = waiting ? daysSinceApplied(opp.applied_at) : null
                 const hint = replyWaitingHint(opp)
                 const followUp = needsCompensatingFollowUp(opp)
+                const label = rowLabel(opp)
                 return (
                   <tr
                     key={opp.id}
                     className={`hover:bg-surface-2/40 ${followUp ? 'bg-warning/5' : ''}`}
                   >
                     <td className="px-2 py-2 font-mono text-accent/90">#{opp.id}</td>
-                    <td className="max-w-[14rem] px-2 py-2">
+                    <td className="min-w-0 overflow-hidden px-2 py-2">
                       <button
                         type="button"
-                        className="truncate text-left font-medium text-ink hover:text-accent"
+                        className="block w-full min-w-0 truncate text-left font-medium text-ink hover:text-accent"
                         onClick={() => openInDiscover(opp)}
-                        title="Open in Discover"
+                        title={`${label} · Open in Discover`}
                       >
-                        {rowLabel(opp)}
+                        {label}
                       </button>
                       {opp.title && opp.company ? (
                         <div className="truncate text-[10px] text-ink-faint">{opp.title}</div>
                       ) : null}
                       {hint ? (
-                        <div className="mt-0.5 max-w-[16rem] text-[10px] leading-snug text-ink-faint">
+                        <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-ink-faint">
                           {hint}
                         </div>
                       ) : null}
                     </td>
-                    <td className="px-2 py-2">
-                      <Badge tone={laneTone(lane)} className="text-[10px]" title={replyLaneLabel(lane)}>
+                    <td className="overflow-hidden px-2 py-2">
+                      <Badge tone={laneTone(lane)} className="max-w-full truncate text-[10px]" title={replyLaneLabel(lane)}>
                         {replyLaneShort(lane)}
                       </Badge>
                     </td>
-                    <td className="px-2 py-2 font-mono text-[10px]">
+                    <td className="overflow-hidden whitespace-nowrap px-2 py-2 font-mono text-[10px]">
                       {waiting ? (
                         <span className={followUp ? 'font-semibold text-warning' : 'text-ink-muted'}>
                           {formatDaysWaiting(days)}
@@ -234,7 +251,7 @@ export function PipelineScreen({ view, dispatch }: Props) {
                         <span className="text-ink-faint">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="overflow-hidden px-2 py-2">
                       {opp.fit_score != null ? (
                         <Badge
                           tone={opp.fit_score >= 80 ? 'success' : opp.fit_score >= 60 ? 'accent' : 'neutral'}
@@ -246,9 +263,9 @@ export function PipelineScreen({ view, dispatch }: Props) {
                         '—'
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="overflow-hidden px-2 py-2">
                       <select
-                        className="max-w-[6.5rem] rounded border border-border-subtle bg-surface-0 px-1 py-0.5 text-[11px]"
+                        className="w-full max-w-full rounded border border-border-subtle bg-surface-0 px-1 py-0.5 text-[11px]"
                         value={prepStatus}
                         onChange={(e) =>
                           dispatch({
@@ -265,9 +282,9 @@ export function PipelineScreen({ view, dispatch }: Props) {
                         ))}
                       </select>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="overflow-hidden px-2 py-2">
                       <select
-                        className="max-w-[6.5rem] rounded border border-border-subtle bg-surface-0 px-1 py-0.5 text-[11px]"
+                        className="w-full max-w-full rounded border border-border-subtle bg-surface-0 px-1 py-0.5 text-[11px]"
                         value={opp.outcome_status ?? ''}
                         onChange={(e) =>
                           dispatch({
@@ -285,16 +302,16 @@ export function PipelineScreen({ view, dispatch }: Props) {
                         ))}
                       </select>
                     </td>
-                    <td className="px-2 py-2 font-mono text-[10px] text-ink-faint">
+                    <td className="overflow-hidden whitespace-nowrap px-2 py-2 font-mono text-[10px] text-ink-faint">
                       {formatPipelineDate(timeline.analyzedAt)}
                     </td>
-                    <td className="px-2 py-2 font-mono text-[10px] text-ink-faint">
+                    <td className="overflow-hidden whitespace-nowrap px-2 py-2 font-mono text-[10px] text-ink-faint">
                       {formatPipelineDate(timeline.preppedAt)}
                     </td>
-                    <td className="px-2 py-2 font-mono text-[10px] text-ink-faint">
+                    <td className="overflow-hidden whitespace-nowrap px-2 py-2 font-mono text-[10px] text-ink-faint">
                       {formatPipelineDate(opp.applied_at)}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="overflow-hidden px-2 py-2">
                       {opp.source_url ? (
                         <button
                           type="button"
