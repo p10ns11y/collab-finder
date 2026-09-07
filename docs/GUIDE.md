@@ -159,7 +159,7 @@ Full system map: [agentic-architecture.md](./agentic-architecture.md).
 | [config.md](./config.md) | Rank JSON + operator packs |
 | [job-sources.md](./job-sources.md) | Curated hunt sources, tiers, Mission firms, X presets |
 | [mission-flow-relevance.md](./mission-flow-relevance.md) | Mission Pull / Next 10 / Evaluate lanes, persistence, CV packet |
-| [mission-flow-coming-next.md](../reports/mission-flow-coming-next.md) | Spacemap audit: scorecard, SN-* cards, sprint order |
+| [mission-flow-coming-next.md](../archive/reports/mission-flow-coming-next.md) | Spacemap audit: scorecard, SN-* cards, sprint order |
 | [ci.md](./ci.md) | Gate, complexity, CRAP report |
 | [release.md](./release.md) | Tag-driven GitHub releases |
 | [quest-flows.md](./quest-flows.md) | Quest chips + example prompts |
