@@ -54,6 +54,28 @@ const pipelineWaiting = filterOpportunitiesForPipelineView(
 )
 assert(pipelineWaiting.length === 1, 'waiting filter')
 
+const followupCandidates = filterOpportunitiesForPipelineView(
+  [
+    {
+      id: 10,
+      kind: 'mission_firm',
+      status: 'applied',
+      outcome_status: 'waiting',
+      applied_at: '2026-09-01T00:00:00Z',
+      source_url: 'https://boards.greenhouse.io/x/jobs/1',
+    },
+    {
+      id: 11,
+      kind: 'platsbanken',
+      status: 'applied',
+      outcome_status: 'waiting',
+      applied_at: '2026-09-01T00:00:00Z',
+    },
+  ],
+  'followup',
+)
+assert(followupCandidates.length === 2, 'followup filter keeps applied waiting rows')
+
 if (failed) {
   console.error(`\n${failed} failed`)
   process.exit(1)
