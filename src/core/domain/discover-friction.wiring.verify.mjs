@@ -67,6 +67,7 @@ assert(discover.includes("from '../../core/domain/discover-chrome'"), 'discover-
 assert(discover.includes("setIntent('evaluate')") && discover.includes('DiscoverEvaluateFloat'), 'Evaluate FAB overlay')
 assert(discover.includes('aria-label="Evaluate"'), 'sticky Evaluate control')
 assert(discover.includes('hasEvaluateSeed'), 'unevaluated row opens Evaluate when URL/JD seeded')
+assert(discover.includes('discoverChromeIntentAfterHydrate'), 'Evaluate opens only after hydrate settles')
 assert(
   discover.indexOf('OpportunityTargetFitPanel') < discover.indexOf('HireBoardPanel'),
   'fit panel source before setup widgets',

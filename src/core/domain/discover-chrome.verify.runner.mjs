@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const { resolveDiscoverChrome, discoverChromeIntentAfterOppChange } = await import(
+const { resolveDiscoverChrome, discoverChromeIntentAfterOppChange, discoverChromeIntentAfterHydrate } = await import(
   pathToFileURL(join(here, 'discover-chrome.ts')).href
 )
 
@@ -79,6 +79,18 @@ assert(
 assert(
   discoverChromeIntentAfterOppChange({ hasResult: false, hasEvaluateSeed: false }) === 'auto',
   'empty Discover stays auto',
+)
+assert(
+  discoverChromeIntentAfterHydrate({ status: 'loading', hasEvaluateSeed: true }) === 'auto',
+  'loading must not open Evaluate',
+)
+assert(
+  discoverChromeIntentAfterHydrate({ status: 'idle', hasEvaluateSeed: true }) === 'evaluate',
+  'hydrate empty + seed opens Evaluate',
+)
+assert(
+  discoverChromeIntentAfterHydrate({ status: 'ready', hasEvaluateSeed: true }) === 'auto',
+  'ready fit keeps Evaluate closed',
 )
 
 if (failed) {

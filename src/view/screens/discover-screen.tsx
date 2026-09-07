@@ -13,7 +13,7 @@ import {
   type FitMode,
 } from '../../core/domain/fit-mode'
 import {
-  discoverChromeIntentAfterOppChange,
+  discoverChromeIntentAfterHydrate,
   resolveDiscoverChrome,
   type DiscoverChromeIntent,
 } from '../../core/domain/discover-chrome'
@@ -89,20 +89,19 @@ export function DiscoverScreen({ view, dispatch }: Props) {
     (model.opportunityTargetUrl && model.opportunityTargetUrl.trim()) ||
       (model.opportunityTargetPastedJd && model.opportunityTargetPastedJd.trim()),
   )
-  const [intent, setIntent] = React.useState<DiscoverChromeIntent>(() =>
-    discoverChromeIntentAfterOppChange({
-      hasResult: hasDockedResult,
-      hasEvaluateSeed,
-    }),
-  )
-  const [prevSelectedOppId, setPrevSelectedOppId] = React.useState(selectedOppId)
-  if (selectedOppId !== prevSelectedOppId) {
-    setPrevSelectedOppId(selectedOppId)
-    const nextIntent = discoverChromeIntentAfterOppChange({
-      hasResult: hasDockedResult,
-      hasEvaluateSeed,
-    })
-    if (intent !== nextIntent) setIntent(nextIntent)
+  const [intent, setIntent] = React.useState<DiscoverChromeIntent>('auto')
+  const hydrateKey = `${selectedOppId ?? 'none'}:${targetState.status}`
+  const [prevHydrateKey, setPrevHydrateKey] = React.useState(hydrateKey)
+  if (hydrateKey !== prevHydrateKey) {
+    const prevStatus = prevHydrateKey.split(':').slice(1).join(':')
+    setPrevHydrateKey(hydrateKey)
+    if (prevStatus === 'loading' && targetState.status !== 'loading') {
+      const nextIntent = discoverChromeIntentAfterHydrate({
+        status: targetState.status,
+        hasEvaluateSeed,
+      })
+      if (intent !== nextIntent) setIntent(nextIntent)
+    }
   }
 
   const chrome = resolveDiscoverChrome({ hasResult: hasDockedResult, intent })

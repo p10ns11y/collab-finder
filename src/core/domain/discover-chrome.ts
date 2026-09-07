@@ -30,10 +30,25 @@ export function resolveDiscoverChrome(input: {
   }
 }
 
+export type DiscoverHydrateStatus = 'idle' | 'loading' | 'ready' | 'failed'
+
+/** Only after hydrate leaves loading. Loading must not open Evaluate. */
+export function discoverChromeIntentAfterHydrate(input: {
+  status: DiscoverHydrateStatus
+  hasEvaluateSeed: boolean
+}): DiscoverChromeIntent {
+  if (input.status === 'loading') return 'auto'
+  if (input.status === 'ready' || input.status === 'failed') return 'auto'
+  if (input.hasEvaluateSeed) return 'evaluate'
+  return 'auto'
+}
+
 export function discoverChromeIntentAfterOppChange(input: {
   hasResult: boolean
   hasEvaluateSeed: boolean
 }): DiscoverChromeIntent {
-  if (!input.hasResult && input.hasEvaluateSeed) return 'evaluate'
-  return 'auto'
+  return discoverChromeIntentAfterHydrate({
+    status: input.hasResult ? 'ready' : 'idle',
+    hasEvaluateSeed: input.hasEvaluateSeed,
+  })
 }
