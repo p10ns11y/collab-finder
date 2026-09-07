@@ -8,7 +8,7 @@
 ```text
 App ≔ Tauri desktop · Rust backend · React shell · xAI + X opportunity reactor
 Autonomy ≔ self-guards · pauses · explicit approval gates
-SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md  // next_action before code
+SessionSoT ≔ session-sot.local  // gitignored pointer; next_action before code
 Navigating ≔ kanithanj.ai sidebar screen (id heading) — cash-path cockpit; ¬ generic “navigation docs”
 Vocab ≔ opportunity · reactor · guard · pack  // ¬ global Thepulimaangani poem/metre naming
 Names ≔ architecture-synthesis (canonical fusion) · fusion-sage (legacy alias; both dirs in repo) · context-ignite (workflow chain, not a rename)
@@ -28,7 +28,7 @@ VerifySoT:
 Hotspot ≔ secrets.rs · app_dirs.rs STABILITY CONTRACT  // grep before bearer/keyring edits
 ```
 
-**Session:** read `SessionSoT` `next_action` before coding; update energy / next_action / review_date when done. User says "update what we are going to do in this session" → edit life-os note **first**.
+**Session:** resolve `session-sot.local`, read `next_action` before coding; update energy / next_action / review_date when done. User says "update what we are going to do in this session" → edit the operator session card **first**. Do not guess a vault path.
 
 **Secrets:** **NEVER** `secret-tool search/lookup`, `cat` x-bearer/xai-key, log raw tokens. Metadata only. [docs/secrets-agent-safety.md](docs/secrets-agent-safety.md).
 

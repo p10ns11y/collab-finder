@@ -68,7 +68,7 @@ Relevant rules in `.agents/rules/` today:
 - `control-graph.mdc` (alwaysApply: false) — structured loops; legacy trigger "looper".
 
 Slash commands (canonical `.agents/commands/`; symlink into `.cursor/commands/`):
-- `session-start.md` — life-os `README.md` + verify SoT
+- `session-start.md` — operator session card (`session-sot.local`) + verify SoT
 - `gate.md` — `pnpm gate`
 
 ## Agent skills (`.cursor/skills/`)

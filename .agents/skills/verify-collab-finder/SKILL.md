@@ -10,7 +10,7 @@ description: >
 # verify-collab-finder
 
 > **VerifySoT overlay:** [.agents/overlays/collab-finder-verify.md](../../.agents/overlays/collab-finder-verify.md)  
-> **Session SoT:** `~/life-os/Projects/collab-finder/README.md` (`next_action` before code)
+> **Session SoT:** gitignored `session-sot.local` (`next_action` before code)
 
 ```text
 TS/TSX        → pnpm type-check

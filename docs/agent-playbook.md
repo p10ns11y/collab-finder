@@ -4,7 +4,7 @@
 
 ```text
 Playbook ≔ skills index · wiring · sync · conventions
-SessionSoT ≔ ~/life-os/Projects/collab-finder/README.md
+SessionSoT ≔ session-sot.local  // gitignored pointer; next_action before code
 Lock ≔ skills-lock.json  // p10ns11y/skills pinned hashes
 Names ≔ architecture-synthesis (canonical fusion) · fusion-sage (legacy alias; both in repo) · context-ignite (workflow, not a rename)
 ```

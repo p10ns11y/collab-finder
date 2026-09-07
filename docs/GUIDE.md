@@ -2,7 +2,7 @@
 
 Desktop app for hunting high-fit roles, preparing application packs, and tracking history. You step in when **guards** fire (fit, cost, rate, CV promote) — not on every step.
 
-Planning and session notes: `~/life-os/Projects/collab-finder/README.md`. Agent router: [AGENTS.md](../AGENTS.md). Playbook: [agent-playbook.md](./agent-playbook.md).
+Agent router: [AGENTS.md](../AGENTS.md). Playbook: [agent-playbook.md](./agent-playbook.md).
 
 ---
 
