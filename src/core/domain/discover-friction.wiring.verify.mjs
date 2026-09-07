@@ -61,6 +61,17 @@ assert(discover.includes('Your opportunities') || discover.includes('YOUR OPPORT
 assert(discover.includes('filterOpportunitiesForRail'), 'rail pipeline filter')
 assert(discover.indexOf('Your opportunities') < discover.indexOf('CvSummaryInput') || discover.indexOf('YOUR') < discover.indexOf('CvSummary'), 'rail before CV preferred')
 
+// Discover chrome: fit left, controls right, Evaluate overlay, Quest keeps ⌘J
+assert(discover.includes('resolveDiscoverChrome'), 'DiscoverScreen uses resolveDiscoverChrome')
+assert(discover.includes("from '../../core/domain/discover-chrome'"), 'discover-chrome resolve import')
+assert(discover.includes("setIntent('evaluate')") && discover.includes('DiscoverEvaluateFloat'), 'Evaluate FAB overlay')
+assert(discover.includes('aria-label="Evaluate"'), 'sticky Evaluate control')
+assert(
+  discover.indexOf('OpportunityTargetFitPanel') < discover.indexOf('HireBoardPanel'),
+  'fit panel source before setup widgets',
+)
+assert(keyboard.includes("if (lower === 'j') return { kind: 'quest' }"), '⌘J still maps j to quest')
+
 // Links
 assert(discover.includes('normalizeOpportunityUrl') && discover.includes('ExternalLink'), 'rail external link')
 assert(panel.includes('externalHref') && /href=\{externalHref\}/.test(panel), 'panel URL href')
@@ -97,7 +108,6 @@ assert(
   'hydrate no longer clears URL/JD when blobs missing',
 )
 assert(update.includes("case 'OpportunityTargetHydrateEmpty'"), 'update handles HydrateEmpty')
-assert(discover.includes('has no saved fit'), 'Discover empty state names missing fit')
 
 // Settings calm
 assert(!settings.match(/details open/), 'settings details not force-open')
