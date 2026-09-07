@@ -1,8 +1,8 @@
 # kanithanj.ai (collab-finder)
 
-Tauri desktop app — hunt high-fit roles, prepare application packs, track history in SQLite. You intervene when guards fire, not on every step.
+Self-guarded Tauri desktop — hunt high-fit roles, prepare application packs, track pipeline in SQLite; you step in when guards fire, not every step.
 
-**Planning:** `~/life-os/Projects/collab-finder/README.md` · **Agents:** [AGENTS.md](AGENTS.md) · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
+**Agents (router):** [AGENTS.md](AGENTS.md) · **Planning:** `~/life-os/Projects/collab-finder/README.md` · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
 
 ---
 
