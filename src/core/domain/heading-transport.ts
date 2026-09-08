@@ -659,6 +659,7 @@ export type SlotSummary = {
   slot: Slot
   family: Family
   craft: Variant
+  motion: Motion
   live: number
   waiting: number
   risk: number
@@ -685,12 +686,14 @@ export function summarizeSlot(slot: Slot, stages: MissionStage[], now = new Date
   const family = FAMILY_BY_SLOT[slot]
   const alive = mine.find((stage) => isLiveClass(normalizeStageClass(stage.class))) ?? null
   const shown = alive ?? mine[0] ?? null
+  const craft = shown ? craftFor(shown, now) : berthedCraft(slot)
   const waiting = countClass(mine, 'wait')
   const risk = countClass(mine, 'risk')
   return {
     slot,
     family,
-    craft: shown ? craftFor(shown, now).variant : FAMILY_CRAFT[family].thrust,
+    craft: craft.variant,
+    motion: craft.motion,
     live: countClass(mine, 'do') + waiting + risk,
     waiting,
     risk,
