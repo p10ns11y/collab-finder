@@ -19,6 +19,7 @@ import {
   flavorLine,
   heroChipLabel,
   inferSlot,
+  isMissionSignal,
   isSeasonSignal,
   parseFollowupBand,
   selectFocus,
@@ -463,6 +464,59 @@ const VECTORS = [
     variant: 'jet',
     reason: 'hiring_act',
   },
+  {
+    row: 35,
+    stage: { id: 'pull3', what: 'Mission pull — shortlist the SpaceX backend leads', class: 'do' },
+    slot: 'debt',
+    family: 'space',
+    motion: 'thrust',
+    // Mission rides the Space family: an everyday lead is a probe, never a crewed spaceship.
+    variant: 'probe',
+    reason: 'mission_lead',
+  },
+  {
+    row: 36,
+    stage: { id: 'firm1', what: 'Firm-list promote: add two maintained firms', class: 'do' },
+    slot: 'debt',
+    family: 'space',
+    motion: 'thrust',
+    variant: 'probe',
+    reason: 'mission_lead',
+  },
+  {
+    row: 37,
+    stage: { id: 'do10', what: 'Apply from the mission shortlist to the SpaceX role', class: 'do' },
+    // Collision breaker: a hiring act inside a named mission lead still rides Space, not the cruise.
+    slot: 'debt',
+    family: 'space',
+    motion: 'thrust',
+    variant: 'probe',
+    reason: 'mission_lead',
+  },
+  {
+    row: 38,
+    stage: { id: 'mission-lead-w38', what: 'Triage the weekly queue', class: 'do' },
+    // Explicit tag: `mission-*` forces the Space slot the way `af-*` forces Season.
+    slot: 'debt',
+    family: 'space',
+    motion: 'thrust',
+    variant: 'probe',
+    reason: 'explicit_tag',
+  },
+  {
+    row: 39,
+    stage: {
+      id: 'r3',
+      what: 'Mission lead may lapse — SpaceX req closes unless the pack ships this week',
+      class: 'risk',
+    },
+    slot: 'debt',
+    family: 'space',
+    // A Space risk is a crewed burn, never a passive probe motion — but the craft stays the probe.
+    motion: 'thrust',
+    variant: 'probe',
+    reason: 'mission_lead',
+  },
 ]
 
 const S = {}
@@ -507,6 +561,27 @@ must(
   inferSlot(S[34]) === 'career',
   'collision breaker: relocation logistics inside a hiring act stays career',
 )
+
+// ── Mission rides the Space family (alongside Debt) ──────────────────────────
+// High-uncertainty, high-relevance-bar hunt leads (Mission Pull / firm-list / Next 10) land Space;
+// ordinary apply·pipeline·cruise stays Air; a bare career "lead" is never a mission signal.
+must(isMissionSignal('Mission pull — shortlist the leads'), 'mission pull is a Space signal')
+must(isMissionSignal('firm-list promote'), 'firm-list is a Space signal')
+must(isMissionSignal('run the Next 10 durability wave'), 'Next 10 is a Space signal')
+must(!isMissionSignal('Old Berlin lead parked until spring'), 'a bare career lead is not a mission signal')
+must(!isMissionSignal('Submit one relevant application'), 'an ordinary apply is not a mission signal')
+must(inferSlot(S[35]) === 'debt', 'a Mission Pull lead lands in the Space slot')
+must(slotOf(S[35]).family === 'space', 'a Mission Pull lead rides the Space family')
+must(slotOf(S[35]).reason === 'mission_lead', 'a Mission Pull lead is attributed to the mission lane')
+must(inferSlot(S[36]) === 'debt', 'a firm-list promote lands in the Space slot')
+must(
+  inferSlot(S[37]) === 'debt',
+  'collision breaker: a hiring act inside a named mission lead still rides Space',
+)
+must(inferSlot(S[38]) === 'debt', 'explicit tag: mission-* forces the Space slot')
+must(slotOf(S[38]).reason === 'explicit_tag', 'the mission explicit tag reports its own reason')
+must(inferSlot(S[27]) === 'career', 'guard: an "old Berlin lead" stays career, never mission')
+must(inferSlot(S[1]) === 'career', 'guard: ordinary apply·cruise stays Air, never mission')
 
 const GOAL = 'started a decent Sweden/Nordics/EU full-time role'
 const realMap = [S[1], S[2], S[3], S[4], S[5], S[6]]
@@ -751,7 +826,7 @@ must(weatherOf([], 'X ON / 0 PAUSES', 'career').alert === null, 'a blackout carr
 // ── slot roles: product core vs life spots (Fix 2) ───────────────────────────
 must(slotRole('career') === 'core', 'Career/Cash is the product core')
 must(
-  slotRole('debt') === 'spot' && slotRole('sweden') === 'spot' && slotRole('body') === 'spot',
+  slotRole('debt') === 'spot' && slotRole('season') === 'spot' && slotRole('body') === 'spot',
   'the other three slots are life attention-spots',
 )
 must(roleLabel('core') === 'Product core', 'core role label')
@@ -911,6 +986,27 @@ must(
   'an ordinary chip names the band and the slot',
 )
 must(craftFor(S[1], NOW).chaos === false, 'ordinary craft are not chaos')
+
+// ── honest Space chip: Mission vs Debt by reason ─────────────────────────────
+// The Space family carries both, so the chip's second word reads by reason, not by slot name.
+must(
+  heroChipLabel(craftFor(S[35], NOW), 'debt') === 'Deep space · Mission',
+  'a Space hero that landed there for a mission lead labels honestly as Mission',
+)
+must(craftFor(S[35], NOW).reason === 'mission_lead', 'the mission craft carries the mission reason')
+must(
+  heroChipLabel(craftFor(S[14], NOW), 'debt') === 'Deep space · Debt',
+  'a Space hero that landed there for a debt token still reads Debt',
+)
+const missionCockpit = buildCockpit({ stages: [S[35]], waybar: waybar0, now: NOW })
+must(
+  missionCockpit.focus.focus === 'debt' && missionCockpit.focus.reason === 'one_act',
+  'a mission lead act focuses the Space slot',
+)
+must(
+  heroChipLabel(missionCockpit.hero.craft, missionCockpit.focus.focus) === 'Deep space · Mission',
+  'the assembled mission hero chip reads Deep space · Mission',
+)
 
 const brick = buildCockpit({ stages: [], mapError: 'keyring locked', waybar: waybar0, now: NOW })
 must(brick.hero.craft.variant === 'spaceship', 'a bricked read scrambles the spaceship')

@@ -49,6 +49,7 @@ export type WeatherState = 'clear' | 'crosswind' | 'becalmed' | 'storm' | 'black
 export type SlotReason =
   | 'explicit_tag'
   | 'debt_token'
+  | 'mission_lead'
   | 'body_token'
   | 'season_logistics'
   | 'entitlement_report'
@@ -129,6 +130,18 @@ const DEBT_TOKENS =
 /** Removed before debt matching so body and career prose never lands in the Debt slot. */
 const DEBT_EXCLUSIONS = /\b(sleep debt|technical debt|tech debt|karma debt|debt of gratitude)\b/g
 
+/**
+ * Mission = the high-relevance, high-uncertainty hunt lane — Mission Pull, the maintained firm-list,
+ * Next 10, mission leads: picking uncertain leads against a high relevance bar. It rides the **Space**
+ * family alongside Debt (hard cognitive load, uncertain SoT, a high-stakes relevance filter), so a
+ * mission stage lands in the Space slot rather than the ordinary career cruise. The token must name
+ * the lane: bare `lead` is deliberately absent (an "old Berlin lead parked" is ordinary career), and
+ * bare `firm` / `board` / `pull` are excluded because they are common career and git prose. Ordinary
+ * apply·pipeline·cruise carries no mission token and stays Air.
+ */
+const MISSION_TOKENS =
+  /\b(mission[ _-]?(?:pull|hunt|leads?|firms?|board|shortlist|queue|list|jobs?)|firm[ _-]?list|firm shortlist|firm registry|maintained firms|next 10)\b/
+
 const BODY_TOKENS =
   /\b(son|sonen|kids?|child|children|daughter|school|skola|forskola|preschool|fritids|pick ?up|drop ?off|parent|teacher|utvecklingssamtal|doctor|lakare|dentist|tandlakare|vardcentral|1177|bvc|hospital|sjukhus|medicine|medication|prescription|recept|therapy|terapi|sleep|somn|gym|walk|meal|cook|dinner|groceries|birthday|custody|vardnad|body)\b/
 
@@ -203,6 +216,9 @@ const EXPLICIT_TAGS: Readonly<Record<string, Slot>> = {
   dbt: 'debt',
   loan: 'debt',
   kfm: 'debt',
+  // Mission rides the Space family alongside Debt — `mission-pull-w38` forces the Space slot.
+  mission: 'debt',
+  msn: 'debt',
   career: 'career',
   season: 'season',
   af: 'season',
@@ -220,7 +236,7 @@ const EXPLICIT_TAGS: Readonly<Record<string, Slot>> = {
   family: 'body',
 }
 
-const WHAT_TAG = /^(debt|career|season|af|body|son)\s*:/
+const WHAT_TAG = /^(debt|mission|career|season|af|body|son)\s*:/
 
 const COMBINING_MARKS = /\p{M}+/gu
 const ID_SEPARATOR = /[^a-z0-9]+/
@@ -437,6 +453,11 @@ export function hasSeasonInstitution(text: string): boolean {
   return firstMatch(text, SEASON_INSTITUTIONS) !== null
 }
 
+/** A mission-hunt lead (Mission Pull / firm-list / Next 10) — rides the Space family with Debt. */
+export function isMissionSignal(text: string): boolean {
+  return firstMatch(text, MISSION_TOKENS) !== null
+}
+
 export function isSeasonLogistics(text: string): boolean {
   return firstMatch(text, SEASON_LOGISTICS) !== null
 }
@@ -464,6 +485,17 @@ export type SlotDecision = {
 
 type SlotProbe = { slot: Slot; reason: SlotReason; matched: string | null }
 
+/**
+ * Mission leads land in the Space slot (Debt's family). Checked after the specific life-area tokens
+ * (debt / body / season) but before the hiring-act fallback, so a lead that also names a role or an
+ * apply verb — "apply from the mission shortlist to the SpaceX role" — still rides Space rather than
+ * decaying into the ordinary career cruise.
+ */
+function missionProbe(text: string): SlotProbe | null {
+  const mission = firstMatch(text, MISSION_TOKENS)
+  return mission ? { slot: 'debt', reason: 'mission_lead', matched: mission } : null
+}
+
 function seasonProbe(text: string): SlotProbe | null {
   const institution = firstMatch(text, SEASON_INSTITUTIONS)
   const logistics = firstMatch(text, SEASON_LOGISTICS)
@@ -480,8 +512,10 @@ function seasonProbe(text: string): SlotProbe | null {
 
 /**
  * Ordered by token specificity, not importance: `inkasso` and `tandlakare` never appear in hiring
- * or entitlement copy so they can pre-empt, while `apply` / `submit` appear inside entitlement
- * copy, so career must be checked last — and is also the default, because this is the hunt surface.
+ * or entitlement copy so they can pre-empt, while `apply` / `submit` appear inside entitlement and
+ * mission-lead copy, so career must be checked last — and is also the default, because this is the
+ * hunt surface. Mission (Space) sits just above the career fallback: a named mission lane beats the
+ * ordinary cruise, but the specific life-area tokens (debt / body / season) still win.
  */
 function probeSlot(stage: MissionStage, text: string): SlotProbe {
   const tag = explicitTagToken(stage)
@@ -492,6 +526,8 @@ function probeSlot(stage: MissionStage, text: string): SlotProbe {
   if (body) return { slot: 'body', reason: 'body_token', matched: body }
   const season = seasonProbe(text)
   if (season) return season
+  const mission = missionProbe(text)
+  if (mission) return mission
   const hiring = firstMatch(text, HIRING_ACTS)
   if (hiring) return { slot: 'career', reason: 'hiring_act', matched: hiring }
   return { slot: 'career', reason: 'default_career', matched: null }
@@ -619,6 +655,12 @@ export function motionFor(stage: MissionStage, family: Family, now = new Date())
 export type Craft = {
   slot: Slot
   family: Family
+  /**
+   * Why this stage landed in its slot. Carried so the hero chip can label the Space family honestly:
+   * `mission_lead` reads "Deep space · Mission", a debt token reads "Deep space · Debt". Absent on the
+   * berthed / chaos crafts, which have no signal to attribute.
+   */
+  reason?: SlotReason
   motion: Motion
   variant: Variant
   label: string
@@ -644,6 +686,7 @@ export function craftFor(stage: MissionStage, now = new Date()): Craft {
   return {
     slot: decision.slot,
     family: decision.family,
+    reason: decision.reason,
     motion,
     variant: FAMILY_CRAFT[decision.family][motion],
     label: craftLabel(decision.family, motion),
@@ -724,11 +767,27 @@ export function flavorLine(craft: Craft): string {
   return `${craft.label} — ${craft.gloss}`
 }
 
+/** Reasons that mean a Space stage is a mission-hunt lead, not a debt obligation. */
+const MISSION_REASONS: ReadonlySet<SlotReason> = new Set(['mission_lead'])
+
+/** Plain reader word for a mission lead riding the Space family. */
+export const MISSION_LABEL = 'Mission'
+
+/**
+ * The Space family carries both Debt and Mission, so the chip's second word reads by reason, not by
+ * slot name: a mission lead says "Mission", a debt obligation (or an empty berth) says "Debt". Every
+ * other family names its slot directly.
+ */
+function chipTail(family: Family, focus: Slot, reason?: SlotReason): string {
+  if (family === 'space' && reason && MISSION_REASONS.has(reason)) return MISSION_LABEL
+  return slotLabel(focus)
+}
+
 /** The chip above the act. In chaos the slot is not trustworthy, so it is not claimed. */
 export function heroChipLabel(craft: Craft, focus: Slot): string {
   return craft.chaos
     ? `${CHAOS_COPY.label} · Unknown signal`
-    : `${bandLabel(craft.family)} · ${slotLabel(focus)}`
+    : `${bandLabel(craft.family)} · ${chipTail(craft.family, focus, craft.reason)}`
 }
 
 /** `Arrive` is the mission map's own word for the goal; the view does not rename it. */

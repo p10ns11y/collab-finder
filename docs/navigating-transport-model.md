@@ -14,7 +14,28 @@ first-class** — none is a rare special case.
 | Cash / career (hiring loop) | `air` | **Aircraft** | high priority, turbulence expected and acceptable |
 | Season (time-bound life logistics) | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
 | Son / body (human-only) | `land` | **Automobiles** | relative slowness is fine, do not agent-force |
-| Debt (hardest) | `space` | **Deep space** | hardest slot, long signal delays, little leverage |
+| Debt **and Mission** (hardest) | `space` | **Deep space** | hard cognitive load, uncertain SoT, high-stakes relevance filter |
+
+### The Space family carries two contents: Debt and Mission
+
+There is no fifth slot. **Debt** and **Mission** both ride the Space family, because they share the
+same energy signature: hard cognitive load, an uncertain source of truth, and a high-stakes
+relevance bar where the leverage is small and the signal delays are long.
+
+- **Debt** — inkasso, Kronofogden, creditor payoff, CSN: the original Space content.
+- **Mission** — the high-relevance, high-uncertainty **hunt lane**: Mission Pull, the maintained
+  firm-list, Next 10, mission leads. These are *picking uncertain leads against a high relevance
+  bar*, which is a different animal from the ordinary apply·pipeline·cruise (that stays Air). A
+  mission stage is detected by `MISSION_TOKENS` (or an explicit `mission-*` id tag) and lands in the
+  Space slot with `reason: 'mission_lead'`. A named mission lane beats the career fallback even when
+  the stage also names a role or an apply verb; a bare career "lead" (an *old Berlin lead parked*) is
+  deliberately **not** a mission signal.
+
+Because Space now holds both, the hero chip labels **honestly by reason**, not by slot name:
+`heroChipLabel` reads **"Deep space · Mission"** for a mission lead and **"Deep space · Debt"** for a
+debt obligation (or an empty Space berth). Plain reader words — no coach meta. The probe / lander /
+chaos craft rules are unchanged: the everyday Space craft is the probe, and the `spaceship` is still
+drawn only for a blackout (unreadable SoT).
 
 The `season` slot is **temporary, important, time-bound life attention** — travel, packing, a move,
 a flight, a visa appointment, temporary housing, departure and arrival logistics — plus the dated
@@ -38,17 +59,19 @@ do not play the same *product* role, and the UI now says so. `slotRole()` splits
 - **Career/Cash → `core` ("Product core").** This is what the app is *for*: the hunt for work and
   money. It is the default hero and gets the full berth treatment. Cash is the career money need, so
   it lives in the same Air family — there is no fifth slot.
-- **Debt / Sweden / Son & body → `spot` ("Life spot").** Real life areas the product keeps in view
+- **Debt / Season / Son & body → `spot` ("Life spot").** Real life areas the product keeps in view
   so nothing slips, even though they are not the product's job. In the dock they read as quiet
   notification tiles: a danger dot when a risk needs a decision, a soft dot when an act is due.
+  (Mission leads ride the Space slot too, but Mission is *cash-adjacent* hunt work — the chip says so
+  by reason; only the slot's role tag stays a life spot.)
 
 The hero carries a plain role tag so docking into a life spot reads as intentional rather than a
 wrong turn. The copy is descriptive (what the slot *is*), never a coach's nudge.
 
 ### The spaceship is not an everyday craft
 
-Aircraft, ships and automobiles carry all ordinary work, and the Debt slot's everyday craft is the
-**probe** — a query sent into the dark. `spaceship` is deliberately absent from `FAMILY_CRAFT` and
+Aircraft, ships and automobiles carry all ordinary work, and the Space slot's everyday craft (Debt
+*and* Mission) is the **probe** — a query sent into the dark. `spaceship` is deliberately absent from `FAMILY_CRAFT` and
 lives alone in `CHAOS_CRAFT`, drawn only when the source of truth is unreadable: no mission map on
 disk, or the read failed (a bricked keyring surfaces here today, since Navigating has no separate
 auth signal). That is the `blackout` weather state, and it is the only spaceship in the app. A
@@ -87,6 +110,10 @@ into renamed headers.
 | `class` | where in the lifecycle | `do · wait · done · risk · park` | the SoT field, unchanged, from `heading-cockpit` |
 | `motion` | what energy it demands | `thrust · timetable · drift · long_haul · berth` | `class` plus tempo signals |
 
+Slots stay four; **Mission is not a fifth slot** but a `reason` on the Space (`debt`) slot, so it
+never widens this axis. `slotOf` returns `{ slot, family, reason }`, and the chip reads Debt vs
+Mission from that `reason` while the slot count holds.
+
 The craft is then `FAMILY_CRAFT[family][motion]`. This is why a **waiting career stage is a
 cruising airliner**, not a Sailing craft: waiting is a lifecycle fact, Sailing is the
 Season slot. The two have nothing to do with each other.
@@ -118,6 +145,14 @@ institutions (`SEASON_INSTITUTIONS`) — `platsbanken` and `jobtech` are job boa
 career — and `contact.url` is excluded from the signal text. The breaker is verb intent: **a hiring
 act keeps the stage in Aircraft and never votes Season**, the one exception being a civic
 institution paired with an entitlement verb (a dated obligation, e.g. reporting to AF), which sails.
+
+**The Mission / career collision.** Mission leads live on job boards and quote roles and apply
+verbs, so they look like career. The breaker is a **named lane**, not geography: `MISSION_TOKENS`
+matches `mission pull`, `firm-list`, `Next 10`, `maintained firms`, `mission lead/shortlist/queue`
+— never a bare `lead` / `firm` / `board` / `pull` — and `missionProbe` runs *after* the specific
+life-area tokens (debt / body / season) but *before* the hiring-act fallback. So a lead that also
+says "apply to the SpaceX role" still rides Space, while an ordinary "apply to the Platsbanken
+posting" stays Air. The Season collision guards are untouched; a mission token never votes Season.
 
 **Clock ownership.** `CLOCK_OWNED = { air: false, space: false, water: true, land: true }`. For
 Sailing and Automobiles a schedule beats thrust, because those slots' product law is "cannot force" and
@@ -151,9 +186,9 @@ The old vague "Something is going wrong" copy is gone: a storm always names its 
 | Data + focus container | `src/view/screens/heading-screen.tsx` |
 
 Token lists in the domain module are `SCREAMING_SNAKE` module constants so a future agent can grep
-and extend one list — `DEBT_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`, `SEASON_INSTITUTIONS`,
-`HIRING_ACTS`, `ENTITLEMENT_ACTS`, `GEO_QUALIFIERS`, `FORCEABLE_VERBS`, `SCHEDULE_MARKERS` — without
-reading the algorithm around them.
+and extend one list — `DEBT_TOKENS`, `MISSION_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`,
+`SEASON_INSTITUTIONS`, `HIRING_ACTS`, `ENTITLEMENT_ACTS`, `GEO_QUALIFIERS`, `FORCEABLE_VERBS`,
+`SCHEDULE_MARKERS` — without reading the algorithm around them.
 
 ## Visual law
 
