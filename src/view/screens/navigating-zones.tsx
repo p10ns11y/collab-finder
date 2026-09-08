@@ -17,7 +17,7 @@ import {
 } from '../../core/domain/heading-cockpit'
 import {
   actCopy,
-  cockpitLabel,
+  bandLabel,
   craftFor,
   slotLabel,
   type Craft,
@@ -66,7 +66,7 @@ export function HeroBerth({
       )}
       <div className="min-w-0 flex-1">
         <p className="ui-section-label uppercase tracking-[0.06em] text-ink-muted">
-          {craft ? cockpitLabel(craft.family) : ''} · {slotLabel(focus)}
+          {craft ? bandLabel(craft.family) : ''} · {slotLabel(focus)}
         </p>
 
         {copy ? (
@@ -181,7 +181,7 @@ export function FleetDock({
             type="button"
             onClick={() => onTransport(tile.slot)}
             className={`ui-craft-slot w-full text-left ${hint === tile.slot ? 'border-accent/45' : ''}`}
-            title={`Show the ${slotLabel(tile.slot)} craft`}
+            title={`${slotLabel(tile.slot)} — ${bandLabel(tile.family)}. Show this craft.`}
           >
             <TransportCraft
               variant={tile.craft}

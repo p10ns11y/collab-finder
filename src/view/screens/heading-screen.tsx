@@ -102,8 +102,8 @@ export function HeadingScreen({ dispatch }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-5">
       <div>
         <SectionLabel>Navigating</SectionLabel>
-        {cockpit.hero.destination && (
-          <p className="mt-1 text-body text-ink">{cockpit.hero.destination}</p>
+        {cockpit.hero.arrive && (
+          <p className="mt-1 text-body text-ink">{cockpit.hero.arrive}</p>
         )}
       </div>
 

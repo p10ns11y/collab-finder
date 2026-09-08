@@ -256,11 +256,20 @@ const SLOT_LABEL: Readonly<Record<Slot, string>> = {
   body: 'Son & body',
 }
 
+/** The operator's band vocabulary. This is what the hero chip and the dock say. */
+const BAND_LABEL: Readonly<Record<Family, string>> = {
+  air: 'Aircraft',
+  water: 'Sailing',
+  land: 'Road',
+  space: 'Spaceship',
+}
+
+/** Spoken form for the transport announcement, where the band name alone reads oddly. */
 const COCKPIT_LABEL: Readonly<Record<Family, string>> = {
-  air: 'Air cockpit',
-  water: 'Water cockpit',
-  land: 'Land cockpit',
-  space: 'Space cockpit',
+  air: 'Aircraft band',
+  water: 'Sailing band',
+  land: 'Road band',
+  space: 'Spaceship band',
 }
 
 type CraftCopy = { label: string; gloss: string }
@@ -314,6 +323,10 @@ export function familyOfSlot(slot: Slot): Family {
 
 export function slotLabel(slot: Slot): string {
   return SLOT_LABEL[slot]
+}
+
+export function bandLabel(family: Family): string {
+  return BAND_LABEL[family]
 }
 
 export function cockpitLabel(family: Family): string {
@@ -618,9 +631,10 @@ export function flavorLine(craft: Craft): string {
   return `${craft.label} — ${craft.gloss}`
 }
 
-export function destinationLine(g?: string): string {
+/** `Arrive` is the mission map's own word for the goal; the view does not rename it. */
+export function arriveLine(g?: string): string {
   const goal = (g || '').trim()
-  return goal ? `Destination: ${goal}` : ''
+  return goal ? `Arrive: ${goal}` : ''
 }
 
 // ── focus + dock ──────────────────────────────────────────────────────────────
@@ -885,7 +899,7 @@ export type HeroBand = {
   actCopy: ActCopy | null
   waitingOn: MissionStage | null
   flavor: string
-  destination: string
+  arrive: string
   extraActs: number
   empty: boolean
   emptyCopy: string | null
@@ -938,7 +952,7 @@ function buildHero(input: CockpitInput, focus: Slot, now: Date): HeroBand {
     actCopy: act ? actCopy(act) : null,
     waitingOn,
     flavor: flavorLine(craft),
-    destination: destinationLine(input.g),
+    arrive: arriveLine(input.g),
     extraActs: Math.max(0, acts.length - 1),
     empty: mine.length === 0,
     emptyCopy: heroEmptyCopy(focus, input.stages.length === 0, mine.length === 0),

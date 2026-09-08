@@ -12,7 +12,8 @@ import {
   craftGloss,
   craftLabel,
   daysSinceTouch,
-  destinationLine,
+  arriveLine,
+  bandLabel,
   dockSlots,
   flavorLine,
   inferSlot,
@@ -455,7 +456,7 @@ must(
     withGoal.weather.state === withoutGoal.weather.state,
   'guard 1: the Arrive goal never votes on slot or weather',
 )
-must(withGoal.hero.destination === `Destination: ${GOAL}`, 'goal renders as the destination line')
+must(withGoal.hero.arrive === `Arrive: ${GOAL}`, "goal keeps the map's own Arrive wording")
 
 // ── §3 axes, tables and flags ────────────────────────────────────────────────
 
@@ -710,9 +711,9 @@ must(f5.weather.state === 'becalmed', 'F5 all-wait reads becalmed')
 
 const f6 = transportFocus('body', 'career')
 must(f6.focus === 'career' && f6.reason === 'user', 'F6 transport target wins')
-must(f6.announce === 'Transported to the Air cockpit — Career.', 'F6 announce copy')
+must(f6.announce === 'Transported to the Aircraft band — Career.', 'F6 announce copy')
 must(
-  transportFocus('career', 'sweden').announce === 'Transported to the Water cockpit — Sweden window.',
+  transportFocus('career', 'sweden').announce === 'Transported to the Sailing band — Sweden window.',
   'F6 announce copy for the Sweden window',
 )
 
@@ -777,12 +778,18 @@ must(c5.qualifier === null, 'C5 has no qualifier')
 must(c5.badges.length === 0, 'C5 badges')
 
 must(
-  destinationLine('started a decent Sweden/Nordics/EU full-time role') ===
-    'Destination: started a decent Sweden/Nordics/EU full-time role',
-  'C6 destination line',
+  arriveLine('started a decent Sweden/Nordics/EU full-time role') ===
+    'Arrive: started a decent Sweden/Nordics/EU full-time role',
+  'C6 Arrive line keeps the operator\'s own word',
 )
-must(destinationLine('') === '', 'C7 empty goal renders nothing')
-must(destinationLine(undefined) === '', 'C7 absent goal renders nothing')
+must(arriveLine('') === '', 'C7 empty goal renders nothing')
+must(arriveLine(undefined) === '', 'C7 absent goal renders nothing')
+
+// Band vocabulary is the operator's: Spaceship / Aircraft / Sailing / Road.
+must(bandLabel('space') === 'Spaceship', 'band label space')
+must(bandLabel('air') === 'Aircraft', 'band label air')
+must(bandLabel('water') === 'Sailing', 'band label water')
+must(bandLabel('land') === 'Road', 'band label land')
 
 console.log('=== heading-transport.verify ===')
 console.log(`${checks} assertions`)

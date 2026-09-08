@@ -9,16 +9,26 @@ weight and the first glance answered nothing. This note is the design law behind
 The operator's life has four slots. Each is locked 1:1 to a transport family, and **all four are
 first-class** — none is a rare special case.
 
-| Slot | Family | Energy signature |
-|------|--------|------------------|
-| Debt (hardest) | **Space** | max chaos, hardest cognitive load, unknown terrain |
-| Cash / career (hiring loop) | **Air** | high priority, turbulence expected and acceptable |
-| Sweden window | **Water** | most uncertainty — wind and wait, cannot force progress |
-| Son / body (human-only) | **Land** | relative slowness is fine, do not agent-force |
+| Slot | Family key | Band (what the UI says) | Energy signature |
+|------|-----------|-------------------------|------------------|
+| Debt (hardest) | `space` | **Spaceship** | max chaos, hardest cognitive load, unknown terrain |
+| Cash / career (hiring loop) | `air` | **Aircraft** | high priority, turbulence expected and acceptable |
+| Sweden window | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
+| Son / body (human-only) | `land` | **Road** | relative slowness is fine, do not agent-force |
+
+The family key is the internal axis value; `bandLabel()` renders the operator's band vocabulary,
+which is what the hero chip and the dock tiles show.
 
 **Focus is the hero craft.** The slot in focus is drawn large; the other three sit in the dock and
-can transport the hero. Navigating opens in the **Air cockpit** because it is the career hunt
+can transport the hero. Navigating opens in the **Aircraft band** because it is the career hunt
 surface, not because Air outranks the others.
+
+## What is preserved
+
+The redesign is presentation only. `Arrive` keeps the mission map's own word (`arriveLine()` never
+renames it), the one act is still the first `do` stage via the existing `findNextDo`, and pipeline
+routing is the existing `stageActions` verbatim — an apply-intent stage with no URL still offers
+**Open Pipeline**.
 
 ## First glance, in order
 
