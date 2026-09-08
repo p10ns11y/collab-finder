@@ -23,6 +23,21 @@ which is what the hero chip and the dock tiles show.
 can transport the hero. Navigating opens in the **Aircraft band** because it is the career hunt
 surface, not because Aircraft outranks the others.
 
+### Product role: core vs life spots
+
+All four slots are mechanically first-class — same craft, motion and weather transforms — but they
+do not play the same *product* role, and the UI now says so. `slotRole()` splits them:
+
+- **Career/Cash → `core` ("Product core").** This is what the app is *for*: the hunt for work and
+  money. It is the default hero and gets the full berth treatment. Cash is the career money need, so
+  it lives in the same Air family — there is no fifth slot.
+- **Debt / Sweden / Son & body → `spot` ("Life spot").** Real life areas the product keeps in view
+  so nothing slips, even though they are not the product's job. In the dock they read as quiet
+  notification tiles: a danger dot when a risk needs a decision, a soft dot when an act is due.
+
+The hero carries a plain role tag so docking into a life spot reads as intentional rather than a
+wrong turn. The copy is descriptive (what the slot *is*), never a coach's nudge.
+
 ### The spaceship is not an everyday craft
 
 Aircraft, ships and automobiles carry all ordinary work, and the Debt slot's everyday craft is the
@@ -49,7 +64,10 @@ The DOM order is the attention order:
 4. **dock** — the other three slot crafts
 
 Everything past the dock (the focused cockpit's waits, risks, flown and parked stages, and people)
-is outside the two-second budget and is allowed to be a list.
+is outside the two-second budget and is allowed to be a list. The People rows share the log's card
+language: a clear contact name and a labelled **Copy email** / **Open link** button. When a
+`contacts.md` entry was written with a bare schema key (`- email: …`), `contactDisplayName()` shows
+the address or the link host instead — a raw `email` / `url` key never becomes a person's name.
 
 ## Three independent axes
 
@@ -102,6 +120,14 @@ Weather is screen-level, not per-stage: `clear · crosswind · becalmed · storm
 always renders a plain sentence first and the family flavor word second — never the flavor word
 alone. Numbers in the sentence come only from stages that exist; a missing waybar simply does not
 fire its signals.
+
+**A storm is actionable, not ambient.** `computeWeather` attaches a `WeatherAlert` in the storm
+state: the first risk stage in map order (`lead`), the slot it lives in, its named `head` and
+`consequence` from `actCopy`, and the total risk `count`. The strip then names the concrete risk and
+offers a real decide path — the risk's own SoT action when it has one (Open posting / Copy mail /
+Open Pipeline), plus a **Show risk** button that transports to the risk's slot and jumps to its row.
+With several risks it shows the top one and a `+N more` that is still clickable to the whole list.
+The old vague "Something is going wrong" copy is gone: a storm always names its risk.
 
 ## Where the code lives
 
