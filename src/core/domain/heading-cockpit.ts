@@ -210,3 +210,42 @@ export function parseContactsActionable(md: string): ContactHint[] {
 
   return hints.slice(0, 6)
 }
+
+/**
+ * Raw schema keys an operator may have used as a contacts.md field name (`- email: …`, `- url: …`).
+ * These must never surface as a person's name — that is the `emailCopy mail` / `urlOpen` mash.
+ */
+const CONTACT_SCHEMA_KEY =
+  /^(e-?mails?|mail|urls?|links?|web ?sites?|web|site|home ?page|www|https?|contacts?|address(es)?|addr|profile)$/i
+
+/** Host without scheme or path, so a bare URL reads as `jobs.acme.com`, not the full link. */
+export function contactHost(url: string): string {
+  try {
+    return new URL(url).host || url
+  } catch {
+    return (url || '').replace(/^https?:\/\//i, '').split('/')[0] || url
+  }
+}
+
+/**
+ * A human name for a contact row: the operator's own label, unless that label is a bare schema key,
+ * in which case the value itself (the address, or the link's host) stands in.
+ */
+export function contactDisplayName(hint: ContactHint): string {
+  const label = (hint.label || '').trim()
+  if (label && !CONTACT_SCHEMA_KEY.test(label)) return label
+  if (hint.email) return hint.email
+  if (hint.url) return contactHost(hint.url)
+  return 'Contact'
+}
+
+/** The quiet second line: the address or link host when the name already carries the other half. */
+export function contactDetail(hint: ContactHint): string | null {
+  const name = contactDisplayName(hint)
+  if (hint.email) return name === hint.email ? 'Email' : hint.email
+  if (hint.url) {
+    const host = contactHost(hint.url)
+    return name === host ? 'Link' : host
+  }
+  return null
+}
