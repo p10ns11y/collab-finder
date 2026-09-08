@@ -16,6 +16,7 @@ import {
   type StageAction,
 } from '../../core/domain/heading-cockpit'
 import {
+  actCopy,
   cockpitLabel,
   craftFor,
   slotLabel,
@@ -49,6 +50,9 @@ export function HeroBerth({
 }) {
   const craft = hero.craft
   const shown = hero.act ?? hero.waitingOn
+  const copy = hero.actCopy ?? (hero.waitingOn ? actCopy(hero.waitingOn) : null)
+  /** The operator's own instruction wins: a don't-chase wait never gets a primary button. */
+  const chaseable = Boolean(hero.act) || !(craft?.dying || copy?.badges.includes("Don't chase"))
   return (
     <section className="ui-craft-berth flex items-center gap-5 p-5" aria-label="Current craft">
       {craft && (
@@ -61,26 +65,21 @@ export function HeroBerth({
         />
       )}
       <div className="min-w-0 flex-1">
-        <p className="ui-section-label uppercase tracking-[0.06em]">
+        <p className="ui-section-label uppercase tracking-[0.06em] text-ink-muted">
           {craft ? cockpitLabel(craft.family) : ''} · {slotLabel(focus)}
         </p>
 
-        {hero.actCopy ? (
-          <ActLines
-            head={hero.actCopy.head}
-            qualifier={hero.actCopy.qualifier}
-            badges={hero.actCopy.badges}
-            full={shown?.what}
-          />
-        ) : hero.waitingOn ? (
+        {copy ? (
           <>
-            <p className="mt-2 ui-meta uppercase tracking-wide">Waiting on</p>
+            {!hero.act && (
+              <p className="mt-2 ui-meta uppercase tracking-wide">Waiting on</p>
+            )}
             <ActLines
-              head={hero.waitingOn.what || hero.waitingOn.id || ''}
-              qualifier={null}
-              badges={[]}
-              full={hero.waitingOn.what}
-              muted
+              head={copy.head}
+              qualifier={copy.qualifier}
+              badges={copy.badges}
+              full={shown?.what}
+              muted={!hero.act}
             />
           </>
         ) : (
@@ -96,7 +95,7 @@ export function HeroBerth({
                 key={actionKey(action)}
                 action={action}
                 handlers={handlers}
-                primary={i === 0}
+                primary={i === 0 && chaseable}
               />
             ))}
           </div>
@@ -316,7 +315,7 @@ function StageRow({
         motion={craft.motion}
         alert={craft.alert}
         size="dock"
-        className="mt-0.5 shrink-0"
+        className="mt-1 shrink-0 text-ink-muted"
       />
       <div className="min-w-0 flex-1">
         <p className="text-body-sm text-ink">{stage.what || stage.id}</p>

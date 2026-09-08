@@ -270,14 +270,14 @@
 
   .ui-craft-hero {
     --craft-faint: 0.38;
-    width: clamp(96px, 20vh, 132px);
+    width: clamp(112px, 24vh, 160px);
     color: var(--color-ink);
   }
 
   .ui-craft-dock {
     --craft-stroke: 4; /* heavier strokes hold together below ~28px */
-    --craft-faint: 0.3;
-    width: 20px;
+    --craft-faint: 0.42;
+    width: 28px;
   }
 
   /* At 20px one viewBox unit is 0.31 device px: fine detail, the plume and the
@@ -288,21 +288,22 @@
     display: none;
   }
 
-  /* Family tint is a dock affordance. Hero vs dock is a lightness step, not a
-     hue step — the hero is the loud one at --color-ink without any colour help. */
-  .ui-craft-dock[data-family='air'] {
+  /* Family tint is a dock-tile affordance, scoped to the tile so a craft used as a
+     list bullet inherits its row's ink instead. Hero vs dock is a lightness step,
+     not a hue step — the hero is the loud one at --color-ink with no colour help. */
+  .ui-craft-slot .ui-craft[data-family='air'] {
     color: var(--color-craft-air);
   }
 
-  .ui-craft-dock[data-family='water'] {
+  .ui-craft-slot .ui-craft[data-family='water'] {
     color: var(--color-craft-water);
   }
 
-  .ui-craft-dock[data-family='land'] {
+  .ui-craft-slot .ui-craft[data-family='land'] {
     color: var(--color-craft-land);
   }
 
-  .ui-craft-dock[data-family='space'] {
+  .ui-craft-slot .ui-craft[data-family='space'] {
     color: var(--color-craft-space);
   }
 
