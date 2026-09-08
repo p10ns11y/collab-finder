@@ -10,7 +10,7 @@
  * Layout is a deliberate single column, not the phi split of the hunt screens: a cockpit's
  * hero is a band, and splitting it would halve the vehicle's claim on first glance.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { readHeadingSnapshot } from '../../adapters/tauri/heading-boot'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import { SectionLabel } from '../../components/ui/section-label'
@@ -28,6 +28,7 @@ import {
 } from '../../core/domain/heading-cockpit'
 import {
   buildCockpit,
+  slotLabel,
   transportFocus,
   type Slot,
 } from '../../core/domain/heading-transport'
@@ -55,6 +56,8 @@ export function HeadingScreen({ dispatch }: Props) {
   /** Focus resets per visit, so Navigating always opens in the Air cockpit. */
   const [userFocus, setUserFocus] = useState<Slot | null>(null)
   const [announce, setAnnounce] = useState('')
+  const riskRef = useRef<HTMLElement>(null)
+  const [pendingRiskScroll, setPendingRiskScroll] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -96,6 +99,19 @@ export function HeadingScreen({ dispatch }: Props) {
     setAnnounce(next.announce)
   }
 
+  /** The storm strip's decide path: open the slot the risk lives in, then jump to its row. */
+  function showRisk(target: Slot) {
+    setUserFocus(target)
+    setAnnounce(`Showing the risk in ${slotLabel(target)}.`)
+    setPendingRiskScroll(true)
+  }
+
+  useEffect(() => {
+    if (!pendingRiskScroll) return
+    riskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setPendingRiskScroll(false)
+  }, [pendingRiskScroll, cockpit.focus.focus])
+
   const heroStage = cockpit.hero.act ?? cockpit.hero.waitingOn
 
   return (
@@ -116,7 +132,7 @@ export function HeadingScreen({ dispatch }: Props) {
         handlers={handlers}
       />
 
-      <WeatherStrip weather={cockpit.weather} />
+      <WeatherStrip weather={cockpit.weather} handlers={handlers} onShowRisk={showRisk} />
 
       <FleetDock
         dock={cockpit.dock}
@@ -134,6 +150,7 @@ export function HeadingScreen({ dispatch }: Props) {
         park={cockpit.log.park}
         unclassified={cockpit.log.unclassified}
         handlers={handlers}
+        riskRef={riskRef}
       />
 
       <PeoplePanel hints={contactHints} handlers={handlers} />
