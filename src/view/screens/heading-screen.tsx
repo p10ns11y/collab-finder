@@ -3,7 +3,7 @@
  * Reads mission-map SoT. Writes stay with mm-lifeos-graph / CF apply cmds.
  *
  * Four life slots map 1:1 to four transport families, all of them first-class:
- * debt/Space, career/Air, sweden/Water, body/Land. The slot in focus is the hero craft;
+ * debt/Space, career/Air, season/Water, body/Land. The slot in focus is the hero craft;
  * the other three sit in the dock and can transport the hero. Navigating opens in the Air
  * cockpit because this is the career hunt surface.
  *

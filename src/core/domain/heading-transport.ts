@@ -22,7 +22,7 @@ import type { MissionStage, StageClass, WaybarStatus } from './heading-cockpit.t
 
 // ── vocabulary ────────────────────────────────────────────────────────────────
 
-export type Slot = 'debt' | 'career' | 'sweden' | 'body'
+export type Slot = 'debt' | 'career' | 'season' | 'body'
 export type Family = 'space' | 'air' | 'water' | 'land'
 export type Motion = 'thrust' | 'timetable' | 'drift' | 'long_haul' | 'berth'
 
@@ -50,8 +50,9 @@ export type SlotReason =
   | 'explicit_tag'
   | 'debt_token'
   | 'body_token'
+  | 'season_logistics'
   | 'entitlement_report'
-  | 'sweden_institution'
+  | 'season_institution'
   | 'hiring_act'
   | 'default_career'
 
@@ -66,7 +67,7 @@ export type SlotRole = 'core' | 'spot'
 // ── constants ─────────────────────────────────────────────────────────────────
 
 /** Canonical order — dock tiles never re-sort, so muscle memory holds. */
-export const SLOT_ORDER: readonly Slot[] = ['debt', 'career', 'sweden', 'body']
+export const SLOT_ORDER: readonly Slot[] = ['debt', 'career', 'season', 'body']
 export const DEFAULT_FOCUS: Slot = 'career'
 
 /** A career wait past its own stated reply band (the operator's "3–10 days to book"). */
@@ -83,7 +84,7 @@ export const BECAUSE_MAX = 3
 export const FAMILY_BY_SLOT: Readonly<Record<Slot, Family>> = {
   debt: 'space',
   career: 'air',
-  sweden: 'water',
+  season: 'water',
   body: 'land',
 }
 
@@ -133,13 +134,28 @@ const BODY_TOKENS =
 
 /**
  * Hiring acts and objects. `platsbanken` / `jobtech` live here on purpose: a job board is
- * career infrastructure, not an entitlement institution, so they must never reach Water.
+ * career infrastructure, not time-bound life logistics, so they must never reach the Season slot.
+ * A hiring act is the collision breaker: it keeps a stage in career (Air), never Water.
  */
 const HIRING_ACTS =
   /\b(apply|applications?|submit|send (cv|resume)|posting|req|role|vacancy|recruiter|screen(ing)?s?|interview|round|hiring[- ]manager|hm[- ]round|tech(nical)? round|take[- ]home|panel|onsite|offer|pack|cover letter|cv|resume|referral|intro(duction)?|notice period|start date|ats|greenhouse|lever|ashby|platsbanken|jobtech)\b/
 
-/** Entitlement / permission bodies and their artefacts only. No job boards, no countries. */
-const SWEDEN_INSTITUTIONS =
+/**
+ * Season = temporary, important, time-bound life attention. The travel / move / trip logistics
+ * that fill this slot in ordinary use. `pack` is deliberately absent (it is an application pack in
+ * `HIRING_ACTS`); `packing` and `packing list` are the safe, unambiguous forms. Geography is not a
+ * signal here — `stripGeoQualifiers` removes it before matching, so "flight to Sweden" matches on
+ * `flight`, never on the place.
+ */
+const SEASON_LOGISTICS =
+  /\b(travel(l?ing|l?ed)?|trip|itinerary|flight|flights|boarding pass|luggage|baggage|suitcase|packing|packing list|unpack|move|moving|movers|removal van|relocat(e|ing|ion)|sublet|temporary housing|temp housing|short[- ]term (?:rental|lease|stay)|hotel booking|airbnb|departure|depart|arrival|arrive by|check[- ]?in|passport|visa appointment)\b/
+
+/**
+ * Time-bound civic / permission bodies and their artefacts — the Swedish life-admin that also
+ * lives in the Season slot (a permit renewal or an a-kassa decision is a dated obligation, not a
+ * job act). Entitlement institutions only: no job boards, no countries.
+ */
+const SEASON_INSTITUTIONS =
   /\b(arbetsformedlingen|af|a-?kassa|arbetsloshetskassa|unemployment insurance|aktivitetsrapport|activity report|handlingsplan|forsakringskassan|migrationsverket|uppehallstillstand|residence permit|work permit|permit|personnummer|samordningsnummer|skatteverket|socialtjanst|socialkontor|forsorjningsstod|ersattning|bidrag|sfi|etablering|inskrivning|arbetsgivarintyg|intyg)\b/
 
 /** The collision breaker: verb intent that only an entitlement process asks for. */
@@ -188,13 +204,15 @@ const EXPLICIT_TAGS: Readonly<Record<string, Slot>> = {
   loan: 'debt',
   kfm: 'debt',
   career: 'career',
-  af: 'sweden',
-  sweden: 'sweden',
-  swe: 'sweden',
-  permit: 'sweden',
-  benefit: 'sweden',
-  fk: 'sweden',
-  mv: 'sweden',
+  season: 'season',
+  af: 'season',
+  permit: 'season',
+  visa: 'season',
+  benefit: 'season',
+  fk: 'season',
+  mv: 'season',
+  trip: 'season',
+  move: 'season',
   son: 'body',
   body: 'body',
   health: 'body',
@@ -202,7 +220,7 @@ const EXPLICIT_TAGS: Readonly<Record<string, Slot>> = {
   family: 'body',
 }
 
-const WHAT_TAG = /^(debt|career|sweden|af|body|son)\s*:/
+const WHAT_TAG = /^(debt|career|season|af|body|son)\s*:/
 
 const COMBINING_MARKS = /\p{M}+/gu
 const ID_SEPARATOR = /[^a-z0-9]+/
@@ -266,7 +284,7 @@ export function slotSignalText(stage: MissionStage): string {
 const SLOT_LABEL: Readonly<Record<Slot, string>> = {
   debt: 'Debt',
   career: 'Career',
-  sweden: 'Sweden window',
+  season: 'Season',
   body: 'Son & body',
 }
 
@@ -415,13 +433,21 @@ export function isEntitlementAct(text: string): boolean {
   return firstMatch(text, ENTITLEMENT_ACTS) !== null
 }
 
-export function hasSwedenInstitution(text: string): boolean {
-  return firstMatch(text, SWEDEN_INSTITUTIONS) !== null
+export function hasSeasonInstitution(text: string): boolean {
+  return firstMatch(text, SEASON_INSTITUTIONS) !== null
 }
 
-/** Institution plus verb intent — a hiring act only stays in Water when it is also an entitlement act. */
-export function isSwedenWindowSignal(text: string): boolean {
-  return hasSwedenInstitution(text) && (!isHiringAct(text) || isEntitlementAct(text))
+export function isSeasonLogistics(text: string): boolean {
+  return firstMatch(text, SEASON_LOGISTICS) !== null
+}
+
+/**
+ * A Season signal is time-bound life logistics (travel / move / trip) or a civic institution act.
+ * A hiring act keeps the stage in career (Air) and never votes Season — the one exception is an
+ * institution paired with an entitlement verb, which is a dated civic obligation, not a job act.
+ */
+export function isSeasonSignal(text: string): boolean {
+  return seasonProbe(text) !== null
 }
 
 /** Career tokens are the hiring acts, objects and job-board infrastructure. */
@@ -438,14 +464,18 @@ export type SlotDecision = {
 
 type SlotProbe = { slot: Slot; reason: SlotReason; matched: string | null }
 
-function swedenProbe(text: string): SlotProbe | null {
-  const institution = firstMatch(text, SWEDEN_INSTITUTIONS)
-  if (!institution) return null
-  if (!isHiringAct(text)) {
-    return { slot: 'sweden', reason: 'sweden_institution', matched: institution }
+function seasonProbe(text: string): SlotProbe | null {
+  const institution = firstMatch(text, SEASON_INSTITUTIONS)
+  const logistics = firstMatch(text, SEASON_LOGISTICS)
+  if (!institution && !logistics) return null
+  // Collision guard: a hiring act keeps the stage in career (Air), never Season. The lone
+  // exception is a civic institution paired with an entitlement verb (a dated obligation).
+  if (isHiringAct(text)) {
+    const entitlement = institution ? firstMatch(text, ENTITLEMENT_ACTS) : null
+    return entitlement ? { slot: 'season', reason: 'entitlement_report', matched: entitlement } : null
   }
-  const entitlement = firstMatch(text, ENTITLEMENT_ACTS)
-  return entitlement ? { slot: 'sweden', reason: 'entitlement_report', matched: entitlement } : null
+  if (institution) return { slot: 'season', reason: 'season_institution', matched: institution }
+  return { slot: 'season', reason: 'season_logistics', matched: logistics }
 }
 
 /**
@@ -460,8 +490,8 @@ function probeSlot(stage: MissionStage, text: string): SlotProbe {
   if (debt) return { slot: 'debt', reason: 'debt_token', matched: debt }
   const body = firstMatch(text, BODY_TOKENS)
   if (body) return { slot: 'body', reason: 'body_token', matched: body }
-  const sweden = swedenProbe(text)
-  if (sweden) return sweden
+  const season = seasonProbe(text)
+  if (season) return season
   const hiring = firstMatch(text, HIRING_ACTS)
   if (hiring) return { slot: 'career', reason: 'hiring_act', matched: hiring }
   return { slot: 'career', reason: 'default_career', matched: null }
@@ -760,7 +790,7 @@ function countClass(stages: MissionStage[], cls: StageClass): number {
 }
 
 export function partitionBySlot(stages: MissionStage[]): Record<Slot, MissionStage[]> {
-  const out: Record<Slot, MissionStage[]> = { debt: [], career: [], sweden: [], body: [] }
+  const out: Record<Slot, MissionStage[]> = { debt: [], career: [], season: [], body: [] }
   for (const stage of stages) out[inferSlot(stage)].push(stage)
   return out
 }
@@ -790,7 +820,7 @@ export function slotSummaries(stages: MissionStage[], now = new Date()): Record<
   return {
     debt: summarizeSlot('debt', stages, now),
     career: summarizeSlot('career', stages, now),
-    sweden: summarizeSlot('sweden', stages, now),
+    season: summarizeSlot('season', stages, now),
     body: summarizeSlot('body', stages, now),
   }
 }
