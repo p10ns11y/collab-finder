@@ -23,6 +23,8 @@ import {
   parseFollowupBand,
   selectFocus,
   slotOf,
+  slotRole,
+  roleLabel,
   slotSignalText,
   slotSummaries,
   stripGeoQualifiers,
@@ -563,7 +565,7 @@ const WEATHER = [
     waybar: 'X ON / 0 PAUSES',
     focus: 'career',
     state: 'storm',
-    because: ['1 risk item needs a decision'],
+    because: [],
   },
   { id: 'W4', stages: [], waybar: 'X ON / 2 PAUSES', focus: 'career', state: 'blackout', because: [] },
   { id: 'W5', stages: [S[1], S[2]], waybar: 'X ON / 0 PAUSES', focus: 'career', state: 'clear', because: [] },
@@ -590,7 +592,7 @@ const WEATHER = [
     waybar: 'X ON / 0 PAUSES',
     focus: 'debt',
     state: 'storm',
-    because: ['1 risk item needs a decision'],
+    because: [],
   },
   {
     id: 'W9',
@@ -654,9 +656,49 @@ must(
 )
 must(
   weatherOf([S[1], S[26]], 'X ON / 0 PAUSES', 'career').sentence ===
-    'Something is going wrong: 1 risk item needs a decision.',
-  'W3 storm sentence agrees in number',
+    'Decide on the risk: Pack for the W37 lane is missing a cover letter.',
+  'W3 storm sentence names the concrete risk and asks for the decision',
 )
+must(
+  !weatherOf([S[1], S[26]], 'X ON / 0 PAUSES', 'career').sentence.includes('something is going wrong'),
+  'W3 storm never falls back to the vague "something is going wrong"',
+)
+
+// ── storm alert: named risk + decide path (Fix 1) ────────────────────────────
+const storm1 = weatherOf([S[1], S[26]], 'X ON / 0 PAUSES', 'career')
+must(storm1.alert !== null, 'storm carries a named alert')
+must(storm1.alert.lead === S[26], 'alert.lead is the first risk stage in map order')
+must(storm1.alert.slot === 'career', 'alert.slot is where the risk lives')
+must(storm1.alert.head === 'Pack for the W37 lane is missing a cover letter', 'alert names the risk')
+must(storm1.alert.consequence === 'could sink the submission', 'alert keeps the stakes clause')
+must(storm1.alert.count === 1, 'alert counts one risk')
+
+const storm2 = weatherOf([S[26], S[16]], 'X ON / 0 PAUSES', 'career')
+must(storm2.alert.count === 2, 'alert counts every risk on the map')
+must(storm2.alert.lead === S[26], 'alert.lead stays the top risk when several exist')
+must(
+  storm2.sentence === 'Decide on the risk: Pack for the W37 lane is missing a cover letter (+1 more).',
+  'multiple risks show the top one plus a +N more the strip keeps clickable',
+)
+
+const stormElsewhere = weatherOf([S[1], S[16]], 'X ON / 0 PAUSES', 'career')
+must(
+  stormElsewhere.alert.slot === 'debt',
+  'a risk outside the focused cockpit still names its own slot for the decide path',
+)
+must(stormElsewhere.alert.consequence === null, 'a risk with no stakes clause has a null consequence')
+
+must(weatherOf([S[1], S[2]], 'X ON / 0 PAUSES', 'career').alert === null, 'a clear run carries no alert')
+must(weatherOf([], 'X ON / 0 PAUSES', 'career').alert === null, 'a blackout carries no alert')
+
+// ── slot roles: product core vs life spots (Fix 2) ───────────────────────────
+must(slotRole('career') === 'core', 'Career/Cash is the product core')
+must(
+  slotRole('debt') === 'spot' && slotRole('sweden') === 'spot' && slotRole('body') === 'spot',
+  'the other three slots are life attention-spots',
+)
+must(roleLabel('core') === 'Product core', 'core role label')
+must(roleLabel('spot') === 'Life spot', 'spot role label')
 must(
   weatherOf([], 'X ON / 2 PAUSES', 'career').sentence ===
     'No mission map on disk yet — Navigating has nothing to read.',
