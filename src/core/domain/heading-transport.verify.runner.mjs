@@ -3,6 +3,7 @@ import { decodeWaybarChip } from './heading-cockpit.ts'
 import {
   CLOCK_OWNED,
   FAMILY_BY_SLOT,
+  CHAOS_CRAFT,
   FAMILY_CRAFT,
   SLOT_ORDER,
   actCopy,
@@ -83,7 +84,7 @@ const VECTORS = [
     slot: 'career',
     family: 'air',
     motion: 'drift',
-    variant: 'glider',
+    variant: 'airliner',
     reason: 'hiring_act',
   },
   {
@@ -139,7 +140,7 @@ const VECTORS = [
     family: 'air',
     motion: 'berth',
     // Brief said `hangar`; berth reuses a drawable craft and "In the hangar" moved to the gloss.
-    variant: 'airliner',
+    variant: 'glider',
     reason: 'hiring_act',
   },
   {
@@ -236,7 +237,7 @@ const VECTORS = [
     slot: 'debt',
     family: 'space',
     motion: 'thrust',
-    variant: 'spaceship',
+    variant: 'probe',
     reason: 'debt_token',
   },
   {
@@ -259,7 +260,7 @@ const VECTORS = [
     slot: 'debt',
     family: 'space',
     motion: 'thrust',
-    variant: 'spaceship',
+    variant: 'probe',
     reason: 'debt_token',
   },
   {
@@ -268,7 +269,7 @@ const VECTORS = [
     slot: 'debt',
     family: 'space',
     motion: 'timetable',
-    variant: 'spaceship',
+    variant: 'probe',
     reason: 'debt_token',
   },
   {
@@ -277,7 +278,7 @@ const VECTORS = [
     slot: 'debt',
     family: 'space',
     motion: 'berth',
-    // Brief said `orbit_hold`; the drawable berth craft is the lander, gloss keeps "Holding orbit".
+    // Berth reuses a drawable craft: Space rests as the lander.
     variant: 'lander',
     reason: 'debt_token',
   },
@@ -287,7 +288,7 @@ const VECTORS = [
     slot: 'body',
     family: 'land',
     motion: 'timetable',
-    variant: 'bus',
+    variant: 'taxi',
     reason: 'body_token',
   },
   {
@@ -334,7 +335,7 @@ const VECTORS = [
     family: 'land',
     motion: 'berth',
     // Brief said `garage`; the drawable berth craft is the truck, gloss keeps "In the garage".
-    variant: 'truck',
+    variant: 'bus',
     reason: 'body_token',
   },
   {
@@ -348,7 +349,7 @@ const VECTORS = [
     slot: 'career',
     family: 'air',
     motion: 'long_haul',
-    variant: 'glider',
+    variant: 'airliner',
     reason: 'hiring_act',
   },
   {
@@ -370,7 +371,7 @@ const VECTORS = [
     slot: 'career',
     family: 'air',
     motion: 'drift',
-    variant: 'glider',
+    variant: 'airliner',
     reason: 'hiring_act',
   },
   {
@@ -379,7 +380,7 @@ const VECTORS = [
     slot: 'career',
     family: 'air',
     motion: 'berth',
-    variant: 'airliner',
+    variant: 'glider',
     reason: 'default_career',
   },
   {
@@ -388,7 +389,7 @@ const VECTORS = [
     slot: 'career',
     family: 'air',
     motion: 'drift',
-    variant: 'glider',
+    variant: 'airliner',
     reason: 'default_career',
   },
   {
@@ -475,13 +476,16 @@ for (const [slot, family] of Object.entries(FAMILY_BY_SLOT)) {
   must(cells.every((variant) => VARIANTS.includes(variant)), `${slot}/${family} only draws real crafts`)
 }
 must(FAMILY_CRAFT.space.thrust === FAMILY_CRAFT.space.timetable, 'a scheduled burn is still the crewed vessel')
-must(craftLabel('air', 'berth') === 'Hangar', 'berthed Air reads Hangar, not Airliner')
-must(craftLabel('water', 'berth') === 'Harbour', 'berthed Water reads Harbour')
-must(craftLabel('land', 'berth') === 'Garage', 'berthed Land reads Garage')
-must(craftLabel('space', 'berth') === 'Holding orbit', 'berthed Space reads Holding orbit')
-must(craftGloss('air', 'berth').startsWith('In the hangar.'), 'berth gloss keeps the hangar wording')
-must(craftGloss('space', 'berth').startsWith('Holding orbit.'), 'berth gloss keeps the holding-orbit wording')
-must(flavorLine(craftFor(S[6], NOW)) === 'Hangar — In the hangar. Flown, logged, nothing to do.', 'flavor line')
+must(craftLabel('air', 'berth') === 'Glider', 'berthed Air is the parked glider')
+must(craftLabel('water', 'berth') === 'Freighter', 'berthed Water is the moored freighter')
+must(craftLabel('land', 'berth') === 'City bus', 'berthed Land is the background city bus')
+must(craftLabel('space', 'berth') === 'Lander', 'berthed Space is the lander')
+must(craftGloss('air', 'berth').startsWith('Parked.'), 'berth gloss says parked')
+must(craftGloss('space', 'berth').startsWith('Down and safe.'), 'berth gloss says down and safe')
+must(
+  flavorLine(craftFor(S[6], NOW)) === 'Glider — Parked. Engine off, logged, nothing to do.',
+  'flavor line',
+)
 
 const w1craft = craftFor(S[2], NOW)
 must(w1craft.dying === true, 'row 2 dying flag from the operator\'s own words')
@@ -690,7 +694,7 @@ must(f2.focus.focus === 'career' && f2.focus.reason === 'default', 'F2 empty map
 must(sameList(f2.dock.map((d) => d.slot), ['debt', 'sweden', 'body']), 'F2 dock order')
 must(f2.dock.every((d) => d.empty), 'F2 dock is three silhouettes')
 must(f2.hero.emptyCopy === 'No mission map on disk yet.', 'F2 hero says the map is empty')
-must(f2.hero.craft.variant === FAMILY_CRAFT.air.berth, 'F2 hero shows the berthed career craft')
+must(f2.hero.craft.variant === CHAOS_CRAFT, 'F2 an unreadable map is the chaos case, not a berth')
 
 const f3 = buildCockpit({ stages: [S[8], S[2], S[3]], waybar: waybar0, now: NOW })
 must(f3.focus.focus === 'sweden' && f3.focus.reason === 'one_act', 'F3 focus follows the AF act')
@@ -726,7 +730,7 @@ const summaries = slotSummaries([S[1], S[2], S[14], S[19]], NOW)
 must(summaries.career.live === 2, 'summary counts do + wait + risk')
 must(summaries.career.waiting === 1, 'summary counts waits')
 must(summaries.career.headline === 'Submit one relevant application next week', 'summary headline')
-must(summaries.debt.craft === 'spaceship', 'summary craft comes from the most alive stage')
+must(summaries.debt.craft === 'probe', 'summary craft comes from the most alive stage')
 must(summaries.debt.motion === 'thrust', 'summary carries the motion so the dock need not re-derive it')
 must(summaries.sweden.craft === FAMILY_CRAFT.water.berth, 'empty slot draws a berthed craft, not a burning one')
 must(summaries.sweden.motion === 'berth', 'empty slot motion is berth')
@@ -786,10 +790,30 @@ must(arriveLine('') === '', 'C7 empty goal renders nothing')
 must(arriveLine(undefined) === '', 'C7 absent goal renders nothing')
 
 // Band vocabulary is the operator's: Spaceship / Aircraft / Sailing / Road.
-must(bandLabel('space') === 'Spaceship', 'band label space')
+// ── fleet lock: spaceship is rare chaos only ─────────────────────────────────
+// Aircraft, ships and automobiles carry every ordinary act. A routine debt call must never be
+// dressed up as a crewed burn, so `spaceship` may not appear anywhere in the everyday table.
+const everydayCraft = Object.values(FAMILY_CRAFT).flatMap((row) => Object.values(row))
+must(!everydayCraft.includes('spaceship'), 'no spaceship anywhere in the everyday fleet table')
+must(CHAOS_CRAFT === 'spaceship', 'the chaos craft is the spaceship')
+
+const chaosMap = buildCockpit({ g: GOAL, stages: [], waybar: waybar0, now: NOW })
+must(chaosMap.weather.state === 'blackout', 'an unreadable SoT is blackout')
+must(chaosMap.hero.craft.variant === 'spaceship', 'unknown SoT scrambles the spaceship')
+must(chaosMap.hero.craft.alert === true, 'the chaos craft is an alert craft')
+
+const brick = buildCockpit({ stages: [], mapError: 'keyring locked', waybar: waybar0, now: NOW })
+must(brick.hero.craft.variant === 'spaceship', 'a bricked read scrambles the spaceship')
+must(brick.weather.sentence.includes('keyring locked'), 'the blackout sentence carries the reason')
+
+const ordinary = buildCockpit({ g: GOAL, stages: [S[14]], waybar: waybar0, now: NOW })
+must(ordinary.focus.focus === 'debt', 'a debt act focuses the debt slot')
+must(ordinary.hero.craft.variant === 'probe', 'an everyday debt act is a probe, never a spaceship')
+
+must(bandLabel('space') === 'Deep space', 'band label space')
 must(bandLabel('air') === 'Aircraft', 'band label air')
 must(bandLabel('water') === 'Sailing', 'band label water')
-must(bandLabel('land') === 'Road', 'band label land')
+must(bandLabel('land') === 'Automobiles', 'band label land')
 
 console.log('=== heading-transport.verify ===')
 console.log(`${checks} assertions`)

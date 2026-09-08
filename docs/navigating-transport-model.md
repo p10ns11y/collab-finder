@@ -11,17 +11,26 @@ first-class** — none is a rare special case.
 
 | Slot | Family key | Band (what the UI says) | Energy signature |
 |------|-----------|-------------------------|------------------|
-| Debt (hardest) | `space` | **Spaceship** | max chaos, hardest cognitive load, unknown terrain |
 | Cash / career (hiring loop) | `air` | **Aircraft** | high priority, turbulence expected and acceptable |
 | Sweden window | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
-| Son / body (human-only) | `land` | **Road** | relative slowness is fine, do not agent-force |
+| Son / body (human-only) | `land` | **Automobiles** | relative slowness is fine, do not agent-force |
+| Debt (hardest) | `space` | **Deep space** | hardest slot, long signal delays, little leverage |
 
 The family key is the internal axis value; `bandLabel()` renders the operator's band vocabulary,
 which is what the hero chip and the dock tiles show.
 
 **Focus is the hero craft.** The slot in focus is drawn large; the other three sit in the dock and
 can transport the hero. Navigating opens in the **Aircraft band** because it is the career hunt
-surface, not because Air outranks the others.
+surface, not because Aircraft outranks the others.
+
+### The spaceship is not an everyday craft
+
+Aircraft, ships and automobiles carry all ordinary work, and the Debt slot's everyday craft is the
+**probe** — a query sent into the dark. `spaceship` is deliberately absent from `FAMILY_CRAFT` and
+lives alone in `CHAOS_CRAFT`, drawn only when the source of truth is unreadable: no mission map on
+disk, or the read failed (a bricked keyring surfaces here today, since Navigating has no separate
+auth signal). That is the `blackout` weather state, and it is the only spaceship in the app. A
+verify assertion enforces the absence, so the everyday table cannot quietly regain one.
 
 ## What is preserved
 
@@ -53,32 +62,37 @@ into renamed headers.
 | `class` | where in the lifecycle | `do · wait · done · risk · park` | the SoT field, unchanged, from `heading-cockpit` |
 | `motion` | what energy it demands | `thrust · timetable · drift · long_haul · berth` | `class` plus tempo signals |
 
-The craft is then `FAMILY_CRAFT[family][motion]`. This is why a **waiting career stage is an Air
-glider**, not a Water craft: waiting is a lifecycle fact, Water is the Sweden-window slot. The two
-have nothing to do with each other.
+The craft is then `FAMILY_CRAFT[family][motion]`. This is why a **waiting career stage is a
+cruising airliner**, not a Sailing craft: waiting is a lifecycle fact, Sailing is the
+Sweden-window slot. The two have nothing to do with each other.
 
-| family | thrust | timetable | drift | long_haul | berth |
-|--------|--------|-----------|-------|-----------|-------|
-| air | jet | airliner | glider | glider | airliner (hangar) |
-| water | dinghy | ferry | yacht | freighter | freighter (harbour) |
-| land | motorcycle | bus | taxi | truck | truck (garage) |
-| space | spaceship | spaceship | probe | probe | lander (holding orbit) |
+| band | thrust | timetable | drift | long_haul | berth |
+|------|--------|-----------|-------|-----------|-------|
+| Aircraft | **scramble jet** — act today | **airliner** — cruise on their schedule | airliner — cruise inside their reply window | airliner — long cruise, window passed | **glider** — parked |
+| Sailing | **dinghy** — small local act | **ferry** — a polite schedule | **racing yacht** — patient, cannot make wind | **freighter** — long horizon | freighter — moored |
+| Automobiles | **motorcycle** — fast dash | **taxi at the curb** — booked pickup | taxi at the curb — waiting on a person (HITL) | **truck** — prep haul | **city bus** — background, archived |
+| Deep space | probe — pushed into the dark | probe — their window governs | probe — waiting on telemetry | probe — deep transit | **lander** — down and safe |
 
-Berth reuses a drawable craft; the "in the hangar" reading comes from `craftLabel` /
-`craftGloss`, which key off `(family, motion)` rather than the variant alone.
+Chaos sits off this grid entirely: **spaceship**, and only for an unreadable SoT.
+
+Two motions may share a craft — a cruising airliner is the same aeroplane whether it is on a
+schedule or merely inside a reply window — and the motion CSS still draws them apart, so the label
+repeats while the gloss says which wait it is. `craftLabel` / `craftGloss` key off
+`(family, motion)` rather than the variant alone, which is how a berthed Aircraft stage reads
+"Glider — parked" instead of borrowing the cruise wording.
 
 ## The two rules that are easy to get wrong
 
 **The Sweden collision.** The career goal literally contains the word "Sweden" and career postings
 are hosted on `arbetsformedlingen.se`, so a naive keyword match files half the hiring loop into the
-Water slot. Four guards prevent it: the goal string never votes (`inferSlot` takes a stage, not the
-map), `stripGeoQualifiers()` removes geography before matching, Water's allowlist holds only
+Sailing slot. Four guards prevent it: the goal string never votes (`inferSlot` takes a stage, not the
+map), `stripGeoQualifiers()` removes geography before matching, Sailing's allowlist holds only
 entitlement and permission institutions (`platsbanken` and `jobtech` are job boards, so they are
 career), and `contact.url` is excluded from the signal text. The remaining two-token case is broken
-by verb intent — an entitlement verb sends it to Water, a hiring verb keeps it in Air.
+by verb intent — an entitlement verb sends it to Sailing, a hiring verb keeps it in Aircraft.
 
 **Clock ownership.** `CLOCK_OWNED = { air: false, space: false, water: true, land: true }`. For
-Water and Land a schedule beats thrust, because those slots' product law is "cannot force" and
+Sailing and Automobiles a schedule beats thrust, because those slots' product law is "cannot force" and
 "must not be agent-forced". For Air and Space, thrust wins. That asymmetry is the product law
 expressed as data.
 

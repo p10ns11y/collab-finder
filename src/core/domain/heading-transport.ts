@@ -95,12 +95,20 @@ export const CLOCK_OWNED: Readonly<Record<Family, boolean>> = {
   land: true,
 }
 
+/**
+ * The everyday fleet. Aircraft, ships and automobiles carry all normal work; `spaceship` is
+ * deliberately absent from this table and is reserved for CHAOS_CRAFT below, so a routine debt
+ * call never gets dressed up as a crewed burn.
+ */
 export const FAMILY_CRAFT: Readonly<Record<Family, Record<Motion, Variant>>> = {
-  air: { thrust: 'jet', timetable: 'airliner', drift: 'glider', long_haul: 'glider', berth: 'airliner' },
+  air: { thrust: 'jet', timetable: 'airliner', drift: 'airliner', long_haul: 'airliner', berth: 'glider' },
   water: { thrust: 'dinghy', timetable: 'ferry', drift: 'yacht', long_haul: 'freighter', berth: 'freighter' },
-  land: { thrust: 'motorcycle', timetable: 'bus', drift: 'taxi', long_haul: 'truck', berth: 'truck' },
-  space: { thrust: 'spaceship', timetable: 'spaceship', drift: 'probe', long_haul: 'probe', berth: 'lander' },
+  land: { thrust: 'motorcycle', timetable: 'taxi', drift: 'taxi', long_haul: 'truck', berth: 'bus' },
+  space: { thrust: 'probe', timetable: 'probe', drift: 'probe', long_haul: 'probe', berth: 'lander' },
 }
+
+/** Rare chaos only: the SoT is unreadable or the keys are bricked. Never an everyday craft. */
+export const CHAOS_CRAFT: Variant = 'spaceship'
 
 // ── token lists (grep one, extend one) ────────────────────────────────────────
 
@@ -260,53 +268,60 @@ const SLOT_LABEL: Readonly<Record<Slot, string>> = {
 const BAND_LABEL: Readonly<Record<Family, string>> = {
   air: 'Aircraft',
   water: 'Sailing',
-  land: 'Road',
-  space: 'Spaceship',
+  land: 'Automobiles',
+  space: 'Deep space',
 }
 
 /** Spoken form for the transport announcement, where the band name alone reads oddly. */
 const COCKPIT_LABEL: Readonly<Record<Family, string>> = {
   air: 'Aircraft band',
   water: 'Sailing band',
-  land: 'Road band',
-  space: 'Spaceship band',
+  land: 'Automobiles band',
+  space: 'Deep space band',
 }
 
 type CraftCopy = { label: string; gloss: string }
 
 /**
- * Keyed by (family, motion), not by variant: berth reuses a real craft, so a berthed Air stage
- * must still read "Hangar — in the hangar", never "Airliner".
+ * Keyed by (family, motion), not by variant. Two motions may share a craft — a cruising airliner
+ * is the same aeroplane whether it is on a schedule or just waiting — and the motion CSS still
+ * draws them apart, so the label can repeat while the gloss says which wait this is.
  */
 const CRAFT_COPY: Readonly<Record<Family, Record<Motion, CraftCopy>>> = {
   air: {
-    thrust: { label: 'Jet', gloss: "Thrust is yours. You don't need anyone's permission to move." },
-    timetable: { label: 'Airliner', gloss: "There's a timetable. You board when they call the gate." },
-    drift: { label: 'Glider', gloss: "No thrust available — you're riding altitude you already bought." },
-    long_haul: { label: 'Glider', gloss: "No thrust available — you're riding altitude you already bought." },
-    berth: { label: 'Hangar', gloss: 'In the hangar. Flown, logged, nothing to do.' },
+    thrust: { label: 'Scramble jet', gloss: "Act today. Thrust is yours; nobody's permission needed." },
+    timetable: { label: 'Airliner', gloss: 'Cruising on their schedule. You board when they call the gate.' },
+    drift: { label: 'Airliner', gloss: "Cruising inside their reply window. No thrust available, and that's fine." },
+    long_haul: { label: 'Airliner', gloss: 'Long cruise. Their own window has passed; nothing to add but time.' },
+    berth: { label: 'Glider', gloss: 'Parked. Engine off, logged, nothing to do.' },
   },
   water: {
-    thrust: { label: 'Dinghy', gloss: 'Small and self-powered. You can row this one yourself, now.' },
-    timetable: { label: 'Ferry', gloss: 'It leaves when it leaves. Be at the terminal on time.' },
-    drift: { label: 'Yacht', gloss: 'You can trim the sails. You cannot make wind.' },
-    long_haul: { label: 'Freighter', gloss: 'Long transit. Weeks of sea, and nothing you do speeds it up.' },
-    berth: { label: 'Harbour', gloss: 'Moored. This one is settled.' },
+    thrust: { label: 'Dinghy', gloss: 'Small and local. You can row this one yourself, now.' },
+    timetable: { label: 'Ferry', gloss: 'A polite schedule. It leaves when it leaves; be at the terminal.' },
+    drift: { label: 'Racing yacht', gloss: 'Trim the sails all you like. You cannot make wind.' },
+    long_haul: { label: 'Freighter', gloss: 'Long horizon. Weeks of sea, and nothing you do speeds it up.' },
+    berth: { label: 'Freighter', gloss: 'Moored. This one is settled.' },
   },
   land: {
-    thrust: { label: 'Motorcycle', gloss: "Quick, human-paced, no agent. Ten minutes and it's done." },
-    timetable: { label: 'Bus', gloss: 'Fixed time. You have to be at the stop.' },
-    drift: { label: 'Taxi', gloss: "Kerbside. You're waiting on a person, not a process." },
-    long_haul: { label: 'Truck', gloss: 'Heavy haul. Weeks of steady load, not a sprint.' },
-    berth: { label: 'Garage', gloss: 'In the garage. Handled.' },
+    thrust: { label: 'Motorcycle', gloss: 'Fast dash. Ten minutes, human-paced, no agent.' },
+    timetable: { label: 'Taxi at the curb', gloss: 'Booked pickup. A person has to show up, on their clock.' },
+    drift: { label: 'Taxi at the curb', gloss: "Kerbside. You're waiting on a person, not a process." },
+    long_haul: { label: 'Truck', gloss: 'Prep haul. Heavy load, steady weeks, not a sprint.' },
+    berth: { label: 'City bus', gloss: 'Background. Archived and running without you.' },
   },
   space: {
-    thrust: { label: 'Spaceship', gloss: 'Unknown terrain, full crew, max load. Burn when ready.' },
-    timetable: { label: 'Spaceship', gloss: 'Unknown terrain, full crew, max load. Burn when ready.' },
+    thrust: { label: 'Probe', gloss: 'Sent into the dark. Push it out and wait for telemetry.' },
+    timetable: { label: 'Probe', gloss: 'Sent into the dark. Their window governs the next signal.' },
     drift: { label: 'Probe', gloss: 'Query sent into the dark. Waiting on telemetry.' },
-    long_haul: { label: 'Probe', gloss: 'Query sent into the dark. Waiting on telemetry.' },
-    berth: { label: 'Holding orbit', gloss: 'Holding orbit. Life support only, no burn scheduled.' },
+    long_haul: { label: 'Probe', gloss: 'Deep transit. Months out, no signal expected soon.' },
+    berth: { label: 'Lander', gloss: 'Down and safe. No burn scheduled.' },
   },
+}
+
+/** Chaos copy is not on the (family, motion) grid — it replaces the craft, whatever the slot. */
+const CHAOS_COPY: CraftCopy = {
+  label: 'Spaceship',
+  gloss: 'Unknown terrain. The map or the keys are gone — crew this one by hand.',
 }
 
 const WEATHER_FLAVOR: Readonly<Record<WeatherState, Record<Family, string>>> = {
@@ -586,6 +601,25 @@ export function craftFor(stage: MissionStage, now = new Date()): Craft {
 
 export function variantFor(stage: MissionStage, now = new Date()): Variant {
   return craftFor(stage, now).variant
+}
+
+/**
+ * The one place a spaceship is drawn: the mission map is unreadable or the keys are bricked, so
+ * no slot craft can be trusted. Everyday work never reaches this.
+ */
+export function chaosCraft(slot: Slot): Craft {
+  return {
+    slot,
+    family: FAMILY_BY_SLOT[slot],
+    motion: 'thrust',
+    variant: CHAOS_CRAFT,
+    label: CHAOS_COPY.label,
+    gloss: CHAOS_COPY.gloss,
+    alert: true,
+    dying: false,
+    stale: false,
+    tempo: EMPTY_TEMPO,
+  }
 }
 
 /** A slot with nothing on the map still needs a silhouette to draw. */
@@ -939,13 +973,14 @@ function heroEmptyCopy(focus: Slot, mapEmpty: boolean, slotEmpty: boolean): stri
  * `waitingOn` replaces the act only when the focused slot has no Do at all. A Do on someone
  * else's clock (school pickup at 15:00) is still the operator's one act and stays an act.
  */
-function buildHero(input: CockpitInput, focus: Slot, now: Date): HeroBand {
+function buildHero(input: CockpitInput, focus: Slot, now: Date, chaos: boolean): HeroBand {
   const mine = input.stages.filter((stage) => inferSlot(stage) === focus)
   const acts = mine.filter((stage) => normalizeStageClass(stage.class) === 'do')
   const act = acts[0] ?? null
   const waitingOn = act ? null : mine.find((stage) => isLiveClass(normalizeStageClass(stage.class))) ?? null
   const shown = act ?? waitingOn
-  const craft = shown ? craftFor(shown, now) : berthedCraft(focus)
+  const everyday = shown ? craftFor(shown, now) : berthedCraft(focus)
+  const craft = chaos ? chaosCraft(focus) : everyday
   return {
     craft,
     act,
@@ -975,16 +1010,18 @@ function buildLog(stages: MissionStage[], focus: Slot): CockpitLog {
 export function buildCockpit(input: CockpitInput): Cockpit {
   const now = input.now ?? new Date()
   const focus = selectFocus({ userFocus: input.userFocus, stages: input.stages })
+  const weather = computeWeather({
+    stages: input.stages,
+    waybar: input.waybar,
+    focus: focus.focus,
+    mapError: input.mapError,
+    now,
+  })
   return {
     focus,
-    hero: buildHero(input, focus.focus, now),
-    weather: computeWeather({
-      stages: input.stages,
-      waybar: input.waybar,
-      focus: focus.focus,
-      mapError: input.mapError,
-      now,
-    }),
+    // Blackout is the chaos gate: unreadable map or bricked keys, the only spaceship in the app.
+    hero: buildHero(input, focus.focus, now, weather.state === 'blackout'),
+    weather,
     dock: dockSlots(focus.focus).map((slot) => summarizeSlot(slot, input.stages, now)),
     log: buildLog(input.stages, focus.focus),
   }
