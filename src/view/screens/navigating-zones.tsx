@@ -4,11 +4,15 @@
  * DOM order is the attention order: vehicle → one act → weather → dock → log.
  * Props in, events out; every string comes from heading-transport or the SoT itself.
  */
+import type { Ref } from 'react'
+import { AlertTriangle, ChevronRight, ExternalLink, Mail } from 'lucide-react'
 import { TransportCraft, WeatherGlyph } from '../../components/finder/transport-craft'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { SectionLabel } from '../../components/ui/section-label'
 import {
+  contactDetail,
+  contactDisplayName,
   stageActions,
   stageMetaLine,
   type ContactHint,
@@ -20,18 +24,28 @@ import {
   bandLabel,
   craftFor,
   heroChipLabel,
+  roleLabel,
   slotLabel,
+  slotRole,
   type Craft,
   type HeroBand,
   type Slot,
   type SlotSummary,
   type Weather,
+  type WeatherAlert,
 } from '../../core/domain/heading-transport'
 
 export type ActionHandlers = {
   openUrl: (url: string) => void
   copyEmail: (email: string) => void
   navigate: (screen: string) => void
+}
+
+/** Plain reader note behind the role tag — states what the slot is, never coaches. */
+function roleTitle(slot: Slot): string {
+  return slotRole(slot) === 'core'
+    ? 'Career & cash — the product runs here.'
+    : 'A life area, kept in view but off the hunt.'
 }
 
 /**
@@ -66,9 +80,16 @@ export function HeroBerth({
         />
       )}
       <div className="min-w-0 flex-1">
-        <p className="ui-section-label uppercase tracking-[0.06em] text-ink-muted">
-          {craft ? heroChipLabel(craft, focus) : slotLabel(focus)}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="ui-section-label uppercase tracking-[0.06em] text-ink-muted">
+            {craft ? heroChipLabel(craft, focus) : slotLabel(focus)}
+          </p>
+          {!craft?.chaos && (
+            <Badge tone="neutral" title={roleTitle(focus)}>
+              {roleLabel(slotRole(focus))}
+            </Badge>
+          )}
+        </div>
 
         {copy ? (
           <>
@@ -147,8 +168,30 @@ function ActLines({
   )
 }
 
-/** ③ WEATHER. Plain sentence first, flavor word second — never the flavor word alone. */
-export function WeatherStrip({ weather }: { weather: Weather }) {
+/**
+ * ③ WEATHER. Plain sentence first, flavor word second. A storm is not ambient: it names the risk
+ * and offers a real decide path, so it renders as an actionable alert instead of a status line.
+ */
+export function WeatherStrip({
+  weather,
+  handlers,
+  onShowRisk,
+}: {
+  weather: Weather
+  handlers: ActionHandlers
+  onShowRisk: (slot: Slot) => void
+}) {
+  if (weather.alert) {
+    return (
+      <RiskAlert
+        alert={weather.alert}
+        sentence={weather.sentence}
+        flavor={weather.flavor}
+        handlers={handlers}
+        onShowRisk={onShowRisk}
+      />
+    )
+  }
   return (
     <div
       role="status"
@@ -162,7 +205,69 @@ export function WeatherStrip({ weather }: { weather: Weather }) {
   )
 }
 
-/** ④ DOCK. The three slots you are not sitting in; clicking one transports the hero. */
+/**
+ * The storm surface. One obvious primary act: the risk's own SoT action when it has one (Open
+ * posting / Copy mail / Open Pipeline), otherwise the jump to the risk row. "Show risk" is always
+ * present as the decide path, and transports to the slot the risk actually lives in.
+ */
+function RiskAlert({
+  alert,
+  sentence,
+  flavor,
+  handlers,
+  onShowRisk,
+}: {
+  alert: WeatherAlert
+  sentence: string
+  flavor: string
+  handlers: ActionHandlers
+  onShowRisk: (slot: Slot) => void
+}) {
+  const actions = stageActions(alert.lead)
+  const showRiskLabel = alert.count > 1 ? `Show risks · ${alert.count}` : 'Show risk'
+  return (
+    <section
+      aria-label="Risk to decide"
+      className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p role="status" aria-live="polite" className="text-body-sm font-medium text-ink">
+            {sentence}
+          </p>
+          {alert.consequence && (
+            <p className="mt-0.5 text-body-sm text-ink-muted">{alert.consequence}</p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {actions.map((action, i) => (
+              <StageActionButton
+                key={actionKey(action)}
+                action={action}
+                handlers={handlers}
+                primary={i === 0}
+              />
+            ))}
+            <Button
+              size="sm"
+              variant={actions.length === 0 ? 'primary' : 'ghost'}
+              onClick={() => onShowRisk(alert.slot)}
+            >
+              {showRiskLabel}
+            </Button>
+          </div>
+        </div>
+        <span className="ui-chip shrink-0">{flavor}</span>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * ④ DOCK. The slots you are not sitting in. By default these are the three life attention-spots;
+ * clicking one opens it as the hero. Tiles read as buttons (pointer, chevron, focus ring) and carry
+ * a quiet notification dot when a spot needs a glance.
+ */
 export function FleetDock({
   dock,
   hint,
@@ -172,41 +277,91 @@ export function FleetDock({
   hint: Slot | null
   onTransport: (slot: Slot) => void
 }) {
+  const allSpots = dock.every((tile) => slotRole(tile.slot) === 'spot')
   return (
     <section>
-      <SectionLabel>Fleet dock</SectionLabel>
-      <div role="group" aria-label="Other slots" className="mt-2 grid grid-cols-3 gap-2">
+      <SectionLabel>{allSpots ? 'Life spots' : 'Other cockpits'}</SectionLabel>
+      <p className="ui-meta mt-0.5">
+        {allSpots
+          ? 'Life areas outside the hunt — click one to open it.'
+          : 'Click a cockpit to open it.'}
+      </p>
+      <div
+        role="group"
+        aria-label={allSpots ? 'Life spots' : 'Other cockpits'}
+        className="mt-2 grid grid-cols-3 gap-2"
+      >
         {dock.map((tile) => (
-          <button
+          <DockTile
             key={tile.slot}
-            type="button"
-            onClick={() => onTransport(tile.slot)}
-            className={`ui-craft-slot w-full text-left ${hint === tile.slot ? 'border-accent/45' : ''}`}
-            title={`${slotLabel(tile.slot)} — ${bandLabel(tile.family)}. Show this craft.`}
-          >
-            <TransportCraft
-              variant={tile.craft}
-              motion={tile.motion}
-              alert={tile.risk > 0}
-              size="dock"
-              className="shrink-0"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-body-sm text-ink">{slotLabel(tile.slot)}</span>
-              <span className="ui-meta block truncate">
-                {tile.headline ?? 'Nothing on the map'}
-              </span>
-            </span>
-            {tile.risk > 0 && (
-              <span
-                aria-hidden="true"
-                className="size-1.5 shrink-0 rounded-full bg-danger"
-              />
-            )}
-          </button>
+            tile={tile}
+            hinted={hint === tile.slot}
+            onTransport={onTransport}
+          />
         ))}
       </div>
     </section>
+  )
+}
+
+/** A single dock tile — an obvious button that opens its cockpit. */
+function DockTile({
+  tile,
+  hinted,
+  onTransport,
+}: {
+  tile: SlotSummary
+  hinted: boolean
+  onTransport: (slot: Slot) => void
+}) {
+  const dueActs = Math.max(0, tile.live - tile.waiting - tile.risk)
+  const attention = tile.risk > 0 ? 'risk' : dueActs > 0 ? 'act' : 'none'
+  const attnNote =
+    attention === 'risk'
+      ? ` — ${tile.risk} risk${tile.risk > 1 ? 's' : ''} to decide`
+      : attention === 'act'
+        ? ` — ${dueActs} to do`
+        : ''
+  const isCore = slotRole(tile.slot) === 'core'
+  return (
+    <button
+      type="button"
+      onClick={() => onTransport(tile.slot)}
+      aria-label={`Open ${slotLabel(tile.slot)} — ${bandLabel(tile.family)}${attnNote}`}
+      className={`ui-craft-slot w-full text-left ${hinted ? 'border-accent/45' : ''}`}
+      title={`${slotLabel(tile.slot)} — ${bandLabel(tile.family)}. Open this cockpit.`}
+    >
+      <TransportCraft
+        variant={tile.craft}
+        motion={tile.motion}
+        alert={tile.risk > 0}
+        size="dock"
+        className="shrink-0"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="min-w-0 truncate text-body-sm text-ink">{slotLabel(tile.slot)}</span>
+          {isCore && (
+            <Badge tone="neutral" className="shrink-0">
+              The hunt
+            </Badge>
+          )}
+        </span>
+        <span className="ui-meta block truncate">{tile.headline ?? 'Nothing on the map'}</span>
+      </span>
+      {attention !== 'none' && (
+        <span
+          aria-hidden="true"
+          className={`size-1.5 shrink-0 rounded-full ${
+            attention === 'risk' ? 'bg-danger' : 'bg-accent/70'
+          }`}
+        />
+      )}
+      <ChevronRight
+        className="ui-craft-slot__chevron size-4 shrink-0 text-ink-faint"
+        aria-hidden="true"
+      />
+    </button>
   )
 }
 
@@ -218,6 +373,7 @@ export function CockpitLog({
   park,
   unclassified,
   handlers,
+  riskRef,
 }: {
   waiting: MissionStage[]
   risk: MissionStage[]
@@ -225,10 +381,18 @@ export function CockpitLog({
   park: MissionStage[]
   unclassified: number
   handlers: ActionHandlers
+  /** The weather strip's "Show risk" jumps here. */
+  riskRef?: Ref<HTMLElement>
 }) {
   return (
     <>
-      <StageSection title="Risk in this cockpit" stages={risk} handlers={handlers} />
+      <StageSection
+        title="Risk in this cockpit"
+        stages={risk}
+        handlers={handlers}
+        sectionRef={riskRef}
+        id="cockpit-risk"
+      />
       <StageSection title="Waiting in this cockpit" stages={waiting} handlers={handlers} />
       <CollapsedSection title="Flown" stages={done} handlers={handlers} cap={8} />
       <CollapsedSection title="Parked" stages={park} handlers={handlers} cap={12} />
@@ -247,14 +411,18 @@ function StageSection({
   title,
   stages,
   handlers,
+  sectionRef,
+  id,
 }: {
   title: string
   stages: MissionStage[]
   handlers: ActionHandlers
+  sectionRef?: Ref<HTMLElement>
+  id?: string
 }) {
   if (stages.length === 0) return null
   return (
-    <section>
+    <section ref={sectionRef} id={id} className="scroll-mt-4">
       <SectionLabel meta={stages.length}>{title}</SectionLabel>
       <ul className="mt-2 flex flex-col gap-2">
         {stages.map((stage, i) => (
@@ -401,34 +569,50 @@ export function PeoplePanel({
   return (
     <section>
       <SectionLabel>People</SectionLabel>
-      <ul className="mt-2 flex flex-col gap-1">
+      <ul className="mt-2 flex flex-col gap-2">
         {hints.map((hint, i) => (
-          <li
-            key={`${hint.label}-${i}`}
-            className="flex flex-wrap items-center gap-2 text-body-sm text-ink"
-          >
-            <span className="text-ink-muted">{hint.label}</span>
-            {hint.url && (
-              <button
-                type="button"
-                className="text-xs text-accent underline"
-                onClick={() => handlers.openUrl(hint.url!)}
-              >
-                Open
-              </button>
-            )}
-            {hint.email && (
-              <button
-                type="button"
-                className="text-xs text-accent underline"
-                onClick={() => handlers.copyEmail(hint.email!)}
-              >
-                Copy mail
-              </button>
-            )}
-          </li>
+          <PersonRow key={`${hint.label}-${i}`} hint={hint} handlers={handlers} />
         ))}
       </ul>
     </section>
+  )
+}
+
+/**
+ * A contact row in the same card language as the log rows: a clear name, a quiet detail line, and
+ * the action as a proper labelled button — never a raw `email` / `url` key jammed against "Open".
+ */
+function PersonRow({ hint, handlers }: { hint: ContactHint; handlers: ActionHandlers }) {
+  const name = contactDisplayName(hint)
+  const detail = contactDetail(hint)
+  return (
+    <li className="flex items-center gap-3 rounded-md border border-border-subtle bg-surface-2/50 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-body-sm text-ink">{name}</p>
+        {detail && <p className="ui-meta truncate">{detail}</p>}
+      </div>
+      {hint.email && (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shrink-0"
+          onClick={() => handlers.copyEmail(hint.email!)}
+        >
+          <Mail className="size-3.5" aria-hidden="true" />
+          Copy email
+        </Button>
+      )}
+      {hint.url && (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shrink-0"
+          onClick={() => handlers.openUrl(hint.url!)}
+        >
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+          Open link
+        </Button>
+      )}
+    </li>
   )
 }

@@ -57,6 +57,12 @@ export type SlotReason =
 
 export type FocusReason = 'user' | 'one_act' | 'default'
 
+/**
+ * Product role of a slot. Career/Cash is the app's core cockpit — the actual hunt for work and
+ * money. The other three are life attention-spots: real, kept in view, but never the product's job.
+ */
+export type SlotRole = 'core' | 'spot'
+
 // ── constants ─────────────────────────────────────────────────────────────────
 
 /** Canonical order — dock tiles never re-sort, so muscle memory holds. */
@@ -264,6 +270,15 @@ const SLOT_LABEL: Readonly<Record<Slot, string>> = {
   body: 'Son & body',
 }
 
+/**
+ * What each slot is *for*, in one plain reader word. Career/Cash carries the product; the rest are
+ * life spots the product surfaces so nothing slips — a description, never a nudge.
+ */
+const ROLE_LABEL: Readonly<Record<SlotRole, string>> = {
+  core: 'Product core',
+  spot: 'Life spot',
+}
+
 /** The operator's band vocabulary. This is what the hero chip and the dock say. */
 const BAND_LABEL: Readonly<Record<Family, string>> = {
   air: 'Aircraft',
@@ -338,6 +353,15 @@ export function familyOfSlot(slot: Slot): Family {
 
 export function slotLabel(slot: Slot): string {
   return SLOT_LABEL[slot]
+}
+
+/** Career/Cash is the product core; the other three are life attention-spots. */
+export function slotRole(slot: Slot): SlotRole {
+  return slot === DEFAULT_FOCUS ? 'core' : 'spot'
+}
+
+export function roleLabel(role: SlotRole): string {
+  return ROLE_LABEL[role]
 }
 
 export function bandLabel(family: Family): string {
@@ -781,12 +805,27 @@ export type WeatherInput = {
   now?: Date
 }
 
+/**
+ * The one risk the storm strip names and offers a decide path for. `lead` is the first risk stage
+ * in map order (the operator's own ordering); `count` is every risk on the map, so the strip can
+ * say "+N more" and still stay clickable to the whole risk list.
+ */
+export type WeatherAlert = {
+  lead: MissionStage
+  slot: Slot
+  head: string
+  consequence: string | null
+  count: number
+}
+
 export type Weather = {
   state: WeatherState
   sentence: string
   flavor: string
   because: string[]
   transportHint: Slot | null
+  /** Set only in a storm: the named risk plus a slot to transport to. Never vague. */
+  alert: WeatherAlert | null
 }
 
 /** Missing waybar decodes to the existing empty status — its signals simply do not fire. */
@@ -796,6 +835,7 @@ const UNFORCEABLE_MOTIONS: readonly Motion[] = ['drift', 'long_haul', 'timetable
 
 type WeatherCounts = {
   risk: number
+  riskLead: MissionStage | null
   unforceableWaits: number
   staleWaits: number
   focusHasThrust: boolean
@@ -803,23 +843,26 @@ type WeatherCounts = {
 }
 
 function readCounts(stages: MissionStage[], focus: Slot, now: Date): WeatherCounts {
-  const rows = stages.map((stage) => ({
-    cls: normalizeStageClass(stage.class),
-    craft: craftFor(stage, now),
-  }))
   const thrust = new Set<Slot>()
   let risk = 0
+  let riskLead: MissionStage | null = null
   let unforceableWaits = 0
   let staleWaits = 0
-  for (const row of rows) {
-    if (row.cls === 'risk') risk += 1
-    if (row.craft.motion === 'thrust') thrust.add(row.craft.slot)
-    if (row.cls !== 'wait') continue
-    if (UNFORCEABLE_MOTIONS.includes(row.craft.motion)) unforceableWaits += 1
-    if (row.craft.stale) staleWaits += 1
+  for (const stage of stages) {
+    const cls = normalizeStageClass(stage.class)
+    const craft = craftFor(stage, now)
+    if (cls === 'risk') {
+      risk += 1
+      if (!riskLead) riskLead = stage
+    }
+    if (craft.motion === 'thrust') thrust.add(craft.slot)
+    if (cls !== 'wait') continue
+    if (UNFORCEABLE_MOTIONS.includes(craft.motion)) unforceableWaits += 1
+    if (craft.stale) staleWaits += 1
   }
   return {
     risk,
+    riskLead,
     unforceableWaits,
     staleWaits,
     focusHasThrust: thrust.has(focus),
@@ -827,8 +870,13 @@ function readCounts(stages: MissionStage[], focus: Slot, now: Date): WeatherCoun
   }
 }
 
-function riskPhrase(count: number): string {
-  return count === 1 ? '1 risk item needs a decision' : `${count} risk items need a decision`
+/**
+ * Names the concrete risk and asks for the decision, in plain hire-visitor words — never the old
+ * "something is going wrong". Extra risks fold into a "+N more" the strip keeps clickable.
+ */
+function stormSentence(alert: WeatherAlert): string {
+  const more = alert.count > 1 ? ` (+${alert.count - 1} more)` : ''
+  return `Decide on the risk: ${alert.head}${more}.`
 }
 
 function unforceablePhrase(count: number): string {
@@ -897,12 +945,13 @@ function weatherSentence(
   counts: WeatherCounts,
   noise: string[],
   hint: Slot | null,
+  alert: WeatherAlert | null,
 ): string {
   switch (state) {
     case 'blackout':
       return blackoutSentence(input.mapError)
     case 'storm':
-      return `Something is going wrong: ${riskPhrase(counts.risk)}.`
+      return alert ? stormSentence(alert) : 'Decide on the open risk.'
     case 'becalmed':
       return becalmedSentence(input.focus, counts, hint)
     case 'crosswind':
@@ -912,14 +961,27 @@ function weatherSentence(
   }
 }
 
-function becauseFor(state: WeatherState, risk: number, noise: string[]): string[] {
+/** The storm's own risk is named in the sentence, so `because` only carries the extra conditions. */
+function becauseFor(state: WeatherState, noise: string[]): string[] {
   if (state === 'blackout') return []
-  const signals = state === 'storm' ? [riskPhrase(risk), ...noise] : noise
-  return signals.slice(0, BECAUSE_MAX)
+  return noise.slice(0, BECAUSE_MAX)
 }
 
 export function weatherFlavor(state: WeatherState, family: Family): string {
   return WEATHER_FLAVOR[state][family]
+}
+
+/** A storm always has a risk stage, so it always names one; other states never carry an alert. */
+function weatherAlert(state: WeatherState, counts: WeatherCounts): WeatherAlert | null {
+  if (state !== 'storm' || !counts.riskLead) return null
+  const copy = actCopy(counts.riskLead)
+  return {
+    lead: counts.riskLead,
+    slot: inferSlot(counts.riskLead),
+    head: copy.head,
+    consequence: copy.qualifier,
+    count: counts.risk,
+  }
 }
 
 export function computeWeather(input: WeatherInput): Weather {
@@ -928,12 +990,14 @@ export function computeWeather(input: WeatherInput): Weather {
   const hint = counts.focusHasThrust ? null : counts.thrustSlots[0] ?? null
   const noise = weatherSignals(counts, waybar, hint)
   const state = weatherState(input, counts, noise)
+  const alert = weatherAlert(state, counts)
   return {
     state,
-    sentence: weatherSentence(state, input, counts, noise, hint),
+    sentence: weatherSentence(state, input, counts, noise, hint, alert),
     flavor: weatherFlavor(state, FAMILY_BY_SLOT[input.focus]),
-    because: becauseFor(state, counts.risk, noise),
+    because: becauseFor(state, noise),
     transportHint: state === 'blackout' ? null : hint,
+    alert,
   }
 }
 

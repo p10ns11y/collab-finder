@@ -401,7 +401,9 @@
   }
 
   /* Dock slot — background stays neutral; the tint enters only via the stroke.
-     Hover goes to ink, never to amber: amber means actionable. */
+     Hover goes to ink, never to amber: amber means actionable. It is a real button:
+     pointer, a press step, a focus ring (global :focus-visible), and a chevron that
+     leans in on hover/focus so a new user reads "click me" without instruction. */
   .ui-craft-slot {
     display: flex;
     align-items: center;
@@ -410,9 +412,11 @@
     border-radius: var(--radius-sm);
     background: var(--color-surface-2);
     padding: 0.4375rem 0.625rem;
+    cursor: pointer;
     transition:
       border-color var(--duration-fast) var(--ease-out),
-      background var(--duration-fast) var(--ease-out);
+      background var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
   }
 
   .ui-craft-slot:hover {
@@ -421,6 +425,25 @@
   }
 
   .ui-craft-slot:hover .ui-craft {
+    color: var(--color-ink);
+  }
+
+  .ui-craft-slot:active {
+    transform: translateY(1px);
+  }
+
+  .ui-craft-slot__chevron {
+    opacity: 0.45;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .ui-craft-slot:hover .ui-craft-slot__chevron,
+  .ui-craft-slot:focus-visible .ui-craft-slot__chevron {
+    opacity: 1;
+    transform: translateX(2px);
     color: var(--color-ink);
   }
 

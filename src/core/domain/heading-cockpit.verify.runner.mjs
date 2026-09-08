@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import {
+  contactDetail,
+  contactDisplayName,
+  contactHost,
   decodeWaybarChip,
   findNextDo,
   groupStagesExcludingDo,
@@ -68,6 +71,21 @@ const contacts = parseContactsActionable(
 must(contacts.length >= 2, 'contacts parsed')
 must(contacts.some((c) => c.email), 'contacts email')
 must(contacts.some((c) => c.url), 'contacts url')
+
+// ── People rows: no raw schema keys, human names + details (Fix 4) ────────────
+const named = { label: 'Acme', email: 'hr@acme.com' }
+must(contactDisplayName(named) === 'Acme', 'a real label stays the contact name')
+must(contactDetail(named) === 'hr@acme.com', 'the email drops to the detail line')
+
+// contacts.md written with bare schema keys — the source of the emailCopy/urlOpen mash.
+const keyed = parseContactsActionable('- email: hr@acme.com\n- url: https://jobs.acme.com/role\n')
+const keyedEmail = keyed.find((c) => c.email)
+const keyedUrl = keyed.find((c) => c.url)
+must(keyedEmail && contactDisplayName(keyedEmail) === 'hr@acme.com', 'a bare "email" key never shows as the name')
+must(keyedUrl && contactDisplayName(keyedUrl) === 'jobs.acme.com', 'a bare "url" key falls back to the link host')
+must(contactHost('https://jobs.acme.com/role?x=1') === 'jobs.acme.com', 'contactHost strips scheme and path')
+must(contactDisplayName({ label: 'EMAIL', email: 'a@b.com' }) === 'a@b.com', 'schema-key match is case-insensitive')
+must(contactDisplayName({ label: '', url: 'https://x.io/p' }) === 'x.io', 'a missing label falls back to the host')
 
 console.log('=== heading-cockpit.verify ===')
 if (failures.length) {
