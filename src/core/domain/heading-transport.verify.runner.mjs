@@ -19,7 +19,7 @@ import {
   flavorLine,
   heroChipLabel,
   inferSlot,
-  isSwedenWindowSignal,
+  isSeasonSignal,
   parseFollowupBand,
   selectFocus,
   slotOf,
@@ -166,7 +166,7 @@ const VECTORS = [
       class: 'do',
       contact: { followup_when: 'by 14 Sep' },
     },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'timetable',
     variant: 'ferry',
@@ -175,11 +175,11 @@ const VECTORS = [
   {
     row: 9,
     stage: { id: 'af3', what: 'Upload the a-kassa income certificate', class: 'do' },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'thrust',
     variant: 'dinghy',
-    reason: 'sweden_institution',
+    reason: 'season_institution',
   },
   {
     row: 10,
@@ -189,11 +189,11 @@ const VECTORS = [
       class: 'wait',
       contact: { followup_stage: 'appointment', followup_when: 'same-day' },
     },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'timetable',
     variant: 'ferry',
-    reason: 'sweden_institution',
+    reason: 'season_institution',
   },
   {
     row: 11,
@@ -203,11 +203,11 @@ const VECTORS = [
       class: 'wait',
       contact: { followup_when: '8–12 weeks' },
     },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'long_haul',
     variant: 'freighter',
-    reason: 'sweden_institution',
+    reason: 'season_institution',
   },
   {
     row: 12,
@@ -217,16 +217,16 @@ const VECTORS = [
       class: 'wait',
       contact: { last_touch: '2026-08-25' },
     },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'drift',
     variant: 'yacht',
-    reason: 'sweden_institution',
+    reason: 'season_institution',
   },
   {
     row: 13,
     stage: { id: 'af-report-w38', what: "Send in last week's job search log", class: 'do' },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'thrust',
     variant: 'dinghy',
@@ -405,11 +405,61 @@ const VECTORS = [
   {
     row: 30,
     stage: { id: 'fk1', what: 'Renew the Försäkringskassan certificate before it lapses', class: 'do' },
-    slot: 'sweden',
+    slot: 'season',
     family: 'water',
     motion: 'thrust',
     variant: 'dinghy',
-    reason: 'sweden_institution',
+    reason: 'season_institution',
+  },
+  {
+    row: 31,
+    stage: { id: 'trip1', what: 'Finish the packing list before the flight', class: 'do' },
+    slot: 'season',
+    family: 'water',
+    motion: 'thrust',
+    variant: 'dinghy',
+    reason: 'season_logistics',
+  },
+  {
+    row: 32,
+    stage: {
+      id: 'trip2',
+      what: 'Departure booked for the 20th — boarding pass ready',
+      class: 'wait',
+      contact: { followup_when: 'same-day' },
+    },
+    slot: 'season',
+    family: 'water',
+    motion: 'timetable',
+    variant: 'ferry',
+    reason: 'season_logistics',
+  },
+  {
+    row: 33,
+    stage: {
+      id: 'trip3',
+      what: 'Relocation to the new flat — weeks of packing and paperwork',
+      class: 'wait',
+      contact: { followup_when: '3–4 weeks' },
+    },
+    slot: 'season',
+    family: 'water',
+    motion: 'long_haul',
+    variant: 'freighter',
+    reason: 'season_logistics',
+  },
+  {
+    row: 34,
+    stage: {
+      id: 'do3',
+      what: 'Apply to the Stockholm role that offers a relocation package',
+      class: 'do',
+    },
+    slot: 'career',
+    family: 'air',
+    motion: 'thrust',
+    variant: 'jet',
+    reason: 'hiring_act',
   },
 ]
 
@@ -429,12 +479,13 @@ for (const v of VECTORS) {
     `row ${v.row} variantFor agrees with craftFor`,
   )
   must(
-    isSwedenWindowSignal(slotSignalText(v.stage)) === (v.slot === 'sweden'),
-    `row ${v.row} isSwedenWindowSignal agrees with the cascade`,
+    isSeasonSignal(slotSignalText(v.stage)) === (v.slot === 'season'),
+    `row ${v.row} isSeasonSignal agrees with the cascade`,
   )
 }
 
-// ── §2.4 the four Sweden guards ──────────────────────────────────────────────
+// ── §2.4 the Season collision guards ─────────────────────────────────────────
+// Season is time-bound life logistics; career geography and hiring acts must never vote it.
 
 must(
   !slotSignalText(S[7]).includes('arbetsformedlingen'),
@@ -446,8 +497,14 @@ must(!stripGeoQualifiers('Malmö and Umeå and Örebro').includes('malmo'), 'geo
 must(inferSlot(S[4]) === 'career', 'guard 2: "Swedish" never reaches Water')
 must(inferSlot(S[7]) === 'career', 'guard 3: platsbanken is a job board, not an institution')
 must(inferSlot(S[29]) === 'career', 'collision breaker: institution + hiring act, no entitlement verb')
-must(inferSlot(S[8]) === 'sweden', 'collision breaker: institution + hiring act + report verb')
+must(inferSlot(S[8]) === 'season', 'collision breaker: institution + hiring act + report verb')
 must(inferSlot(S[5]) === 'career', 'bare "unemployed" is not a Water token')
+must(inferSlot(S[31]) === 'season', 'season logistics: a packing list before a flight is Season')
+must(inferSlot(S[33]) === 'season', 'season logistics: a relocation with no hiring act is Season')
+must(
+  inferSlot(S[34]) === 'career',
+  'collision breaker: relocation logistics inside a hiring act stays career',
+)
 
 const GOAL = 'started a decent Sweden/Nordics/EU full-time role'
 const realMap = [S[1], S[2], S[3], S[4], S[5], S[6]]
@@ -462,7 +519,7 @@ must(withGoal.hero.arrive === `Arrive: ${GOAL}`, "goal keeps the map's own Arriv
 
 // ── §3 axes, tables and flags ────────────────────────────────────────────────
 
-must(SLOT_ORDER.join(',') === 'debt,career,sweden,body', 'canonical slot order')
+must(SLOT_ORDER.join(',') === 'debt,career,season,body', 'canonical slot order')
 must(
   CLOCK_OWNED.air === false && CLOCK_OWNED.space === false,
   'Air and Space own their own clock — thrust beats timetable',
@@ -683,7 +740,7 @@ const waybar0 = decodeWaybarChip('X ON / 0 PAUSES')
 const f1 = buildCockpit({ stages: realMap, waybar: waybar0, now: NOW })
 must(f1.focus.focus === 'career' && f1.focus.reason === 'one_act', 'F1 focus follows the one act')
 must(f1.focus.family === 'air', 'F1 hero family is Air')
-must(sameList(f1.dock.map((d) => d.slot), ['debt', 'sweden', 'body']), 'F1 dock order')
+must(sameList(f1.dock.map((d) => d.slot), ['debt', 'season', 'body']), 'F1 dock order')
 must(f1.dock.every((d) => d.empty), 'F1 the other three lives are honestly empty')
 must(f1.dock.every((d) => d.headline === null), 'F1 empty tiles fabricate no headline')
 must(f1.hero.act === S[1], 'F1 hero act is the first Do')
@@ -692,18 +749,18 @@ must(f1.log.done.length === 1, 'F1 log keeps the flown row')
 
 const f2 = buildCockpit({ stages: [], waybar: waybar0, now: NOW })
 must(f2.focus.focus === 'career' && f2.focus.reason === 'default', 'F2 empty map defaults to career')
-must(sameList(f2.dock.map((d) => d.slot), ['debt', 'sweden', 'body']), 'F2 dock order')
+must(sameList(f2.dock.map((d) => d.slot), ['debt', 'season', 'body']), 'F2 dock order')
 must(f2.dock.every((d) => d.empty), 'F2 dock is three silhouettes')
 must(f2.hero.emptyCopy === 'No mission map on disk yet.', 'F2 hero says the map is empty')
 must(f2.hero.craft.variant === CHAOS_CRAFT, 'F2 an unreadable map is the chaos case, not a berth')
 
 const f3 = buildCockpit({ stages: [S[8], S[2], S[3]], waybar: waybar0, now: NOW })
-must(f3.focus.focus === 'sweden' && f3.focus.reason === 'one_act', 'F3 focus follows the AF act')
+must(f3.focus.focus === 'season' && f3.focus.reason === 'one_act', 'F3 focus follows the AF act')
 must(sameList(f3.dock.map((d) => d.slot), ['debt', 'career', 'body']), 'F3 dock order')
 
 const f4 = buildCockpit({ stages: realMap, waybar: waybar0, userFocus: 'debt', now: NOW })
 must(f4.focus.focus === 'debt' && f4.focus.reason === 'user', 'F4 dock click wins')
-must(sameList(f4.dock.map((d) => d.slot), ['career', 'sweden', 'body']), 'F4 dock order')
+must(sameList(f4.dock.map((d) => d.slot), ['career', 'season', 'body']), 'F4 dock order')
 must(f4.hero.empty === true, 'F4 focused slot is empty')
 must(f4.hero.emptyCopy === 'Nothing on the map for Debt.', 'F4 empty cockpit copy')
 must(f4.hero.act === null && f4.hero.waitingOn === null, 'F4 fabricates no act')
@@ -718,8 +775,8 @@ const f6 = transportFocus('body', 'career')
 must(f6.focus === 'career' && f6.reason === 'user', 'F6 transport target wins')
 must(f6.announce === 'Transported to the Aircraft band — Career.', 'F6 announce copy')
 must(
-  transportFocus('career', 'sweden').announce === 'Transported to the Sailing band — Sweden window.',
-  'F6 announce copy for the Sweden window',
+  transportFocus('career', 'season').announce === 'Transported to the Sailing band — Season.',
+  'F6 announce copy for the Season slot',
 )
 
 const f7 = buildCockpit({ stages: [S[16], S[1]], waybar: waybar0, now: NOW })
@@ -733,12 +790,12 @@ must(summaries.career.waiting === 1, 'summary counts waits')
 must(summaries.career.headline === 'Submit one relevant application next week', 'summary headline')
 must(summaries.debt.craft === 'probe', 'summary craft comes from the most alive stage')
 must(summaries.debt.motion === 'thrust', 'summary carries the motion so the dock need not re-derive it')
-must(summaries.sweden.craft === FAMILY_CRAFT.water.berth, 'empty slot draws a berthed craft, not a burning one')
-must(summaries.sweden.motion === 'berth', 'empty slot motion is berth')
-must(summaries.sweden.empty === true, 'empty slot is honest about it')
+must(summaries.season.craft === FAMILY_CRAFT.water.berth, 'empty slot draws a berthed craft, not a burning one')
+must(summaries.season.motion === 'berth', 'empty slot motion is berth')
+must(summaries.season.empty === true, 'empty slot is honest about it')
 must(summaries.body.live === 1, 'body slot counts its own act')
-must(sameList(dockSlots('sweden'), ['debt', 'career', 'body']), 'dockSlots preserves canonical order')
-must(selectFocus({ userFocus: 'sweden', stages: [] }).reason === 'user', 'selectFocus honours user focus')
+must(sameList(dockSlots('season'), ['debt', 'career', 'body']), 'dockSlots preserves canonical order')
+must(selectFocus({ userFocus: 'season', stages: [] }).reason === 'user', 'selectFocus honours user focus')
 
 const unknownLog = buildCockpit({ stages: [S[1], S[28]], waybar: waybar0, now: NOW })
 must(unknownLog.log.unclassified === 1, 'unknown-class stages are counted, never rendered')

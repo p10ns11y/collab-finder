@@ -12,9 +12,16 @@ first-class** — none is a rare special case.
 | Slot | Family key | Band (what the UI says) | Energy signature |
 |------|-----------|-------------------------|------------------|
 | Cash / career (hiring loop) | `air` | **Aircraft** | high priority, turbulence expected and acceptable |
-| Sweden window | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
+| Season (time-bound life logistics) | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
 | Son / body (human-only) | `land` | **Automobiles** | relative slowness is fine, do not agent-force |
 | Debt (hardest) | `space` | **Deep space** | hardest slot, long signal delays, little leverage |
+
+The `season` slot is **temporary, important, time-bound life attention** — travel, packing, a move,
+a flight, a visa appointment, temporary housing, departure and arrival logistics — plus the dated
+Swedish civic admin (permit renewals, a-kassa / Försäkringskassan decisions, AF activity reports)
+that lives on the same clock. It is **not** the Sweden hiring market: job boards, ATS work and
+Arbetsförmedlingen job ads are career (Air). The current fill is often Sweden travel/packing, but
+the reader UI label is the neutral **Season**, never a hardcoded country.
 
 The family key is the internal axis value; `bandLabel()` renders the operator's band vocabulary,
 which is what the hero chip and the dock tiles show.
@@ -58,13 +65,13 @@ into renamed headers.
 
 | Axis | Question | Values | Source |
 |------|----------|--------|--------|
-| `slot` | which life area | `debt · career · sweden · body` | topic tokens in `id` / `what` / `followup_stage` |
+| `slot` | which life area | `debt · career · season · body` | topic tokens in `id` / `what` / `followup_stage` |
 | `class` | where in the lifecycle | `do · wait · done · risk · park` | the SoT field, unchanged, from `heading-cockpit` |
 | `motion` | what energy it demands | `thrust · timetable · drift · long_haul · berth` | `class` plus tempo signals |
 
 The craft is then `FAMILY_CRAFT[family][motion]`. This is why a **waiting career stage is a
 cruising airliner**, not a Sailing craft: waiting is a lifecycle fact, Sailing is the
-Sweden-window slot. The two have nothing to do with each other.
+Season slot. The two have nothing to do with each other.
 
 | band | thrust | timetable | drift | long_haul | berth |
 |------|--------|-----------|-------|-----------|-------|
@@ -83,13 +90,16 @@ repeats while the gloss says which wait it is. `craftLabel` / `craftGloss` key o
 
 ## The two rules that are easy to get wrong
 
-**The Sweden collision.** The career goal literally contains the word "Sweden" and career postings
-are hosted on `arbetsformedlingen.se`, so a naive keyword match files half the hiring loop into the
-Sailing slot. Four guards prevent it: the goal string never votes (`inferSlot` takes a stage, not the
-map), `stripGeoQualifiers()` removes geography before matching, Sailing's allowlist holds only
-entitlement and permission institutions (`platsbanken` and `jobtech` are job boards, so they are
-career), and `contact.url` is excluded from the signal text. The remaining two-token case is broken
-by verb intent — an entitlement verb sends it to Sailing, a hiring verb keeps it in Aircraft.
+**The Season / career collision.** The career goal literally contains the word "Sweden", career
+postings are hosted on `arbetsformedlingen.se`, and hiring prose borrows Season-flavoured words
+("relocation package", "visa sponsorship", "willing to travel"), so a naive keyword match files
+half the hiring loop into the Sailing slot. The guards: the goal string never votes (`inferSlot`
+takes a stage, not the map), `stripGeoQualifiers()` removes geography before matching, Season's
+lists hold only time-bound life logistics (`SEASON_LOGISTICS`) and entitlement / permission
+institutions (`SEASON_INSTITUTIONS`) — `platsbanken` and `jobtech` are job boards, so they are
+career — and `contact.url` is excluded from the signal text. The breaker is verb intent: **a hiring
+act keeps the stage in Aircraft and never votes Season**, the one exception being a civic
+institution paired with an entitlement verb (a dated obligation, e.g. reporting to AF), which sails.
 
 **Clock ownership.** `CLOCK_OWNED = { air: false, space: false, water: true, land: true }`. For
 Sailing and Automobiles a schedule beats thrust, because those slots' product law is "cannot force" and
@@ -115,9 +125,9 @@ fire its signals.
 | Data + focus container | `src/view/screens/heading-screen.tsx` |
 
 Token lists in the domain module are `SCREAMING_SNAKE` module constants so a future agent can grep
-and extend one list — `DEBT_TOKENS`, `BODY_TOKENS`, `SWEDEN_INSTITUTIONS`, `HIRING_ACTS`,
-`ENTITLEMENT_ACTS`, `GEO_QUALIFIERS`, `FORCEABLE_VERBS`, `SCHEDULE_MARKERS` — without reading the
-algorithm around them.
+and extend one list — `DEBT_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`, `SEASON_INSTITUTIONS`,
+`HIRING_ACTS`, `ENTITLEMENT_ACTS`, `GEO_QUALIFIERS`, `FORCEABLE_VERBS`, `SCHEDULE_MARKERS` — without
+reading the algorithm around them.
 
 ## Visual law
 
