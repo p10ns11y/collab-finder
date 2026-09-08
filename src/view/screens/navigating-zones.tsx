@@ -19,6 +19,7 @@ import {
   actCopy,
   bandLabel,
   craftFor,
+  heroChipLabel,
   slotLabel,
   type Craft,
   type HeroBand,
@@ -66,7 +67,7 @@ export function HeroBerth({
       )}
       <div className="min-w-0 flex-1">
         <p className="ui-section-label uppercase tracking-[0.06em] text-ink-muted">
-          {craft ? bandLabel(craft.family) : ''} · {slotLabel(focus)}
+          {craft ? heroChipLabel(craft, focus) : slotLabel(focus)}
         </p>
 
         {copy ? (

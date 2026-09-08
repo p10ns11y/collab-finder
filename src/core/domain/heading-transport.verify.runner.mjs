@@ -17,6 +17,7 @@ import {
   bandLabel,
   dockSlots,
   flavorLine,
+  heroChipLabel,
   inferSlot,
   isSwedenWindowSignal,
   parseFollowupBand,
@@ -801,6 +802,16 @@ const chaosMap = buildCockpit({ g: GOAL, stages: [], waybar: waybar0, now: NOW }
 must(chaosMap.weather.state === 'blackout', 'an unreadable SoT is blackout')
 must(chaosMap.hero.craft.variant === 'spaceship', 'unknown SoT scrambles the spaceship')
 must(chaosMap.hero.craft.alert === true, 'the chaos craft is an alert craft')
+must(chaosMap.hero.craft.chaos === true, 'the chaos craft is flagged as chaos')
+must(
+  heroChipLabel(chaosMap.hero.craft, 'career') === 'Spaceship · Unknown signal',
+  'the chaos chip does not claim a slot it cannot trust',
+)
+must(
+  heroChipLabel(craftFor(S[1], NOW), 'career') === 'Aircraft · Career',
+  'an ordinary chip names the band and the slot',
+)
+must(craftFor(S[1], NOW).chaos === false, 'ordinary craft are not chaos')
 
 const brick = buildCockpit({ stages: [], mapError: 'keyring locked', waybar: waybar0, now: NOW })
 must(brick.hero.craft.variant === 'spaceship', 'a bricked read scrambles the spaceship')

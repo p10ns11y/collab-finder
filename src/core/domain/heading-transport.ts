@@ -572,6 +572,8 @@ export type Craft = {
   alert: boolean
   dying: boolean
   stale: boolean
+  /** True only for the chaos craft, where the slot itself can no longer be trusted. */
+  chaos: boolean
   tempo: Tempo
 }
 
@@ -595,6 +597,7 @@ export function craftFor(stage: MissionStage, now = new Date()): Craft {
     alert: cls === 'risk',
     dying: isDying(stage.what || ''),
     stale: isStale(cls, tempo.staleDays),
+    chaos: false,
     tempo,
   }
 }
@@ -618,6 +621,7 @@ export function chaosCraft(slot: Slot): Craft {
     alert: true,
     dying: false,
     stale: false,
+    chaos: true,
     tempo: EMPTY_TEMPO,
   }
 }
@@ -635,6 +639,7 @@ export function berthedCraft(slot: Slot): Craft {
     alert: false,
     dying: false,
     stale: false,
+    chaos: false,
     tempo: EMPTY_TEMPO,
   }
 }
@@ -663,6 +668,13 @@ export function actCopy(stage: MissionStage): ActCopy {
 
 export function flavorLine(craft: Craft): string {
   return `${craft.label} — ${craft.gloss}`
+}
+
+/** The chip above the act. In chaos the slot is not trustworthy, so it is not claimed. */
+export function heroChipLabel(craft: Craft, focus: Slot): string {
+  return craft.chaos
+    ? `${CHAOS_COPY.label} · Unknown signal`
+    : `${bandLabel(craft.family)} · ${slotLabel(focus)}`
 }
 
 /** `Arrive` is the mission map's own word for the goal; the view does not rename it. */
