@@ -50,6 +50,16 @@
   --shadow-glow: 0 0 40px -12px var(--color-accent-glow);
   --duration-fast: 150ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Craft family tints — --color-ink-muted's exact lightness envelope,
+     hue-rotated only: oklch(71.2% 0.045 H). Hue carries one bit and it is not
+     importance: it says which life area, nothing else. Never a fill, never
+     adjacent as blocks, ≥6.5:1 on every surface in the ramp. Amber stays 0.165
+     chroma away, so none of these can be mistaken for the accent. */
+  --color-craft-air: #8da5be; /* oklch(71.2% 0.045 250) — steel */
+  --color-craft-water: #82abab; /* oklch(71.2% 0.045 195) — slate teal */
+  --color-craft-land: #91aa91; /* oklch(71.2% 0.045 145) — dry sage */
+  --color-craft-space: #ab9bb8; /* oklch(71.2% 0.045 310) — cold lilac */
 }
 
 @layer base {
@@ -224,5 +234,265 @@
 
   .ui-field::placeholder {
     color: var(--color-ink-faint);
+  }
+
+  /* ── Navigating craft fleet ────────────────────────────────────────────────
+     Three axes stay three attributes on the <svg class="ui-craft"> root:
+       data-family  life area   → tints the dock
+       data-motion  thrust | timetable | drift | long_haul | berth
+       data-alert   "true"      → composes on top of any motion
+     Stage/lifecycle class values never reach these selectors.
+
+     Every motion state has a STATIC encoding across three orthogonal channels,
+     so no two can collide and none depends on animation:
+       thrust  (craft-plume  solid / broken / gone)  — can this move at all?
+       medium  (craft-datum / craft-star quality)    — how solid is the ground?
+       lane    (craft-trail  dash grammar)           — what wake is it leaving?
+     @layer base already snaps every animation to one 0.01ms iteration under
+     prefers-reduced-motion, so motion below is a layer, never the carrier. */
+
+  .ui-craft {
+    --craft-stroke: 2; /* viewBox units, not px */
+    --craft-faint: 0.35;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: var(--craft-stroke);
+    overflow: visible;
+  }
+
+  .ui-craft .craft-datum,
+  .ui-craft .craft-trail,
+  .ui-craft .craft-star,
+  .ui-craft .craft-plume {
+    opacity: var(--craft-faint);
+  }
+
+  .ui-craft-hero {
+    --craft-faint: 0.38;
+    width: clamp(112px, 24vh, 160px);
+    color: var(--color-ink);
+  }
+
+  .ui-craft-dock {
+    --craft-stroke: 4; /* heavier strokes hold together below ~28px */
+    --craft-faint: 0.42;
+    width: 28px;
+  }
+
+  /* At 20px one viewBox unit is 0.31 device px: fine detail, the plume and the
+     trail lane are all sub-pixel, so the dock carries weather by glyph instead. */
+  .ui-craft-dock .craft-detail,
+  .ui-craft-dock .craft-plume,
+  .ui-craft-dock .craft-trail {
+    display: none;
+  }
+
+  /* Family tint is a dock-tile affordance, scoped to the tile so a craft used as a
+     list bullet inherits its row's ink instead. Hero vs dock is a lightness step,
+     not a hue step — the hero is the loud one at --color-ink with no colour help. */
+  .ui-craft-slot .ui-craft[data-family='air'] {
+    color: var(--color-craft-air);
+  }
+
+  .ui-craft-slot .ui-craft[data-family='water'] {
+    color: var(--color-craft-water);
+  }
+
+  .ui-craft-slot .ui-craft[data-family='land'] {
+    color: var(--color-craft-land);
+  }
+
+  .ui-craft-slot .ui-craft[data-family='space'] {
+    color: var(--color-craft-space);
+  }
+
+  /* thrust — burning and making way. Plume solid and datum solid are the
+     resting defaults; the long-dashed lane is what says "moving". */
+  .ui-craft[data-motion='thrust'] .craft-trail {
+    stroke-dasharray: 5 4;
+  }
+
+  /* timetable — a schedule exists: the ground is firm (datum stays solid), the
+     lane is metered in ticks, and nothing is burning because the clock is not
+     yours. The ticked lane is also what separates this from berth, which is
+     otherwise the same solid-datum, no-plume pose. */
+  .ui-craft[data-motion='timetable'] .craft-plume {
+    display: none;
+  }
+
+  .ui-craft[data-motion='timetable'] .craft-trail {
+    stroke-dasharray: 1.5 3;
+  }
+
+  /* drift — no thrust available; the medium comes and goes. */
+  .ui-craft[data-motion='drift'] .craft-plume,
+  .ui-craft[data-motion='drift'] .craft-trail {
+    display: none;
+  }
+
+  .ui-craft[data-motion='drift'] .craft-datum {
+    stroke-dasharray: 10 8;
+  }
+
+  .ui-craft[data-motion='drift'] .craft-star {
+    stroke-width: calc(var(--craft-stroke) * 1.3);
+  }
+
+  /* long_haul — the crossing is long and the references are far apart. Space
+     has no horizon, so its star field carries the same reading as the datum's
+     dash: near, legible references shrink to distant pinpricks. */
+  .ui-craft[data-motion='long_haul'] .craft-plume,
+  .ui-craft[data-motion='long_haul'] .craft-trail {
+    display: none;
+  }
+
+  .ui-craft[data-motion='long_haul'] .craft-datum {
+    stroke-dasharray: 2 10;
+  }
+
+  .ui-craft[data-motion='long_haul'] .craft-star {
+    stroke-width: calc(var(--craft-stroke) * 0.45);
+    opacity: calc(var(--craft-faint) * 0.5);
+  }
+
+  /* berth — arrived, or in the hangar. Stillness is the message. */
+  .ui-craft[data-motion='berth'] {
+    --craft-faint: 0.26;
+    opacity: 0.88;
+  }
+
+  .ui-craft[data-motion='berth'] .craft-plume,
+  .ui-craft[data-motion='berth'] .craft-trail {
+    display: none;
+  }
+
+  /* alert composes on top of whatever motion is set, so it must come last.
+     The scattered wake re-appears even where the motion state hid it: probe
+     carries neither plume nor datum, and craft-trail is the one channel all
+     fourteen craft have. */
+  .ui-craft[data-alert='true'] .craft-plume {
+    stroke-dasharray: 2 3;
+  }
+
+  .ui-craft[data-alert='true'] .craft-datum {
+    stroke-dasharray: 3 4;
+    stroke-width: calc(var(--craft-stroke) * 1.25);
+  }
+
+  .ui-craft[data-alert='true'] .craft-trail {
+    stroke-dasharray: 2 6;
+  }
+
+  .ui-craft-hero[data-alert='true'] .craft-trail {
+    display: block;
+  }
+
+  /* Hero shell — the amber ring and glow are the selection; besides the one
+     act's button they are the only amber in the zone. */
+  .ui-craft-berth {
+    border: 1px solid rgb(245 158 11 / 0.28);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-glow);
+    transition:
+      border-color 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out);
+  }
+
+  /* Dock slot — background stays neutral; the tint enters only via the stroke.
+     Hover goes to ink, never to amber: amber means actionable. */
+  .ui-craft-slot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    padding: 0.4375rem 0.625rem;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out);
+  }
+
+  .ui-craft-slot:hover {
+    border-color: var(--color-border-default);
+    background: var(--color-surface-3);
+  }
+
+  .ui-craft-slot:hover .ui-craft {
+    color: var(--color-ink);
+  }
+
+  /* Motion layer — hero only. Every keyframe begins and ends at the resting
+     pose, so the @layer base reduced-motion snap lands exactly on the static
+     encoding above rather than freezing a craft mid-pose. */
+  .ui-craft .craft-rig,
+  .ui-craft .craft-wheel {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+
+  .ui-craft-hero[data-motion='thrust'] .craft-trail {
+    animation: craft-run 1.6s linear infinite;
+  }
+
+  .ui-craft-hero[data-motion='thrust'] .craft-wheel {
+    animation: craft-roll 1.1s linear infinite;
+  }
+
+  .ui-craft-hero[data-motion='drift'] .craft-rig {
+    animation: craft-bob 5.2s ease-in-out infinite;
+  }
+
+  .ui-craft-hero[data-alert='true'] .craft-rig {
+    animation: craft-shudder 0.55s ease-in-out infinite;
+  }
+
+  /* craft-run's offset is two 5+4 dash periods, which alert's 2 6 lane would
+     leave off-pattern — and a craft in trouble is not making smooth way. */
+  .ui-craft-hero[data-alert='true'] .craft-trail {
+    animation: none;
+  }
+
+  @keyframes craft-run {
+    from {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: -18; /* 2 × (5+4) — seamless, and rests at identity */
+    }
+  }
+
+  @keyframes craft-roll {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes craft-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-1.5px);
+    }
+  }
+
+  @keyframes craft-shudder {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    35% {
+      transform: rotate(0.9deg);
+    }
+    70% {
+      transform: rotate(-0.9deg);
+    }
   }
 }
