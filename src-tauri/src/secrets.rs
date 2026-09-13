@@ -7,13 +7,14 @@
 // There are now TWO independent credential pairs that must be treated with identical care:
 //
 // 1. X Bearer (original, for X API search/cycle)
-//    - Dual store: OS keyring (preferred) + plaintext 0600 "x-bearer" file fallback.
+//    - Triple store: OS keyring (preferred) + plaintext 0600 "x-bearer" file fallback
+//      + env fallback (`X_API_KEY` or `X_BEARER`) for headless/minimal Linux (no Secret Service).
 //    - Commands: has_x_bearer / get_x_bearer_storage / set_x_bearer / clear_x_bearer
 //    - Internal: get_x_bearer() / x_bearer()
 //    - Status: BearerStorageStatus (used by X Connection panel)
 //
 // 2. xAI Key (new, for analysis, fit scoring, CV tailoring, cover letters, prep packs)
-//    - Exact parallel dual store: OS keyring (preferred) + plaintext 0600 "xai-key" file fallback.
+//    - Exact parallel triple store: OS keyring + 0600 "xai-key" file + env (`XAI_API_KEY`).
 //    - Commands: has_xai_key / get_xai_key_storage / set_xai_key / clear_xai_key
 //    - Internal: get_xai_key() (used only inside analyze/prep commands — NEVER on IPC wire)
 //    - Status: XaiKeyStorageStatus (shape mirrors Bearer* exactly for UI consistency)
@@ -21,10 +22,11 @@
 //      for estimates: $1.25/M input, $2.50/M output (real costs from API usage fields).
 //
 // Shared invariants (apply to BOTH):
-// - Rich status for the UI (active_source, keyring.reachable + error, file info with 0600 note).
-// - Automatic promotion/heal on status query (when keyring reachable but empty and file has the secret).
+// - Rich status for the UI (active_source incl. Env, keyring.reachable + error, file + env metadata).
+// - Read order: keyring → file → env (explicit saves beat operator env; env never overrides keyring/file).
+// - Automatic promotion/heal on status query (file→keyring; env→file→keyring when persistent stores empty).
 // - Heal is gated under !cfg!(test) to preserve existing bearer tests.
-// - file_store.rs (bearer) and the new xai_key_store.rs are deliberately separate modules.
+// - file_store.rs / env_bearer_store.rs (bearer) and xai_key_store.rs / env_xai_store.rs are separate modules.
 // - app_data_dir is the single source of truth for both fallback files.
 // - The 8 credential commands (4+4) live together in lib.rs generate_handler!.
 // - TEST ISOLATION (critical): under `cfg!(test)`, keyring USER is `x-bearer-test` /
@@ -72,6 +74,8 @@
 //
 // ============================================================================
 
+mod env_bearer_store;
+mod env_xai_store;
 mod file_store;
 mod xai_key_store;
 
@@ -132,18 +136,34 @@ pub fn get_x_bearer_optional() -> Result<Option<String>, String> {
             eprintln!("[secrets] keyring read failed (falling back to file store): {e}");
         }
     }
-    let file_token = file_store::read()?;
-    if let Some(ref tok) = file_token {
+    if let Some(file_token) = file_store::read()? {
         // Best-effort heal: if we fell back to file (no kr entry), try to (re)populate keyring.
-        // This recovers from transient keyring write failures at save time, or after dev
-        // pollution of the keyring entry was manually/external cleared. Next read will prefer kr.
-        if let Err(e) = write_keyring(tok) {
+        if let Err(e) = write_keyring(&file_token) {
             eprintln!("[secrets] post-fallback heal to keyring skipped: {e}");
         } else {
             eprintln!("[secrets] healed bearer token into keyring from file fallback");
         }
+        return Ok(Some(file_token));
     }
-    Ok(file_token)
+    if let Some((env_token, _var)) = env_bearer_store::read()? {
+        heal_bearer_from_env(&env_token);
+        return Ok(Some(env_token));
+    }
+    Ok(None)
+}
+
+fn heal_bearer_from_env(token: &str) {
+    if !file_store::is_present() {
+        match file_store::write(token) {
+            Ok(()) => eprintln!("[secrets] healed bearer token into file store from env"),
+            Err(e) => eprintln!("[secrets] env heal to file skipped: {e}"),
+        }
+    }
+    if let Err(e) = write_keyring(token) {
+        eprintln!("[secrets] env heal to keyring skipped: {e}");
+    } else {
+        eprintln!("[secrets] healed bearer token into keyring from env");
+    }
 }
 
 pub fn get_x_bearer() -> Result<String, String> {
@@ -215,15 +235,33 @@ pub fn get_xai_key_optional() -> Result<Option<String>, String> {
             eprintln!("[secrets] keyring read failed (falling back to xai file store): {e}");
         }
     }
-    let file_key = xai_key_store::read()?;
-    if let Some(ref k) = file_key {
-        if let Err(e) = write_xai_keyring(k) {
+    if let Some(file_key) = xai_key_store::read()? {
+        if let Err(e) = write_xai_keyring(&file_key) {
             eprintln!("[secrets] post-fallback heal of xAI key to keyring skipped: {e}");
         } else {
             eprintln!("[secrets] healed xAI key into keyring from file fallback");
         }
+        return Ok(Some(file_key));
     }
-    Ok(file_key)
+    if let Some((env_key, _var)) = env_xai_store::read()? {
+        heal_xai_from_env(&env_key);
+        return Ok(Some(env_key));
+    }
+    Ok(None)
+}
+
+fn heal_xai_from_env(key: &str) {
+    if !xai_key_store::is_present() {
+        match xai_key_store::write(key) {
+            Ok(()) => eprintln!("[secrets] healed xAI key into file store from env"),
+            Err(e) => eprintln!("[secrets] xAI env heal to file skipped: {e}"),
+        }
+    }
+    if let Err(e) = write_xai_keyring(key) {
+        eprintln!("[secrets] xAI env heal to keyring skipped: {e}");
+    } else {
+        eprintln!("[secrets] healed xAI key into keyring from env");
+    }
 }
 
 pub fn get_xai_key() -> Result<String, String> {
@@ -245,6 +283,7 @@ pub fn has_xai_key() -> bool {
 pub enum XaiKeyActiveSource {
     Keyring,
     File,
+    Env,
     None,
 }
 
@@ -267,17 +306,26 @@ pub struct XaiKeyKeyringStorageInfo {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct XaiKeyEnvStorageInfo {
+    pub present: bool,
+    /// Env var name only — never the secret value.
+    pub var_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct XaiKeyStorageStatus {
     pub connected: bool,
     pub active_source: XaiKeyActiveSource,
     pub file: XaiKeyFileStorageInfo,
     pub keyring: XaiKeyKeyringStorageInfo,
+    pub env: XaiKeyEnvStorageInfo,
 }
 
 fn resolve_xai_active_source() -> XaiKeyActiveSource {
     match read_xai_keyring() {
         Ok(Some(k)) if !k.is_empty() => XaiKeyActiveSource::Keyring,
         _ if xai_key_store::is_present() => XaiKeyActiveSource::File,
+        _ if env_xai_store::is_present() => XaiKeyActiveSource::Env,
         _ => XaiKeyActiveSource::None,
     }
 }
@@ -323,6 +371,8 @@ pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
     let mut keyring = probe_xai_keyring();
     let mut file_present = xai_key_store::is_present();
     let file_path = xai_key_store::path_display().unwrap_or_default();
+    let mut env_present = env_xai_store::is_present();
+    let mut env_var_name = env_xai_store::var_name_if_present();
     let mut active_source = resolve_xai_active_source();
 
     if !cfg!(test) && keyring.reachable && !keyring.present && file_present {
@@ -343,9 +393,23 @@ pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
         }
     }
 
+    if !cfg!(test) && !keyring.present && !file_present && env_present {
+        if let Ok(Some((k, var))) = env_xai_store::read() {
+            heal_xai_from_env(&k);
+            keyring = probe_xai_keyring();
+            file_present = xai_key_store::is_present();
+            env_present = env_xai_store::is_present();
+            env_var_name = env_xai_store::var_name_if_present();
+            active_source = resolve_xai_active_source();
+            eprintln!(
+                "[secrets] promoted xAI key from env ({var}) into persistent stores (heal during status)"
+            );
+        }
+    }
+
     eprintln!(
-        "[secrets] xAI key storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}",
-        active_source, keyring.reachable, keyring.present, keyring.error, file_present
+        "[secrets] xAI key storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}, env_present={}",
+        active_source, keyring.reachable, keyring.present, keyring.error, file_present, env_present
     );
 
     let why_not_encrypted = if file_present {
@@ -357,7 +421,7 @@ pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
     };
 
     XaiKeyStorageStatus {
-        connected: keyring.present || file_present,
+        connected: keyring.present || file_present || env_present,
         active_source,
         file: XaiKeyFileStorageInfo {
             present: file_present,
@@ -367,6 +431,10 @@ pub fn get_xai_key_storage() -> XaiKeyStorageStatus {
             why_not_encrypted,
         },
         keyring,
+        env: XaiKeyEnvStorageInfo {
+            present: env_present,
+            var_name: env_var_name,
+        },
     }
 }
 
@@ -412,6 +480,7 @@ pub fn clear_xai_key() -> Result<(), String> {
 pub enum BearerActiveSource {
     Keyring,
     File,
+    Env,
     None,
 }
 
@@ -434,18 +503,27 @@ pub struct BearerKeyringStorageInfo {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct BearerEnvStorageInfo {
+    pub present: bool,
+    /// Env var name only — never the secret value.
+    pub var_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct BearerStorageStatus {
     pub connected: bool,
     pub active_source: BearerActiveSource,
     pub file: BearerFileStorageInfo,
     pub keyring: BearerKeyringStorageInfo,
+    pub env: BearerEnvStorageInfo,
 }
 
-/// Which store `get_x_bearer_optional` will read from (keyring first, then file).
+/// Which store `get_x_bearer_optional` will read from (keyring → file → env).
 fn resolve_active_source() -> BearerActiveSource {
     match read_keyring() {
         Ok(Some(token)) if !token.is_empty() => BearerActiveSource::Keyring,
         _ if file_store::is_present() => BearerActiveSource::File,
+        _ if env_bearer_store::is_present() => BearerActiveSource::Env,
         _ => BearerActiveSource::None,
     }
 }
@@ -491,6 +569,8 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
     let mut keyring = probe_keyring();
     let mut file_present = file_store::is_present();
     let file_path = file_store::path_display().unwrap_or_default();
+    let mut env_present = env_bearer_store::is_present();
+    let mut env_var_name = env_bearer_store::var_name_if_present();
     let mut active_source = resolve_active_source();
 
     // Promotion / heal on status query (production only).
@@ -535,9 +615,23 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
         }
     }
 
+    if !cfg!(test) && !keyring.present && !file_present && env_present {
+        if let Ok(Some((token, var))) = env_bearer_store::read() {
+            heal_bearer_from_env(&token);
+            keyring = probe_keyring();
+            file_present = file_store::is_present();
+            env_present = env_bearer_store::is_present();
+            env_var_name = env_bearer_store::var_name_if_present();
+            active_source = resolve_active_source();
+            eprintln!(
+                "[secrets] promoted bearer token from env ({var}) into persistent stores (heal during status)"
+            );
+        }
+    }
+
     eprintln!(
-        "[secrets] bearer storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}",
-        active_source, keyring.reachable, keyring.present, keyring.error, file_present
+        "[secrets] bearer storage status: active_source={:?}, keyring_reachable={}, keyring_present={}, keyring_error={:?}, file_present={}, env_present={}",
+        active_source, keyring.reachable, keyring.present, keyring.error, file_present, env_present
     );
 
     let why_not_encrypted = if file_present {
@@ -549,7 +643,7 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
     };
 
     BearerStorageStatus {
-        connected: keyring.present || file_present,
+        connected: keyring.present || file_present || env_present,
         active_source,
         file: BearerFileStorageInfo {
             present: file_present,
@@ -559,6 +653,10 @@ pub fn get_bearer_storage_status() -> BearerStorageStatus {
             why_not_encrypted,
         },
         keyring,
+        env: BearerEnvStorageInfo {
+            present: env_present,
+            var_name: env_var_name,
+        },
     }
 }
 
@@ -624,6 +722,8 @@ mod tests {
     impl Drop for TestDir {
         fn drop(&mut self) {
             let _ = clear_x_bearer();
+            std::env::remove_var("X_API_KEY");
+            std::env::remove_var("X_BEARER");
             test_harness::clear();
         }
     }
@@ -746,5 +846,174 @@ mod tests {
         assert_eq!(XAI_USER, "xai-key-test");
         assert_ne!(USER, "x-bearer");
         assert_ne!(XAI_USER, "xai-key");
+    }
+
+    fn clear_bearer_env() {
+        std::env::remove_var("X_API_KEY");
+        std::env::remove_var("X_BEARER");
+    }
+
+    fn clear_xai_env() {
+        std::env::remove_var("XAI_API_KEY");
+    }
+
+    fn assert_status_json_has_no_secret(status_json: &str, secret: &str) {
+        assert!(
+            !status_json.contains(secret),
+            "secret material leaked into status JSON"
+        );
+    }
+
+    #[test]
+    fn bearer_env_only_connects() {
+        let _g = TestDir::new();
+        clear_bearer_env();
+        let token = "env-only-bearer-AAAA-test-token";
+        std::env::set_var("X_API_KEY", token);
+        let status = get_bearer_storage_status();
+        assert!(status.connected);
+        assert_eq!(status.active_source, BearerActiveSource::Env);
+        assert!(status.env.present);
+        assert_eq!(status.env.var_name.as_deref(), Some("X_API_KEY"));
+        assert_eq!(get_x_bearer().unwrap(), token);
+        let json = serde_json::to_string(&status).expect("serialize status");
+        assert_status_json_has_no_secret(&json, token);
+        clear_bearer_env();
+    }
+
+    #[test]
+    fn bearer_env_does_not_override_keyring() {
+        let _g = TestDir::new();
+        clear_bearer_env();
+        std::env::set_var("X_API_KEY", "env-should-not-win");
+        if !secret_service_available() {
+            eprintln!("skip bearer env vs keyring: no secret service");
+            clear_bearer_env();
+            return;
+        }
+        write_keyring("from-keyring-wins").expect("keyring write");
+        assert_eq!(resolve_active_source(), BearerActiveSource::Keyring);
+        assert_eq!(
+            get_x_bearer_optional().unwrap().as_deref(),
+            Some("from-keyring-wins")
+        );
+        clear_bearer_env();
+    }
+
+    #[test]
+    fn bearer_env_does_not_override_file() {
+        let _g = TestDir::new();
+        clear_bearer_env();
+        std::env::set_var("X_API_KEY", "env-should-not-win");
+        file_store::write("from-file-wins").unwrap();
+        let _ = clear_keyring();
+        assert_eq!(resolve_active_source(), BearerActiveSource::File);
+        assert_eq!(
+            get_x_bearer_optional().unwrap().as_deref(),
+            Some("from-file-wins")
+        );
+        clear_bearer_env();
+    }
+
+    #[test]
+    fn bearer_empty_env_ignored() {
+        let _g = TestDir::new();
+        clear_bearer_env();
+        std::env::set_var("X_API_KEY", "   ");
+        std::env::set_var("X_BEARER", "\n");
+        let status = get_bearer_storage_status();
+        assert!(!status.connected);
+        assert_eq!(status.active_source, BearerActiveSource::None);
+        assert!(!status.env.present);
+        assert!(get_x_bearer().is_err());
+        clear_bearer_env();
+    }
+
+    #[test]
+    fn bearer_x_bearer_env_var_supported() {
+        let _g = TestDir::new();
+        clear_bearer_env();
+        let token = "alt-env-bearer-token";
+        std::env::set_var("X_BEARER", token);
+        let status = get_bearer_storage_status();
+        assert!(status.connected);
+        assert_eq!(status.env.var_name.as_deref(), Some("X_BEARER"));
+        assert_eq!(get_x_bearer().unwrap(), token);
+        clear_bearer_env();
+    }
+
+    struct XaiTestDir {
+        _dir: TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl XaiTestDir {
+        fn new() -> Self {
+            let lock = test_harness::LOCK.lock().expect("xai secrets test lock");
+            let dir = TempDir::new().expect("tempdir");
+            test_harness::set(dir.path().to_path_buf());
+            let _ = clear_xai_key();
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for XaiTestDir {
+        fn drop(&mut self) {
+            let _ = clear_xai_key();
+            clear_xai_env();
+            test_harness::clear();
+        }
+    }
+
+    #[test]
+    fn xai_env_only_connects() {
+        let _g = XaiTestDir::new();
+        clear_xai_env();
+        let key = "env-only-xai-key-test-value";
+        std::env::set_var("XAI_API_KEY", key);
+        let status = get_xai_key_storage();
+        assert!(status.connected);
+        assert_eq!(status.active_source, XaiKeyActiveSource::Env);
+        assert!(status.env.present);
+        assert_eq!(status.env.var_name.as_deref(), Some("XAI_API_KEY"));
+        assert_eq!(get_xai_key().unwrap(), key);
+        let json = serde_json::to_string(&status).expect("serialize status");
+        assert_status_json_has_no_secret(&json, key);
+        clear_xai_env();
+    }
+
+    #[test]
+    fn xai_env_does_not_override_keyring() {
+        let _g = XaiTestDir::new();
+        clear_xai_env();
+        std::env::set_var("XAI_API_KEY", "env-should-not-win");
+        if !secret_service_available() {
+            eprintln!("skip xai env vs keyring: no secret service");
+            clear_xai_env();
+            return;
+        }
+        write_xai_keyring("xai-from-keyring").expect("keyring write");
+        assert_eq!(resolve_xai_active_source(), XaiKeyActiveSource::Keyring);
+        assert_eq!(
+            get_xai_key_optional().unwrap().as_deref(),
+            Some("xai-from-keyring")
+        );
+        clear_xai_env();
+    }
+
+    #[test]
+    fn xai_empty_env_ignored() {
+        let _g = XaiTestDir::new();
+        clear_xai_env();
+        std::env::set_var("XAI_API_KEY", "  ");
+        let status = get_xai_key_storage();
+        assert!(!status.connected);
+        assert_eq!(status.active_source, XaiKeyActiveSource::None);
+        assert!(!status.env.present);
+        assert!(get_xai_key().is_err());
+        clear_xai_env();
     }
 }

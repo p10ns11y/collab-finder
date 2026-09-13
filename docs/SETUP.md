@@ -71,8 +71,9 @@ pnpm gate                # full CI parity (install + build + verify + cargo test
 **Storage (Rust `src-tauri/src/secrets.rs` + `app_dirs.rs`):**
 
 - **On save:** always writes the file fallback; keyring write is best-effort (may log and skip if Secret Service is unavailable).
-- **On read:** keyring first when present, else plaintext file `~/.local/share/collab-finder/x-bearer` (mode `0600`).
+- **On read:** keyring → plaintext file `~/.local/share/collab-finder/x-bearer` (mode `0600`) → env (`X_API_KEY` or `X_BEARER`). Env is healed into the file on first use.
 - Keyring entry: service `collab-finder`, user `x-bearer`. Linux needs `keyring` crate `sync-secret-service` (see `src-tauri/Cargo.toml`).
+- **Grok Bot / Hyprland / no Secret Service:** grant `X_API_KEY` + `XAI_API_KEY` via Grok Bot secret cards (or export in your desktop launcher), **or** drop 0600 files at the paths above. Desktop-launched Tauri does not inherit box-process env unless your session exports it — file heal makes the next launch work without env.
 - Search and reactor commands read the token from storage — you do not pass `bearer` on each search invoke.
 
 **Stability note:** The bearer/keyring + dual file fallback + `get_x_bearer_storage` status surface is a known hotspot that unrelated refactors (especially anything involving "storage", DB paths, lib.rs command lists, or content policy work) have broken repeatedly. The sources contain loud STABILITY CONTRACT headers. See root AGENTS.md and docs/tauri-commands.md before touching. Always run `cargo test` + manually check the credentials panel after changes.
@@ -81,7 +82,7 @@ pnpm gate                # full CI parity (install + build + verify + cargo test
 
 1. Obtain an xAI API key from the [xAI console](https://console.x.ai/).
 2. In the app, open **Settings → xAI key**.
-3. Paste the key and **Save**. The panel calls `get_xai_key_storage` (same keyring/file dual-write pattern as bearer).
+3. Paste the key and **Save**. The panel calls `get_xai_key_storage` (same keyring/file/env pattern as bearer; env var `XAI_API_KEY`).
 
 Quick Target on **Discover** (`analyze_opportunity_target`, `prep_opportunity_target` in `src-tauri/src/opportunity_target.rs`) requires a saved xAI key. The reactor **cycle** path on **Xplore** still uses heuristic analyze — xAI structured decisions there remain planned.
 

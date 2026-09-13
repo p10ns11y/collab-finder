@@ -13,10 +13,12 @@ secret-tool search service collab-finder
 
 ## Where secrets live
 
-| Secret | Keyring (service / user) | File fallback (mode 0600, **plaintext**) |
-|--------|--------------------------|------------------------------------------|
-| X bearer | `collab-finder` / `x-bearer` | `~/.local/share/collab-finder/x-bearer` |
-| xAI API key | `collab-finder` / `xai-key` | `~/.local/share/collab-finder/xai-key` |
+| Secret | Keyring (service / user) | File fallback (mode 0600, **plaintext**) | Env fallback (operator-provided) |
+|--------|--------------------------|------------------------------------------|----------------------------------|
+| X bearer | `collab-finder` / `x-bearer` | `~/.local/share/collab-finder/x-bearer` | `X_API_KEY` or `X_BEARER` |
+| xAI API key | `collab-finder` / `xai-key` | `~/.local/share/collab-finder/xai-key` | `XAI_API_KEY` |
+
+Read order: keyring → file → env. Status IPC returns `active_source` (incl. `env`) and env **var name only** — never the value.
 
 App code must only use `get_x_bearer` / `get_xai_key` **inside Rust** for API calls. Status commands return **metadata only** (present/reachable/path) — never the secret string over IPC.
 
@@ -26,7 +28,7 @@ App code must only use `get_x_bearer` / `get_xai_key` **inside Rust** for API ca
 
 - `secret-tool search`, `secret-tool lookup`, `secret-tool clear` (except user-initiated local recovery with redaction)
 - `cat` / `hexdump` / `less` / `head` of `x-bearer`, `xai-key`, or any `*bearer*` / `*key*` under the app data dir
-- Printing env vars that may hold tokens (`XAI_API_KEY`, `BEARER`, etc.)
+- Printing env vars that may hold tokens (`XAI_API_KEY`, `X_API_KEY`, `X_BEARER`, etc.)
 - Logging invoke args that include raw `key` / `bearer` / `token` bodies
 - Pasting secrets into chat, PRs, issues, or commit messages
 

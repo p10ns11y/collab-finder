@@ -215,6 +215,10 @@ export function credentialsCheckCmd(ports: FinderPorts): Cmd<FinderMsg> {
               reachable: false,
               error: result.error.message,
             },
+            env: {
+              present: false,
+              var_name: null,
+            },
           },
         })
         return

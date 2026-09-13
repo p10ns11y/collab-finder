@@ -1,4 +1,4 @@
-import { AlertTriangle, FileKey, KeyRound, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, FileKey, KeyRound, Server, ShieldCheck } from 'lucide-react'
 import {
   activeSourceLabel,
   type BearerStorageStatus,
@@ -13,6 +13,8 @@ type Props = {
    * Defaults to X search wording so the X connection panel stays unchanged.
    */
   readPurpose?: string
+  /** Env var names shown when env fallback is absent (metadata only). */
+  envVarHint?: string
 }
 
 function Row({
@@ -38,6 +40,7 @@ export function CredentialsStorageDetails({
   storage,
   checking,
   readPurpose = 'Searches read the token from Rust only — never from this UI after save.',
+  envVarHint = 'X_API_KEY or X_BEARER',
 }: Props) {
   if (checking) {
     return (
@@ -53,7 +56,8 @@ export function CredentialsStorageDetails({
 
   const usingKeyring = storage.active_source === 'keyring'
   const usingFile = storage.active_source === 'file'
-  const activeTone = usingKeyring ? 'success' : usingFile ? 'warning' : 'neutral'
+  const usingEnv = storage.active_source === 'env'
+  const activeTone = usingKeyring ? 'success' : usingFile || usingEnv ? 'warning' : 'neutral'
 
   return (
     <div className="space-y-2 rounded-lg border border-border-subtle bg-surface-elevated/30 px-3 py-2.5">
@@ -65,9 +69,9 @@ export function CredentialsStorageDetails({
       </div>
 
       <p className="text-[11px] text-ink-faint">
-        {readPurpose} Save always writes the file; keyring is best-effort. Active shows where
-        reads come from: keyring when it has a token, otherwise the file. If keyring save fails,
-        stale keyring entries are cleared so the file is used. Never print or paste secret values
+        {readPurpose} Save always writes the file; keyring is best-effort. Reads prefer keyring,
+        then the file, then operator env vars (e.g. Grok Bot secret cards). Env is healed into the
+        file on first use so the next launch works without env. Never print or paste secret values
         into agent logs, terminals, or remote-control sessions.
       </p>
 
@@ -126,6 +130,27 @@ export function CredentialsStorageDetails({
           <p className="flex gap-1.5 text-[11px] text-warning">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             {storage.file.why_not_encrypted}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5 rounded-md border border-border-subtle/80 bg-background/40 px-2.5 py-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
+          <Server className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
+          Environment fallback
+        </div>
+        <Row
+          label="Present"
+          value={
+            storage.env.present
+              ? `Yes (${storage.env.var_name ?? 'env'})`
+              : `No — set ${envVarHint} for headless Linux`
+          }
+        />
+        {usingEnv && (
+          <p className="text-[11px] text-ink-faint">
+            Grok Bot / Hyprland boxes without Secret Service: grant secrets via env or drop 0600
+            files at the paths above. First read heals env into the file store.
           </p>
         )}
       </div>
