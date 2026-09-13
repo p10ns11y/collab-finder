@@ -175,6 +175,7 @@ function XaiKeyPanel() {
           storage={keyStatus}
           checking={isChecking && !keyStatus}
           readPurpose="Analyze/prep read the key from Rust only — never from this UI after save."
+          envVarHint="XAI_API_KEY"
         />
 
         {!connected && !isChecking && (
