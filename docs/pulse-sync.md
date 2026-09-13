@@ -47,6 +47,8 @@ node scripts/pulse-export.mjs --out /tmp/hunt-pulse.json
 node scripts/pulse-import.mjs /tmp/hunt-pulse.json
 ```
 
+Import upserts on `nat_key`: new rows set `first_seen` and `last_seen` from the trace `time` (or now if missing); conflicts refresh `snippet`, `time`, `status`, bump `last_seen`, and increment `seen_count` while preserving `first_seen`. Works against both the slim fallback schema and full pulse-memory DBs (e.g. mzapan `~/.local/share/pulse-memory/pulse.sqlite`).
+
 ### B. Shared pulse-memory DB
 
 If both machines share `~/.local/share/pulse-memory/` (Syncthing, rsync, etc.), kanithanj upserts directly — no import step. Set `PULSE_MEMORY_DB` when the DB lives elsewhere.

@@ -22,17 +22,29 @@ const pulseDb =
   process.env.PULSE_MEMORY_DB?.trim() ||
   resolve(homedir(), '.local/share/pulse-memory/pulse.sqlite')
 
-const pack = JSON.parse(readFileSync(packPath, 'utf8'))
-if (pack.format !== 'pulse-pack-v1') {
-  console.error(`pulse-import: unsupported format ${pack.format}`)
-  process.exit(1)
+/** @param {unknown} value */
+function sqlQuote(value) {
+  if (value == null) return 'NULL'
+  return `'${String(value).replace(/'/g, "''")}'`
 }
 
-mkdirSync(dirname(pulseDb), { recursive: true })
-execFileSync(
-  'sqlite3',
-  [
-    pulseDb,
+/** @param {{ time?: string }} trace */
+function resolveSeenAt(trace) {
+  const t = trace.time?.trim()
+  return t || new Date().toISOString()
+}
+
+function runSql(dbPath, sql) {
+  execFileSync('sqlite3', [dbPath, sql], { stdio: 'ignore' })
+}
+
+function querySql(dbPath, sql) {
+  return execFileSync('sqlite3', [dbPath, sql], { encoding: 'utf8' }).trim()
+}
+
+function ensureSchema(dbPath) {
+  runSql(
+    dbPath,
     `CREATE TABLE IF NOT EXISTS memory_traces (
       nat_key TEXT PRIMARY KEY,
       snippet TEXT NOT NULL,
@@ -40,22 +52,72 @@ execFileSync(
       time TEXT NOT NULL,
       status TEXT NOT NULL,
       kind TEXT NOT NULL,
-      lock TEXT NOT NULL DEFAULT 'open'
+      lock TEXT NOT NULL DEFAULT 'open',
+      seen_count INTEGER NOT NULL DEFAULT 1,
+      first_seen TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen TEXT NOT NULL DEFAULT (datetime('now'))
     );`,
-  ],
-  { stdio: 'ignore' },
-)
+  )
 
-let n = 0
-for (const t of pack.traces) {
-  const snippet = String(t.snippet || '')
+  const cols = new Set(
+    querySql(dbPath, "SELECT name FROM pragma_table_info('memory_traces');")
+      .split('\n')
+      .filter(Boolean),
+  )
+  const migrations = [
+    ['seen_count', 'ALTER TABLE memory_traces ADD COLUMN seen_count INTEGER NOT NULL DEFAULT 1'],
+    ['first_seen', "ALTER TABLE memory_traces ADD COLUMN first_seen TEXT NOT NULL DEFAULT (datetime('now'))"],
+    ['last_seen', "ALTER TABLE memory_traces ADD COLUMN last_seen TEXT NOT NULL DEFAULT (datetime('now'))"],
+  ]
+  for (const [col, ddl] of migrations) {
+    if (!cols.has(col)) runSql(dbPath, ddl)
+  }
+}
+
+function sanitizeSnippet(raw) {
+  return String(raw || '')
     .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
     .replace(/xai-\S+/gi, 'xai-[REDACTED]')
     .slice(0, 480)
-  const sql = `INSERT INTO memory_traces (nat_key, snippet, source, time, status, kind, lock)
-    VALUES ('${String(t.nat_key).replace(/'/g, "''")}', '${snippet.replace(/'/g, "''")}', '${String(t.source).replace(/'/g, "''")}', '${String(t.time).replace(/'/g, "''")}', '${String(t.status).replace(/'/g, "''")}', '${String(t.kind).replace(/'/g, "''")}', '${String(t.lock || 'open').replace(/'/g, "''")}')
-    ON CONFLICT(nat_key) DO UPDATE SET snippet=excluded.snippet, time=excluded.time, status=excluded.status;`
-  execFileSync('sqlite3', [pulseDb, sql], { stdio: 'ignore' })
+}
+
+function upsertTrace(dbPath, trace) {
+  const seenAt = resolveSeenAt(trace)
+  const snippet = sanitizeSnippet(trace.snippet)
+  const sql = `INSERT INTO memory_traces (
+      nat_key, snippet, source, time, status, kind, lock, first_seen, last_seen
+    ) VALUES (
+      ${sqlQuote(trace.nat_key)},
+      ${sqlQuote(snippet)},
+      ${sqlQuote(trace.source)},
+      ${sqlQuote(trace.time)},
+      ${sqlQuote(trace.status)},
+      ${sqlQuote(trace.kind)},
+      ${sqlQuote(trace.lock || 'open')},
+      ${sqlQuote(seenAt)},
+      ${sqlQuote(seenAt)}
+    )
+    ON CONFLICT(nat_key) DO UPDATE SET
+      snippet = excluded.snippet,
+      time = excluded.time,
+      status = excluded.status,
+      last_seen = excluded.last_seen,
+      seen_count = seen_count + 1;`
+  runSql(dbPath, sql)
+}
+
+const pack = JSON.parse(readFileSync(packPath, 'utf8'))
+if (pack.format !== 'pulse-pack-v1') {
+  console.error(`pulse-import: unsupported format ${pack.format}`)
+  process.exit(1)
+}
+
+mkdirSync(dirname(pulseDb), { recursive: true })
+ensureSchema(pulseDb)
+
+let n = 0
+for (const t of pack.traces) {
+  upsertTrace(pulseDb, t)
   n += 1
 }
 
