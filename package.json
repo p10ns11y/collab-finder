@@ -14,6 +14,8 @@
     "ci-check-light": "bash scripts/ci-check-light.sh",
     "gate": "bash scripts/gate.sh",
     "export-pipeline": "node scripts/export-pipeline.mjs",
+    "pulse-export": "node scripts/pulse-export.mjs",
+    "pulse-import": "node scripts/pulse-import.mjs",
     "firm-list": "node scripts/generate-firm-list.mjs",
     "backup-db": "bash scripts/backup-db.sh",
     "complexity": "bash scripts/ci-complexity.sh",

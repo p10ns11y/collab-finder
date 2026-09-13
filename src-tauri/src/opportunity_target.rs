@@ -1541,6 +1541,7 @@ pub(crate) async fn run_prep_opportunity_target(
 #[tauri::command]
 pub(crate) async fn prep_opportunity_target(
     db: State<'_, AppDb>,
+    pulse: State<'_, crate::pulse::AppPulse>,
     opportunity_id: Option<i64>,
     url: Option<String>,
     pasted_jd: Option<String>,
@@ -1646,6 +1647,26 @@ pub(crate) async fn prep_opportunity_target(
         0
     };
     res.opportunity_id = run_id;
+    if run_id > 0 {
+        if let Ok(guard) = db.0.lock() {
+            if let Ok(rows) = guard.get_opportunities(&crate::db::OpportunityFilter {
+                id: Some(run_id),
+                limit: Some(1),
+                ..Default::default()
+            }) {
+                if let Some(opp) = rows.first() {
+                    crate::pulse::admit(
+                        &pulse,
+                        crate::pulse::tick_from_opportunity(
+                            crate::pulse::HuntTickKind::Prep,
+                            opp,
+                            None,
+                        ),
+                    );
+                }
+            }
+        }
+    }
     Ok(res)
 }
 

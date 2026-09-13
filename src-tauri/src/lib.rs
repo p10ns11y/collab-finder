@@ -13,6 +13,7 @@ mod network_graph;
 mod operator_pack;
 mod opportunity_target;
 mod platsbanken;
+mod pulse;
 mod rank_config;
 mod secrets;
 mod x_query;
@@ -40,7 +41,7 @@ use opportunity_target::{
     set_xai_model_cmd,
 };
 use std::sync::Mutex as StdMutex;
-use tauri::State;
+use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use x_search::XTweet;
 
@@ -123,6 +124,7 @@ fn clear_xai_key() -> Result<(), String> {
 #[tauri::command]
 async fn search_x_recent(
     db: State<'_, AppDb>,
+    pulse: State<'_, pulse::AppPulse>,
     query: String,
     max_results: Option<u32>,
 ) -> Result<Vec<XTweet>, String> {
@@ -151,6 +153,19 @@ async fn search_x_recent(
             run_id,
             tweets.len()
         );
+        pulse::admit(
+            &pulse,
+            pulse::HuntTick {
+                kind: pulse::HuntTickKind::SearchCycle,
+                opp_id: None,
+                company: None,
+                title: None,
+                status: None,
+                outcome: None,
+                source_url: None,
+                detail: Some(format!("manual query={} hits={}", query, tweets.len())),
+            },
+        );
     }
 
     Ok(tweets)
@@ -159,6 +174,7 @@ async fn search_x_recent(
 #[tauri::command]
 async fn run_finder_cycle_cmd(
     db: State<'_, AppDb>,
+    pulse: State<'_, pulse::AppPulse>,
     reactor: State<'_, AppReactor>,
     query: String,
     cv_summary: String,
@@ -179,6 +195,20 @@ async fn run_finder_cycle_cmd(
                         s.record_pause("XRate guard triggered", Some("XRate"), None, None, Some(&e))
                     {
                         eprintln!("[db] pause persist skipped (non-fatal, TD-003): {pe}");
+                    } else {
+                        pulse::admit(
+                            &pulse,
+                            pulse::HuntTick {
+                                kind: pulse::HuntTickKind::Pause,
+                                opp_id: None,
+                                company: None,
+                                title: None,
+                                status: None,
+                                outcome: None,
+                                source_url: None,
+                                detail: Some("XRate".into()),
+                            },
+                        );
                     }
                 }
             }
@@ -209,6 +239,20 @@ async fn run_finder_cycle_cmd(
                 Some(&format!("{:?}", result.decision.guards_triggered)),
             ) {
                 eprintln!("[db] pause persist skipped (non-fatal, TD-003): {e}");
+            } else {
+                pulse::admit(
+                    &pulse,
+                    pulse::HuntTick {
+                        kind: pulse::HuntTickKind::Pause,
+                        opp_id: None,
+                        company: None,
+                        title: None,
+                        status: None,
+                        outcome: None,
+                        source_url: None,
+                        detail: Some(guard_type.into()),
+                    },
+                );
             }
         }
     }
@@ -222,6 +266,20 @@ async fn run_finder_cycle_cmd(
                 None,
             ) {
                 eprintln!("[db] pause persist skipped (non-fatal, TD-003): {e}");
+            } else {
+                pulse::admit(
+                    &pulse,
+                    pulse::HuntTick {
+                        kind: pulse::HuntTickKind::Pause,
+                        opp_id: None,
+                        company: None,
+                        title: None,
+                        status: None,
+                        outcome: None,
+                        source_url: None,
+                        detail: Some("CVPromote".into()),
+                    },
+                );
             }
         }
     }
@@ -246,6 +304,24 @@ async fn run_finder_cycle_cmd(
 
     if run_id > 0 {
         eprintln!("[db] recorded cycle search_run {}", run_id);
+        pulse::admit(
+            &pulse,
+            pulse::HuntTick {
+                kind: pulse::HuntTickKind::SearchCycle,
+                opp_id: None,
+                company: None,
+                title: None,
+                status: None,
+                outcome: None,
+                source_url: None,
+                detail: Some(format!(
+                    "cycle query={} hits={} action={}",
+                    query,
+                    result.tweets.len(),
+                    result.decision.action
+                )),
+            },
+        );
     }
 
     Ok(result)
@@ -383,6 +459,7 @@ async fn get_pipeline_opportunities(
 #[tauri::command]
 async fn update_opportunity_status_cmd(
     db: State<'_, AppDb>,
+    pulse: State<'_, pulse::AppPulse>,
     id: i64,
     status: String,
     notes: Option<String>,
@@ -398,13 +475,31 @@ async fn update_opportunity_status_cmd(
     }
     db.0.lock()
         .map_err(|e| e.to_string())?
-        .update_opportunity_status(id, &status, notes.as_deref())
+        .update_opportunity_status(id, &status, notes.as_deref())?;
+    if let Ok(store) = db.0.lock() {
+        if let Ok(rows) = store.get_opportunities(&db::OpportunityFilter {
+            id: Some(id),
+            limit: Some(1),
+            ..Default::default()
+        }) {
+            if let Some(opp) = rows.first() {
+                let kind = if status == "prepped" {
+                    pulse::HuntTickKind::Prep
+                } else {
+                    pulse::HuntTickKind::StatusChange
+                };
+                pulse::admit(&pulse, pulse::tick_from_opportunity(kind, opp, None));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Hiring outcome after apply (waiting / screening / interview / offer / rejected / withdrawn).
 #[tauri::command]
 async fn update_opportunity_outcome_cmd(
     db: State<'_, AppDb>,
+    pulse: State<'_, pulse::AppPulse>,
     id: i64,
     outcome_status: String,
 ) -> Result<(), String> {
@@ -425,7 +520,22 @@ async fn update_opportunity_outcome_cmd(
     }
     db.0.lock()
         .map_err(|e| e.to_string())?
-        .update_opportunity_outcome(id, &outcome_status)
+        .update_opportunity_outcome(id, &outcome_status)?;
+    if let Ok(store) = db.0.lock() {
+        if let Ok(rows) = store.get_opportunities(&db::OpportunityFilter {
+            id: Some(id),
+            limit: Some(1),
+            ..Default::default()
+        }) {
+            if let Some(opp) = rows.first() {
+                pulse::admit(
+                    &pulse,
+                    pulse::tick_from_opportunity(pulse::HuntTickKind::OutcomeChange, opp, None),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -890,6 +1000,7 @@ pub fn run() {
             get_devprofile_path(),
         ))))
         .manage(AppDb(StdMutex::new(db::SqliteStore::new())))
+        .manage(pulse::AppPulse(StdMutex::new(pulse::PulseWriter::open())))
         .invoke_handler(tauri::generate_handler![
             // Credential commands (stability boundary — see above). Keep bearer + xai together.
             has_x_bearer,
@@ -967,8 +1078,19 @@ pub fn run() {
             list_quest_threads,
             search_quest_turns,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(pulse) = app.try_state::<pulse::AppPulse>() {
+                    if let Ok(writer) = pulse.0.lock() {
+                        if let Err(e) = writer.flush() {
+                            eprintln!("[pulse] shutdown flush skipped: {e}");
+                        }
+                    }
+                }
+            }
+        });
 }
 
 #[cfg(test)]
