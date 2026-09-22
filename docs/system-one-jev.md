@@ -1,57 +1,27 @@
-# TypeSafe System One / Jev — operator note
+# Kanithanj System One + System Two — operator note
 
-**Source:** Frontier Desk reading note, 2026-09-22. Vendor claims marked as such. **No Jev integration in-repo** — pattern reference only.
+**Kanithanj** (collab-finder) is already a two-system hunt loop. **System One** (Fit Reflex) is typed triage and fit: **Choice**, **Score**, **Noul**, and confidence gates that code branches on without parsing prose. **System Two** is string artifacts humans read — cover letters, research packs, apply-CV narrative — generated on xAI/Grok after gates pass. TypeSafe **Jev** is an optional future swap for the One decision surface only; nothing in this note implements it.
 
-TypeSafe primitives (per [docs.typesafe.ai](https://docs.typesafe.ai)): **Choice** (discrete action), **Score** (0–100 calibrated probability), **Noul** (boolean / hard predicate). No free-form string generation.
-
----
-
-## What it is
-
-**TypeSafe Jev** is TypeSafe’s **System One** model: unstructured program state in → typed probabilistic decisions out (`Choice` / `Score` / `Noul`). Trained with RLCD; parallel sampling; calibrated confidence.
-
-| Resource | URL |
-|----------|-----|
-| Launch post | https://typesafe.ai/blog/introducing-system-one-models-and-jev |
-| Docs | https://docs.typesafe.ai |
-| API | `POST https://api.typesafe.ai/v1/systemone` — Bearer `TYPESAFE_API_KEY`; model e.g. `jev-1.13.0` |
-| Vercel AI Gateway | `typesafe-ai/jev` |
-
-**Pricing (vendor claim):** ~$0.042 / MTok input; outputs free; latency ~70–500ms on System-One-shaped queries.
-
-**Access (as of 2026-09-22):**
-
-| Date | Status |
-|------|--------|
-| Sep 15 | Early-access waitlist at launch |
-| Sep 20 | TypeSafe said no waitlist (`console.typesafe.ai`) |
-| Sep 22 | **New signups paused** (demand/QoS); existing accounts continue |
-
-Confirm live access at [console.typesafe.ai](https://console.typesafe.ai) before planning on a key. No public weights / self-host.
+**Source:** Frontier Desk reading note, 2026-09-22. **No Jev integration in-repo.**
 
 ---
 
-## Decision vs string generation
+## System One vs System Two
 
-System One / Jev answers **typed questions over program state** with calibrated probabilities. It does **not** generate free-form strings.
+Judge by **answer space**, not hunt stage name.
 
-- **In-scope (System One):** closed answer spaces — **Choice** (pick from enum), **Score** (calibrated 0–100 / probs), **Noul** (true/false predicate). Software can branch, sort, threshold, and escalate on confidence without parsing prose.
-- **Out-of-scope (chat LLMs / xAI):** open answer spaces — cover letters, research narrative, reply drafts, CV prose, any artifact whose value *is* the text.
+| | System One (Fit Reflex) | System Two |
+|--|-------------------------|------------|
+| Answers | Closed: enums, scores, booleans | Open: prose, packs, drafts |
+| Primitives | **Choice**, **Score**, **Noul** + confidence | Generated text (value *is* the string) |
+| Failure mode | Wrong branch / miscalibrated confidence | Hallucinated facts in prose |
+| Today | Rust lexicons/ladder/dual-fit + analyze `Decision` | `run_prep_opportunity_target` on xAI |
 
-Same hunt stage can host both: Prep may use System One for “which pack template?” / “worth spending tokens?” (**Choice** / **Noul**) while the letter body stays on xAI. Pull is mostly already System-One-shaped in Rust; that does not mean “Pull = Jev” — it means those *questions* are the right shape.
-
-**Anti-pattern:** do not judge a slot by UI label — judge by whether the output must be a string humans read vs a typed value code consumes.
-
-| Shape | Use System One (or local Rust equivalent) | Keep string models (xAI/Grok) |
-|-------|--------------------------------------------|-------------------------------|
-| Answer space | Closed: enums, scores, booleans | Open: prose, packs, drafts |
-| Failure mode | Wrong branch / miscalibrated confidence | Hallucinated facts in text |
-| Kanithanj examples | theatre vs mission **Noul**; geo hard-reject; dual-fit factor **Scores**; “prep vs pause vs ignore” **Choice**; confidence gate before reactor spend | cover letter; research pack; email/X reply; apply-CV narrative |
-| Not a reason by itself | Stage name (“Pull”, “Analyze”) | Stage name (“Prep”) |
+A single stage can host both — e.g. Prep may use One for template/spend gates while the letter body stays Two. **Anti-pattern:** labeling a UI screen “System One” or “System Two”; ask whether output is typed for code or prose for humans.
 
 ---
 
-## System One ↔ System Two in Kanithanj
+## Hunt loop (primary map)
 
 ```mermaid
 flowchart LR
@@ -83,85 +53,63 @@ flowchart LR
   G -->|no| HITL[pause / ignore / operator]
 ```
 
-- **System One** = closed answers code branches on (**Choice** / **Score** / **Noul** + confidence). Today: Rust lexicons/ladder/dual-fit + analyze `Decision`; later optional Jev swap on that surface only.
-- **System Two** = open prose humans read (cover letter, research pack, apply-CV narrative). Stays on xAI/Grok. **Never** call this System One.
+---
 
-### Primitive map (today)
+## Primitive map
 
 | Primitive | Kanithanj surface |
 |-----------|-------------------|
 | **Choice** | `Decision.action`, `recommended_action` (`prep` / `pause` / `ignore`) |
 | **Score** | `score_lead` rank, dual-fit `overall` / `candidate_to_role` / `role_to_candidate`, `fit_score` |
 | **Noul** | `finish_lead` hard rejects, `deal_breakers_triggered`, theatre/geo predicates |
-| **confidence** | `Decision.confidence`, analyze confidence gate, FitThreshold guard |
+| **confidence** | `Decision.confidence`, analyze gate, FitThreshold guard |
 
 ---
 
-## Hunt stages (drill-down)
+## Code seams
 
-Implementation detail for System One layers — same pipeline as above, with repo symbols.
+| Layer | Path | System | Persisted |
+|-------|------|--------|-----------|
+| Pull filter | `mission_firms::finish_lead` | One (**Noul**) | dropped lead |
+| Pull rank | `mission_firms::score_lead` | One (**Score**) | `rank_score`, `rank_reasons` |
+| Firm dual-fit | `firm_durability::*`, `commands/hunt.rs` | One (**Score** + **Noul**) | durability overlay |
+| Xplore lexicon | `finder_reactor::fit_score` | One (**Score**) | in-memory lead |
+| Reactor decision | `finder_reactor::analyze_lead` → `Decision` | One (**Choice** + confidence) | lead status |
+| Analyze | `opportunity_target::run_analyze_opportunity_target` | One | `fit_score`, `analysis_json` |
+| Rubric / constraints | `data/distillation/prompts/*`, `candidate-preferences.md` | One decomposition source | operator packs |
+| Prep | `opportunity_target::run_prep_opportunity_target` | **Two** | `prep_artifacts_json` |
+| Apply | `generate-apply-cv`, cv-promote path | human **Choice** | `outcome_status`, `applied_at` |
 
-```mermaid
-flowchart TB
-  subgraph pull ["Pull / score — System One, local Rust"]
-    FL["finish_lead\n(hard filters)"] -->|Noul| SL["score_lead\nfirm ladder + lexicons"]
-    SL -->|Score| FD["firm_durability::score_for_id\n+ profile_title_boost"]
-    FD --> RS["rank_score + rank_reasons"]
-  end
+**Score SoT (orient):** `rank_score`, durability overlay, reactor `fit_score`, and analyze `overall` can disagree. Collapse to one ranked field + reason trace before any Jev swap — **no fourth ranker** on firm ladder + lexicons + pack. See [mission-flow-relevance](./mission-flow-relevance.md), [mission-firms](../data/mission-firms/README.md).
 
-  subgraph analyze ["Analyze — System One"]
-    AQ["atomic questions\ndecompose rubric"] -->|Score| DF["dual-fit fields\ncandidate_to_role · role_to_candidate"]
-    AQ -->|Noul| DB["deal_breakers_triggered\ngeo / theatre / mode"]
-    DF --> CG{"confidence ≥ gate?"}
-    DB --> CG
-    CG -->|no| PA["Choice: pause → HITL"]
-    CG -->|yes| PR["Choice: prep | ignore"]
-  end
-
-  subgraph prep ["Prep — System Two (+ typed gates)"]
-    PR -->|Choice/Noul| TG["template / spend gate"]
-    TG --> XP["run_prep_opportunity_target\ncover letter · research pack · cv_suggestions"]
-    XP --> SA["prep_artifacts_json"]
-  end
-
-  subgraph apply ["Apply — human gates"]
-    SA --> CV["generate-apply-cv\nCV overlay from prep"]
-    CV --> AP["operator apply / promote\nexplicit confirm"]
-  end
-
-  RS -->|"worth evaluate?"| AQ
-  PA -.->|"low confidence"| AQ
-```
-
-**Confidence gates today:** `finder_reactor::analyze_lead` → `Decision { action, confidence, guards_triggered }`; FitThreshold when score &lt; 70; cost / X-rate guards before reactor spend. Analyze prompt: action `pause` when confidence &lt; 70 or guards non-empty ([xai-analyze-opportunity.md](../data/distillation/prompts/xai-analyze-opportunity.md)).
+Pull symbols: `finish_lead` → `score_lead` → `firm_durability::score_for_id` → analyze atomic questions → gate → `run_prep_opportunity_target`. Gates: FitThreshold (&lt; 70), cost/X-rate ([xai-analyze-opportunity.md](../data/distillation/prompts/xai-analyze-opportunity.md)).
 
 ---
 
-## Code seams (where decisions live)
+## Workflow
 
-| Seam | Path | System One shape | Persisted |
-|------|------|------------------|-----------|
-| Pull hard-filter | `mission_firms::finish_lead` | **Noul** — mixed SW/HW, query match, `texas_only` | dropped lead |
-| Pull rank | `mission_firms::score_lead` | **Score** — firm ladder, lexicons, query tokens, profile boost/penalty | `MissionFirmLead.rank_score`, `rank_reasons` |
-| Firm dual-fit (local) | `firm_durability::profile_match_firm`, `local_role_match`, `score_for_id` | **Score** + **Noul** hits/misses vs locked constraints | durability overlay on Pull; `commands/hunt.rs` blend |
-| Xplore lexicon | `finder_reactor::fit_score` | **Score** — keyword heuristic (stub for xAI) | in-memory lead |
-| Reactor decision | `finder_reactor::analyze_lead` → `Decision { action, confidence, guards_triggered }` | **Choice** + confidence gate | lead status |
-| Analyze (Quick Target / Mission) | `opportunity_target::run_analyze_opportunity_target` | **Score** (`overall`, `candidate_to_role`, `role_to_candidate`) + **Choice** (`recommended_action`) | `opportunities.fit_score`, `analysis_json` |
-| Analyze rubric / constraints | `data/distillation/prompts/xai-analyze-opportunity.md`, `curation/candidate-preferences.md`, `candidate-constraints-compact.txt` | atomic **Score** / **Noul** decomposition source | baked via `include_str` / operator packs |
-| Prep (strings) | `opportunity_target::run_prep_opportunity_target`, `build_prep_user_prompt` | **System Two** — xAI structured JSON with generated prose | `prep_artifacts_json` |
-| Apply | `generate-apply-cv`, `build_cv_sidecar_proposal` | human **Choice** only (cv-promote-guard) | `outcome_status`, `applied_at` |
-
-**Score SoT problem (orient):** Pull `rank_score`, durability overlay, reactor `fit_score`, and analyze `overall` can disagree. Collapse to one ranked field + reason trace **before** swapping any layer to Jev — do not bolt Jev as a fourth ranker on top.
+1. **Pull typed** — theatre/mission **Noul**, geo hard-reject, ladder + lexicons (`score_lead`), durability (`firm_durability`). One only.
+2. **Compose** — atomic **Score** / **Noul** per dual-fit factor ([candidate-preferences](../data/distillation/curation/candidate-preferences.md)) → `Decision` / `analysis_json`.
+3. **Gate** — `Decision.confidence` + guards before reactor spend; low confidence → HITL pause.
+4. **Prep strings** — after gate: cover letter, research pack, `cv_suggestions` (Two / xAI). Template/spend gates stay One-shaped.
+5. **Optional Jev** — swap One decision call (steps 2–3) only, with live key and collapsed score SoT.
 
 ---
 
-## Workflow (operator)
+## TypeSafe Jev (appendix)
 
-1. **Pull typed** — theatre vs mission (**Noul**), geo hard-reject, firm ladder + lexicons (`score_lead`), durability admit (`firm_durability`). All System One; no prose.
-2. **Compose** — decompose analyze into atomic **Score** / **Noul** items (one per dual-fit factor in [candidate-preferences](../data/distillation/curation/candidate-preferences.md)); merge into `Decision` / `analysis_json`.
-3. **Gate** — confidence + guards before reactor spend (`Decision.confidence`, FitThreshold, cost/X-rate). Low confidence → HITL pause, even on current xAI JSON.
-4. **Prep strings** — only after gate passes: cover letters, research packs, `cv_suggestions`, email drafts in `run_prep_opportunity_target` (System Two / xAI). Typed gates (template pick, spend) stay System-One-shaped.
-5. **Optional Jev** — swap decision surface only (step 2–3), with a live key and **after** collapsing score SoT. Never a fourth ranker on top of firm ladder + lexicons + pack. See [mission-flow-relevance](./mission-flow-relevance.md), [mission-firms](../data/mission-firms/README.md).
+Vendor **System One** model: state in → `Choice` / `Score` / `Noul` out. RLCD-trained; calibrated confidence; no string generation. Could replace today’s analyze decision call — not Prep/Apply prose.
+
+| Resource | URL |
+|----------|-----|
+| Launch post | https://typesafe.ai/blog/introducing-system-one-models-and-jev |
+| Docs | https://docs.typesafe.ai |
+| API | `POST https://api.typesafe.ai/v1/systemone` — Bearer `TYPESAFE_API_KEY`; model e.g. `jev-1.13.0` |
+| Vercel AI Gateway | `typesafe-ai/jev` |
+
+**Pricing (vendor claim):** ~$0.042 / MTok input; outputs free; ~70–500ms on One-shaped queries.
+
+**Access (2026-09-22):** Sep 15 waitlist → Sep 20 no waitlist → **Sep 22 new signups paused** (existing accounts continue). Confirm at [console.typesafe.ai](https://console.typesafe.ai). No public weights / self-host.
 
 ---
 
@@ -169,6 +117,6 @@ flowchart TB
 
 | Doc | Why |
 |-----|-----|
-| [data/distillation/README.md](../data/distillation/README.md) | Fit/scoring artifacts, analyze prompts, seam index |
-| [docs/agentic-architecture.md](./agentic-architecture.md) | Structured decisions + guard model |
-| [prompts/xai-analyze-opportunity.md](../data/distillation/prompts/xai-analyze-opportunity.md) | Current analyze rubric (xAI JSON) |
+| [data/distillation/README.md](../data/distillation/README.md) | Fit/scoring artifacts, analyze prompts |
+| [docs/agentic-architecture.md](./agentic-architecture.md) | Guards + structured decisions |
+| [prompts/xai-analyze-opportunity.md](../data/distillation/prompts/xai-analyze-opportunity.md) | Current analyze rubric |
