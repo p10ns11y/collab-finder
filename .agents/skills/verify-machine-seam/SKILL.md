@@ -46,5 +46,6 @@ description: >
 ## Deferred
 
 - `src/core/domain/opportunity-pipeline.ts` — XState clone of pipeline outcome is backlog; do not port it in the panel PR.
+- Lizard Rust warning 15 of 15 on main `3c2cc64`: `run_local_grok_quest` NLOC 94 CCN 19 `src-tauri/src/local_grok.rs@97-196`. Baseline is 15. Do not split this function to chase CCN.
 - `pnpm mutate:xai-panel` runs Stryker on `src/core/domain/xai-key-panel.ts` only. It is outside `pnpm verify` (about a minute). The known survivor is the machine `id` string; the panel does not read it. Do not add the mutator to the verify router.
 - `src-tauri/src/opportunity_target.rs` integration tests that skip when a devprofile path is missing still duplicate the path write. Leave them until that file is the task.
