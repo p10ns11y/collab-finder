@@ -56,6 +56,7 @@ See [docs/ci.md](docs/ci.md) for CI jobs.
 | [docs/SETUP.md](docs/SETUP.md) | Install, credentials, Arch notes |
 | [docs/config.md](docs/config.md) | Rank packs + operator config |
 | [docs/tauri-commands.md](docs/tauri-commands.md) | IPC / invoke reference |
+| [docs/system-one-jev.md](docs/system-one-jev.md) | Fit Reflex / System One note (decision vs string gen) |
 | [docs/release.md](docs/release.md) | Tag → GitHub Release binary |
 
 Private tool for p10ns11y.
