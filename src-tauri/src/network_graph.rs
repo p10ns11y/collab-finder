@@ -1365,7 +1365,7 @@ fn browser_like_headers() -> HeaderMap {
     headers.insert(
         USER_AGENT,
         HeaderValue::from_static(
-            "Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/sustainableabundance/collab-finder)",
+            "Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/p10ns11y/collab-finder)",
         ),
     );
     headers.insert(

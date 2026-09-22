@@ -15,7 +15,7 @@ Format: **pulse-pack-v1** envelope:
 {
   "format": "pulse-pack-v1",
   "exported_at": "2026-09-13T08:00:00.000000000Z",
-  "host": "mzapan",
+  "host": "laptop-1",
   "traces": [ { "nat_key": "hunt/opp/7/status", "snippet": "…", "source": "kanithanj:hunt", "time": "…", "status": "tool-verified", "kind": "data", "lock": "open" } ]
 }
 ```
@@ -30,7 +30,7 @@ Format: **pulse-pack-v1** envelope:
 
 Pulse **informs** downstream tooling; it never writes the ensembly dependency graph.
 
-## Cross-machine sync (mzapan laptop ↔ Grok Bot computer)
+## Cross-machine sync (laptop-1 ↔ laptop-2)
 
 ### A. File handoff (simplest)
 
@@ -47,7 +47,7 @@ node scripts/pulse-export.mjs --out /tmp/hunt-pulse.json
 node scripts/pulse-import.mjs /tmp/hunt-pulse.json
 ```
 
-Import upserts on `nat_key`: new rows set `first_seen` and `last_seen` from the trace `time` (or now if missing); conflicts refresh `snippet`, `time`, `status`, bump `last_seen`, and increment `seen_count` while preserving `first_seen`. Works against both the slim fallback schema and full pulse-memory DBs (e.g. mzapan `~/.local/share/pulse-memory/pulse.sqlite`).
+Import upserts on `nat_key`: new rows set `first_seen` and `last_seen` from the trace `time` (or now if missing); conflicts refresh `snippet`, `time`, `status`, bump `last_seen`, and increment `seen_count` while preserving `first_seen`. Works against both the slim fallback schema and full pulse-memory DBs (e.g. laptop-1 `~/.local/share/pulse-memory/pulse.sqlite`).
 
 ### B. Shared pulse-memory DB
 

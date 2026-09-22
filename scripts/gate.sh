@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+echo "== public-repo fitness"
+bash scripts/ci-fitness.sh
+
 echo "== pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
 

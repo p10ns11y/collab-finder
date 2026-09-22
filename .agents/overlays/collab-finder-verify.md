@@ -8,6 +8,8 @@ VerifySoT (collab-finder):
   domain TS     → pnpm verify
   src-tauri/src → cd src-tauri && cargo test
   CI parity     → pnpm gate
+  fitness       → bash scripts/ci-fitness.sh
+  xai mutants   → pnpm mutate:xai-panel   // not part of verify or gate
   deps/lockfile → pnpm install --frozen-lockfile; pnpm audit
 
 ¬ pnpm lint · ¬ pnpm precommit

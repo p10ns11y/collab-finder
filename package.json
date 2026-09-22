@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "verify": "node scripts/run-verify.mjs",
+    "mutate:xai-panel": "stryker run",
     "ci-check": "bash scripts/ci-check.sh",
     "ci-check-light": "bash scripts/ci-check-light.sh",
     "gate": "bash scripts/gate.sh",
@@ -22,6 +23,7 @@
     "install:local": "tauri build --no-bundle && install -m 755 src-tauri/target/release/collab-finder \"$HOME/.local/bin/kanithanj.ai\""
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.0.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.11.2",
@@ -29,6 +31,7 @@
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "@xstate/graph": "^3.0.4",
     "autoprefixer": "^10.5.0",
     "esbuild": "^0.28.0",
     "postcss": "^8.5.15",
@@ -37,11 +40,15 @@
     "vite": "^5.4.19"
   },
   "dependencies": {
+    "@adaptate/core": "^2.2.2",
     "@fontsource-variable/dm-sans": "^5.2.8",
+    "@xstate/react": "^6.1.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "xstate": "^5.33.2",
+    "zod": "^4.6.5"
   }
 }

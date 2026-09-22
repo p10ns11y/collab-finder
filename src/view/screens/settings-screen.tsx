@@ -1,16 +1,18 @@
 import * as React from 'react'
+import { useMachine } from '@xstate/react'
 import { KeyRound, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { CredentialsPanel } from '../../components/finder/credentials-panel'
 import { CredentialsStorageDetails } from '../../components/finder/credentials-storage-details'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import { activeSourceLabel } from '../../core/domain/credentials'
+import { parseXaiModelField, parseXaiSettingsForm } from '../../core/domain/xai-key-form'
 import {
   displayXaiModel,
-  initialXaiPanelState,
   isXaiPanelBusy,
   isXaiPanelChecking,
   type XaiKeyStatus,
-  xaiPanelReducer,
+  type XaiPanelStatus,
+  xaiPanelMachine,
 } from '../../core/domain/xai-key-panel'
 import type { FinderViewState } from '../../core/finder/selectors'
 import type { Dispatch } from '../../core/mvu/engine'
@@ -77,12 +79,12 @@ export function SettingsScreen({ view, dispatch }: Props) {
 
 /**
  * XaiKeyPanel — local Tauri form (not finder MVU).
- * State machine: src/core/domain/xai-key-panel.ts. Effect only mounts external status sync.
+ * Machine: src/core/domain/xai-key-panel.ts. Form seam: src/core/domain/xai-key-form.ts.
  */
 function XaiKeyPanel() {
-  const [state, dispatch] = React.useReducer(xaiPanelReducer, initialXaiPanelState)
-
-  const { keyStatus, model, keyDraft, modelDraft, panelStatus, notice } = state
+  const [snapshot, send] = useMachine(xaiPanelMachine)
+  const { keyStatus, model, keyDraft, modelDraft, notice } = snapshot.context
+  const panelStatus = snapshot.value as XaiPanelStatus
 
   const connected = !!keyStatus?.connected
   const displayModel = displayXaiModel(model)
@@ -91,65 +93,72 @@ function XaiKeyPanel() {
   const activeLabel = keyStatus ? activeSourceLabel(keyStatus.active_source) : null
 
   const refreshStatus = React.useCallback(() => {
-    dispatch({ type: 'LOAD_START' })
+    send({ type: 'LOAD_START' })
     void safeInvoke<XaiKeyStatus>('get_xai_key_storage', {}).then((res) => {
-      if (res.ok) dispatch({ type: 'KEY_LOADED', value: res.value })
-      else dispatch({ type: 'KEY_LOADED', value: null })
+      if (res.ok) send({ type: 'KEY_LOADED', value: res.value })
+      else send({ type: 'KEY_LOADED', value: null })
     })
     void safeInvoke<string>('get_xai_model_cmd', {}).then((res) => {
-      if (res.ok && res.value) dispatch({ type: 'MODEL_LOADED', value: res.value })
+      if (res.ok && res.value) send({ type: 'MODEL_LOADED', value: res.value })
     })
-  }, [])
+  }, [send])
 
   React.useEffect(() => {
     refreshStatus()
   }, [refreshStatus])
 
   const saveKey = async () => {
-    const trimmed = keyDraft.trim()
-    if (!trimmed) return
+    const parsed = parseXaiSettingsForm({ key: keyDraft, model: modelDraft })
+    if (!parsed.success || !parsed.data.key || !parsed.data.model) {
+      send({ type: 'OPERATION_ERROR', message: 'Key and model are required.' })
+      return
+    }
 
-    dispatch({ type: 'SAVE_KEY_START' })
+    send({ type: 'SAVE_KEY_START' })
 
-    const res = await safeInvoke<void>('set_xai_key', { key: trimmed })
+    const res = await safeInvoke<void>('set_xai_key', { key: parsed.data.key })
     if (res.ok) {
-      dispatch({ type: 'SAVE_KEY_SUCCESS' })
+      send({ type: 'SAVE_KEY_SUCCESS' })
       const s = await safeInvoke<XaiKeyStatus>('get_xai_key_storage', {})
-      if (s.ok) dispatch({ type: 'KEY_LOADED', value: s.value })
+      if (s.ok) send({ type: 'KEY_LOADED', value: s.value })
     } else {
-      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Save failed' })
+      send({ type: 'OPERATION_ERROR', message: res.error?.message || 'Save failed' })
     }
   }
 
   const clearKey = async () => {
-    dispatch({ type: 'CLEAR_KEY_START' })
+    send({ type: 'CLEAR_KEY_START' })
     const res = await safeInvoke<void>('clear_xai_key', {})
     if (res.ok) {
-      dispatch({ type: 'CLEAR_KEY_SUCCESS' })
+      send({ type: 'CLEAR_KEY_SUCCESS' })
       const s = await safeInvoke<XaiKeyStatus>('get_xai_key_storage', {})
-      if (s.ok) dispatch({ type: 'KEY_LOADED', value: s.value })
-      else dispatch({ type: 'KEY_LOADED', value: null })
+      if (s.ok) send({ type: 'KEY_LOADED', value: s.value })
+      else send({ type: 'KEY_LOADED', value: null })
     } else {
-      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Disconnect failed' })
+      send({ type: 'OPERATION_ERROR', message: res.error?.message || 'Disconnect failed' })
     }
   }
 
   const saveModel = async (val?: string) => {
-    const toSave = (val ?? modelDraft).trim()
-    if (!toSave) return
+    const parsed = parseXaiModelField(val ?? modelDraft)
+    if (!parsed.success || !parsed.data.model) {
+      send({ type: 'OPERATION_ERROR', message: 'Model is required.' })
+      return
+    }
+    const toSave = parsed.data.model
 
-    dispatch({ type: 'SAVE_MODEL_START' })
+    send({ type: 'SAVE_MODEL_START' })
 
     const res = await safeInvoke<void>('set_xai_model_cmd', { model: toSave })
     if (res.ok) {
-      dispatch({ type: 'SAVE_MODEL_SUCCESS', value: toSave })
+      send({ type: 'SAVE_MODEL_SUCCESS', value: toSave })
     } else {
-      dispatch({ type: 'OPERATION_ERROR', message: res.error?.message || 'Failed to save model' })
+      send({ type: 'OPERATION_ERROR', message: res.error?.message || 'Failed to save model' })
     }
   }
 
   const quickSetModel = (modelName: string) => {
-    dispatch({ type: 'SET_MODEL_DRAFT', draft: modelName })
+    send({ type: 'SET_MODEL_DRAFT', draft: modelName })
     void saveModel(modelName)
   }
 
@@ -188,7 +197,7 @@ function XaiKeyPanel() {
               spellCheck={false}
               placeholder="Paste from console.x.ai → API keys"
               value={keyDraft}
-              onChange={(e) => dispatch({ type: 'SET_KEY_DRAFT', draft: e.target.value })}
+              onChange={(e) => send({ type: 'SET_KEY_DRAFT', draft: e.target.value })}
               className="font-mono text-xs"
             />
           </div>
@@ -242,7 +251,7 @@ function XaiKeyPanel() {
             <Input
               id="xai-model"
               value={modelDraft}
-              onChange={(e) => dispatch({ type: 'SET_MODEL_DRAFT', draft: e.target.value })}
+              onChange={(e) => send({ type: 'SET_MODEL_DRAFT', draft: e.target.value })}
               placeholder="grok-4.6"
               className="min-w-[140px] flex-1 font-mono text-xs"
               spellCheck={false}

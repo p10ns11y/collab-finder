@@ -1201,7 +1201,7 @@ pub(crate) async fn fetch_opportunity_target_page(url: String) -> Result<Opportu
     // Basic fetch + naive clean (no extra crates in v1)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
-        .user_agent("Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/sustainableabundance/collab-finder)")
+        .user_agent("Mozilla/5.0 (compatible; collab-finder/0.1; +https://github.com/p10ns11y/collab-finder)")
         .build()
         .map_err(|e| format!("HTTP client build failed: {e}"))?;
 
@@ -4369,7 +4369,7 @@ mod tests {
 
     #[test]
     fn propose_cv_sidecar_for_prep_cmd_path_writes_file_and_cvdata_hash_unchanged() {
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let live = "/home/user/Work/personal/devprofile/src/data/cvdata.json";
         if !std::path::Path::new(live).is_file() {
             eprintln!("skip propose_cv_sidecar test: devprofile cvdata not on runner");
             return;
@@ -4420,7 +4420,7 @@ mod tests {
 
     #[test]
     fn integration_analyze_real_devprofile_packet_preview() {
-        let devprofile = std::path::PathBuf::from("/home/sustainableabundance/Work/personal/devprofile");
+        let devprofile = std::path::PathBuf::from("/home/user/Work/personal/devprofile");
         let cvdata = devprofile.join("src/data/cvdata.json");
         if !cvdata.is_file() {
             eprintln!("skip integration_analyze_real_devprofile: devprofile cvdata not on runner");
@@ -4434,12 +4434,12 @@ mod tests {
         std::fs::create_dir_all(&tmp).unwrap();
         crate::app_dirs::test_harness::set(tmp.clone());
         let path_file = tmp.join("devprofile_path.txt");
-        let _ = std::fs::write(&path_file, "/home/sustainableabundance/Work/personal/devprofile");
+        let _ = std::fs::write(&path_file, "/home/user/Work/personal/devprofile");
 
         // Set harness so get_devprofile_path reads our path_file pointing to real sibling
         crate::app_dirs::test_harness::set(tmp.clone());
         let path_file = tmp.join("devprofile_path.txt");
-        let _ = std::fs::write(&path_file, "/home/sustainableabundance/Work/personal/devprofile");
+        let _ = std::fs::write(&path_file, "/home/user/Work/personal/devprofile");
 
         // Create a store for the AppDb used by the cmd (for upsert)
         let persist_store = db::SqliteStore::open_at(tmp.join("persist.db")).expect("persist store");
@@ -4474,7 +4474,7 @@ mod tests {
 
     #[test]
     fn integration_propose_leaves_live_cvdata_unchanged() {
-        let live = "/home/sustainableabundance/Work/personal/devprofile/src/data/cvdata.json";
+        let live = "/home/user/Work/personal/devprofile/src/data/cvdata.json";
         if !std::path::Path::new(live).is_file() {
             eprintln!("skip integration_propose_leaves_live_cvdata: devprofile cvdata not on runner");
             return;
