@@ -32,7 +32,7 @@ Rust validates queries via `src-tauri/src/x_query.rs` before any API call.
 
 | Doc | Why it matters for distillation |
 |-----|--------------------------------|
-| [docs/system-one-jev.md](../../docs/system-one-jev.md) | TypeSafe Jev — hunt-stage map, code seams, workflow (no integration) |
+| [docs/system-one-jev.md](../../docs/system-one-jev.md) | System One + Two map, primitives, seams (no Jev integration) |
 | [docs/SETUP.md](../../docs/SETUP.md) | Run the app, bearer storage, verify |
 | [docs/agentic-architecture.md](../../docs/agentic-architecture.md) | How presets/cycle/history fit the reactor |
 | [docs/tauri-commands.md](../../docs/tauri-commands.md) | Commands that consume queries + CV packet |
