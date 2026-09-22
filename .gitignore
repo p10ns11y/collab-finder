@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.stryker-tmp
+reports
 
 # Operator session card pointer (copy from session-sot.example; also covered by *.local)
 session-sot.local

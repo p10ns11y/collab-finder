@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn shorten_path_for_ui_ellipsis_long_home_paths() {
-        let long = "/home/sustainableabundance/Work/personal/devprofile";
+        let long = "/home/user/Work/personal/devprofile";
         let s = shorten_path_for_ui(long, 28);
         assert!(s.chars().count() <= 28, "got {s}");
         assert!(s.contains('…'), "expected ellipsis in {s}");

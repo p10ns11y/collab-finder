@@ -7,6 +7,9 @@ cd "$ROOT"
 echo "== pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
 
+echo "== public-repo fitness"
+bash scripts/ci-fitness.sh
+
 echo "== pnpm type-check (tsc -b)"
 pnpm run type-check
 
