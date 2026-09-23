@@ -99,5 +99,42 @@
       "stage_note": "waiting silence",
       "fit_score": null
     }
-  ]
+  ],
+  "policy_gate": {
+    "note": "Classifier fixtures for the feedback gate. Not calibration rows and not inserted at runtime.",
+    "generic": [
+      {
+        "id": 9101,
+        "company": "Neko",
+        "outcome_status": "rejected",
+        "stage_note": "position filled"
+      },
+      {
+        "id": 9102,
+        "company": "Neko",
+        "outcome_status": "rejected",
+        "stage_note": "The position has been filled. Thank you for your interest."
+      },
+      {
+        "id": 9103,
+        "company": "Neko",
+        "outcome_status": "rejected",
+        "stage_note": ""
+      },
+      {
+        "id": 9104,
+        "company": "Neko",
+        "outcome_status": "rejected",
+        "stage_note": "This requisition was auto-closed."
+      }
+    ],
+    "specific": [
+      {
+        "id": 9105,
+        "company": "Legora",
+        "outcome_status": "rejected",
+        "stage_note": "feedback: not a fit for the staff role; lacking production experience the panel asked about"
+      }
+    ]
+  }
 }

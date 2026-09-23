@@ -533,13 +533,16 @@ async fn update_opportunity_outcome_cmd(
                     &pulse,
                     pulse::tick_from_opportunity(pulse::HuntTickKind::OutcomeChange, opp, None),
                 );
+                // Notes already on the row are the reject phrase. Generic or empty
+                // notes leave the prior alone; the outcome row above is still saved.
                 qualify_policy::apply_logged_outcome(
                     id,
                     opp.company.as_deref(),
                     opp.outcome_status.as_deref(),
+                    opp.notes.as_deref(),
                 )?;
             } else {
-                qualify_policy::apply_logged_outcome(id, None, None)?;
+                qualify_policy::apply_logged_outcome(id, None, None, None)?;
             }
         }
     }

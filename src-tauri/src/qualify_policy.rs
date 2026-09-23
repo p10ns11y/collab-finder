@@ -1,11 +1,14 @@
 //! QUALIFY firm-weight prior.
 //!
-//! One logged stage outcome updates one firm. The audit row is the undo record.
-//! Reward stages: rejected −8, interview/offer +8. Waiting, screening, ghost, and
-//! withdrawn do not move the prior.
+//! One logged stage outcome updates one firm when that outcome is allowed to teach.
+//! The audit row is the undo record.
+//! Interview and offer step +8. A rejection steps −8 only when the note is specific
+//! feedback. Generic templates, paper screens with no tailored feedback, and empty
+//! notes do not move the prior. Waiting, screening, ghost, and withdrawn do not either.
 //!
 //! Stored `fit_score` is never rewritten. This file is the policy, not a second prediction.
-//! Keep the step, clamp, and missing-fit rule aligned with `src/core/domain/qualify-policy.ts`.
+//! Keep the step, clamp, phrase lists, and missing-fit rule aligned with
+//! `src/core/domain/qualify-policy.ts`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -101,6 +104,113 @@ pub fn reward_delta(outcome: &str) -> Option<i32> {
     }
 }
 
+/// Named refuse set. Empty text, and any note that misses the allow set, is generic too.
+/// Keep this list aligned with `GENERIC_REJECT_PHRASES` in qualify-policy.ts.
+pub const GENERIC_REJECT_PHRASES: &[&str] = &[
+    "position filled",
+    "position has been filled",
+    "position is filled",
+    "role has been filled",
+    "role is filled",
+    "no longer available",
+    "no longer accepting",
+    "requisition closed",
+    "auto-close",
+    "automatically closed",
+    "paper reject",
+    "paper screen",
+    "paper rejection",
+    "no tailored feedback",
+    "no feedback",
+    "thank you for your interest",
+    "thank you for applying",
+    "thank you for your application",
+    "other candidates",
+    "not be moving forward",
+    "not moving forward",
+    "will not be proceeding",
+    "high volume of applicants",
+    "we regret to inform",
+    "application was unsuccessful",
+    "ashby paper",
+];
+
+/// Honest skill, fit, or stage reason. A hit here is specific even inside a template.
+/// Keep this list aligned with `SPECIFIC_REJECT_PHRASES` in qualify-policy.ts.
+pub const SPECIFIC_REJECT_PHRASES: &[&str] = &[
+    "feedback:",
+    "reject reason:",
+    "rejected because",
+    "not a fit",
+    "not a match",
+    "poor fit",
+    "skill gap",
+    "lacking experience",
+    "lacking production",
+    "hiring manager said",
+    "did not meet the",
+    "does not meet the",
+    "overqualified",
+    "underqualified",
+    "too junior",
+    "too senior",
+    "failed the screen",
+    "failed the interview",
+    "technical bar",
+    "your background in",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackClass {
+    Generic,
+    Specific,
+}
+
+pub fn normalize_feedback(raw: &str) -> String {
+    let mut out = String::new();
+    let mut prev_space = false;
+    for c in raw.trim().chars() {
+        let c = if c.is_ascii() {
+            c.to_ascii_lowercase()
+        } else {
+            c
+        };
+        if c.is_ascii_alphanumeric() || c == ':' || c == '-' {
+            out.push(c);
+            prev_space = false;
+        } else if !prev_space {
+            out.push(' ');
+            prev_space = true;
+        }
+    }
+    out.trim().to_string()
+}
+
+/// Generic unless the note contains one allow-list phrase. Empty notes are generic.
+pub fn classify_reject_feedback(feedback: Option<&str>) -> FeedbackClass {
+    let text = normalize_feedback(feedback.unwrap_or(""));
+    if text.is_empty() {
+        return FeedbackClass::Generic;
+    }
+    if SPECIFIC_REJECT_PHRASES
+        .iter()
+        .any(|phrase| text.contains(phrase))
+    {
+        return FeedbackClass::Specific;
+    }
+    FeedbackClass::Generic
+}
+
+/// Step that may be written. Negative rejects need specific feedback.
+/// Interview and offer still use the stage step when the note is empty.
+pub fn policy_delta(outcome: &str, feedback: Option<&str>) -> Option<i32> {
+    let step = reward_delta(outcome)?;
+    if step < 0 && classify_reject_feedback(feedback) != FeedbackClass::Specific {
+        return None;
+    }
+    Some(step)
+}
+
 fn clamp(n: i32) -> i32 {
     n.clamp(-QUALIFY_CLAMP, QUALIFY_CLAMP)
 }
@@ -136,10 +246,11 @@ pub fn apply_outcome(
     outcome_id: i64,
     company: Option<&str>,
     outcome_status: Option<&str>,
+    feedback: Option<&str>,
 ) -> ApplyResult {
     let outcome = outcome_status.unwrap_or("").trim().to_ascii_lowercase();
     let key = firm_key(company.unwrap_or(""));
-    let requested = reward_delta(&outcome);
+    let requested = policy_delta(&outcome, feedback);
     if let Some(existing) = policy.audit.iter().find(|row| row.outcome_id == outcome_id) {
         if requested.is_some()
             && !key.is_empty()
@@ -255,12 +366,13 @@ pub fn apply_logged_outcome(
     outcome_id: i64,
     company: Option<&str>,
     outcome_status: Option<&str>,
+    feedback: Option<&str>,
 ) -> Result<ApplyResult, String> {
     let current = match policy_path() {
         Ok(path) => load_from(&path)?,
         Err(e) => return Err(e),
     };
-    let result = apply_outcome(&current, outcome_id, company, outcome_status);
+    let result = apply_outcome(&current, outcome_id, company, outcome_status, feedback);
     if result.changed {
         save(&result.policy)?;
     }
@@ -288,10 +400,19 @@ mod tests {
         assert_eq!(reward_delta("offer"), Some(8));
     }
 
+    const SPECIFIC: &str =
+        "feedback: not a fit for the staff role; lacking production experience the panel asked about";
+
     #[test]
-    fn one_reject_is_reversible_and_idempotent() {
+    fn one_specific_reject_is_reversible_and_idempotent() {
         let policy = QualifyPolicy::default();
-        let first = apply_outcome(&policy, 533, Some("Legora"), Some("rejected"));
+        let first = apply_outcome(
+            &policy,
+            533,
+            Some("Legora"),
+            Some("rejected"),
+            Some(SPECIFIC),
+        );
         assert!(first.changed);
         let audit = first.audit.expect("audit");
         assert_eq!(audit.delta, -8);
@@ -299,72 +420,194 @@ mod tests {
         assert_eq!(audit.after, -8);
         assert_eq!(first.policy.firm_weights.get("legora").copied(), Some(-8));
 
-        let again = apply_outcome(&first.policy, 533, Some("Legora"), Some("rejected"));
+        let again = apply_outcome(
+            &first.policy,
+            533,
+            Some("Legora"),
+            Some("rejected"),
+            Some(SPECIFIC),
+        );
         assert!(!again.changed);
         assert_eq!(again.policy.firm_weights.get("legora").copied(), Some(-8));
 
-        let cleared = apply_outcome(&first.policy, 533, Some("Legora"), Some(""));
+        let cleared = apply_outcome(&first.policy, 533, Some("Legora"), Some(""), Some(SPECIFIC));
         assert!(cleared.changed);
         assert!(cleared.policy.firm_weights.get("legora").is_none());
         assert!(cleared.policy.audit.is_empty());
+
+        let generic = apply_outcome(
+            &first.policy,
+            533,
+            Some("Legora"),
+            Some("rejected"),
+            Some("position filled"),
+        );
+        assert!(generic.changed);
+        assert!(generic.policy.firm_weights.get("legora").is_none());
+        assert!(generic.policy.audit.is_empty());
+    }
+
+    #[test]
+    fn generic_phrases_do_not_write_and_specific_phrases_do() {
+        assert_eq!(classify_reject_feedback(None), FeedbackClass::Generic);
+        assert_eq!(
+            classify_reject_feedback(Some("   ")),
+            FeedbackClass::Generic
+        );
+        for phrase in GENERIC_REJECT_PHRASES {
+            assert_eq!(
+                classify_reject_feedback(Some(phrase)),
+                FeedbackClass::Generic,
+                "{phrase}"
+            );
+            let applied = apply_outcome(
+                &QualifyPolicy::default(),
+                1,
+                Some("Neko"),
+                Some("rejected"),
+                Some(phrase),
+            );
+            assert!(!applied.changed, "{phrase}");
+            assert!(applied.policy.firm_weights.is_empty(), "{phrase}");
+        }
+        for phrase in SPECIFIC_REJECT_PHRASES {
+            assert_eq!(
+                classify_reject_feedback(Some(phrase)),
+                FeedbackClass::Specific,
+                "{phrase}"
+            );
+            let applied = apply_outcome(
+                &QualifyPolicy::default(),
+                2,
+                Some("Legora"),
+                Some("rejected"),
+                Some(phrase),
+            );
+            assert!(applied.changed, "{phrase}");
+            assert_eq!(
+                applied.policy.firm_weights.get("legora").copied(),
+                Some(-8),
+                "{phrase}"
+            );
+        }
+    }
+
+    #[test]
+    fn neko_class_and_position_filled_do_not_move_the_prior() {
+        let notes = [
+            "2026-09-23 Ashby paper, no tailored feedback",
+            "position filled",
+            "The position has been filled. Thank you for your interest.",
+            "This requisition was auto-closed.",
+            "",
+        ];
+        for note in notes {
+            let applied = apply_outcome(
+                &QualifyPolicy::default(),
+                530,
+                Some("Neko"),
+                Some("rejected"),
+                Some(note),
+            );
+            assert!(!applied.changed, "{note}");
+            assert!(applied.policy.firm_weights.get("neko").is_none(), "{note}");
+        }
+        let interview = apply_outcome(
+            &QualifyPolicy::default(),
+            540,
+            Some("Proposales"),
+            Some("interview"),
+            None,
+        );
+        assert_eq!(interview.audit.expect("audit").delta, 8);
     }
 
     #[test]
     fn non_reward_stages_and_blank_firms_do_not_invent_priors() {
         let policy = QualifyPolicy::default();
-        let waiting = apply_outcome(&policy, 540, Some("Proposales"), Some("waiting"));
+        let waiting = apply_outcome(&policy, 540, Some("Proposales"), Some("waiting"), None);
         assert!(!waiting.changed);
         assert!(waiting.policy.audit.is_empty());
 
-        let blank = apply_outcome(&policy, 1, Some("  "), Some("rejected"));
+        let blank = apply_outcome(&policy, 1, Some("  "), Some("rejected"), Some(SPECIFIC));
         assert!(!blank.changed);
         assert!(blank.policy.audit.is_empty());
     }
 
     #[test]
-    fn held_out_legora_false_qualify_drops_and_neko_stays() {
+    fn specific_feedback_steps_one_firm_and_paper_screens_do_not() {
         assert!(qualifies(None, 0));
         assert!(!qualifies(None, -8));
-        let trained = apply_outcome(
+        let paper = apply_outcome(
             &QualifyPolicy::default(),
             533,
             Some("Legora"),
             Some("rejected"),
+            Some("paper reject"),
         );
-        let legora = trained
+        assert!(!paper.changed);
+        assert!(paper.policy.firm_weights.get("legora").is_none());
+
+        let neko = apply_outcome(
+            &paper.policy,
+            530,
+            Some("Neko"),
+            Some("rejected"),
+            Some("2026-09-23 Ashby paper, no tailored feedback"),
+        );
+        assert!(!neko.changed);
+        assert!(neko.policy.firm_weights.get("neko").is_none());
+
+        let specific = apply_outcome(
+            &neko.policy,
+            9104,
+            Some("Legora"),
+            Some("rejected"),
+            Some(SPECIFIC),
+        );
+        assert_eq!(
+            specific.policy.firm_weights.get("legora").copied(),
+            Some(-8)
+        );
+        assert!(specific.policy.firm_weights.get("neko").is_none());
+        let legora = specific
             .policy
             .firm_weights
             .get("legora")
             .copied()
             .unwrap_or(0);
-        let neko = trained
-            .policy
-            .firm_weights
-            .get("neko")
-            .copied()
-            .unwrap_or(0);
-        assert!(
-            !qualifies(None, legora),
-            "held-out Legora SE is no longer qualified"
-        );
-        assert!(qualifies(None, neko), "Neko was not in the update");
-        assert!(trained.policy.firm_weights.get("neko").is_none());
+        assert!(!qualifies(None, legora));
+        assert!(qualifies(None, 0));
     }
 
     #[test]
-    fn logged_outcome_writes_audit_without_touching_a_database() {
+    fn logged_outcome_skips_generic_rejects_and_audits_specific_ones() {
         let tmp = tempfile::tempdir().expect("temp");
         let _reset = ResetDir;
         set_test_dir(Some(tmp.path().to_path_buf()));
-        let result = apply_logged_outcome(530, Some("Neko"), Some("rejected")).expect("write");
-        assert!(result.changed);
-        assert_eq!(result.audit.as_ref().map(|a| a.outcome_id), Some(530));
+        let skipped = apply_logged_outcome(
+            530,
+            Some("Neko"),
+            Some("rejected"),
+            Some("2026-09-23 Ashby paper, no tailored feedback"),
+        )
+        .expect("skip");
+        assert!(!skipped.changed);
         let path = tmp.path().join("qualify-priors.json");
+        assert!(!path.exists());
+
+        let result = apply_logged_outcome(9104, Some("Legora"), Some("rejected"), Some(SPECIFIC))
+            .expect("write");
+        assert!(result.changed);
+        assert_eq!(result.audit.as_ref().map(|a| a.outcome_id), Some(9104));
+        assert_eq!(result.audit.as_ref().map(|a| a.delta), Some(-8));
         let text = fs::read_to_string(&path).expect("file");
-        assert!(text.contains("\"outcome_id\": 530"));
-        assert!(text.contains("\"firm_key\": \"neko\""));
+        assert!(text.contains("\"outcome_id\": 9104"));
+        assert!(text.contains("\"firm_key\": \"legora\""));
+        assert!(!text.contains("neko"));
         assert!(!text.contains("INSERT"));
-        let again = apply_logged_outcome(530, Some("Neko"), Some("rejected")).expect("idempotent");
+        let again = apply_logged_outcome(9104, Some("Legora"), Some("rejected"), Some(SPECIFIC))
+            .expect("idempotent");
         assert!(!again.changed);
     }
 }

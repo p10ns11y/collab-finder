@@ -2,17 +2,14 @@
 /**
  * Blinded QUALIFY hillclimb.
  *
- * Train on Legora AI #533 (paper reject) only.
- * Held-out is Legora SE #535 — same firm, outcome not an input to the update.
- * Control is Neko Lead SE #530 — a different firm, so its weight must stay put.
+ * Metric: false-policy-write rate on generic rejects.
+ * Before is the unguarded step: every rejected row with a firm moved the prior.
+ * After, the feedback gate is on. Generic phrases and empty notes do not move it.
+ * One separate specific-feedback row still writes a single reversible step.
  *
- * Metric: held-out false-qualify rate.
- * The cited seed has no resolved interview/offer, so QUALIFY precision stays 0
- * before (the reject is a false positive) and is undefined after (no positive
- * prediction left). The rate that moves is false qualifies: 1 → 0.
- *
- * Missing fit_score is not imputed. It counts as historically qualified iff
- * the firm weight is still >= 0 (the application was the qualify decision).
+ * The generic set is the cited paper rejects (including the Neko paper screen)
+ * plus position-filled, auto-close, and empty-note fixtures. Each row is applied
+ * on its own from an empty prior, so a second row cannot hide a write.
  *
  *   node --experimental-strip-types scripts/qualify-hillclimb.mjs
  */
@@ -21,76 +18,95 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   applyOutcome,
+  classifyRejectFeedback,
   emptyPolicy,
-  falseQualifyRate,
+  falsePolicyWriteRate,
+  firmKey,
 } from '../src/core/domain/qualify-policy.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const fixturePath = join(root, 'src/core/domain/fixtures/outcome-seed.json')
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
-const byId = new Map(fixture.rows.map((row) => [row.id, row]))
-
-const train = byId.get(533)
-const heldOut = byId.get(535)
-const control = byId.get(530)
-if (!train || !heldOut || !control) {
-  console.error('outcome seed is missing 533, 535, or 530')
+const cited = Array.isArray(fixture.rows) ? fixture.rows : []
+const gate = fixture.policy_gate
+if (!gate || !Array.isArray(gate.generic) || !Array.isArray(gate.specific) || gate.specific.length !== 1) {
+  console.error('outcome seed is missing policy_gate fixtures')
   process.exit(1)
 }
-for (const row of [train, heldOut, control]) {
-  if (row.fit_score !== null) {
-    console.error(`seed row ${row.id} has a fit_score; the fixture must not invent one`)
+
+const citedRejects = cited.filter((row) => (row.outcome_status || '').trim().toLowerCase() === 'rejected')
+const generic = [...citedRejects]
+for (const row of gate.generic) {
+  if (!generic.some((existing) => existing.id === row.id)) generic.push(row)
+}
+const specific = gate.specific[0]
+
+for (const row of generic) {
+  if (row.fit_score != null) {
+    console.error(`generic row ${row.id} has a fit_score; the fixture must not invent one`)
+    process.exit(1)
+  }
+  if (classifyRejectFeedback(row.stage_note) !== 'generic') {
+    console.error(`row ${row.id} was expected to be generic`)
     process.exit(1)
   }
 }
-
-function asHill(row) {
-  return {
-    id: row.id,
-    company: row.company,
-    outcome_status: row.outcome_status,
-    fit_score: row.fit_score,
-  }
+if (specific.fit_score != null) {
+  console.error('specific fixture must not invent a fit_score')
+  process.exit(1)
+}
+if (classifyRejectFeedback(specific.stage_note) !== 'specific') {
+  console.error('specific fixture did not classify as specific')
+  process.exit(1)
 }
 
-const beforePolicy = emptyPolicy()
-const trained = applyOutcome(beforePolicy, {
-  outcomeId: train.id,
-  company: train.company,
-  outcomeStatus: train.outcome_status,
-})
+const before = falsePolicyWriteRate(generic, 'before')
+const after = falsePolicyWriteRate(generic, 'after')
 
-const before = falseQualifyRate([asHill(heldOut)], beforePolicy)
-const after = falseQualifyRate([asHill(heldOut)], trained.policy)
-const controlBefore = falseQualifyRate([asHill(control)], beforePolicy)
-const controlAfter = falseQualifyRate([asHill(control)], trained.policy)
+let sequential = emptyPolicy()
+for (const row of generic) {
+  sequential = applyOutcome(sequential, {
+    outcomeId: row.id,
+    company: row.company,
+    outcomeStatus: row.outcome_status,
+    feedback: row.stage_note,
+  }).policy
+}
+const specificApplied = applyOutcome(sequential, {
+  outcomeId: specific.id,
+  company: specific.company,
+  outcomeStatus: specific.outcome_status,
+  feedback: specific.stage_note,
+})
+const nekoKey = firmKey('Neko')
+const specificKey = firmKey(specific.company)
 
 const report = {
-  metric: 'held_out_false_qualify_rate',
+  metric: 'false_policy_write_rate_on_generic_rejects',
   blinded: true,
-  train_outcome_id: train.id,
-  held_out_outcome_id: heldOut.id,
-  control_outcome_id: control.id,
+  generic_count: generic.length,
   before,
   after,
   delta: before === null || after === null ? null : after - before,
-  control_before: controlBefore,
-  control_after: controlAfter,
-  qualify_precision_before: before === 1 ? 0 : null,
-  qualify_precision_after: after === 0 ? null : 0,
-  audit: trained.audit,
-  note: 'Precision is 0 before because the only held-out label is a paper reject. After the firm prior drops, the gate no longer qualifies it, so precision is undefined (no predicted positives). False-qualify rate is the number that moves.',
+  specific_outcome_id: specific.id,
+  specific_firm_key: specificKey,
+  specific_delta: specificApplied.audit?.delta ?? null,
+  neko_weight_after_generic: sequential.firm_weights[nekoKey] ?? null,
+  neko_weight_after_specific: specificApplied.policy.firm_weights[nekoKey] ?? null,
+  note: 'Before counts an unguarded reject step on every generic row. After, those rows leave the prior unchanged. The specific-feedback row is not part of the rate; it still writes one step.',
 }
 
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
 
+const genericWeights = Object.keys(sequential.firm_weights)
 const ok =
-  trained.changed &&
-  trained.audit?.firm_key === 'legora' &&
-  trained.audit?.delta === -8 &&
   before === 1 &&
   after === 0 &&
-  controlBefore === 1 &&
-  controlAfter === 1 &&
-  trained.policy.firm_weights.neko === undefined
+  generic.length >= 8 &&
+  genericWeights.length === 0 &&
+  specificApplied.changed &&
+  specificApplied.audit?.delta === -8 &&
+  specificApplied.audit?.firm_key === specificKey &&
+  specificApplied.policy.firm_weights[nekoKey] === undefined &&
+  specificApplied.policy.firm_weights[specificKey] === -8
 if (!ok) process.exit(1)
