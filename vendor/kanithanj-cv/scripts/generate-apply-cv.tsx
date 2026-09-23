@@ -14,8 +14,10 @@
  *   out/apply/<pack-slug>/{name-role-id}.pdf
  *   out/apply/<pack-slug>/cv.pdf          # alias
  *   application_packs/<slug>/submit/{name-role-id}.pdf  (if submit/ exists)
+ *   {name-role-id}-cover-letter.pdf       # same folders, only when cover-letter.md has text
  *
  * Does NOT mutate src/data/cvdata.json or public/cv.pdf.
+ * An empty cover letter is skipped. No placeholder PDF is written.
  */
 import ReactPDF from "@react-pdf/renderer";
 import {
@@ -24,11 +26,14 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import CoverLetterDocument from "@/components/cover-letter-document";
 import CVDocument from "@/components/cv-document";
+import { contactEmailFromCvdata, planCoverLetterPdf } from "@/lib/cover-letter";
 import masterData from "@/data/cvdata.json";
 import {
   buildApplyCvFilename,
@@ -268,6 +273,75 @@ function synthesizeOverlayFromPackFiles(
   };
 }
 
+function removeCoverLetterCopies(dirs: string[], filename: string): void {
+  for (const dir of dirs) {
+    for (const name of [filename, "cover-letter.pdf"]) {
+      const path = join(dir, name);
+      if (existsSync(path)) unlinkSync(path);
+    }
+  }
+}
+
+/**
+ * Write the ATS cover-letter PDF beside the CV when the pack letter has text.
+ * Heading-only or missing markdown removes any previous letter PDF and returns skipped.
+ */
+async function writePackCoverLetter(opts: {
+  packDir: string;
+  outDir: string;
+  flatOutDir: string;
+  submitDir: string;
+  personName: string;
+  roleTitle: string;
+  jobId: string;
+  email: string | null;
+  roleTitleLabel: string | null;
+  companyLabel: string | null;
+}): Promise<{ filename: string | null; skipped: "empty" | null }> {
+  const mdPath = join(opts.packDir, "cover-letter.md");
+  const markdown = existsSync(mdPath) ? readFileSync(mdPath, "utf8") : "";
+  const plan = planCoverLetterPdf(markdown, {
+    personName: opts.personName,
+    roleTitle: opts.roleTitle,
+    jobId: opts.jobId,
+  });
+  const dirs = [opts.outDir, opts.flatOutDir];
+  if (existsSync(opts.submitDir)) dirs.push(opts.submitDir);
+  if (plan.action === "skip") {
+    removeCoverLetterCopies(dirs, plan.filename);
+    console.log("Cover letter has no text — skipped PDF");
+    return { filename: null, skipped: "empty" };
+  }
+
+  mkdirSync(opts.outDir, { recursive: true });
+  const outPdf = join(opts.outDir, plan.filename);
+  console.log(`Generating ${outPdf} …`);
+  await ReactPDF.render(
+    <CoverLetterDocument
+      personName={opts.personName}
+      body={plan.body}
+      email={opts.email}
+      roleTitle={opts.roleTitleLabel}
+      company={opts.companyLabel}
+    />,
+    outPdf,
+  );
+  console.log(`Wrote ${outPdf}`);
+
+  const flatPdf = join(opts.flatOutDir, plan.filename);
+  if (flatPdf !== outPdf) {
+    copyFileSync(outPdf, flatPdf);
+    console.log(`Wrote ${flatPdf}`);
+  }
+  copyFileSync(outPdf, join(opts.outDir, "cover-letter.pdf"));
+  if (existsSync(opts.submitDir)) {
+    const submitPdf = join(opts.submitDir, plan.filename);
+    copyFileSync(outPdf, submitPdf);
+    console.log(`Copied → ${submitPdf}`);
+  }
+  return { filename: plan.filename, skipped: null };
+}
+
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
   if (args.includes("-h") || args.includes("--help")) usage();
@@ -366,6 +440,23 @@ async function main() {
   // Convenience alias for tools that always look for cv.pdf
   copyFileSync(outPdf, join(outDir, "cv.pdf"));
 
+  const roleLabel =
+    manifest?.title && String(manifest.title).trim() ? String(manifest.title).trim() : null;
+  const companyLabel =
+    company && String(company).trim() ? String(company).trim() : null;
+  const letter = await writePackCoverLetter({
+    packDir,
+    outDir,
+    flatOutDir,
+    submitDir: join(packDir, "submit"),
+    personName,
+    roleTitle: title,
+    jobId,
+    email: contactEmailFromCvdata(masterData),
+    roleTitleLabel: roleLabel,
+    companyLabel,
+  });
+
   const snapshot = {
     pack_folder: folderName,
     pack_slug: slug,
@@ -378,6 +469,8 @@ async function main() {
     person_name: personName,
     cv_filename: cvFileName,
     cv_filename_rule: "name-role-id.pdf",
+    cover_letter_filename: letter.filename,
+    cover_letter_skipped: letter.skipped,
     generated_at: new Date().toISOString(),
     overlay_path: existsSync(overlayPath) ? overlayPath : null,
     featured_keys: featuredKeys ?? null,

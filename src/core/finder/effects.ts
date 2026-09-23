@@ -185,6 +185,9 @@ export type FinderPorts = {
       pdf_path: string
       flat_pdf_path?: string | null
       submit_pdf_path?: string | null
+      cover_letter_pdf_path?: string | null
+      cover_letter_flat_pdf_path?: string | null
+      cover_letter_submit_pdf_path?: string | null
       stdout_tail?: string
       export_files?: string[]
       export_file_count?: number
@@ -415,6 +418,9 @@ export function generateApplyCvCmd(ports: FinderPorts, opportunityId: number): C
         pdf_path: r.pdf_path,
         flat_pdf_path: r.flat_pdf_path ?? null,
         submit_pdf_path: r.submit_pdf_path ?? null,
+        cover_letter_pdf_path: r.cover_letter_pdf_path ?? null,
+        cover_letter_flat_pdf_path: r.cover_letter_flat_pdf_path ?? null,
+        cover_letter_submit_pdf_path: r.cover_letter_submit_pdf_path ?? null,
         stdout_tail: r.stdout_tail,
         export_files: r.export_files,
         export_file_count: r.export_file_count,

@@ -11,12 +11,16 @@
  * Re-smoke after any pull (`scripts/pull-cv-renderer.sh`), including a pull
  * that kept the single-column files. A long token must still extract intact
  * (whitespace may wrap it) and must stay inside the page.
+ *
+ * Also renders a cover-letter PDF from prepared text and checks the same
+ * extraction, wrap, and page-box rules. An empty letter is not rendered here.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderToFile } from "@react-pdf/renderer";
+import CoverLetterDocument from "@/components/cover-letter-document";
 import CVDocument from "@/components/cv-document";
 
 const UNBROKEN = "UNBROKEN_SENTINEL_ORIENTATION_TOKEN";
@@ -224,7 +228,63 @@ async function main() {
       }
     }
 
-    console.log(`OK ats pdf smoke (${pdf}, ${text.trim().length} chars)`);
+    const letterPdf = join(dir, "cover-letter.pdf");
+    const letterBody = [
+      "LETTER_SENTINEL_OPENING Dear fixture team, this letter is only the prepared text.",
+      `The long link is ${LONG_TOKEN} and the keyword is ${UNBROKEN}.`,
+    ].join("\n\n");
+    await renderToFile(
+      <CoverLetterDocument
+        personName="Ada Fixture"
+        email="ada.fixture@example.com"
+        roleTitle="Staff Engineer"
+        company="Northwind"
+        body={letterBody}
+      />,
+      letterPdf,
+    );
+    const letterText = run("pdftotext", [letterPdf, "-"]);
+    for (const marker of [
+      "Ada Fixture",
+      "ada.fixture@example.com",
+      "Staff Engineer",
+      "Northwind",
+      "LETTER_SENTINEL_OPENING",
+      UNBROKEN,
+    ]) {
+      if (!letterText.includes(marker)) fail(`cover letter missing extractable text: ${marker}`);
+    }
+    if (letterText.includes("I am excited") || letterText.includes("To whom it may concern")) {
+      fail("cover letter PDF added text that was not in the letter");
+    }
+    if (letterText.includes("Ori-") || letterText.includes(`${UNBROKEN.slice(0, 24)}-`)) {
+      fail("cover letter hyphenator split a keyword");
+    }
+    const letterFlat = letterText.replace(/\s+/g, "");
+    if (!letterFlat.includes(LONG_TOKEN)) fail("cover letter long token did not extract intact");
+    if (letterFlat.includes(`${LONG_TOKEN.slice(0, 24)}-`) || letterText.includes("\u00ad")) {
+      fail("cover letter long token was hyphenated");
+    }
+    const letterWords = bboxWords(letterPdf);
+    const opening = letterWords.find((word) => word.text.startsWith("LETTER_SENTINEL"));
+    if (!opening) fail("cover letter opening word missing from bbox");
+    if (opening.x > 120) {
+      fail(`cover letter body is indented like a side column (x=${opening.x})`);
+    }
+    const letterInfo = run("pdfinfo", [letterPdf]);
+    if (!/Pages:\s+[1-9]/.test(letterInfo)) fail(`cover letter pdfinfo has no page count:\n${letterInfo}`);
+    if (/Encrypted:\s+yes/.test(letterInfo)) fail("cover letter PDF is encrypted");
+    const letterWidth = Number(letterInfo.match(/Page size:\s+([\d.]+)/)?.[1]);
+    if (!letterWidth) fail(`cover letter pdfinfo has no page width:\n${letterInfo}`);
+    for (const word of letterWords) {
+      if (word.xMax > letterWidth - 12) {
+        fail(
+          `cover letter token overflows the page ("${word.text.slice(0, 48)}" xMax=${word.xMax} page=${letterWidth})`,
+        );
+      }
+    }
+
+    console.log(`OK ats pdf smoke (${pdf}, ${text.trim().length} chars; cover letter ${letterText.trim().length} chars)`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -87,6 +87,7 @@ assert(header.includes('xConnected') && header.includes('pauseCount'), 'header c
 // Prep sections + copy
 assert(panel.includes("group: 'Prep'") || panel.includes('Copy all prep'), 'prep copy affordances')
 assert(panel.includes('cover-letter.md') || panel.includes('cover_letter'), 'sectioned cover letter')
+assert(panel.includes('cover_letter_pdf_path'), 'cover letter PDF artifact')
 
 // Pipeline
 assert(lib.includes('update_opportunity_status_cmd'), 'status cmd registered')

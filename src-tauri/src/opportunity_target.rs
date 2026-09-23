@@ -3176,6 +3176,15 @@ pub struct GenerateApplyCvResult {
     /// True when profile was rewritten via xAI polish after the 5-beat template.
     #[serde(default)]
     pub profile_polished: bool,
+    /// Cover-letter PDF under out/apply/<slug>/ when the pack letter has text.
+    #[serde(default)]
+    pub cover_letter_pdf_path: Option<String>,
+    /// Flat upload copy out/apply/{name}-cover-letter.pdf when present.
+    #[serde(default)]
+    pub cover_letter_flat_pdf_path: Option<String>,
+    /// Copy under pack submit/ when present.
+    #[serde(default)]
+    pub cover_letter_submit_pdf_path: Option<String>,
 }
 
 /// Optional xAI polish of overlay `overrides.profile` (template first, then model).
@@ -3375,7 +3384,10 @@ fn expected_pdf_paths(
             let p = e.path();
             if p.extension().and_then(|x| x.to_str()) == Some("pdf") {
                 let name = p.file_name().and_then(|x| x.to_str()).unwrap_or("");
-                if name == "cv.pdf" {
+                if name == "cv.pdf"
+                    || name == "cover-letter.pdf"
+                    || name.ends_with("-cover-letter.pdf")
+                {
                     continue;
                 }
                 if best.as_ref().map(|b| name.len() > b.file_name().map(|f| f.len()).unwrap_or(0)).unwrap_or(true) {
@@ -3396,6 +3408,109 @@ fn expected_pdf_paths(
         flat.filter(|p| p.is_file()),
         submit.filter(|p| p.is_file()),
     )
+}
+
+/// Letter prose from `cover-letter.md`. A heading-only file is empty.
+fn cover_letter_body(raw: &str) -> Option<String> {
+    let normalized = raw.replace("\r\n", "\n").replace('\r', "\n");
+    let mut lines: Vec<&str> = normalized.lines().collect();
+    while lines.first().is_some_and(|line| line.trim().is_empty()) {
+        lines.remove(0);
+    }
+    if let Some(first) = lines.first().copied() {
+        let heading = first.trim().trim_start_matches('#').trim();
+        if first.trim().starts_with('#') && heading.eq_ignore_ascii_case("cover letter") {
+            lines.remove(0);
+        }
+    }
+    let body = lines.join("\n").trim().to_string();
+    if body.is_empty() {
+        None
+    } else {
+        Some(body)
+    }
+}
+
+fn cover_letter_pdf_basename(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains("..")
+        || name.contains('\0')
+        || !name.to_ascii_lowercase().ends_with(".pdf")
+    {
+        return Err("cover_letter_filename must be a single PDF file name".into());
+    }
+    Ok(name)
+}
+
+struct CoverLetterPdfPaths {
+    primary: Option<PathBuf>,
+    flat: Option<PathBuf>,
+    submit: Option<PathBuf>,
+}
+
+/// When the pack letter has text, the generator must have written the PDF named in meta.json.
+/// An empty letter returns no paths and does not require a file.
+fn resolve_cover_letter_pdfs(
+    cv_root: &std::path::Path,
+    pack_dir: &std::path::Path,
+    slug: &str,
+) -> Result<CoverLetterPdfPaths, String> {
+    let empty = CoverLetterPdfPaths {
+        primary: None,
+        flat: None,
+        submit: None,
+    };
+    let raw = std::fs::read_to_string(pack_dir.join("cover-letter.md")).unwrap_or_default();
+    if cover_letter_body(&raw).is_none() {
+        return Ok(empty);
+    }
+    let meta_path = cv_root.join("out").join("apply").join(slug).join("meta.json");
+    let meta: Value = std::fs::read_to_string(&meta_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(Value::Null);
+    let filename = meta
+        .get("cover_letter_filename")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(filename) = filename else {
+        return Err(
+            "cover letter text is present but no cover-letter PDF was written. Install kanithanj.cv again, then generate again."
+                .into(),
+        );
+    };
+    let filename = cover_letter_pdf_basename(filename)?;
+    let primary = cv_root.join("out").join("apply").join(slug).join(filename);
+    if !primary.is_file() {
+        return Err(format!(
+            "cover letter PDF missing at {}",
+            primary.display()
+        ));
+    }
+    let flat = cv_root.join("out").join("apply").join(filename);
+    let submit = pack_dir.join("submit").join(filename);
+    Ok(CoverLetterPdfPaths {
+        primary: Some(primary),
+        flat: if flat.is_file() { Some(flat) } else { None },
+        submit: if submit.is_file() { Some(submit) } else { None },
+    })
+}
+
+fn cover_letter_path_strings(
+    cv_root: &std::path::Path,
+    pack_dir: &std::path::Path,
+    slug: &str,
+) -> Result<(Option<String>, Option<String>, Option<String>), String> {
+    let paths = resolve_cover_letter_pdfs(cv_root, pack_dir, slug)?;
+    Ok((
+        paths.primary.map(|p| p.to_string_lossy().into_owned()),
+        paths.flat.map(|p| p.to_string_lossy().into_owned()),
+        paths.submit.map(|p| p.to_string_lossy().into_owned()),
+    ))
 }
 
 /// Export pack + optional xAI profile polish + spawn devprofile generate-apply-cv.
@@ -3563,6 +3678,8 @@ fn do_generate_apply_cv_inner(
         .collect();
 
     let _ = (company, title); // used by async polish path
+    let (cover_letter_pdf_path, cover_letter_flat_pdf_path, cover_letter_submit_pdf_path) =
+        cover_letter_path_strings(&cv_root, &pack_dir, &pack_slug)?;
     Ok(GenerateApplyCvResult {
         opportunity_id,
         pack_slug,
@@ -3575,6 +3692,9 @@ fn do_generate_apply_cv_inner(
         export_file_count,
         overlay_path: overlay_path.to_string_lossy().to_string(),
         profile_polished,
+        cover_letter_pdf_path,
+        cover_letter_flat_pdf_path,
+        cover_letter_submit_pdf_path,
     })
 }
 
@@ -3747,6 +3867,8 @@ fn spawn_generate_apply_cv_for_export(
         .rev()
         .collect();
 
+    let (cover_letter_pdf_path, cover_letter_flat_pdf_path, cover_letter_submit_pdf_path) =
+        cover_letter_path_strings(&cv_root, &pack_dir, &pack_slug)?;
     Ok(GenerateApplyCvResult {
         opportunity_id,
         pack_slug,
@@ -3759,6 +3881,9 @@ fn spawn_generate_apply_cv_for_export(
         export_file_count,
         overlay_path: overlay_path.to_string_lossy().to_string(),
         profile_polished,
+        cover_letter_pdf_path,
+        cover_letter_flat_pdf_path,
+        cover_letter_submit_pdf_path,
     })
 }
 
@@ -4840,6 +4965,73 @@ mod tests {
         let home = resolve_cv_maker_home().expect("cv home");
         assert_eq!(home, tmp.path().to_path_buf());
         crate::cv_home::clear_test_home();
+    }
+
+    #[test]
+    fn cover_letter_body_keeps_text_and_skips_empty() {
+        assert!(cover_letter_body("# Cover letter\n\n").is_none());
+        assert!(cover_letter_body("").is_none());
+        assert_eq!(
+            cover_letter_body("# Cover letter\n\nDear team, I ship TypeScript.\n").as_deref(),
+            Some("Dear team, I ship TypeScript.")
+        );
+    }
+
+    #[test]
+    fn cover_letter_pdf_required_only_when_letter_has_text() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let cv_root = tmp.path().join("cv");
+        let pack = tmp.path().join("pack");
+        let slug = "acme-engineer-2026-09-23";
+        std::fs::create_dir_all(cv_root.join("out").join("apply").join(slug)).unwrap();
+        std::fs::create_dir_all(&pack).unwrap();
+        std::fs::write(pack.join("cover-letter.md"), "# Cover letter\n\n").unwrap();
+        let skipped = resolve_cover_letter_pdfs(&cv_root, &pack, slug).unwrap();
+        assert!(skipped.primary.is_none());
+
+        std::fs::write(
+            pack.join("cover-letter.md"),
+            "# Cover letter\n\nHello hiring team.\n",
+        )
+        .unwrap();
+        assert!(resolve_cover_letter_pdfs(&cv_root, &pack, slug).is_err());
+
+        let name = "ada-engineer-1-cover-letter.pdf";
+        let pdf = cv_root.join("out").join("apply").join(slug).join(name);
+        std::fs::write(&pdf, b"%PDF-1.4\n").unwrap();
+        std::fs::write(
+            cv_root.join("out").join("apply").join(slug).join("meta.json"),
+            format!(r#"{{"cover_letter_filename":"{name}"}}"#),
+        )
+        .unwrap();
+        let flat = cv_root.join("out").join("apply").join(name);
+        std::fs::write(&flat, b"%PDF-1.4\n").unwrap();
+        std::fs::create_dir_all(pack.join("submit")).unwrap();
+        let submit = pack.join("submit").join(name);
+        std::fs::write(&submit, b"%PDF-1.4\n").unwrap();
+        let found = resolve_cover_letter_pdfs(&cv_root, &pack, slug).unwrap();
+        assert_eq!(found.primary.as_deref(), Some(pdf.as_path()));
+        assert_eq!(found.flat.as_deref(), Some(flat.as_path()));
+        assert_eq!(found.submit.as_deref(), Some(submit.as_path()));
+    }
+
+    #[test]
+    fn expected_pdf_paths_fallback_skips_cover_letter_pdf() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let cv_root = tmp.path();
+        let pack = tmp.path().join("pack");
+        let slug = "acme-engineer";
+        let dir = cv_root.join("out").join("apply").join(slug);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&pack).unwrap();
+        std::fs::write(dir.join("cv.pdf"), b"%PDF-1.4\n").unwrap();
+        std::fs::write(dir.join("ada-role-1.pdf"), b"%PDF-1.4\n").unwrap();
+        std::fs::write(dir.join("ada-role-1-cover-letter.pdf"), b"%PDF-1.4\n").unwrap();
+        let (primary, _, _) = expected_pdf_paths(cv_root, &pack, slug);
+        assert_eq!(
+            primary.file_name().and_then(|n| n.to_str()),
+            Some("ada-role-1.pdf")
+        );
     }
 
     #[test]

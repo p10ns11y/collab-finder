@@ -392,6 +392,9 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
             pdf_path: msg.pdf_path,
             flat_pdf_path: msg.flat_pdf_path,
             submit_pdf_path: msg.submit_pdf_path,
+            cover_letter_pdf_path: msg.cover_letter_pdf_path,
+            cover_letter_flat_pdf_path: msg.cover_letter_flat_pdf_path,
+            cover_letter_submit_pdf_path: msg.cover_letter_submit_pdf_path,
           },
           lastApplicationPackExport: {
             opportunity_id: msg.opportunity_id,
@@ -404,7 +407,9 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
           },
           pauses: [
             ...model.pauses,
-            `Apply CV: pack ${msg.pack_slug || 'ok'} (${exportCount} files) → PDF ${msg.pdf_path}`,
+            `Apply CV: pack ${msg.pack_slug || 'ok'} (${exportCount} files) → PDF ${msg.pdf_path}${
+              msg.cover_letter_pdf_path ? ` + letter ${msg.cover_letter_pdf_path}` : ''
+            }`,
           ],
         },
       ]
