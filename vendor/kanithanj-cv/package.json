@@ -7,7 +7,8 @@
     "kanithanj.cv": "bun scripts/kanithanj-cv.ts",
     "generate-apply-cv": "bun scripts/generate-apply-cv.tsx",
     "link-application-packs": "node scripts/link-application-packs.mjs",
-    "test": "bun test src/lib"
+    "test": "bun test src/lib",
+    "test:ats-pdf": "bun scripts/ats-pdf-smoke.tsx"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",
