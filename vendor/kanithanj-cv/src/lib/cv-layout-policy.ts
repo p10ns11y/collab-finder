@@ -1,8 +1,9 @@
 /**
  * CV PDF layout contract — single knobs file for density + flow.
  *
- * Target (user contract): **2-page stable, no large voids**, no orphan job titles.
- * Content length (overlay PROFILE, bullets) must not reintroduce all-or-nothing
+ * Apply PDF is a single column (see cv-document). `targetPages` is a density
+ * hint for clamps, not a two-column pack. A longer PDF is expected.
+ * No orphan job titles. Content length must not reintroduce all-or-nothing
  * page jumps; those come from atomic multi-bullet job blocks, not from these knobs.
  *
  * Flow mode: atomic-job — whole role stays together across page breaks.

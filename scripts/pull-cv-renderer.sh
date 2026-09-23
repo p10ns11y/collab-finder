@@ -12,6 +12,9 @@ DEST="${KANITHANJ_RENDER_DEST:-$ROOT/vendor/kanithanj-cv}"
 REMOTE="${KANITHANJ_RENDER_REMOTE:-https://github.com/p10ns11y/devprofile.git}"
 REF="${KANITHANJ_RENDER_REF:-main}"
 
+# cv-document.tsx is the apply PDF. A pull replaces that layout with the
+# devprofile look. Re-run vendor/kanithanj-cv `bun scripts/ats-pdf-smoke.tsx`
+# afterwards. A two-column page fails positional ATS text extraction.
 ALLOWLIST=(
   src/components/cv-document.tsx
   src/lib/cv-overlay.ts

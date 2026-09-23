@@ -1,4 +1,4 @@
-import { Document, Font, Link, Page, Path, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Link, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import defaultData from "@/data/cvdata.json";
 import {
   getCvFeaturedProjects,
@@ -19,17 +19,13 @@ export type CVDocumentProps = {
   featuredKeys?: readonly string[];
 };
 
-// Standard PDF fonts (Helvetica, Helvetica-Bold, Times-Roman) are built into
-// react-pdf. Do NOT Font.register CDN copies under those family names — broken
-// metrics make large name text collapse and contact paint through the name.
-Font.register({
-  family: "Helvetica",
-  src: "https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Helvetica/Helvetica.ttf",
-});
-Font.register({
-  family: "Helvetica-Bold",
-  src: "https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Helvetica/Helvetica-Bold.ttf",
-});
+// Apply PDFs are read by positional ATS extractors (top-to-bottom, then
+// left-to-right). Keep one column, built-in fonts, and unbroken words.
+// Do not Font.register CDN copies under Helvetica — that name is a base font,
+// and a subset TTF can ship without a ToUnicode map.
+// pull-cv-renderer.sh can overwrite this file from devprofile; re-run
+// `bun scripts/ats-pdf-smoke.tsx` after a look pull.
+Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
   page: {
@@ -57,9 +53,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   header: {
-    fontFamily: "Times-Roman",
-    fontSize: 22,
-    lineHeight: 1.4,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 18,
+    lineHeight: 1.3,
     textAlign: "center",
     color: "#000",
   },
@@ -92,14 +88,12 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     paddingBottom: 2,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
     color: "#444",
   },
   text: {
     fontSize: 8.5,
     marginBottom: 2,
     textAlign: "left",
-    hyphens: "auto",
     color: "#333",
   },
   listItem: {
@@ -117,21 +111,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 8.5,
     color: "#333",
-  },
-  columnContainer: {
-    flexDirection: "row",
-    marginTop: 2,
-  },
-  leftColumn: {
-    width: "61.818182%",
-    paddingRight: 12,
-  },
-  rightColumn: {
-    width: "38.181818%",
-    paddingLeft: 6,
-    borderLeft: 1,
-    borderColor: "#eee",
-    // paddingBottom: 20
   },
   section: {
     marginBottom: 8,
@@ -259,11 +238,11 @@ const CVDocument = ({
   featuredKeys,
 }: CVDocumentProps = {}) => (
   <Document
-    title="Peramanathan Sathyamoorthy - Curriculum Vitae"
-    author="Peramanathan Sathyamoorthy"
-    subject="Professional Resume for Senior Software Engineer"
-    keywords="Software Engineer, JavaScript, TypeScript, ReactJS, Python, Full-Stack Development, Team Leadership"
-    creator="Peramanathan Sathyamoorthy, grok-code-fast1, xAI Grok"
+    title={`${data.name} - Curriculum Vitae`}
+    author={data.name}
+    subject="Curriculum Vitae"
+    keywords="curriculum vitae"
+    creator={data.name}
     producer="react-pdf"
     pdfVersion="1.7"
     language="en-US"
@@ -302,34 +281,16 @@ const CVDocument = ({
         </View>
         <View style={styles.contactLine}>
           {/* GitHub: href MUST be github URL (was wrongly bound to x.com). */}
-          <Link
-            src={data.cv_social_links.github}
-            style={[styles.link, { flexDirection: "row", alignItems: "center" }]}
-          >
-            <Svg width="12" height="12" viewBox="0 0 24 24">
-              <Path
-                fill="#646464"
-                d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
-              />
-            </Svg>
-            <Text style={{ paddingLeft: 2 }}>
+          <Link src={data.cv_social_links.github} style={styles.link}>
+            <Text>
               {(data.cv_social_links.github || "")
                 .replace(/^https?:\/\//i, "")
                 .replace(/\/$/, "") || "GitHub"}
             </Text>
           </Link>
           <Text style={{ color: "#bbb", paddingHorizontal: 4 }}>·</Text>
-          <Link
-            src={data.cv_social_links.x}
-            style={[styles.link, { flexDirection: "row", alignItems: "center" }]}
-          >
-            <Svg width="10" height="10" viewBox="0 0 24 24">
-              <Path
-                fill="#646464"
-                d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"
-              />
-            </Svg>
-            <Text style={{ paddingLeft: 2 }}>{data.cv_social_links.x_handle}</Text>
+          <Link src={data.cv_social_links.x} style={styles.link}>
+            <Text>{data.cv_social_links.x_handle}</Text>
           </Link>
         </View>
       </View>
@@ -340,29 +301,22 @@ const CVDocument = ({
         {/* Density: clampProfile via CV_LAYOUT_POLICY; soft-job flow via job header atom only */}
         <Text style={styles.text}>{clampProfile(data.profile)}</Text>
       </View>
-      <View style={styles.columnContainer}>
-        {/* @ts-ignore */}
-        <View
-          style={styles.leftColumn}
-          id="Work Experience"
-          bookmark={{ title: "Work Experience", fit: false }}
-        >
-          {data.work_experience.some(jobIsIndependentWork) ? (
-            <>
-              <Text style={styles.subheader}>Independent Work</Text>
-              <ExperienceJobList
-                jobs={data.work_experience.filter(jobIsIndependentWork)}
-              />
-            </>
-          ) : null}
-          <Text style={styles.subheader}>Work Experience</Text>
-          <ExperienceJobList
-            jobs={data.work_experience.filter((job) => !jobIsIndependentWork(job))}
-          />
-        </View>
-        <View style={styles.rightColumn}>
-          {/* @ts-ignore */}
-          <View style={styles.section} id="Skills" bookmark="Skills">
+      <View id="Work Experience" bookmark={{ title: "Work Experience", fit: false }}>
+        {data.work_experience.some(jobIsIndependentWork) ? (
+          <>
+            <Text style={styles.subheader}>Independent Work</Text>
+            <ExperienceJobList
+              jobs={data.work_experience.filter(jobIsIndependentWork)}
+            />
+          </>
+        ) : null}
+        <Text style={styles.subheader}>Work Experience</Text>
+        <ExperienceJobList
+          jobs={data.work_experience.filter((job) => !jobIsIndependentWork(job))}
+        />
+      </View>
+      {/* @ts-ignore */}
+      <View style={styles.section} id="Skills" bookmark="Skills">
             <Text style={styles.subheader}>Skills</Text>
             <Text style={styles.rightSectionText}>
               <Text style={styles.rightSectionBold}>Product: </Text>
@@ -438,7 +392,7 @@ const CVDocument = ({
               );
             })}
           </View>
-          {/* wrap={false}: keep Technologies as one block — avoid mid-section page split in the right column */}
+          {/* wrap={false}: keep Technologies as one block so a page break does not split the list */}
           {/* @ts-ignore */}
           <View
             style={styles.section}
@@ -457,7 +411,7 @@ const CVDocument = ({
             ))}
           </View>
           {/* @ts-ignore */}
-          <View style={styles.section} id="Publications" bookmark="Publications" break>
+          <View style={styles.section} id="Publications" bookmark="Publications">
             <Text style={styles.subheader}>Publications</Text>
             {data.publications.map((pub, i) => (
               <View key={i} style={styles.publicationItem}>
@@ -495,26 +449,9 @@ const CVDocument = ({
               </Text>
             ))}
           </View>
-        </View>
-      </View>
-      <View
-        style={{
-          position: "absolute",
-          bottom: 10,
-          left: 0,
-          right: 0,
-          alignItems: "center",
-          fontSize: 8,
-        }}
-        fixed
-      >
-        <Text>
-          {new Date(Date.now()).toLocaleDateString("sv")} © {data.name}
-        </Text>
-      </View>
-      {/* <Text style={{ textAlign: 'center' }} render={({ pageNumber, totalPages }) => (
-        `${pageNumber} / ${totalPages}`
-      )} fixed /> */}
+      <Text style={{ marginTop: 8, fontSize: 8, textAlign: "center", color: "#666" }}>
+        {new Date(Date.now()).toLocaleDateString("sv")} © {data.name}
+      </Text>
     </Page>
   </Document>
 );
