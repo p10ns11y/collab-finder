@@ -168,11 +168,7 @@ fire its signals.
 
 **A storm is actionable, not ambient.** `computeWeather` attaches a `WeatherAlert` in the storm
 state: the first risk stage in map order (`lead`), the slot it lives in, its named `head` and
-`consequence` from `actCopy`, and the total risk `count`. The strip then names the concrete risk and
-offers a real decide path — the risk's own SoT action when it has one (Open posting / Copy mail /
-Open Pipeline), plus a **Show risk** button that transports to the risk's slot and jumps to its row.
-With several risks it shows the top one and a `+N more` that is still clickable to the whole list.
-The old vague "Something is going wrong" copy is gone: a storm always names its risk.
+`consequence` from `actCopy`, and the total risk `count`.
 
 ## Where the code lives
 
@@ -180,27 +176,9 @@ The old vague "Something is going wrong" copy is gone: a storm always names its 
 |---------|------|
 | Slot / motion / craft / weather transforms (pure) | `src/core/domain/heading-transport.ts` |
 | Test vectors | `src/core/domain/heading-transport.verify.runner.mjs` |
-| Craft artwork and weather glyphs | `src/components/finder/transport-craft.tsx` |
-| Berth / dock / craft surfaces | `src/index.css` (`.ui-craft*`) |
-| Screen zones (unmounted) | `src/view/screens/navigating-zones.tsx` |
 | Next Do surface | `src/view/screens/heading-screen.tsx` |
 
 Token lists in the domain module are `SCREAMING_SNAKE` module constants so a future agent can grep
 and extend one list — `DEBT_TOKENS`, `MISSION_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`,
 `SEASON_INSTITUTIONS`, `HIRING_ACTS`, `ENTITLEMENT_ACTS`, `GEO_QUALIFIERS`, `FORCEABLE_VERBS`,
 `SCHEDULE_MARKERS` — without reading the algorithm around them.
-
-## Visual law
-
-Craft are single-weight `currentColor` line drawings on a shared `0 0 64 40` viewBox with a common
-datum, in the grammar of an aircraft-recognition plate rather than a game HUD. **A craft never
-carries amber**: amber stays reserved for the focused berth and the one act, per the one-accent
-rule in `PRODUCT.md`. Family tint is a dock-tile affordance only, at `oklch(71.2% 0.045 H)` —
-`--color-ink-muted`'s own lightness, hue-rotated, so the dock reads as a fleet and not as a
-multi-colour card grid.
-
-Craft CSS keys on `data-motion` and `data-alert`, never on lifecycle class. Every motion state has
-a **static** encoding across three channels (plume = can this move, datum = how solid the ground,
-trail = what wake it leaves), so the screen is fully legible with animation off. Motion is a hero-
-only layer on top, and every keyframe rests at identity so the global `prefers-reduced-motion` snap
-in `src/index.css` lands on a valid pose instead of freezing a craft mid-animation.
