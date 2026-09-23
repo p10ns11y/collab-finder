@@ -1,4 +1,5 @@
 import { idle, type AsyncState } from '../async'
+import { isMountedShellScreen, screenFromHash } from '../domain/finder-nav'
 import {
   DEFAULT_CV_SUMMARY,
   DEFAULT_SEARCH_QUERY,
@@ -76,10 +77,6 @@ const VALID_SCREENS: FinderScreen[] = [
   'discover',
   'mission',
   'sweden',
-  'stats',
-  'history',
-  'data',
-  'lookup',
   'settings',
   'preferences',
   'pipeline',
@@ -100,10 +97,6 @@ export type FinderScreen =
   | 'discover'
   | 'mission'
   | 'sweden'
-  | 'stats'
-  | 'history'
-  | 'data'
-  | 'lookup'
   | 'settings'
   | 'preferences'
   | 'pipeline'
@@ -250,7 +243,7 @@ export function initialFinderModel(): FinderModel {
     const sessRaw = localStorage.getItem(SESSION_LS_KEY)
     if (sessRaw) {
       const s = JSON.parse(sessRaw) as PersistedSession
-      if (isValidFinderScreen(s.activeScreen)) {
+      if (typeof s.activeScreen === 'string' && isMountedShellScreen(s.activeScreen)) {
         activeScreen = s.activeScreen
       }
       if (typeof s.lastActiveOppId === 'number' && s.lastActiveOppId > 0) {
@@ -279,8 +272,8 @@ export function initialFinderModel(): FinderModel {
   }
   try {
     if (typeof window !== 'undefined') {
-      const slug = window.location.hash.replace(/^#/, '').split('?')[0]?.trim().toLowerCase()
-      if (isValidFinderScreen(slug)) activeScreen = slug
+      const fromHash = screenFromHash(window.location.hash)
+      if (fromHash) activeScreen = fromHash
     }
   } catch {
     // ignore
