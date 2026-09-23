@@ -1,10 +1,13 @@
 /**
  * QUALIFY firm-weight prior.
  * One logged stage outcome updates one firm, and the audit row is how you undo it.
- * Reward stages: rejected −8, interview/offer +8. Waiting, screening, ghost, and
- * withdrawn do not move the prior (withdrawn is a calibration label, not a reward).
+ * Interview and offer step +8. A rejection steps −8 only when the note is specific
+ * feedback (a skill, fit, or stage reason). Empty notes, generic templates, and
+ * paper screens with no tailored feedback do not move the prior.
+ * Waiting, screening, ghost, and withdrawn do not move the prior
+ * (withdrawn is a calibration label, not a reward).
  *
- * Keep STEP, CLAMP, rewards, and the missing-fit qualify rule aligned with
+ * Keep STEP, CLAMP, phrase lists, rewards, and the missing-fit qualify rule aligned with
  * src-tauri/src/qualify_policy.rs.
  */
 
@@ -53,6 +56,99 @@ export function rewardDelta(outcome: string | null | undefined): number | null {
   return null
 }
 
+/**
+ * Named refuse set. Empty text, and any note that misses the allow set, is generic too.
+ * Keep this list aligned with GENERIC_REJECT_PHRASES in qualify_policy.rs.
+ */
+export const GENERIC_REJECT_PHRASES = [
+  'position filled',
+  'position has been filled',
+  'position is filled',
+  'role has been filled',
+  'role is filled',
+  'no longer available',
+  'no longer accepting',
+  'requisition closed',
+  'auto-close',
+  'automatically closed',
+  'paper reject',
+  'paper screen',
+  'paper rejection',
+  'no tailored feedback',
+  'no feedback',
+  'thank you for your interest',
+  'thank you for applying',
+  'thank you for your application',
+  'other candidates',
+  'not be moving forward',
+  'not moving forward',
+  'will not be proceeding',
+  'high volume of applicants',
+  'we regret to inform',
+  'application was unsuccessful',
+  'ashby paper',
+] as const
+
+/**
+ * Honest skill, fit, or stage reason. A hit here is specific even inside a template.
+ * Keep this list aligned with SPECIFIC_REJECT_PHRASES in qualify_policy.rs.
+ */
+export const SPECIFIC_REJECT_PHRASES = [
+  'feedback:',
+  'reject reason:',
+  'rejected because',
+  'not a fit',
+  'not a match',
+  'poor fit',
+  'skill gap',
+  'lacking experience',
+  'lacking production',
+  'hiring manager said',
+  'did not meet the',
+  'does not meet the',
+  'overqualified',
+  'underqualified',
+  'too junior',
+  'too senior',
+  'failed the screen',
+  'failed the interview',
+  'technical bar',
+  'your background in',
+] as const
+
+export type RejectFeedbackClass = 'generic' | 'specific'
+
+export function normalizeRejectFeedback(feedback: string | null | undefined): string {
+  return (feedback || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Generic unless the note contains one allow-list phrase. Empty notes are generic. */
+export function classifyRejectFeedback(feedback: string | null | undefined): RejectFeedbackClass {
+  const text = normalizeRejectFeedback(feedback)
+  if (!text) return 'generic'
+  if (SPECIFIC_REJECT_PHRASES.some((phrase) => text.includes(phrase))) return 'specific'
+  return 'generic'
+}
+
+/**
+ * Step that may be written. Negative rejects need specific feedback.
+ * Interview and offer still use the stage step when the note is empty.
+ */
+export function policyDelta(
+  outcome: string | null | undefined,
+  feedback?: string | null,
+): number | null {
+  const step = rewardDelta(outcome)
+  if (step === null) return null
+  if (step < 0 && classifyRejectFeedback(feedback) !== 'specific') return null
+  return step
+}
+
 export function weightOf(policy: QualifyPolicy, company: string | null | undefined): number {
   const key = firmKey(company)
   if (!key) return 0
@@ -91,7 +187,7 @@ function replay(audit: QualifyAudit[]): { weights: Record<string, number>; audit
 /**
  * Apply exactly one outcome to the prior.
  * Same outcome id + same firm + same reward is a no-op (logging twice does not stack).
- * A cleared or non-reward status drops that id's audit and replays the rest.
+ * A cleared status, a non-reward status, or a generic rejection drops that id's audit and replays the rest.
  * No company on a reward stage records nothing — the caller must not invent a firm.
  */
 export function applyOutcome(
@@ -100,11 +196,20 @@ export function applyOutcome(
     outcomeId: number
     company?: string | null
     outcomeStatus?: string | null
+    /** Opportunity notes, or the reject phrase already on the outcome path. */
+    feedback?: string | null
+    /**
+     * Hillclimb before-arm only. Reproduces the unguarded reject step.
+     * The outcome command never sets this.
+     */
+    blindBefore?: boolean
   },
 ): ApplyResult {
   const outcome = (input.outcomeStatus || '').trim().toLowerCase()
   const key = firmKey(input.company)
-  const requested = rewardDelta(outcome)
+  const requested = input.blindBefore
+    ? rewardDelta(outcome)
+    : policyDelta(outcome, input.feedback)
   const existing = policy.audit.find((row) => row.outcome_id === input.outcomeId)
   if (
     existing &&
@@ -152,6 +257,45 @@ export type HillRow = {
   company: string
   outcome_status: string
   fit_score?: number | null
+}
+
+export type GateRow = {
+  id: number
+  company: string
+  outcome_status: string
+  stage_note?: string | null
+}
+
+/**
+ * Share of generic rejects that moved a firm weight.
+ * `before` is the unguarded step. `after` is the feedback gate.
+ * Null when the fixture has no generic rejects with a firm.
+ */
+export function falsePolicyWriteRate(
+  rows: readonly GateRow[],
+  mode: 'before' | 'after',
+): number | null {
+  const generic = rows.filter((row) => {
+    const status = (row.outcome_status || '').trim().toLowerCase()
+    return (
+      status === 'rejected' &&
+      classifyRejectFeedback(row.stage_note) === 'generic' &&
+      firmKey(row.company) !== ''
+    )
+  })
+  if (generic.length === 0) return null
+  let writes = 0
+  for (const row of generic) {
+    const applied = applyOutcome(emptyPolicy(), {
+      outcomeId: row.id,
+      company: row.company,
+      outcomeStatus: row.outcome_status,
+      feedback: row.stage_note,
+      blindBefore: mode === 'before',
+    })
+    if (applied.changed) writes += 1
+  }
+  return writes / generic.length
 }
 
 /** Share of resolved negatives the gate still qualifies. Null when there are none. */

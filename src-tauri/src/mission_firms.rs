@@ -1856,7 +1856,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn xai_paper_reject_lowers_spacexai_prior() {
+    fn paper_reject_does_not_lower_spacexai_prior_specific_feedback_does() {
         struct Reset;
         impl Drop for Reset {
             fn drop(&mut self) {
@@ -1866,9 +1866,22 @@ mod tests {
         let _reset = Reset;
         let tmp = tempfile::tempdir().expect("temp");
         crate::qualify_policy::set_test_dir(Some(tmp.path().to_path_buf()));
-        crate::qualify_policy::apply_logged_outcome(17, Some("xAI"), Some("rejected"))
-            .expect("prior");
+        crate::qualify_policy::apply_logged_outcome(
+            17,
+            Some("xAI"),
+            Some("rejected"),
+            Some("paper reject"),
+        )
+        .expect("prior");
         let firm = firm_by_id("spacexai").expect("firm");
+        assert_eq!(qualify_prior_delta(firm), 0);
+        crate::qualify_policy::apply_logged_outcome(
+            17,
+            Some("xAI"),
+            Some("rejected"),
+            Some("feedback: not a fit for the staff role; lacking production experience the panel asked about"),
+        )
+        .expect("specific prior");
         assert_eq!(qualify_prior_delta(firm), -8);
     }
 
