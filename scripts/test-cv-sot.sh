@@ -27,6 +27,8 @@ fi
 if grep -E 'HOME\}/Work/personal/devprofile|HOME/Work/personal/devprofile' "$PULL"; then
   fail "pull-cv-renderer.sh must not default to a sibling checkout"
 fi
+grep -q 'ATS-LAYOUT-POLICY: single-column' "$PULL" || fail "pull must guard the ATS single-column marker"
+grep -q 'Re-smoke after any pull' "$PULL" || fail "pull help must say to re-smoke after any pull"
 echo "OK cv-sot wave2 (renderer pull allowlist)"
 
 INSTALL="$ROOT/vendor/kanithanj-cv/scripts/install-kanithanj-cv.sh"

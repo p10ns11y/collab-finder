@@ -1,6 +1,7 @@
 /**
  * CV PDF layout contract — single knobs file for density + flow.
  *
+ * ATS-LAYOUT-POLICY: single-column
  * Apply PDF is a single column (see cv-document). `targetPages` is a density
  * hint for clamps, not a two-column pack. A longer PDF is expected.
  * No orphan job titles. Content length must not reintroduce all-or-nothing

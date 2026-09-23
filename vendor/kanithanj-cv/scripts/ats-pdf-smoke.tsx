@@ -7,6 +7,10 @@
  *
  *   bun scripts/ats-pdf-smoke.tsx
  * Requires poppler `pdftotext` on PATH.
+ *
+ * Re-smoke after any pull (`scripts/pull-cv-renderer.sh`), including a pull
+ * that kept the single-column files. A long token must still extract intact
+ * (whitespace may wrap it) and must stay inside the page.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -16,6 +20,9 @@ import { renderToFile } from "@react-pdf/renderer";
 import CVDocument from "@/components/cv-document";
 
 const UNBROKEN = "UNBROKEN_SENTINEL_ORIENTATION_TOKEN";
+/** Wider than a content line, no hyphen, so a wrap must not invent "-". */
+const LONG_TOKEN =
+  "https://example.com/jobs/apply/" + "longtokensegment".repeat(8);
 
 const data = {
   name: "Ada Fixture",
@@ -41,6 +48,7 @@ const data = {
       end_date: "December 2024",
       responsibilities: [
         "BULLET_SENTINEL_ZOD integrated TypeScript and Zod inference across a legacy JavaScript codebase.",
+        LONG_TOKEN,
       ],
       tools: ["TypeScript", "Zod"],
     },
@@ -117,15 +125,20 @@ function run(cmd: string, args: string[]): string {
   return result.stdout;
 }
 
-type Word = { x: number; y: number; text: string };
+type Word = { x: number; y: number; xMax: number; text: string };
 
 function bboxWords(pdf: string): Word[] {
   const html = run("pdftotext", ["-bbox", pdf, "-"]);
   const words: Word[] = [];
   for (const match of html.matchAll(
-    /<word xMin="([\d.]+)" yMin="([\d.]+)"[^>]*>([^<]*)<\/word>/g,
+    /<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)"[^>]*>([^<]*)<\/word>/g,
   )) {
-    words.push({ x: Number(match[1]), y: Number(match[2]), text: match[3] });
+    words.push({
+      x: Number(match[1]),
+      y: Number(match[2]),
+      xMax: Number(match[3]),
+      text: match[4],
+    });
   }
   if (words.length === 0) fail("bbox extract returned no words");
   return words;
@@ -179,6 +192,13 @@ async function main() {
     if (text.includes("Ori-") || text.includes(`${UNBROKEN.slice(0, 24)}-`)) {
       fail("hyphenator split a keyword");
     }
+    const flat = text.replace(/\s+/g, "");
+    if (!flat.includes(LONG_TOKEN)) {
+      fail("long token did not extract intact");
+    }
+    if (flat.includes(`${LONG_TOKEN.slice(0, 24)}-`) || text.includes("\u00ad")) {
+      fail("long token was hyphenated");
+    }
 
     const words = bboxWords(pdf);
     if (sharesBand(words, "INDEPENDENT", "SKILLS")) {
@@ -194,6 +214,15 @@ async function main() {
     const info = run("pdfinfo", [pdf]);
     if (!/Pages:\s+[1-9]/.test(info)) fail(`pdfinfo has no page count:\n${info}`);
     if (/Encrypted:\s+yes/.test(info)) fail("PDF is encrypted");
+    const pageWidth = Number(info.match(/Page size:\s+([\d.]+)/)?.[1]);
+    if (!pageWidth) fail(`pdfinfo has no page width:\n${info}`);
+    for (const word of words) {
+      if (word.xMax > pageWidth - 12) {
+        fail(
+          `token overflows the page ("${word.text.slice(0, 48)}" xMax=${word.xMax} page=${pageWidth})`,
+        );
+      }
+    }
 
     console.log(`OK ats pdf smoke (${pdf}, ${text.trim().length} chars)`);
   } finally {

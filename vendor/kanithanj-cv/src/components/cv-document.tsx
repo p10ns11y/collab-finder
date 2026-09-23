@@ -19,13 +19,28 @@ export type CVDocumentProps = {
   featuredKeys?: readonly string[];
 };
 
+// ATS-LAYOUT-POLICY: single-column
 // Apply PDFs are read by positional ATS extractors (top-to-bottom, then
 // left-to-right). Keep one column, built-in fonts, and unbroken words.
 // Do not Font.register CDN copies under Helvetica — that name is a base font,
 // and a subset TTF can ship without a ToUnicode map.
-// pull-cv-renderer.sh can overwrite this file from devprofile; re-run
-// `bun scripts/ats-pdf-smoke.tsx` after a look pull.
-Font.registerHyphenationCallback((word) => [word]);
+// pull-cv-renderer.sh keeps this file while the marker above is present.
+// Re-smoke after any pull: `bun scripts/ats-pdf-smoke.tsx`.
+//
+// A syllable break paints "-" and scrambles pdftotext. Slice a long token
+// into newline parts so the line wraps on glue and does not paint that glyph.
+const ATS_SOFT_WRAP_AT = 28;
+
+Font.registerHyphenationCallback((word) => {
+  if (word == null) return [];
+  if (word.length <= ATS_SOFT_WRAP_AT) return [word];
+  const parts: string[] = [];
+  for (let i = 0; i < word.length; i += ATS_SOFT_WRAP_AT) {
+    parts.push(word.slice(i, i + ATS_SOFT_WRAP_AT));
+    if (i + ATS_SOFT_WRAP_AT < word.length) parts.push("\n");
+  }
+  return parts;
+});
 
 const styles = StyleSheet.create({
   page: {

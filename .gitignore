@@ -61,6 +61,9 @@ data/mission-firms/tesla.jobs.json
 # Cursor local IDE wiring (symlinks to .agents — recreate per machine)
 .cursor/
 
+# Devprofile look held back by the ATS single-column pull guard
+vendor/kanithanj-cv/.pull-quarantine/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
