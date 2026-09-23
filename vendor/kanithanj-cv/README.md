@@ -115,9 +115,14 @@ The site repo owns the published JSON. The CLI owns a copy you refresh on purpos
 
 PDF look files (`cv-document.tsx` and the four lib helpers) are pulled from `p10ns11y/devprofile` with `scripts/pull-cv-renderer.sh`. That script copies an allowlist only. It does not copy the CLI writer.
 
+`cv-document.tsx` and `cv-layout-policy.ts` carry `ATS-LAYOUT-POLICY: single-column`. A pull keeps those files when the incoming look drops the marker or brings back `columnContainer` / `leftColumn` / `rightColumn`. The incoming bytes go to `vendor/kanithanj-cv/.pull-quarantine/` (gitignored).
+
+Re-smoke after any pull:
+
 ```bash
 # After a visual change is on GitHub
 KANITHANJ_RENDER_REF=main scripts/pull-cv-renderer.sh
+(cd vendor/kanithanj-cv && bun scripts/ats-pdf-smoke.tsx)
 # commit vendor, then
 kanithanj.cv sync
 ```
