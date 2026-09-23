@@ -6,6 +6,11 @@ import {
   decodeWaybarChip,
   findNextDo,
   groupStagesExcludingDo,
+  isHitlPause,
+  nextDoFrame,
+  nextDoGlanceCount,
+  NEXT_DO_BEFORE_GLANCE,
+  NEXT_DO_HIDDEN_CHROME,
   parseContactsActionable,
   parseMissionMap,
   stageActions,
@@ -86,6 +91,25 @@ must(keyedUrl && contactDisplayName(keyedUrl) === 'jobs.acme.com', 'a bare "url"
 must(contactHost('https://jobs.acme.com/role?x=1') === 'jobs.acme.com', 'contactHost strips scheme and path')
 must(contactDisplayName({ label: 'EMAIL', email: 'a@b.com' }) === 'a@b.com', 'schema-key match is case-insensitive')
 must(contactDisplayName({ label: '', url: 'https://x.io/p' }) === 'x.io', 'a missing label falls back to the host')
+
+const cash = [
+  { id: 'do1', what: 'Submit the Legora pack', class: 'Do', contact: { url: 'https://jobs.example/legora' } },
+  { id: 'captcha', what: 'Distru CAPTCHA', class: 'Park' },
+  { id: 'wait', what: 'Wait on Proposales', class: 'Wait' },
+  { id: 'done', what: 'Logged Neko reject', class: 'Done' },
+]
+const frame = nextDoFrame(cash)
+must(frame.next?.id === 'do1', 'next do is the first Do')
+must(frame.hitl.length === 1 && frame.hitl[0].id === 'captcha', 'CAPTCHA stays, other classes do not')
+must(frame.hidden.join(',') === NEXT_DO_HIDDEN_CHROME.join(','), 'craft fleet people weather log are hidden')
+must(nextDoGlanceCount(frame) <= 2, 'glance budget is the act plus pauses')
+must(nextDoGlanceCount(frame) < NEXT_DO_BEFORE_GLANCE, 'fewer surfaces than the old cockpit')
+must(isHitlPause({ what: 'BankID signature' }), 'bankid is a pause')
+must(isHitlPause({ what: 'Pay the invoice' }), 'pay is a pause')
+must(isHitlPause({ what: 'Send the application' }), 'send is a pause')
+must(!isHitlPause({ what: 'Wait on Proposales' }), 'a plain wait is not a pause')
+const sendHero = nextDoFrame([{ id: 'send', what: 'Send the pack', class: 'Do' }])
+must(sendHero.heroIsHitl && sendHero.hitl.length === 0, 'a send act is the hero, not a second list')
 
 console.log('=== heading-cockpit.verify ===')
 if (failures.length) {

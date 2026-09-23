@@ -833,6 +833,23 @@ pub fn is_mixed_software_hardware(title: &str, department: &str) -> bool {
     has_sw && has_hw
 }
 
+fn apply_qualify_prior(firm: &FirmDef, score: &mut f64, reasons: &mut Vec<String>) {
+    let prior = qualify_prior_delta(firm);
+    if prior != 0 {
+        *score += prior as f64;
+        reasons.push(format!("qualify_prior:{prior}"));
+    }
+}
+
+/// Firm-weight prior from a logged stage. Zero when no prior file exists.
+fn qualify_prior_delta(firm: &FirmDef) -> i32 {
+    let mut keys = vec![firm.id.to_string(), firm.label.to_string()];
+    if firm.id == "spacexai" {
+        keys.push("xai".to_string());
+    }
+    crate::qualify_policy::first_weight(&keys)
+}
+
 fn score_lead(
     firm: &FirmDef,
     title: &str,
@@ -944,6 +961,8 @@ fn score_lead(
             reasons.push("query:weak".into());
         }
     }
+
+    apply_qualify_prior(firm, &mut score, &mut reasons);
 
     let (profile_boost, profile_reason) = profile_title_boost(title);
     score += profile_boost;
@@ -1835,6 +1854,23 @@ fn strip_html_light(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xai_paper_reject_lowers_spacexai_prior() {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                crate::qualify_policy::set_test_dir(None);
+            }
+        }
+        let _reset = Reset;
+        let tmp = tempfile::tempdir().expect("temp");
+        crate::qualify_policy::set_test_dir(Some(tmp.path().to_path_buf()));
+        crate::qualify_policy::apply_logged_outcome(17, Some("xAI"), Some("rejected"))
+            .expect("prior");
+        let firm = firm_by_id("spacexai").expect("firm");
+        assert_eq!(qualify_prior_delta(firm), -8);
+    }
 
     #[test]
     fn extract_packet_boost_terms_skips_stub() {

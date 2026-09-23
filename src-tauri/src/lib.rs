@@ -14,6 +14,7 @@ mod operator_pack;
 mod opportunity_target;
 mod platsbanken;
 mod pulse;
+mod qualify_policy;
 mod rank_config;
 mod secrets;
 mod x_query;
@@ -532,6 +533,13 @@ async fn update_opportunity_outcome_cmd(
                     &pulse,
                     pulse::tick_from_opportunity(pulse::HuntTickKind::OutcomeChange, opp, None),
                 );
+                qualify_policy::apply_logged_outcome(
+                    id,
+                    opp.company.as_deref(),
+                    opp.outcome_status.as_deref(),
+                )?;
+            } else {
+                qualify_policy::apply_logged_outcome(id, None, None)?;
             }
         }
     }
