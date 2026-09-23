@@ -3,22 +3,32 @@
  */
 import type { FinderScreen } from '../finder/model'
 
-/** Hash-routable screens. Primary sidebar order: navigating → discover → pipeline → mission → … */
+/**
+ * Hash-routable screens that FinderAppView actually mounts.
+ * Primary sidebar order: navigating → discover → pipeline → mission → …
+ *
+ * `stats`, `history`, `data`, and `lookup` are not shell routes. The view never
+ * mounted them, so those hashes showed a titled header over "Unknown screen".
+ * Old session blobs that still name them are ignored.
+ */
 const HASH_SCREENS: readonly FinderScreen[] = [
   'heading',
   'discover',
   'pipeline',
   'mission',
   'sweden',
-  'stats',
-  'history',
-  'data',
-  'lookup',
   'settings',
   'preferences',
   'xplore',
   'network',
 ]
+
+const UNMOUNTED_SHELL_SCREENS = new Set<string>(['stats', 'history', 'data', 'lookup'])
+
+/** True when the shell renders this screen. Unmounted audit ids are not routes. */
+export function isMountedShellScreen(screen: string): screen is FinderScreen {
+  return isHashScreen(screen) && !UNMOUNTED_SHELL_SCREENS.has(screen)
+}
 
 /** Presentation slug for the heading cockpit. Wire id stays `heading`. */
 const HASH_SLUG_BY_SCREEN: Partial<Record<FinderScreen, string>> = {

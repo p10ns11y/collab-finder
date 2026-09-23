@@ -33,10 +33,6 @@ const SCREEN_LABEL: Record<FinderScreen, string> = {
   network: 'Network',
   settings: 'Settings',
   preferences: 'Preferences',
-  stats: 'Statistics',
-  history: 'History',
-  data: 'Data',
-  lookup: 'Lookup',
 }
 
 /** Presentational shell — props in, events out as Msg. No hooks, no invoke. */

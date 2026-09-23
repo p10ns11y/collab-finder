@@ -15,6 +15,7 @@ import {
 import { DEFAULT_SEARCH_QUERY } from '../domain/search-presets'
 import { parseQuestKind } from '../domain/quest'
 import { parseQuestContextIds } from '../domain/quest-context'
+import { isMountedShellScreen } from '../domain/finder-nav'
 
 export type FinderUpdate = (
   model: FinderModel,
@@ -553,6 +554,7 @@ export function updateFinder(model: FinderModel, msg: FinderMsg): ReturnType<Fin
       return [model]
 
     case 'ScreenChanged': {
+      if (!isMountedShellScreen(msg.screen)) return [model]
       const next = { ...model, activeScreen: msg.screen }
       if (
         msg.screen === 'sweden' &&
