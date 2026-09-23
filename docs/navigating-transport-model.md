@@ -182,8 +182,8 @@ The old vague "Something is going wrong" copy is gone: a storm always names its 
 | Test vectors | `src/core/domain/heading-transport.verify.runner.mjs` |
 | Craft artwork and weather glyphs | `src/components/finder/transport-craft.tsx` |
 | Berth / dock / craft surfaces | `src/index.css` (`.ui-craft*`) |
-| Screen zones | `src/view/screens/navigating-zones.tsx` |
-| Data + focus container | `src/view/screens/heading-screen.tsx` |
+| Screen zones (unmounted) | `src/view/screens/navigating-zones.tsx` |
+| Next Do surface | `src/view/screens/heading-screen.tsx` |
 
 Token lists in the domain module are `SCREAMING_SNAKE` module constants so a future agent can grep
 and extend one list — `DEBT_TOKENS`, `MISSION_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`,

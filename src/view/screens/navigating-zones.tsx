@@ -1,5 +1,6 @@
 /**
  * Navigating zones — presentational bands for the cash-path cockpit.
+ * Not mounted. `heading-screen.tsx` shows one Next Do and HITL pauses.
  *
  * DOM order is the attention order: vehicle → one act → weather → dock → log.
  * Props in, events out; every string comes from heading-transport or the SoT itself.

@@ -239,6 +239,50 @@ export function contactDisplayName(hint: ContactHint): string {
   return 'Contact'
 }
 
+/** CAPTCHA, BankID, pay, and send stay visible. They are human pauses, not chrome. */
+const HITL_PAUSE =
+  /\b(captchas?|bank-?id|payments?|invoices?|pay|send(?:ing)?)\b/i
+
+export function isHitlPause(stage: MissionStage): boolean {
+  const blob = `${stage.what || ''} ${stage.contact?.followup_stage || ''}`
+  return HITL_PAUSE.test(blob)
+}
+
+export const NEXT_DO_HIDDEN_CHROME = ['craft', 'fleet', 'people', 'weather', 'log'] as const
+
+/** Bands the pre-strip Navigating screen placed around the act. */
+export const NEXT_DO_BEFORE_GLANCE = 6
+
+export type NextDoFrame = {
+  next: MissionStage | null
+  heroIsHitl: boolean
+  hitl: MissionStage[]
+  hidden: typeof NEXT_DO_HIDDEN_CHROME
+}
+
+/** One act, plus any other human pauses. Do stages are not repeated in the pause list. */
+export function nextDoFrame(stages: MissionStage[]): NextDoFrame {
+  const next = findNextDo(stages)
+  const hitl = stages.filter((stage) => {
+    if (!isHitlPause(stage)) return false
+    if (!next) return true
+    if (stage === next) return false
+    if (stage.id && next.id && stage.id === next.id) return false
+    return true
+  })
+  return {
+    next,
+    heroIsHitl: next ? isHitlPause(next) : false,
+    hitl,
+    hidden: NEXT_DO_HIDDEN_CHROME,
+  }
+}
+
+/** After the strip: the act, and one pause line when a HITL stage is still on screen. */
+export function nextDoGlanceCount(frame: NextDoFrame): number {
+  return 1 + (frame.hitl.length > 0 || frame.heroIsHitl ? 1 : 0)
+}
+
 /** The quiet second line: the address or link host when the name already carries the other half. */
 export function contactDetail(hint: ContactHint): string | null {
   const name = contactDisplayName(hint)
