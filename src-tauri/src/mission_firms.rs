@@ -833,6 +833,14 @@ pub fn is_mixed_software_hardware(title: &str, department: &str) -> bool {
     has_sw && has_hw
 }
 
+fn apply_qualify_prior(firm: &FirmDef, score: &mut f64, reasons: &mut Vec<String>) {
+    let prior = qualify_prior_delta(firm);
+    if prior != 0 {
+        *score += prior as f64;
+        reasons.push(format!("qualify_prior:{prior}"));
+    }
+}
+
 /// Firm-weight prior from a logged stage. Zero when no prior file exists.
 fn qualify_prior_delta(firm: &FirmDef) -> i32 {
     let mut keys = vec![firm.id.to_string(), firm.label.to_string()];
@@ -954,11 +962,7 @@ fn score_lead(
         }
     }
 
-    let prior = qualify_prior_delta(firm);
-    if prior != 0 {
-        score += prior as f64;
-        reasons.push(format!("qualify_prior:{prior}"));
-    }
+    apply_qualify_prior(firm, &mut score, &mut reasons);
 
     let (profile_boost, profile_reason) = profile_title_boost(title);
     score += profile_boost;
