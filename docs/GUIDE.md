@@ -109,7 +109,7 @@ Upload a facts file to `~/.config/kanithanj.cv/cvdata.json` and skip the GitHub 
 | **Xplore** | Live X + `guarded_search` cycle |
 | **Network** | Graph import / enrich (local only) |
 
-**Quick Target loop:** paste URL or JD → **Evaluate fit** (xAI) → **Prepare** → **Generate apply CV** (PDF, local) → **Artifacts** → **Applied**.
+**Quick Target loop:** paste URL or JD → **Evaluate fit** (xAI) → **Prepare** → **Generate apply CV** (CV PDF, plus a cover-letter PDF when the letter has text) → **Artifacts** → **Applied**.
 
 - Platsbanken URLs load the ad from JobTech, not HTML.
 - A JobTech JD body is not a URL even if it contains a Platsbanken link.

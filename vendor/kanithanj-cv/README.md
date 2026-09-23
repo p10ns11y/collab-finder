@@ -49,7 +49,12 @@ Outputs:
 ~/.local/share/kanithanj.cv/out/apply/{name}-{role}-{id}.pdf
 ~/.local/share/kanithanj.cv/out/apply/<pack-slug>/{name}-{role}-{id}.pdf
 <pack>/submit/{name}-{role}-{id}.pdf   # when submit/ exists
+~/.local/share/kanithanj.cv/out/apply/{name}-{role}-{id}-cover-letter.pdf
+~/.local/share/kanithanj.cv/out/apply/<pack-slug>/{name}-{role}-{id}-cover-letter.pdf
+<pack>/submit/{name}-{role}-{id}-cover-letter.pdf
 ```
+
+The cover-letter PDF is written only when `cover-letter.md` has letter text. A heading-only or missing letter does not produce a PDF. The text is the prepared letter, not a new draft.
 
 Master-only PDF (no overlay):
 

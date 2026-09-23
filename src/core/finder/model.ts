@@ -213,6 +213,9 @@ export type FinderModel = {
     pdf_path: string
     flat_pdf_path?: string | null
     submit_pdf_path?: string | null
+    cover_letter_pdf_path?: string | null
+    cover_letter_flat_pdf_path?: string | null
+    cover_letter_submit_pdf_path?: string | null
   }
 }
 

@@ -20,6 +20,9 @@ export type GenerateApplyCvWire = {
   pdf_path: string
   flat_pdf_path?: string | null
   submit_pdf_path?: string | null
+  cover_letter_pdf_path?: string | null
+  cover_letter_flat_pdf_path?: string | null
+  cover_letter_submit_pdf_path?: string | null
   stdout_tail?: string
   /** Files written by the re-export that precedes generate. */
   export_files?: string[]
@@ -101,6 +104,11 @@ export function normalizeGenerateApplyCv(raw: unknown): GenerateApplyCvWire {
     pdf_path: pickStr(o, 'pdf_path', 'pdfPath'),
     flat_pdf_path: pickStr(o, 'flat_pdf_path', 'flatPdfPath') || null,
     submit_pdf_path: pickStr(o, 'submit_pdf_path', 'submitPdfPath') || null,
+    cover_letter_pdf_path: pickStr(o, 'cover_letter_pdf_path', 'coverLetterPdfPath') || null,
+    cover_letter_flat_pdf_path:
+      pickStr(o, 'cover_letter_flat_pdf_path', 'coverLetterFlatPdfPath') || null,
+    cover_letter_submit_pdf_path:
+      pickStr(o, 'cover_letter_submit_pdf_path', 'coverLetterSubmitPdfPath') || null,
     stdout_tail: pickStr(o, 'stdout_tail', 'stdoutTail') || undefined,
     export_files,
     export_file_count,

@@ -55,6 +55,9 @@ type Props = {
     pdf_path: string
     flat_pdf_path?: string | null
     submit_pdf_path?: string | null
+    cover_letter_pdf_path?: string | null
+    cover_letter_flat_pdf_path?: string | null
+    cover_letter_submit_pdf_path?: string | null
   }
   companyName?: string | null
   roleTitle?: string | null
@@ -138,6 +141,30 @@ export function OpportunityTargetFitPanel({
         path: lastApplyCv.submit_pdf_path,
       })
     }
+    if (lastApplyCv?.cover_letter_pdf_path) {
+      nodes.push({
+        id: 'pdf-cover-letter',
+        label: lastApplyCv.cover_letter_pdf_path.split('/').pop() || 'cover-letter.pdf',
+        group: 'Cover letter PDF',
+        path: lastApplyCv.cover_letter_pdf_path,
+      })
+    }
+    if (lastApplyCv?.cover_letter_flat_pdf_path) {
+      nodes.push({
+        id: 'pdf-cover-letter-flat',
+        label: lastApplyCv.cover_letter_flat_pdf_path.split('/').pop() || 'cover-letter.pdf',
+        group: 'Cover letter PDF',
+        path: lastApplyCv.cover_letter_flat_pdf_path,
+      })
+    }
+    if (lastApplyCv?.cover_letter_submit_pdf_path) {
+      nodes.push({
+        id: 'pdf-cover-letter-submit',
+        label: lastApplyCv.cover_letter_submit_pdf_path.split('/').pop() || 'cover-letter.pdf',
+        group: 'Cover letter PDF',
+        path: lastApplyCv.cover_letter_submit_pdf_path,
+      })
+    }
     const emailDraft =
       prepObj?.email_draft?.trim() ||
       (prepObj?.cover_letter
@@ -184,7 +211,9 @@ export function OpportunityTargetFitPanel({
       })
     }
     const seenPdfPaths = new Set(
-      nodes.filter((n) => n.group === 'CV PDF' && n.path).map((n) => n.path as string),
+      nodes
+        .filter((n) => (n.group === 'CV PDF' || n.group === 'Cover letter PDF') && n.path)
+        .map((n) => n.path as string),
     )
     const seenLabels = new Set(nodes.map((n) => n.label.toLowerCase()))
     const packDir = lastApplicationPackExport?.pack_dir
