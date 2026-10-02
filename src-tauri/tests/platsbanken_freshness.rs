@@ -316,5 +316,10 @@ fn alias_equals_baseline(world: &mut FreshnessWorld, alias: String) {
 
 #[tokio::main]
 async fn main() {
-    FreshnessWorld::run("tests/features/platsbanken_freshness.feature").await;
+    // Cargo forwards the lib filter (`platsbanken`) to every selected target.
+    // This harness runs the whole feature file and does not take that filter.
+    FreshnessWorld::cucumber()
+        .with_default_cli()
+        .run_and_exit("tests/features/platsbanken_freshness.feature")
+        .await;
 }

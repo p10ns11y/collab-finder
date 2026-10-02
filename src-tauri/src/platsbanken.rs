@@ -686,6 +686,124 @@ mod tests {
     }
 
     #[test]
+    fn civil_day_count_round_trips_across_eras() {
+        for z in -1_000_000..=200_000 {
+            assert_eq!(days_from_civil(civil_from_days(z)), z, "{z}");
+        }
+        let anchors = [
+            CivilDate {
+                year: -471,
+                month: 3,
+                day: 1,
+            },
+            CivilDate {
+                year: 1,
+                month: 1,
+                day: 1,
+            },
+            CivilDate {
+                year: 1970,
+                month: 1,
+                day: 1,
+            },
+            CivilDate {
+                year: 1970,
+                month: 2,
+                day: 15,
+            },
+            CivilDate {
+                year: 2026,
+                month: 2,
+                day: 15,
+            },
+            CivilDate {
+                year: 2026,
+                month: 10,
+                day: 2,
+            },
+        ];
+        for date in anchors {
+            assert_eq!(civil_from_days(days_from_civil(date)), date, "{date:?}");
+        }
+        assert_eq!(
+            days_from_civil(CivilDate {
+                year: 1970,
+                month: 1,
+                day: 1
+            }),
+            0
+        );
+    }
+
+    #[test]
+    fn parse_civil_date_rejects_mixed_separators_and_year_zero() {
+        assert_eq!(
+            parse_civil_date("0001-01-01"),
+            Some(CivilDate {
+                year: 1,
+                month: 1,
+                day: 1
+            })
+        );
+        assert!(parse_civil_date("0000-06-15").is_none());
+        assert!(parse_civil_date("2026-10/02").is_none());
+        assert!(parse_civil_date("2026/10-02").is_none());
+        assert!(parse_civil_date("2026-10-00").is_none());
+        assert!(parse_civil_date("2026-01-31").is_some());
+        assert!(parse_civil_date("2026-04-30").is_some());
+        assert!(parse_civil_date("2026-04-31").is_none());
+    }
+
+    #[test]
+    fn today_utc_is_the_unix_day() {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the unix epoch")
+            .as_secs();
+        let days = (secs / 86_400) as i64;
+        let got = today_utc();
+        let today = format_civil(civil_from_days(days));
+        let yesterday = format_civil(civil_from_days(days - 1));
+        assert!(
+            got == today || got == yesterday,
+            "{got} is not {today} or {yesterday}"
+        );
+    }
+
+    #[test]
+    fn api_relevance_reason_only_when_positive() {
+        let mut raw = sample_other_hit();
+        raw["publication_date"] = json!("2026-09-12T00:00:00");
+        raw["relevance"] = json!(0);
+        let zero = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(
+            zero.rank_reasons
+                .iter()
+                .all(|reason| !reason.starts_with("api_relevance:")),
+            "{:?}",
+            zero.rank_reasons
+        );
+
+        raw["relevance"] = json!(1.5);
+        let positive = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(positive
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "api_relevance:1.50"));
+
+        raw["relevance"] = json!(-2.0);
+        let negative = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(
+            negative
+                .rank_reasons
+                .iter()
+                .all(|reason| !reason.starts_with("api_relevance:")),
+            "{:?}",
+            negative.rank_reasons
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "today must be YYYY-MM-DD")]
     fn lead_from_parsed_rejects_a_bad_today() {
         let _ = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap(), "tomorrow");
