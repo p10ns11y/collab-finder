@@ -311,6 +311,12 @@ function SwedenLeadRow({
   onSelect: () => void
   dispatch: Dispatch<FinderMsg>
 }) {
+  const ageTag = lead.rank_reasons.find(
+    (reason) =>
+      reason.startsWith('fresh:') ||
+      reason.startsWith('stale:') ||
+      reason === 'posted:unknown',
+  )
   return (
     <div
       className={`rounded-lg border px-3 py-2.5 transition-colors ${
@@ -332,7 +338,10 @@ function SwedenLeadRow({
               {lead.occupation ? ` · ${lead.occupation}` : ''}
             </div>
           </div>
-          <span className="ui-meta shrink-0 tabular-nums">rank {lead.rank_score.toFixed(1)}</span>
+          <span className="ui-meta shrink-0 text-right tabular-nums">
+            {ageTag ? <span className="block">{ageTag}</span> : null}
+            rank {lead.rank_score.toFixed(1)}
+          </span>
         </div>
         {lead.description_snippet ? (
           <p className="mt-1.5 text-xs text-ink-faint line-clamp-2">{lead.description_snippet}</p>
