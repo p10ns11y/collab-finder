@@ -333,7 +333,11 @@ pub async fn search_platsbanken(
         offset: offset.map(|n| n as usize),
     };
     let ads = platsbanken::search_ads(&filter).await?;
-    let mut leads: Vec<_> = ads.into_iter().map(platsbanken::lead_from_parsed).collect();
+    let today = platsbanken::today_utc();
+    let mut leads: Vec<_> = ads
+        .into_iter()
+        .map(|ad| platsbanken::lead_from_parsed(ad, today))
+        .collect();
     leads = platsbanken::rank_leads(leads);
 
     {

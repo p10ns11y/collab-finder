@@ -6,6 +6,103 @@ use serde_json::Value;
 
 const JOBSEARCH_BASE: &str = "https://jobsearch.api.jobtechdev.se";
 
+pub const FRESHNESS_FRESH_MAX_DAYS: u32 = 7;
+pub const FRESHNESS_STALE_MIN_DAYS: u32 = 60;
+const FRESHNESS_BOOST: f64 = 15.0;
+const FRESHNESS_STALE_PENALTY: f64 = 15.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsoDate {
+    pub year: i32,
+    pub month: u32,
+    pub day: u32,
+}
+
+impl IsoDate {
+    pub fn new(year: i32, month: u32, day: u32) -> Option<Self> {
+        if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+            return None;
+        }
+        Some(Self { year, month, day })
+    }
+}
+
+pub fn today_utc() -> IsoDate {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    epoch_days_to_iso((secs / 86400) as i32)
+}
+
+fn civil_to_days(year: i32, month: u32, day: u32) -> i32 {
+    let a = (14 - month as i32) / 12;
+    let y = year + 4800 - a;
+    let m = month as i32 + 12 * a - 3;
+    day as i32 + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045
+}
+
+fn epoch_days_to_iso(days: i32) -> IsoDate {
+    let z = days + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    let y = y + if m <= 2 { 1 } else { 0 };
+    IsoDate {
+        year: y,
+        month: m as u32,
+        day: d as u32,
+    }
+}
+
+pub fn parse_publication_date(raw: &str) -> Option<IsoDate> {
+    let trimmed = raw.trim();
+    if trimmed.len() < 10 {
+        return None;
+    }
+    let date_part = &trimmed[..10];
+    let parts: Vec<&str> = date_part.split('-').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let year = parts[0].parse::<i32>().ok()?;
+    let month = parts[1].parse::<u32>().ok()?;
+    let day = parts[2].parse::<u32>().ok()?;
+    IsoDate::new(year, month, day)
+}
+
+pub fn posting_age_days(pub_date: IsoDate, today: IsoDate) -> u32 {
+    let pub_days = civil_to_days(pub_date.year, pub_date.month, pub_date.day);
+    let today_days = civil_to_days(today.year, today.month, today.day);
+    if pub_days > today_days {
+        0
+    } else {
+        (today_days - pub_days) as u32
+    }
+}
+
+pub fn score_freshness(publication_date: Option<&str>, today: IsoDate) -> (f64, Vec<String>) {
+    let Some(raw) = publication_date.map(str::trim).filter(|s| !s.is_empty()) else {
+        return (0.0, vec!["posted:unknown".into()]);
+    };
+    let Some(pub_date) = parse_publication_date(raw) else {
+        return (0.0, vec!["posted:unknown".into()]);
+    };
+    let age = posting_age_days(pub_date, today);
+    if age <= FRESHNESS_FRESH_MAX_DAYS {
+        return (FRESHNESS_BOOST, vec![format!("fresh:{age}d")]);
+    }
+    if age > FRESHNESS_STALE_MIN_DAYS {
+        return (-FRESHNESS_STALE_PENALTY, vec![format!("stale:{age}d")]);
+    }
+    (0.0, vec![])
+}
+
 /// Soft preference boost for optimal roles; non-matches stay visible for AF reporting.
 const FAVORITE_TERMS: &[&str] = &[
     "machine learning",
@@ -210,12 +307,14 @@ pub fn score_favorites(ad: &ParsedAd) -> (f64, Vec<String>, bool) {
     (boost, reasons, favorite_match)
 }
 
-pub fn lead_from_parsed(ad: ParsedAd) -> PlatsbankenLead {
+pub fn lead_from_parsed(ad: ParsedAd, today: IsoDate) -> PlatsbankenLead {
     let (boost, mut rank_reasons, favorite_match) = score_favorites(&ad);
     if ad.api_relevance > 0.0 {
         rank_reasons.push(format!("api_relevance:{:.2}", ad.api_relevance));
     }
-    let rank_score = ad.api_relevance + boost;
+    let (fresh_adj, fresh_reasons) = score_freshness(ad.publication_date.as_deref(), today);
+    rank_reasons.extend(fresh_reasons);
+    let rank_score = ad.api_relevance + boost + fresh_adj;
     let snippet: String = ad
         .description_text
         .chars()
@@ -452,10 +551,15 @@ mod tests {
         })
     }
 
+    fn neutral_today() -> IsoDate {
+        IsoDate::new(2026, 8, 15).unwrap()
+    }
+
     #[test]
     fn parses_and_boosts_favorites_above_higher_api_relevance() {
-        let ml = lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap());
-        let other = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap());
+        let today = neutral_today();
+        let ml = lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap(), today);
+        let other = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap(), today);
         assert!(ml.favorite_match);
         assert!(!other.favorite_match);
         assert!(
@@ -468,7 +572,10 @@ mod tests {
 
     #[test]
     fn mark_db_matches_webpage() {
-        let mut leads = vec![lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap())];
+        let mut leads = vec![lead_from_parsed(
+            parse_ad_value(&sample_ml_hit()).unwrap(),
+            neutral_today(),
+        )];
         mark_already_in_db(
             &mut leads,
             &[(
@@ -544,5 +651,64 @@ mod tests {
             Some(GeoFilter::MunicipalityCode("0180".into()))
         );
         assert_eq!(resolve_geo_filter("NotACity"), None);
+    }
+
+    fn lead_with_date(ad_id: &str, relevance: f64, publication_date: Option<&str>) -> PlatsbankenLead {
+        lead_from_parsed(
+            ParsedAd {
+                ad_id: ad_id.into(),
+                headline: "Engineer".into(),
+                employer: "Co".into(),
+                municipality: None,
+                occupation: None,
+                webpage_url: format!("https://arbetsformedlingen.se/platsbanken/annonser/{ad_id}"),
+                application_url: None,
+                publication_date: publication_date.map(str::to_string),
+                application_deadline: None,
+                description_text: "General role.".into(),
+                api_relevance: relevance,
+            },
+            IsoDate::new(2026, 8, 10).unwrap(),
+        )
+    }
+
+    #[test]
+    fn fresh_posting_ranks_above_stale_with_same_relevance() {
+        let fresh = lead_with_date("1", 2.0, Some("2026-08-08T00:00:00"));
+        let stale = lead_with_date("2", 2.0, Some("2026-05-01T00:00:00"));
+        let ranked = rank_leads(vec![stale.clone(), fresh.clone()]);
+        assert_eq!(ranked[0].ad_id, "1");
+        assert!(fresh.rank_reasons.iter().any(|r| r.starts_with("fresh:")));
+        assert!(stale.rank_reasons.iter().any(|r| r.starts_with("stale:")));
+    }
+
+    #[test]
+    fn missing_or_unparseable_date_is_neutral() {
+        let today = IsoDate::new(2026, 8, 10).unwrap();
+        let missing = lead_with_date("1", 2.0, None);
+        let bad = lead_with_date("2", 2.0, Some("not-a-date"));
+        assert_eq!(missing.rank_score, 2.0);
+        assert!(missing.rank_reasons.contains(&"posted:unknown".to_string()));
+        assert_eq!(bad.rank_score, 2.0);
+        assert!(bad.rank_reasons.contains(&"posted:unknown".to_string()));
+        let (adj, reasons) = score_freshness(None, today);
+        assert_eq!(adj, 0.0);
+        assert_eq!(reasons, vec!["posted:unknown"]);
+    }
+
+    #[test]
+    fn future_publication_date_counts_as_fresh_zero_days() {
+        let today = IsoDate::new(2026, 8, 10).unwrap();
+        let (adj, reasons) = score_freshness(Some("2026-09-01T00:00:00"), today);
+        assert_eq!(adj, FRESHNESS_BOOST);
+        assert_eq!(reasons, vec!["fresh:0d"]);
+    }
+
+    #[test]
+    fn neutral_zone_has_no_freshness_adjustment() {
+        let today = IsoDate::new(2026, 8, 10).unwrap();
+        let (adj, reasons) = score_freshness(Some("2026-07-25T00:00:00"), today);
+        assert_eq!(adj, 0.0);
+        assert!(reasons.is_empty());
     }
 }
