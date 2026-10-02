@@ -20,28 +20,29 @@ Manual check after the freshness ranking change lands. No API keys required — 
 
 ## What to look for
 
-Work top to bottom in the Results list. Each row shows a **rank** score on the right; age tags appear in the rank reasons (same pattern as Mission firm rows).
+Work top to bottom in the Results list. Each row shows a **rank** score on the right. The age tag (`fresh:3d`, `stale:140d`, or `posted:unknown`) is on that row and on the selected card.
 
 ### Ordering (Done means)
 
 1. Find two ads with similar headlines/relevance (no ★ favorite marker, similar rank scores before freshness).
 2. The ad with a **recent** `publication_date` (within the last week) should appear **above** an older ad with the same rough fit.
-3. Tap/select each row and note the rank reasons on the card or row chips.
+3. Select a row and confirm the same age tag is on the row and on the card.
 
-### Fresh (≤ 7 days)
+### Fresh (0–7 days, including a future date)
 
-- Expect a reason like `fresh:3d` (days since publication).
-- Rank score should be **higher** than an otherwise identical ad in the 8–30 day window.
+- Expect `fresh:Nd` (N is days since publication, 0 for today or a future date).
+- Rank score should be **higher** than an otherwise identical ad in the neutral window.
 
-### Neutral (8–30 days)
+### Neutral (8–60 days)
 
 - Expect **no** `fresh:` or `stale:` tag.
-- Rank score should match what you would expect from API relevance + favorite boost only.
+- Rank score should match API relevance + favorite boost only.
 
-### Stale (> ~60 days)
+### Stale (61 days and older)
 
-- Expect a reason like `stale:140d`.
-- The stale ad should sit **below** a fresh ad with similar relevance, but still on the first page if it has a strong match (★ or high rank).
+- Expect `stale:Nd`.
+- A stale ad with similar relevance and no ★ should sit **below** a fresh ad.
+- A stale ad with a ★ favorite and similar relevance should stay **above** fresh ads that are not favorites, and should remain on the first page of results.
 
 ### Unknown date
 
@@ -57,9 +58,9 @@ Work top to bottom in the Results list. Each row shows a **rank** score on the r
 | Check | Expected |
 |-------|----------|
 | Fresh vs stale, similar relevance | Fresher ad higher in list |
-| Fresh tag | `fresh:Xd` where X ≤ 7 |
-| 8–30 day ad | No freshness tag; neutral score |
-| > 60 day ad | `stale:Xd`; below fresh peer, still visible if strong |
+| Fresh tag | `fresh:Nd` where N is 0–7 |
+| 8–60 day ad | No age tag; neutral score |
+| 61+ day ad | `stale:Nd`; below a similar fresh peer; a ★ stale ad stays above generic fresh ads and on the first page |
 | Missing/unparseable date | `posted:unknown`; neutral score |
 | Reasons visible | Age tag present on inspected rows |
 
