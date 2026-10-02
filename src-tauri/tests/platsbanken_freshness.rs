@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use collab_finder_lib::platsbanken::{
-    lead_from_parsed, rank_leads, score_favorites, ParsedAd, PlatsbankenLead,
+    lead_from_parsed_for, rank_leads, score_favorites, ParsedAd, PlatsbankenLead,
 };
 use cucumber::{given, then, when, World as _};
 use serde_json::json;
@@ -53,8 +53,7 @@ fn freshness_tag(lead: &PlatsbankenLead) -> Option<&str> {
 }
 
 fn rank_for_today(ad: ParsedAd, today: &str) -> PlatsbankenLead {
-    let _ = today;
-    lead_from_parsed(ad)
+    lead_from_parsed_for(ad, today)
 }
 
 #[given(expr = "today is {string}")]

@@ -30,6 +30,7 @@ keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 dirs = "6"
 rusqlite = { version = "0.31", features = ["bundled"] }
 csv = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 
 [dev-dependencies]
 cucumber = "0.20.2"

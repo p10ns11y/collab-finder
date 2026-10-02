@@ -6,6 +6,13 @@ use serde_json::Value;
 
 const JOBSEARCH_BASE: &str = "https://jobsearch.api.jobtechdev.se";
 
+/// Postings this old or newer get a rank boost.
+const FRESH_MAX_AGE_DAYS: i64 = 7;
+/// Postings older than this get demoted (61+ days).
+const STALE_MIN_AGE_DAYS: i64 = 61;
+const FRESHNESS_BOOST: f64 = 60.0;
+const STALENESS_PENALTY: f64 = 60.0;
+
 /// Soft preference boost for optimal roles; non-matches stay visible for AF reporting.
 const FAVORITE_TERMS: &[&str] = &[
     "machine learning",
@@ -210,12 +217,77 @@ pub fn score_favorites(ad: &ParsedAd) -> (f64, Vec<String>, bool) {
     (boost, reasons, favorite_match)
 }
 
+fn parse_ymd_prefix(raw: &str) -> Option<chrono::NaiveDate> {
+    if raw.len() < 10 {
+        return None;
+    }
+    chrono::NaiveDate::parse_from_str(&raw[..10], "%Y-%m-%d").ok()
+}
+
+fn today_naive() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
+pub fn posting_age_days(publication_date: &str, today: chrono::NaiveDate) -> Option<i64> {
+    let posted = parse_ymd_prefix(publication_date)?;
+    let age = today.signed_duration_since(posted).num_days();
+    Some(age.max(0))
+}
+
+pub struct FreshnessAdjustment {
+    pub delta: f64,
+    pub reason: Option<String>,
+}
+
+pub fn freshness_adjustment(
+    publication_date: Option<&str>,
+    today: chrono::NaiveDate,
+) -> FreshnessAdjustment {
+    match publication_date {
+        None => FreshnessAdjustment {
+            delta: 0.0,
+            reason: Some("posted:unknown".into()),
+        },
+        Some(raw) => match posting_age_days(raw, today) {
+            None => FreshnessAdjustment {
+                delta: 0.0,
+                reason: Some("posted:unknown".into()),
+            },
+            Some(age) if age <= FRESH_MAX_AGE_DAYS => FreshnessAdjustment {
+                delta: FRESHNESS_BOOST,
+                reason: Some(format!("fresh:{age}d")),
+            },
+            Some(age) if age >= STALE_MIN_AGE_DAYS => FreshnessAdjustment {
+                delta: -STALENESS_PENALTY,
+                reason: Some(format!("stale:{age}d")),
+            },
+            Some(_) => FreshnessAdjustment {
+                delta: 0.0,
+                reason: None,
+            },
+        },
+    }
+}
+
 pub fn lead_from_parsed(ad: ParsedAd) -> PlatsbankenLead {
+    lead_from_parsed_on(ad, today_naive())
+}
+
+pub fn lead_from_parsed_for(ad: ParsedAd, today: &str) -> PlatsbankenLead {
+    let today = parse_ymd_prefix(today).expect("today must be YYYY-MM-DD");
+    lead_from_parsed_on(ad, today)
+}
+
+pub fn lead_from_parsed_on(ad: ParsedAd, today: chrono::NaiveDate) -> PlatsbankenLead {
     let (boost, mut rank_reasons, favorite_match) = score_favorites(&ad);
+    let freshness = freshness_adjustment(ad.publication_date.as_deref(), today);
+    if let Some(reason) = freshness.reason {
+        rank_reasons.push(reason);
+    }
     if ad.api_relevance > 0.0 {
         rank_reasons.push(format!("api_relevance:{:.2}", ad.api_relevance));
     }
-    let rank_score = ad.api_relevance + boost;
+    let rank_score = ad.api_relevance + boost + freshness.delta;
     let snippet: String = ad
         .description_text
         .chars()
@@ -434,7 +506,7 @@ mod tests {
             "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/31226420",
             "application_details": { "url": "https://example.com/apply" },
             "description": { "text": "We need a Machine Learning Engineer for robotics-adjacent work." },
-            "publication_date": "2026-08-01T00:00:00",
+            "publication_date": "2026-10-01T00:00:00",
             "application_deadline": "2026-09-01T00:00:00"
         })
     }
@@ -515,6 +587,82 @@ mod tests {
             "Jag godkänner alla kakor. Nödvändiga kakor för webbplatsen."
         ));
         assert!(!is_cookie_wall_text("Hiring a software engineer in Stockholm"));
+    }
+
+    #[test]
+    fn freshness_boosts_recent_postings() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let adj = freshness_adjustment(Some("2026-09-29T00:00:00"), today);
+        assert_eq!(adj.delta, FRESHNESS_BOOST);
+        assert_eq!(adj.reason.as_deref(), Some("fresh:3d"));
+    }
+
+    #[test]
+    fn freshness_is_neutral_for_mid_age_postings() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let adj = freshness_adjustment(Some("2026-09-15T00:00:00"), today);
+        assert_eq!(adj.delta, 0.0);
+        assert!(adj.reason.is_none());
+    }
+
+    #[test]
+    fn freshness_demotes_old_postings() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let adj = freshness_adjustment(Some("2026-05-01T00:00:00"), today);
+        assert_eq!(adj.delta, -STALENESS_PENALTY);
+        assert_eq!(adj.reason.as_deref(), Some("stale:154d"));
+    }
+
+    #[test]
+    fn freshness_treats_missing_and_bad_dates_as_unknown() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let missing = freshness_adjustment(None, today);
+        assert_eq!(missing.delta, 0.0);
+        assert_eq!(missing.reason.as_deref(), Some("posted:unknown"));
+        let bad = freshness_adjustment(Some("not-a-date"), today);
+        assert_eq!(bad.delta, 0.0);
+        assert_eq!(bad.reason.as_deref(), Some("posted:unknown"));
+    }
+
+    #[test]
+    fn freshness_counts_future_dates_as_zero_days_old() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+        let adj = freshness_adjustment(Some("2026-10-05T00:00:00"), today);
+        assert_eq!(adj.delta, FRESHNESS_BOOST);
+        assert_eq!(adj.reason.as_deref(), Some("fresh:0d"));
+    }
+
+    #[test]
+    fn fresh_lead_outranks_stale_peer_with_similar_relevance() {
+        let today = "2026-10-02";
+        let fresh = lead_from_parsed_for(
+            parse_ad_value(&json!({
+                "id": "fresh-role",
+                "headline": "Role fresh-role",
+                "relevance": 10.0,
+                "employer": { "name": "Test Employer AB" },
+                "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/fresh-role",
+                "description": { "text": "General software role." },
+                "publication_date": "2026-10-01T00:00:00"
+            }))
+            .unwrap(),
+            today,
+        );
+        let stale = lead_from_parsed_for(
+            parse_ad_value(&json!({
+                "id": "stale-role",
+                "headline": "Role stale-role",
+                "relevance": 10.5,
+                "employer": { "name": "Test Employer AB" },
+                "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/stale-role",
+                "description": { "text": "General software role." },
+                "publication_date": "2026-05-01T00:00:00"
+            }))
+            .unwrap(),
+            today,
+        );
+        let ranked = rank_leads(vec![stale, fresh]);
+        assert_eq!(ranked[0].ad_id, "fresh-role");
     }
 
     #[test]
