@@ -13,6 +13,9 @@ const {
   PLATSBANKEN_DEFAULT_QUERY,
   PLATSBANKEN_RAIL_CHIPS,
   TRACK_A_HUNT_PRESETS,
+  PRODUCT_LANE_FIRM_IDS,
+  PRODUCT_LANE_QUERY_KEY,
+  PRODUCT_LANE_PRESET,
   huntRailsFromUnknown,
   applyHuntPresetToModel,
   snapshotHuntPresetUndo,
@@ -71,6 +74,31 @@ const applied = applyHuntPresetToModel(
 assert(applied.missionFirmsQ === 'rust local-first' && applied.huntRail === 'stretch', 'preset applies mission q + rail')
 assert(applied.missionFirmsSelected.includes('spacexai'), 'preset applies firm hints')
 assert(snap.missionFirmsQ === 'before', 'undo snapshot preserves prior q')
+
+const product = TRACK_A_HUNT_PRESETS.find((preset) => preset.id === 'product-lane')
+assert(product?.q === PRODUCT_LANE_QUERY_KEY, 'product lane query key')
+assert(product?.firms?.length === 12, 'product lane has 12 firms')
+assert(
+  !!product?.firms && PRODUCT_LANE_FIRM_IDS.every((id) => product.firms.includes(id)),
+  'product lane seeds Linear through Spotify',
+)
+assert(PRODUCT_LANE_PRESET.firms[0] === 'linear' && PRODUCT_LANE_PRESET.firms[11] === 'spotify', 'product lane firm order')
+const productApplied = applyHuntPresetToModel(
+  {
+    missionFirmsQ: 'before',
+    huntRail: 'honest',
+    missionFirmsSelected: ['spacexai'],
+    platsbankenQ: 'sweden before',
+    platsbankenMunicipality: 'Stockholm',
+  },
+  PRODUCT_LANE_PRESET,
+  'mission',
+)
+assert(productApplied.missionFirmsQ === 'lane:product', 'product preset sets the lane query')
+assert(
+  productApplied.missionFirmsSelected.length === 12 && !productApplied.missionFirmsSelected.includes('spacexai'),
+  'product preset replaces the firm selection',
+)
 
 assert(jobtechSafeQuery('utvecklare OR engineer OR machine learning') === 'utvecklare engineer machine learning', 'strip OR')
 assert(jobtechSafeQuery('senior -konsult "TypeScript"') === 'senior konsult TypeScript', 'strip quotes and minus')

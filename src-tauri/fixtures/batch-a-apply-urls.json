@@ -1,0 +1,134 @@
+[
+  {
+    "company": "Spotify",
+    "title": "Senior Fullstack Engineer",
+    "location": "London or Stockholm",
+    "apply_url": "https://jobs.lever.co/spotify/1692fccc-29f4-4525-a683-b004c2ec62b9"
+  },
+  {
+    "company": "ElevenLabs",
+    "title": "Forward Deployed Engineer – Software Engineer – Sweden",
+    "location": "Sweden remote-first (Stockholm pref)",
+    "apply_url": "https://jobs.ashbyhq.com/elevenlabs/c6fc071f-c80e-4d3b-921a-3ec02a2ad25d"
+  },
+  {
+    "company": "Modal",
+    "title": "Forward Deployed Engineer – Systems",
+    "location": "Stockholm",
+    "apply_url": "https://jobs.ashbyhq.com/modal/c85a3e3d-f1a5-479d-91e3-9e0b34279a82"
+  },
+  {
+    "company": "Modal",
+    "title": "Forward Deployed Engineer – ML",
+    "location": "Stockholm",
+    "apply_url": "https://jobs.ashbyhq.com/modal/0d9c249b-f305-4b0e-b325-3242ac7274e7"
+  },
+  {
+    "company": "AKQA",
+    "title": "Senior Full Stack Engineer",
+    "location": "Stockholm & Gothenburg hybrid",
+    "apply_url": "https://www.akqa.com/jobs/8164379/?gh_jid=8164379"
+  },
+  {
+    "company": "Epidemic Sound",
+    "title": "Senior Software Engineer – Activation",
+    "location": "Stockholm HQ hybrid",
+    "apply_url": "https://jobs.ashbyhq.com/epidemic-sound/ad7bf37c-281b-4426-980e-ca0d66c26ef6"
+  },
+  {
+    "company": "Epidemic Sound",
+    "title": "Full Stack Engineer – Monetization",
+    "location": "Stockholm HQ",
+    "apply_url": "https://jobs.ashbyhq.com/epidemic-sound/3ef6a158-56f7-4000-aa6e-4edcd75da82e"
+  },
+  {
+    "company": "Epidemic Sound",
+    "title": "Senior Software Engineer – Payments",
+    "location": "Stockholm HQ",
+    "apply_url": "https://jobs.ashbyhq.com/epidemic-sound/3deb9313-7a35-4f9c-925d-1bbd2ba51a13"
+  },
+  {
+    "company": "Pleo",
+    "title": "Senior Backend Engineer – Payments",
+    "location": "UK + Sweden remote/hybrid",
+    "apply_url": "https://jobs.ashbyhq.com/pleo/56c51ea0-31c0-492f-bdc7-bd5efff5cd25"
+  },
+  {
+    "company": "Enode",
+    "title": "Senior Software Engineer (Connect Platform)",
+    "location": "Remote – Europe",
+    "apply_url": "https://jobs.ashbyhq.com/enode/f816d82a-5548-4477-9573-787561ae2e16"
+  },
+  {
+    "company": "Enode",
+    "title": "Senior Software Engineer (Home Energy)",
+    "location": "Remote – Europe",
+    "apply_url": "https://jobs.ashbyhq.com/enode/83a3de6b-5f7c-4bcd-a374-ed55025af38d"
+  },
+  {
+    "company": "Wolt",
+    "title": "Senior Fullstack Engineer – Merchant EMEA",
+    "location": "Helsinki",
+    "apply_url": "https://job-boards.greenhouse.io/wolt/jobs/8141574"
+  },
+  {
+    "company": "Doctolib",
+    "title": "Senior Software Engineer FullStack Kotlin / React – Berlin",
+    "location": "Berlin",
+    "apply_url": "https://job-boards.greenhouse.io/doctolib/jobs/7792246003"
+  },
+  {
+    "company": "Intercom",
+    "title": "Senior Product Engineer, AI",
+    "location": "Dublin; London",
+    "apply_url": "https://job-boards.greenhouse.io/intercom/jobs/6276021"
+  },
+  {
+    "company": "Omnea",
+    "title": "Product Engineer",
+    "location": "London",
+    "apply_url": "https://jobs.ashbyhq.com/omnea/1adfb275-0882-4b2e-9044-2b735a5d2e2d"
+  },
+  {
+    "company": "Linear",
+    "title": "Senior / Staff Fullstack Engineer",
+    "location": "Europe",
+    "apply_url": "https://jobs.ashbyhq.com/linear/d3bc1ced-3ce4-4086-a050-555055dbb1ff"
+  },
+  {
+    "company": "Linear",
+    "title": "Senior / Staff Product Engineer",
+    "location": "Europe",
+    "apply_url": "https://jobs.ashbyhq.com/linear/069c4628-88d7-4e4d-b393-c996fc7f3076"
+  },
+  {
+    "company": "GitLab",
+    "title": "Senior Software Engineer (Typescript), AI Clients: Duo CLI",
+    "location": "Remote UK/Poland",
+    "apply_url": "https://job-boards.greenhouse.io/gitlab/jobs/8693103002"
+  },
+  {
+    "company": "Stripe",
+    "title": "Full Stack Engineer, Money Movement",
+    "location": "London",
+    "apply_url": "https://stripe.com/jobs/search?gh_jid=8226261"
+  },
+  {
+    "company": "Datadog",
+    "title": "Senior Software Engineer – REDAPL Graph Engine",
+    "location": "FR/DE/IT/ES/CH/UK remote",
+    "apply_url": "https://careers.datadoghq.com/detail/7959966/?gh_jid=7959966"
+  },
+  {
+    "company": "Twilio",
+    "title": "Senior Software Engineer",
+    "location": "Remote – Ireland",
+    "apply_url": "https://job-boards.greenhouse.io/twilio/jobs/8015771"
+  },
+  {
+    "company": "Railway",
+    "title": "Senior Full-Stack Engineer – Product",
+    "location": "Global remote",
+    "apply_url": "https://jobs.ashbyhq.com/railway/6ddcfe47-6cce-469b-ba6d-4f0e83440c9d"
+  }
+]

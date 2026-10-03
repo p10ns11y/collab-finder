@@ -1,3 +1,4 @@
+pub mod america_eu;
 mod app_dirs;
 mod commands;
 mod cv_home;
@@ -13,9 +14,11 @@ mod network_graph;
 mod operator_pack;
 mod opportunity_target;
 pub mod platsbanken;
+mod product_lane;
 mod pulse;
 mod qualify_policy;
 mod rank_config;
+mod research_ingest;
 mod secrets;
 mod x_query;
 mod x_search;
@@ -23,9 +26,9 @@ mod xai;
 
 use commands::{
     hunt::{
-        import_mission_firm_lead, import_platsbanken_ad, inspect_mission_firm_lead,
-        list_cached_mission_leads, list_mission_firm_registry, search_mission_firms,
-        search_platsbanken,
+        import_mission_firm_lead, import_platsbanken_ad, import_research_opportunities,
+        inspect_mission_firm_lead, list_cached_mission_leads, list_mission_firm_registry,
+        search_mission_firms, search_platsbanken,
     },
     persist_cycle_lead, persist_cycle_search, persist_manual_search, persist_promote_event,
     promote_message,
@@ -1066,6 +1069,7 @@ pub fn run() {
             search_mission_firms,
             list_mission_firm_registry,
             import_mission_firm_lead,
+            import_research_opportunities,
             inspect_mission_firm_lead,
             load_network_graph,
             resolve_network_x_profiles,

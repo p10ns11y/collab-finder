@@ -9,7 +9,7 @@ use crate::app_dirs::app_data_dir;
 use crate::x_search::{tweet_snippet, XTweet}; // reuse for consistency with reactor / commands
 
 pub const DB_FILE: &str = "collab-finder.db";
-pub const SCHEMA_VERSION: i32 = 10;
+pub const SCHEMA_VERSION: i32 = 11;
 
 /// High-level filter for leads queries (used by UI dashboard + future MCP).
 #[derive(Debug, Default, Clone)]
@@ -310,6 +310,11 @@ impl SqliteStore {
         if current < 10 {
             Self::migrate_v10(conn)?;
             Self::record_migration(conn, 10)?;
+        }
+
+        if current < 11 {
+            Self::migrate_v11(conn)?;
+            Self::record_migration(conn, 11)?;
         }
 
         Ok(())
@@ -639,6 +644,19 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
         Ok(())
     }
 
+    fn migrate_v11(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            r#"
+CREATE TABLE IF NOT EXISTS hard_excludes (
+  firm TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// mission_pull and other bulk imports must not downgrade an in-flight or terminal pipeline status.
     fn merge_status_on_upsert(existing: &str, incoming: &str) -> String {
         if incoming != "new" {
@@ -692,11 +710,7 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
         )
         .map_err(|e| e.to_string())?;
         let run_id = tx.last_insert_rowid();
-        for row in result
-            .top10
-            .iter()
-            .chain(result.excluded.iter())
-        {
+        for row in result.top10.iter().chain(result.excluded.iter()) {
             tx.execute(
                 "INSERT OR REPLACE INTO firm_durability_scores
                  (run_id, firm_id, admitted, total, exclude_reason)
@@ -747,7 +761,8 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
         let rows = stmt
             .query_map([], |r| r.get::<_, String>(0))
             .map_err(|e| e.to_string())?;
-        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn durability_run_count(&self) -> Result<u32, String> {
@@ -756,12 +771,17 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
         }
         let guard = self.conn.lock().map_err(|e| e.to_string())?;
         let n: i64 = guard
-            .query_row("SELECT COUNT(*) FROM firm_durability_runs", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM firm_durability_runs", [], |r| {
+                r.get(0)
+            })
             .map_err(|e| e.to_string())?;
         Ok(n.max(0) as u32)
     }
 
-    pub fn get_network_import_fingerprint(&self, source_kind: &str) -> Result<Option<String>, String> {
+    pub fn get_network_import_fingerprint(
+        &self,
+        source_kind: &str,
+    ) -> Result<Option<String>, String> {
         if !self.is_enabled() {
             return Ok(None);
         }
@@ -1939,7 +1959,8 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
             )
             .map_err(|e| e.to_string())?;
             tx.last_insert_rowid()
-        } else if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)? {
+        } else if let Some(existing) = Self::find_opportunity_id(&tx, source_url, source_ref, kind)?
+        {
             let existing_status: String = tx
                 .query_row(
                     "SELECT status FROM opportunities WHERE id = ?1",
@@ -2126,6 +2147,80 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
             .map_err(|e| e.to_string())?;
         Ok(())
     }
+
+    pub fn list_opportunity_source_urls(&self) -> Result<Vec<(i64, String)>, String> {
+        if !self.is_enabled() {
+            return Ok(Vec::new());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare("SELECT id, source_url FROM opportunities WHERE source_url IS NOT NULL")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn list_hard_exclude_firms(&self) -> Result<Vec<String>, String> {
+        if !self.is_enabled() {
+            return Ok(Vec::new());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare("SELECT firm FROM hard_excludes")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<SqliteResult<Vec<_>>>()
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn insert_hard_exclude_firm(&self, firm: &str) -> Result<(), String> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+        let firm = firm
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase();
+        if firm.is_empty() {
+            return Ok(());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "INSERT INTO hard_excludes (firm, created_at) VALUES (?1, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+                 ON CONFLICT(firm) DO NOTHING",
+                params![firm],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn insert_research_opportunity(
+        &self,
+        source_url: &str,
+        title: &str,
+        company: &str,
+        jd_text: &str,
+    ) -> Result<i64, String> {
+        if !self.is_enabled() {
+            return Ok(0);
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        guard
+            .execute(
+                "INSERT INTO opportunities (kind, source_url, title, company, jd_text, status, last_updated)
+                 VALUES ('research', ?1, ?2, ?3, ?4, 'new', strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+                params![source_url, title, company, jd_text],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(guard.last_insert_rowid())
+    }
 }
 
 // Minimal now() without chrono dep (use sqlite or simple).
@@ -2161,6 +2256,23 @@ mod tests {
         let path = dir.path().join("test.db");
         let store = SqliteStore::open_at(path).expect("open_at");
         (dir, store)
+    }
+
+    #[test]
+    fn hard_exclude_timestamp_is_utc_z() {
+        let (_dir, store) = temp_store();
+        store.insert_hard_exclude_firm("Fabrikam Wait LLC").unwrap();
+        let guard = store.conn.lock().unwrap();
+        let stamp: String = guard
+            .query_row(
+                "SELECT created_at FROM hard_excludes WHERE firm = ?1",
+                params!["fabrikam wait llc"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stamp.len(), 20);
+        assert!(stamp.ends_with('Z'));
+        assert!(stamp.contains('T'));
     }
 
     #[test]
@@ -2217,7 +2329,9 @@ mod tests {
             "pipeline must include applied rows outside top-300 recency"
         );
         assert!(
-            !pipeline.iter().any(|o| o.kind == "mission_pull" && o.status == "new"),
+            !pipeline
+                .iter()
+                .any(|o| o.kind == "mission_pull" && o.status == "new"),
             "pipeline must exclude mission_pull inventory"
         );
     }
@@ -2550,7 +2664,10 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(id1, via_ref, "same ad id must hit existing row even if url differs");
+        assert_eq!(
+            id1, via_ref,
+            "same ad id must hit existing row even if url differs"
+        );
         store.delete_opportunity(id1).unwrap();
         let after = store
             .get_opportunities(&OpportunityFilter {
@@ -2858,7 +2975,11 @@ mod tests {
             .unwrap();
 
         let opps = store
-            .get_opportunities(&OpportunityFilter { id: Some(id), limit: Some(1), ..Default::default() })
+            .get_opportunities(&OpportunityFilter {
+                id: Some(id),
+                limit: Some(1),
+                ..Default::default()
+            })
             .unwrap();
         assert_eq!(opps.len(), 1);
         let o = &opps[0];

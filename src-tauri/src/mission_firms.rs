@@ -202,6 +202,65 @@ const FIRM_REGISTRY: &[FirmDef] = &[
     },
 ];
 
+const PRODUCT_FIRM_EXTRAS: &[FirmDef] = &[
+    FirmDef {
+        id: "linear",
+        label: "Linear",
+        source: FirmSource::Ashby { board: "linear" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "stripe",
+        label: "Stripe",
+        source: FirmSource::Greenhouse { board: "stripe" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "modal",
+        label: "Modal",
+        source: FirmSource::Ashby { board: "modal" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "elevenlabs",
+        label: "ElevenLabs",
+        source: FirmSource::Ashby {
+            board: "elevenlabs",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "intercom",
+        label: "Intercom",
+        source: FirmSource::Greenhouse { board: "intercom" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "enode",
+        label: "Enode",
+        source: FirmSource::Ashby { board: "enode" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "railway",
+        label: "Railway",
+        source: FirmSource::Ashby { board: "railway" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "pleo",
+        label: "Pleo",
+        source: FirmSource::Ashby { board: "pleo" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "doctolib",
+        label: "Doctolib",
+        source: FirmSource::Greenhouse { board: "doctolib" },
+        mixed_sw_hw_only: false,
+    },
+];
+
 /// Operator overlay — `~/.config/collab-finder/packs/mission-firms.json` (gitignored).
 #[derive(Debug, Deserialize)]
 struct PackFirmFile {
@@ -263,7 +322,9 @@ fn load_pack_firms() -> (
         let Some(source) = pack_source(&row.source, token) else {
             continue;
         };
-        if FIRM_REGISTRY.iter().any(|f| f.id == row.id) {
+        if FIRM_REGISTRY.iter().any(|f| f.id == row.id)
+            || PRODUCT_FIRM_EXTRAS.iter().any(|f| f.id == row.id)
+        {
             continue;
         }
         let def = FirmDef {
@@ -292,6 +353,7 @@ fn pack_layer() -> &'static (
 
 fn all_firm_defs() -> Vec<&'static FirmDef> {
     let mut out: Vec<&'static FirmDef> = FIRM_REGISTRY.iter().collect();
+    out.extend(PRODUCT_FIRM_EXTRAS.iter());
     out.extend(pack_layer().0.iter().copied());
     out
 }
@@ -320,6 +382,7 @@ pub fn default_firm_ids() -> Vec<String> {
     }
     all_firm_defs()
         .into_iter()
+        .filter(|firm| !crate::product_lane::PRODUCT_ONLY_IDS.contains(&firm.id))
         .map(|f| f.id.to_string())
         .collect()
 }
@@ -737,8 +800,20 @@ fn query_tokens(query: Option<&str>) -> Vec<String> {
         .collect()
 }
 
+fn title_query(query: Option<&str>) -> Option<String> {
+    if crate::product_lane::is_product_lane_query(query) {
+        return crate::product_lane::extra_query(query);
+    }
+    let trimmed = query.unwrap_or("").trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn query_matches(title: &str, location: &str, query: Option<&str>) -> bool {
-    let tokens = query_tokens(query);
+    let tokens = query_tokens(title_query(query).as_deref());
     if tokens.is_empty() {
         return true;
     }
@@ -851,6 +926,29 @@ fn qualify_prior_delta(firm: &FirmDef) -> i32 {
 }
 
 fn score_lead(
+    firm: &FirmDef,
+    title: &str,
+    location: &str,
+    query: Option<&str>,
+    terafab_bias: bool,
+) -> (f64, Vec<String>, bool, bool) {
+    if crate::product_lane::is_product_lane_query(query) {
+        let (score, reasons) = crate::product_lane::score(
+            firm.id,
+            title,
+            crate::product_lane::extra_query(query).as_deref(),
+        );
+        return (
+            score,
+            reasons,
+            location_is_texas(location),
+            title_terafab_adjacent(title),
+        );
+    }
+    score_industrial_lead(firm, title, location, query, terafab_bias)
+}
+
+fn score_industrial_lead(
     firm: &FirmDef,
     title: &str,
     location: &str,
@@ -2058,5 +2156,125 @@ mod tests {
         let out = merge_firm_buckets(buckets, 100);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].title, "Rust Platform Engineer");
+    }
+
+    #[test]
+    fn product_lane_query_keeps_titles_and_skips_default_firm_ids() {
+        assert!(query_matches(
+            "Senior Fullstack Engineer",
+            "Europe",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
+            "Senior Fullstack Engineer",
+            "Europe",
+            Some("lane:product typescript")
+        ));
+        assert!(query_matches(
+            "Senior TypeScript Engineer",
+            "Europe",
+            Some("lane:product typescript")
+        ));
+        let tmp = tempfile::tempdir().expect("temp");
+        crate::rank_config::set_test_config(None);
+        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+        let ids = default_firm_ids();
+        crate::rank_config::set_test_dir(None);
+        assert!(ids.iter().any(|id| id == "spacexai"));
+        assert!(ids.iter().any(|id| id == "spotify"));
+        assert!(!ids.iter().any(|id| id == "linear"));
+        assert!(!ids.iter().any(|id| id == "doctolib"));
+        assert_eq!(firm_by_id("linear").unwrap().label, "Linear");
+        assert_eq!(firm_by_id("elevenlabs").unwrap().id, "elevenlabs");
+        assert!(ashby_board_for_firm("modal").is_some());
+        assert!(greenhouse_board_for_firm("intercom").is_some());
+    }
+
+    #[test]
+    fn product_lane_does_not_take_fortress_or_durability_hits() {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                crate::operator_pack::set_test_packs_dir(None);
+                crate::rank_config::set_test_dir(None);
+            }
+        }
+        let _reset = Reset;
+        let tmp = tempfile::tempdir().expect("temp");
+        let packs = tmp.path().join("packs");
+        std::fs::create_dir_all(&packs).unwrap();
+        std::fs::write(
+            packs.join("universe.json"),
+            r#"{"algorithm_version":"v1","scored_at":"2026-10-03T00:00:00Z","firms":[
+                {"id":"abb","name":"ABB","hq":"CH","depth_geo":"europe","product_class":"industrial","theater_saas":false,"product_moat":4,"ai_tsunami":3,"fortress":4,"hiring_signal":3,"spacexai_vector":2},
+                {"id":"spotify","name":"Spotify","hq":"SE","depth_geo":"sweden","product_class":"audio","theater_saas":true,"product_moat":4,"ai_tsunami":3,"fortress":3,"hiring_signal":3,"spacexai_vector":1}
+            ]}"#,
+        )
+        .unwrap();
+        crate::rank_config::set_test_config(None);
+        crate::operator_pack::set_test_packs_dir(Some(packs));
+        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+
+        let abb = firm_by_id("abb").unwrap();
+        let (default_score, default_reasons, _, _) =
+            score_lead(abb, "Senior Software Engineer", "Zurich", None, false);
+        assert!(default_reasons
+            .iter()
+            .any(|reason| reason == "firm:fortress_industrial"));
+        assert!(default_reasons
+            .iter()
+            .any(|reason| reason.starts_with("durability:")));
+
+        let (product_score, product_reasons, texas, terafab) = score_lead(
+            abb,
+            "Semiconductor Engineer",
+            "Austin, TX",
+            Some("lane:product"),
+            true,
+        );
+        let (pure, pure_reasons) =
+            crate::product_lane::score("abb", "Semiconductor Engineer", None);
+        assert_eq!(product_score, pure);
+        assert_eq!(product_reasons, pure_reasons);
+        assert!(texas);
+        assert!(terafab);
+        assert!(product_reasons.iter().all(|reason| {
+            !reason.contains("fortress")
+                && !reason.starts_with("durability")
+                && reason != "geo:texas"
+                && reason != "theme:terafab_adjacent"
+                && reason != "firm:theater_saas"
+        }));
+        assert!(product_score < default_score);
+
+        let spotify = firm_by_id("spotify").unwrap();
+        let (_, saas_reasons, _, _) = score_lead(
+            spotify,
+            "Senior Fullstack Engineer",
+            "Stockholm",
+            None,
+            false,
+        );
+        assert!(saas_reasons
+            .iter()
+            .any(|reason| reason == "firm:theater_saas"));
+        assert!(saas_reasons
+            .iter()
+            .any(|reason| reason.starts_with("durability_exclude")));
+        let (lane_score, lane_reasons, _, _) = score_lead(
+            spotify,
+            "Senior Fullstack Engineer",
+            "Stockholm",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(lane_score, 105.0);
+        assert!(lane_reasons.iter().any(|reason| reason == "product_team"));
+        assert!(lane_reasons.iter().any(|reason| reason == "eu_moat:GDPR"));
+        assert!(lane_reasons.iter().all(|reason| {
+            !reason.contains("fortress")
+                && !reason.starts_with("durability")
+                && reason != "firm:theater_saas"
+        }));
     }
 }
