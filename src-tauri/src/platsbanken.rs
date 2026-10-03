@@ -26,6 +26,18 @@ const FAVORITE_TERMS: &[&str] = &[
     "research scientist",
 ];
 
+const FRESH_WITHIN_DAYS: i64 = 7;
+const STALE_AFTER_DAYS: i64 = 60;
+const FRESH_RANK_BOOST: f64 = 8.0;
+const STALE_RANK_PENALTY: f64 = 4.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CivilDate {
+    year: i32,
+    month: u32,
+    day: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatsbankenLead {
     pub ad_id: String,
@@ -210,12 +222,115 @@ pub fn score_favorites(ad: &ParsedAd) -> (f64, Vec<String>, bool) {
     (boost, reasons, favorite_match)
 }
 
-pub fn lead_from_parsed(ad: ParsedAd) -> PlatsbankenLead {
+fn days_in_month(year: i32, month: u32) -> Option<u32> {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => Some(31),
+        4 | 6 | 9 | 11 => Some(30),
+        2 => Some(if is_leap(year) { 29 } else { 28 }),
+        _ => None,
+    }
+}
+
+fn is_leap(year: i32) -> bool {
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+fn parse_jobtech_date(raw: &str) -> Option<CivilDate> {
+    let date = raw.split(['T', 't', ' ']).next()?.trim();
+    let mut parts = date.split('-');
+    let year_s = parts.next()?;
+    let month_s = parts.next()?;
+    let day_s = parts.next()?;
+    if parts.next().is_some() || year_s.len() != 4 {
+        return None;
+    }
+    let year: i32 = year_s.parse().ok()?;
+    let month: u32 = month_s.parse().ok()?;
+    let day: u32 = day_s.parse().ok()?;
+    let max_day = days_in_month(year, month)?;
+    if day == 0 || day > max_day {
+        return None;
+    }
+    Some(CivilDate { year, month, day })
+}
+
+fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
+    let mut y = year as i64;
+    if month <= 2 {
+        y -= 1;
+    }
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = (y - era * 400) as u64;
+    let mp = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * mp as u64 + 2) / 5 + day as u64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe as i64 - 719468
+}
+
+fn civil_from_days(mut z: i64) -> CivilDate {
+    z += 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = y + if month <= 2 { 1 } else { 0 };
+    CivilDate {
+        year: year as i32,
+        month: month as u32,
+        day: day as u32,
+    }
+}
+
+fn posting_age_days(published: CivilDate, today: CivilDate) -> i64 {
+    let age = days_from_civil(today.year, today.month, today.day)
+        - days_from_civil(published.year, published.month, published.day);
+    age.max(0)
+}
+
+fn freshness_adjustment(publication_date: Option<&str>, today: CivilDate) -> (f64, Option<String>) {
+    let Some(raw) = publication_date.map(str::trim).filter(|s| !s.is_empty()) else {
+        return (0.0, Some("posted:unknown".into()));
+    };
+    let Some(published) = parse_jobtech_date(raw) else {
+        return (0.0, Some("posted:unknown".into()));
+    };
+    let age = posting_age_days(published, today);
+    if age <= FRESH_WITHIN_DAYS {
+        (FRESH_RANK_BOOST, Some(format!("fresh:{age}d")))
+    } else if age > STALE_AFTER_DAYS {
+        (-STALE_RANK_PENALTY, Some(format!("stale:{age}d")))
+    } else {
+        (0.0, None)
+    }
+}
+
+pub fn utc_today() -> CivilDate {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    civil_from_days(secs.div_euclid(86_400))
+}
+
+pub fn lead_from_parsed(ad: ParsedAd, today: &str) -> PlatsbankenLead {
+    let today = parse_jobtech_date(today).expect("today is YYYY-MM-DD");
+    lead_from_parsed_on(ad, today)
+}
+
+pub(crate) fn lead_from_parsed_on(ad: ParsedAd, today: CivilDate) -> PlatsbankenLead {
     let (boost, mut rank_reasons, favorite_match) = score_favorites(&ad);
     if ad.api_relevance > 0.0 {
         rank_reasons.push(format!("api_relevance:{:.2}", ad.api_relevance));
     }
-    let rank_score = ad.api_relevance + boost;
+    let (age_adjust, age_reason) = freshness_adjustment(ad.publication_date.as_deref(), today);
+    if let Some(reason) = age_reason {
+        rank_reasons.push(reason);
+    }
+    let rank_score = ad.api_relevance + boost + age_adjust;
     let snippet: String = ad
         .description_text
         .chars()
@@ -454,8 +569,13 @@ mod tests {
 
     #[test]
     fn parses_and_boosts_favorites_above_higher_api_relevance() {
-        let ml = lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap());
-        let other = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap());
+        let today = CivilDate {
+            year: 2026,
+            month: 8,
+            day: 15,
+        };
+        let ml = lead_from_parsed_on(parse_ad_value(&sample_ml_hit()).unwrap(), today);
+        let other = lead_from_parsed_on(parse_ad_value(&sample_other_hit()).unwrap(), today);
         assert!(ml.favorite_match);
         assert!(!other.favorite_match);
         assert!(
@@ -468,7 +588,14 @@ mod tests {
 
     #[test]
     fn mark_db_matches_webpage() {
-        let mut leads = vec![lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap())];
+        let mut leads = vec![lead_from_parsed_on(
+            parse_ad_value(&sample_ml_hit()).unwrap(),
+            CivilDate {
+                year: 2026,
+                month: 8,
+                day: 15,
+            },
+        )];
         mark_already_in_db(
             &mut leads,
             &[(
@@ -544,5 +671,143 @@ mod tests {
             Some(GeoFilter::MunicipalityCode("0180".into()))
         );
         assert_eq!(resolve_geo_filter("NotACity"), None);
+    }
+
+    fn on_day(year: i32, month: u32, day: u32) -> CivilDate {
+        CivilDate { year, month, day }
+    }
+
+    fn plain_lead(
+        id: &str,
+        relevance: f64,
+        published: Option<&str>,
+        today: CivilDate,
+    ) -> PlatsbankenLead {
+        let mut raw = json!({
+            "id": id,
+            "headline": "Lagerarbetare",
+            "relevance": relevance,
+            "employer": { "name": "Warehouse AB" },
+            "occupation": { "label": "Lagerarbetare" },
+            "webpage_url": format!("https://arbetsformedlingen.se/platsbanken/annonser/{id}"),
+            "description": { "text": "Packning och plock." }
+        });
+        if let Some(date) = published {
+            raw["publication_date"] = json!(date);
+        }
+        lead_from_parsed_on(parse_ad_value(&raw).unwrap(), today)
+    }
+
+    fn age_tag(lead: &PlatsbankenLead) -> Option<&str> {
+        lead.rank_reasons.iter().find_map(|reason| {
+            if reason.starts_with("fresh:")
+                || reason.starts_with("stale:")
+                || reason == "posted:unknown"
+            {
+                Some(reason.as_str())
+            } else {
+                None
+            }
+        })
+    }
+
+    #[test]
+    fn jobtech_calendar_dates_match_known_epoch_days() {
+        for (year, month, day, epoch) in [
+            (1970, 1, 1, 0_i64),
+            (2024, 2, 29, 19782),
+            (2026, 8, 1, 20666),
+            (2026, 10, 1, 20727),
+        ] {
+            assert_eq!(days_from_civil(year, month, day), epoch);
+            assert_eq!(civil_from_days(epoch), CivilDate { year, month, day });
+        }
+        assert_eq!(
+            parse_jobtech_date("2026-08-01T00:00:00"),
+            Some(on_day(2026, 8, 1))
+        );
+        assert!(parse_jobtech_date("2024-02-29").is_some());
+        assert!(parse_jobtech_date("2026-02-29").is_none());
+        assert!(parse_jobtech_date("2026-04-31").is_none());
+        assert!(parse_jobtech_date("yesterday").is_none());
+        assert!(parse_jobtech_date("").is_none());
+    }
+
+    #[test]
+    fn fresh_posting_ranks_above_stale_posting_with_the_same_relevance() {
+        let today = on_day(2026, 10, 1);
+        let fresh = plain_lead("fresh", 2.0, Some("2026-09-28T00:00:00"), today);
+        let stale = plain_lead("stale", 2.0, Some("2026-05-14T00:00:00"), today);
+        assert_eq!(age_tag(&fresh), Some("fresh:3d"));
+        assert_eq!(age_tag(&stale), Some("stale:140d"));
+        assert_eq!(fresh.rank_score, 10.0);
+        assert_eq!(stale.rank_score, -2.0);
+        let ranked = rank_leads(vec![stale, fresh]);
+        assert_eq!(ranked[0].ad_id, "fresh");
+    }
+
+    #[test]
+    fn age_bands_boost_the_first_week_and_demote_only_after_sixty_days() {
+        let today = on_day(2026, 10, 1);
+        let week = plain_lead("week", 1.0, Some("2026-09-24T00:00:00"), today);
+        let day_eight = plain_lead("eight", 1.0, Some("2026-09-23T00:00:00"), today);
+        let day_thirty = plain_lead("thirty", 1.0, Some("2026-09-01T00:00:00"), today);
+        let day_thirty_one = plain_lead("thirty-one", 1.0, Some("2026-08-31T00:00:00"), today);
+        let day_sixty = plain_lead("sixty", 1.0, Some("2026-08-02T00:00:00"), today);
+        let day_sixty_one = plain_lead("sixty-one", 1.0, Some("2026-08-01T00:00:00"), today);
+
+        assert_eq!(age_tag(&week), Some("fresh:7d"));
+        assert_eq!(week.rank_score, 9.0);
+        assert_eq!(age_tag(&day_eight), None);
+        assert_eq!(day_eight.rank_score, 1.0);
+        assert_eq!(age_tag(&day_thirty), None);
+        assert_eq!(day_thirty.rank_score, 1.0);
+        assert_eq!(age_tag(&day_thirty_one), None);
+        assert_eq!(day_thirty_one.rank_score, 1.0);
+        assert_eq!(age_tag(&day_sixty), None);
+        assert_eq!(day_sixty.rank_score, 1.0);
+        assert_eq!(age_tag(&day_sixty_one), Some("stale:61d"));
+        assert_eq!(day_sixty_one.rank_score, -3.0);
+    }
+
+    #[test]
+    fn missing_or_unparsed_date_keeps_the_previous_score() {
+        let today = on_day(2026, 10, 1);
+        let unknown = plain_lead("unknown", 2.0, None, today);
+        let unparsed = plain_lead("bad", 2.0, Some("not-a-date"), today);
+        let normal = plain_lead("normal", 2.0, Some("2026-09-17T00:00:00"), today);
+        assert_eq!(age_tag(&unknown), Some("posted:unknown"));
+        assert_eq!(age_tag(&unparsed), Some("posted:unknown"));
+        assert_eq!(age_tag(&normal), None);
+        assert_eq!(unknown.rank_score, 2.0);
+        assert_eq!(unparsed.rank_score, normal.rank_score);
+        let ranked = rank_leads(vec![unknown, normal]);
+        assert_eq!(ranked[0].ad_id, "normal");
+        assert_eq!(ranked[1].ad_id, "unknown");
+    }
+
+    #[test]
+    fn future_publication_date_counts_as_zero_days() {
+        let today = on_day(2026, 8, 1);
+        let future = plain_lead("future", 1.0, Some("2026-08-15T00:00:00"), today);
+        let same_day = plain_lead("today", 1.0, Some("2026-08-01T00:00:00"), today);
+        assert_eq!(age_tag(&future), Some("fresh:0d"));
+        assert_eq!(age_tag(&same_day), Some("fresh:0d"));
+        assert_eq!(future.rank_score, same_day.rank_score);
+        assert_eq!(future.rank_score, 9.0);
+    }
+
+    #[test]
+    fn stale_favorite_stays_above_a_fresh_non_match() {
+        let today = on_day(2026, 10, 1);
+        let mut ml = sample_ml_hit();
+        ml["publication_date"] = json!("2026-05-14T00:00:00");
+        let stale_ml = lead_from_parsed_on(parse_ad_value(&ml).unwrap(), today);
+        let fresh_other = plain_lead("plain", 5.0, Some("2026-09-28T00:00:00"), today);
+        assert_eq!(age_tag(&stale_ml), Some("stale:140d"));
+        assert!(stale_ml.favorite_match);
+        assert!(stale_ml.rank_score > fresh_other.rank_score);
+        let ranked = rank_leads(vec![fresh_other, stale_ml]);
+        assert_eq!(ranked[0].ad_id, "31226420");
     }
 }
