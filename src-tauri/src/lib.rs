@@ -12,7 +12,7 @@ mod mission_firms;
 mod network_graph;
 mod operator_pack;
 mod opportunity_target;
-mod platsbanken;
+pub mod platsbanken;
 mod pulse;
 mod qualify_policy;
 mod rank_config;
