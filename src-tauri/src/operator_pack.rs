@@ -3,18 +3,51 @@
 //! Seed once: `scripts/seed-operator-config.sh` (copies from gitignored `data/operator/`).
 
 use serde::{Deserialize, Serialize};
+use std::cell::Cell;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::UNIX_EPOCH;
 
 static PACKS_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
+static FIXTURES_LOCK: Mutex<()> = Mutex::new(());
+
+thread_local! {
+    static FIXTURES_DEPTH: Cell<usize> = Cell::new(0);
+}
+
+pub(crate) struct FixturesReadGuard {
+    _lock: Option<MutexGuard<'static, ()>>,
+}
+
+impl Drop for FixturesReadGuard {
+    fn drop(&mut self) {
+        FIXTURES_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+pub(crate) fn enter_fixtures() -> FixturesReadGuard {
+    let depth = FIXTURES_DEPTH.with(|depth| depth.get());
+    FIXTURES_DEPTH.with(|depth| depth.set(depth.get() + 1));
+    if depth == 0 {
+        FixturesReadGuard {
+            _lock: Some(
+                FIXTURES_LOCK
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner()),
+            ),
+        }
+    } else {
+        FixturesReadGuard { _lock: None }
+    }
+}
 
 pub fn set_test_packs_dir(dir: Option<PathBuf>) {
     *PACKS_DIR_OVERRIDE.lock().expect("packs dir") = dir;
 }
 
 pub fn packs_dir() -> Result<PathBuf, String> {
+    let _guard = enter_fixtures();
     if let Some(d) = PACKS_DIR_OVERRIDE.lock().expect("packs dir").clone() {
         return Ok(d);
     }
@@ -183,16 +216,18 @@ fn is_stub_content(name: &str, text: &str) -> bool {
     let trimmed = text.trim();
     match name {
         "cv-packet.txt" => trimmed == STUB_CV_PACKET.trim(),
-        "universe.json" => trimmed == STUB_UNIVERSE_JSON.trim() || trimmed.contains(r#""scored_at":"stub""#),
+        "universe.json" => {
+            trimmed == STUB_UNIVERSE_JSON.trim() || trimmed.contains(r#""scored_at":"stub""#)
+        }
         "places.json" | "environments.json" => {
             trimmed == STUB_PLACES_JSON.trim() || trimmed.contains(r#""scored_at":"stub""#)
         }
         "constraints-strict.txt" => trimmed == STUB_CONSTRAINTS_STRICT.trim(),
         "constraints-relaxed.txt" => trimmed == STUB_CONSTRAINTS_RELAXED.trim(),
         "proof-variants.md" => trimmed == STUB_PROOF_VARIANTS.trim(),
-        "public-projects-focused.json"
-        | "public-projects.json"
-        | "public-projects-clean.json" => trimmed == STUB_PUBLIC_PROJECTS_JSON.trim(),
+        "public-projects-focused.json" | "public-projects.json" | "public-projects-clean.json" => {
+            trimmed == STUB_PUBLIC_PROJECTS_JSON.trim()
+        }
         _ => false,
     }
 }
@@ -294,7 +329,11 @@ fn list_extra_pack_files(dir: &Path) -> Vec<String> {
     extras
 }
 
-fn derive_pack_health(files: &[PackFileStatus], dir_present: bool, dir_readable: bool) -> (OperatorPackHealth, bool, Option<String>) {
+fn derive_pack_health(
+    files: &[PackFileStatus],
+    dir_present: bool,
+    dir_readable: bool,
+) -> (OperatorPackHealth, bool, Option<String>) {
     if !dir_present {
         return (
             OperatorPackHealth::Missing,
@@ -328,10 +367,12 @@ fn derive_pack_health(files: &[PackFileStatus], dir_present: bool, dir_readable:
         );
     }
 
-    if critical
-        .iter()
-        .any(|f| matches!(f.kind, PackFileKind::Stub | PackFileKind::Invalid | PackFileKind::Unreadable))
-    {
+    if critical.iter().any(|f| {
+        matches!(
+            f.kind,
+            PackFileKind::Stub | PackFileKind::Invalid | PackFileKind::Unreadable
+        )
+    }) {
         return (
             OperatorPackHealth::Stub,
             false,
@@ -344,7 +385,10 @@ fn derive_pack_health(files: &[PackFileStatus], dir_present: bool, dir_readable:
     let any_bad = files.iter().any(|f| {
         matches!(
             f.kind,
-            PackFileKind::Missing | PackFileKind::Stub | PackFileKind::Invalid | PackFileKind::Unreadable
+            PackFileKind::Missing
+                | PackFileKind::Stub
+                | PackFileKind::Invalid
+                | PackFileKind::Unreadable
         )
     });
     if any_bad {
@@ -394,8 +438,28 @@ pub fn get_operator_pack_status() -> Result<OperatorPackStatus, String> {
 }
 
 #[cfg(test)]
+pub struct FixtureLockGuard {
+    _lock: FixturesReadGuard,
+}
+
+#[cfg(test)]
+impl Drop for FixtureLockGuard {
+    fn drop(&mut self) {
+        clear_test_fixtures();
+    }
+}
+
+#[cfg(test)]
+pub fn lock_test_fixtures() -> FixtureLockGuard {
+    FixtureLockGuard {
+        _lock: enter_fixtures(),
+    }
+}
+
+#[cfg(test)]
 pub struct TestFixturesGuard {
     _tmpdir: tempfile::TempDir,
+    _lock: FixtureLockGuard,
 }
 
 #[cfg(test)]
@@ -409,6 +473,7 @@ impl Drop for TestFixturesGuard {
 pub fn install_test_fixtures() -> TestFixturesGuard {
     use std::path::Path;
 
+    let lock = lock_test_fixtures();
     let tmp = tempfile::tempdir().expect("test tempdir");
     let packs = tmp.path().join("packs");
     fs::create_dir_all(&packs).expect("packs dir");
@@ -423,11 +488,15 @@ pub fn install_test_fixtures() -> TestFixturesGuard {
     }
     crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
     set_test_packs_dir(Some(packs));
-    TestFixturesGuard { _tmpdir: tmp }
+    TestFixturesGuard {
+        _tmpdir: tmp,
+        _lock: lock,
+    }
 }
 
 #[cfg(test)]
 pub fn clear_test_fixtures() {
+    crate::rank_config::set_test_config(None);
     crate::rank_config::set_test_dir(None);
     set_test_packs_dir(None);
 }
@@ -440,12 +509,12 @@ mod pack_status_tests {
     fn pack_status_reports_missing_dir_as_missing() {
         let tmp = tempfile::tempdir().expect("tmpdir");
         let missing = tmp.path().join("no-such-packs");
+        let _lock = lock_test_fixtures();
         set_test_packs_dir(Some(missing));
         let status = pack_status().expect("status");
         assert_eq!(status.health, OperatorPackHealth::Missing);
         assert!(!status.seeded);
         assert!(status.fix_hint.is_some());
-        clear_test_fixtures();
     }
 
     #[test]
@@ -476,11 +545,11 @@ mod pack_status_tests {
             r#"{"algorithm_version":"v1","scored_at":"2026-01-01","firms":[]}"#,
         )
         .expect("universe");
+        let _lock = lock_test_fixtures();
         crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
         set_test_packs_dir(Some(packs));
         let status = pack_status().expect("status");
         assert_eq!(status.health, OperatorPackHealth::Stub);
         assert!(!status.seeded);
-        clear_test_fixtures();
     }
 }

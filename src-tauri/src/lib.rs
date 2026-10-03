@@ -18,7 +18,7 @@ mod product_lane;
 mod pulse;
 mod qualify_policy;
 mod rank_config;
-mod research_ingest;
+pub mod research_ingest;
 mod secrets;
 mod x_query;
 mod x_search;

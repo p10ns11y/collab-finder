@@ -37,6 +37,7 @@ const QUERY_HIT: f64 = 2.0;
 
 struct Seed {
     id: &'static str,
+    us_employer: bool,
     eu_moat: Option<&'static str>,
     ai_native: bool,
     near_zero_bug: bool,
@@ -45,77 +46,96 @@ struct Seed {
 const SEEDS: &[Seed] = &[
     Seed {
         id: "linear",
+        us_employer: true,
         eu_moat: None,
         ai_native: false,
         near_zero_bug: true,
     },
     Seed {
         id: "stripe",
+        us_employer: true,
         eu_moat: Some("PSD2"),
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "modal",
+        us_employer: true,
         eu_moat: None,
         ai_native: true,
         near_zero_bug: false,
     },
     Seed {
         id: "elevenlabs",
+        us_employer: false,
         eu_moat: Some("AI Act"),
         ai_native: true,
         near_zero_bug: false,
     },
     Seed {
         id: "intercom",
+        us_employer: true,
         eu_moat: None,
         ai_native: true,
         near_zero_bug: false,
     },
     Seed {
         id: "gitlab",
+        us_employer: true,
         eu_moat: None,
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "enode",
+        us_employer: false,
         eu_moat: Some("grid"),
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "railway",
+        us_employer: true,
         eu_moat: None,
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "pleo",
+        us_employer: false,
         eu_moat: Some("PSD2"),
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "doctolib",
+        us_employer: false,
         eu_moat: Some("patient-data residency"),
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "wolt",
+        us_employer: false,
         eu_moat: None,
         ai_native: false,
         near_zero_bug: false,
     },
     Seed {
         id: "spotify",
+        us_employer: false,
         eu_moat: Some("GDPR"),
         ai_native: false,
         near_zero_bug: false,
     },
 ];
+
+pub fn us_employer(firm_id: &str) -> bool {
+    SEEDS
+        .iter()
+        .find(|seed| seed.id == firm_id)
+        .is_some_and(|seed| seed.us_employer)
+}
 
 pub fn is_product_lane_query(query: Option<&str>) -> bool {
     let normalized = normalize_query(query);
@@ -185,8 +205,8 @@ fn normalize_query(query: Option<&str>) -> String {
 }
 
 fn physical_kind(title: &str) -> Option<&'static str> {
-    let hay = title.to_ascii_lowercase();
-    if hay.contains("device") {
+    let hay = format!(" {} ", title.to_ascii_lowercase());
+    if hay.contains(" devices ") {
         return Some("devices");
     }
     if hay.contains("robot") {
@@ -199,14 +219,21 @@ fn physical_kind(title: &str) -> Option<&'static str> {
 }
 
 fn title_is_ai_native(title: &str) -> bool {
-    let hay = format!(" {} ", title.to_ascii_lowercase());
-    hay.contains(" ai ")
-        || hay.contains(" a.i. ")
-        || hay.contains("machine learning")
-        || hay.contains(" llm ")
-        || hay.contains(" genai ")
-        || hay.contains(" agentic ")
-        || hay.contains(" ml ")
+    let raw = format!(" {} ", title.to_ascii_lowercase());
+    let spaced: String = raw
+        .chars()
+        .map(|ch| match ch {
+            '(' | ')' | '[' | ']' => ' ',
+            other => other,
+        })
+        .collect();
+    spaced.contains(" ai ")
+        || raw.contains(" a.i. ")
+        || raw.contains("machine learning")
+        || spaced.contains(" llm ")
+        || spaced.contains(" genai ")
+        || spaced.contains(" agentic ")
+        || spaced.contains(" ml ")
 }
 
 fn title_is_near_zero_bug(title: &str) -> bool {
@@ -278,6 +305,13 @@ mod tests {
         for id in FIRM_IDS {
             assert!(SEEDS.iter().any(|seed| seed.id == *id), "{id}");
         }
+        for id in ["linear", "stripe", "modal", "intercom", "gitlab", "railway"] {
+            assert!(us_employer(id), "{id}");
+        }
+        for id in ["elevenlabs", "enode", "pleo", "doctolib", "wolt", "spotify"] {
+            assert!(!us_employer(id), "{id}");
+        }
+        assert!(!us_employer("abb"));
     }
 
     #[test]
@@ -363,7 +397,12 @@ mod tests {
         assert!(reasons.iter().any(|row| row == "ai_native"));
         assert_eq!(reasons.iter().filter(|row| *row == "ai_native").count(), 1);
 
-        let (devices, device_reasons) = score("railway", "Home Energy Device Engineer", None);
+        let (devices, device_reasons) = score("railway", "Home Energy Devices Engineer", None);
+        let (admin, admin_reasons) = score("railway", "IT Device Administrator", None);
+        assert_eq!(admin, 100.0);
+        assert!(admin_reasons
+            .iter()
+            .all(|row| !row.starts_with("physical:")));
         assert_eq!(devices, 130.0);
         assert_eq!(
             device_reasons,
@@ -425,6 +464,7 @@ mod tests {
     fn ai_and_near_zero_phrases_each_add_one_bonus() {
         let ai_titles = [
             "A.I. Engineer",
+            "(AI) Engineer",
             "Machine Learning Engineer",
             "LLM Engineer",
             "GenAI Engineer",

@@ -813,12 +813,37 @@ fn title_query(query: Option<&str>) -> Option<String> {
 }
 
 fn query_matches(title: &str, location: &str, query: Option<&str>) -> bool {
+    if crate::product_lane::is_product_lane_query(query) && !engineering_title(title) {
+        return false;
+    }
     let tokens = query_tokens(title_query(query).as_deref());
     if tokens.is_empty() {
         return true;
     }
     let hay = format!("{title} {location}").to_ascii_lowercase();
     tokens.iter().any(|t| hay.contains(t))
+}
+
+fn engineering_title(title: &str) -> bool {
+    let hay = format!(" {} ", title.to_ascii_lowercase());
+    [
+        " engineer ",
+        " engineers ",
+        " developer ",
+        " developers ",
+        " fde ",
+        " forward deployed ",
+    ]
+    .iter()
+    .any(|token| hay.contains(token))
+}
+
+fn profile_term_hits(title: &str) -> usize {
+    let hay = format!(" {} ", title.to_ascii_lowercase());
+    PROFILE_BOOST_TERMS
+        .iter()
+        .filter(|term| hay.contains(&format!(" {term} ")))
+        .count()
 }
 
 pub fn is_mixed_software_hardware(title: &str, department: &str) -> bool {
@@ -933,19 +958,50 @@ fn score_lead(
     terafab_bias: bool,
 ) -> (f64, Vec<String>, bool, bool) {
     if crate::product_lane::is_product_lane_query(query) {
-        let (score, reasons) = crate::product_lane::score(
-            firm.id,
-            title,
-            crate::product_lane::extra_query(query).as_deref(),
-        );
-        return (
-            score,
-            reasons,
-            location_is_texas(location),
-            title_terafab_adjacent(title),
-        );
+        return score_product_lead(firm, title, location, query);
     }
     score_industrial_lead(firm, title, location, query, terafab_bias)
+}
+
+fn score_product_lead(
+    firm: &FirmDef,
+    title: &str,
+    location: &str,
+    query: Option<&str>,
+) -> (f64, Vec<String>, bool, bool) {
+    let (mut score, mut reasons) = crate::product_lane::score(
+        firm.id,
+        title,
+        crate::product_lane::extra_query(query).as_deref(),
+    );
+    let class = crate::america_eu::classify(crate::product_lane::us_employer(firm.id), location);
+    if class.america_quota {
+        reasons.push("america_eu".into());
+    }
+    if !class.stockholm_workable {
+        score -= 100.0;
+        reasons.push("not_stockholm_workable".into());
+    }
+    apply_product_profile(&mut score, &mut reasons, title);
+    (
+        score,
+        reasons,
+        location_is_texas(location),
+        title_terafab_adjacent(title),
+    )
+}
+
+fn apply_product_profile(score: &mut f64, reasons: &mut Vec<String>, title: &str) {
+    if engineering_title(title) {
+        let hits = profile_term_hits(title);
+        if hits > 0 {
+            *score += 4.0 * hits as f64;
+            reasons.push(format!("profile_hits:{hits}"));
+        }
+        return;
+    }
+    *score -= 100.0;
+    reasons.push("not_engineering".into());
 }
 
 fn score_industrial_lead(
@@ -1103,6 +1159,12 @@ fn finish_lead(
         filter.q.as_deref(),
         filter.terafab_bias,
     );
+    if rank_reasons
+        .iter()
+        .any(|reason| reason == "not_stockholm_workable")
+    {
+        return None;
+    }
     let is_bridge_se = matches!(firm.source, FirmSource::JobTech { .. });
     if filter.texas_only && !texas_match && !is_bridge_se {
         return None;
@@ -1635,6 +1697,13 @@ fn leads_from_pool_for_filter(
             scored.texas_match = texas_match;
             scored.terafab_adjacent = terafab_adjacent;
         }
+        if scored
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable")
+        {
+            continue;
+        }
         by_firm
             .entry(lead.firm_id.clone())
             .or_default()
@@ -1643,9 +1712,20 @@ fn leads_from_pool_for_filter(
     by_firm.into_values().collect()
 }
 
+fn firms_for_filter(filter: &MissionFirmFilter) -> Vec<&'static FirmDef> {
+    let blank = filter.firms.iter().all(|firm| firm.trim().is_empty());
+    if blank && crate::product_lane::is_product_lane_query(filter.q.as_deref()) {
+        return crate::product_lane::FIRM_IDS
+            .iter()
+            .filter_map(|id| firm_by_id(id))
+            .collect();
+    }
+    parse_firm_ids(&filter.firms)
+}
+
 /// Read `search_pool.json` and filter/score leads — no HTTP, no pool mutation.
 pub fn list_cached_mission_leads(filter: &MissionFirmFilter) -> Vec<MissionFirmLead> {
-    let firms = parse_firm_ids(&filter.firms);
+    let firms = firms_for_filter(filter);
     let key = query_cache_key(filter, &firms);
     let pool = load_search_pool();
     eprintln!(
@@ -1660,7 +1740,7 @@ pub fn list_cached_mission_leads(filter: &MissionFirmFilter) -> Vec<MissionFirmL
 pub async fn search_mission_firms(
     filter: &MissionFirmFilter,
 ) -> Result<Vec<MissionFirmLead>, String> {
-    let firms = parse_firm_ids(&filter.firms);
+    let firms = firms_for_filter(filter);
     let key = query_cache_key(filter, &firms);
     let mut pool = load_search_pool();
     pool.version = SEARCH_CACHE_VERSION;
@@ -2166,6 +2246,11 @@ mod tests {
             Some("lane:product")
         ));
         assert!(!query_matches(
+            "Account Executive",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
             "Senior Fullstack Engineer",
             "Europe",
             Some("lane:product typescript")
@@ -2176,10 +2261,12 @@ mod tests {
             Some("lane:product typescript")
         ));
         let tmp = tempfile::tempdir().expect("temp");
-        crate::rank_config::set_test_config(None);
-        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
-        let ids = default_firm_ids();
-        crate::rank_config::set_test_dir(None);
+        let ids = {
+            let _lock = crate::operator_pack::lock_test_fixtures();
+            crate::rank_config::set_test_config(None);
+            crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+            default_firm_ids()
+        };
         assert!(ids.iter().any(|id| id == "spacexai"));
         assert!(ids.iter().any(|id| id == "spotify"));
         assert!(!ids.iter().any(|id| id == "linear"));
@@ -2192,14 +2279,6 @@ mod tests {
 
     #[test]
     fn product_lane_does_not_take_fortress_or_durability_hits() {
-        struct Reset;
-        impl Drop for Reset {
-            fn drop(&mut self) {
-                crate::operator_pack::set_test_packs_dir(None);
-                crate::rank_config::set_test_dir(None);
-            }
-        }
-        let _reset = Reset;
         let tmp = tempfile::tempdir().expect("temp");
         let packs = tmp.path().join("packs");
         std::fs::create_dir_all(&packs).unwrap();
@@ -2211,6 +2290,7 @@ mod tests {
             ]}"#,
         )
         .unwrap();
+        let _lock = crate::operator_pack::lock_test_fixtures();
         crate::rank_config::set_test_config(None);
         crate::operator_pack::set_test_packs_dir(Some(packs));
         crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
@@ -2232,10 +2312,15 @@ mod tests {
             Some("lane:product"),
             true,
         );
-        let (pure, pure_reasons) =
-            crate::product_lane::score("abb", "Semiconductor Engineer", None);
-        assert_eq!(product_score, pure);
-        assert_eq!(product_reasons, pure_reasons);
+        assert_eq!(product_score, -100.0);
+        assert!(product_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable"));
+        assert!(product_reasons.iter().all(|reason| {
+            reason != "america_eu"
+                && reason != "not_engineering"
+                && !reason.starts_with("profile_hits:")
+        }));
         assert!(texas);
         assert!(terafab);
         assert!(product_reasons.iter().all(|reason| {
@@ -2268,13 +2353,110 @@ mod tests {
             Some("lane:product"),
             false,
         );
-        assert_eq!(lane_score, 105.0);
+        assert_eq!(lane_score, 113.0);
         assert!(lane_reasons.iter().any(|reason| reason == "product_team"));
         assert!(lane_reasons.iter().any(|reason| reason == "eu_moat:GDPR"));
+        assert!(lane_reasons.iter().any(|reason| reason == "profile_hits:2"));
+        assert!(lane_reasons.iter().all(|reason| reason != "america_eu"));
         assert!(lane_reasons.iter().all(|reason| {
             !reason.contains("fortress")
                 && !reason.starts_with("durability")
                 && reason != "firm:theater_saas"
         }));
+    }
+
+    #[test]
+    fn product_lane_scores_engineering_titles_and_stockholm_work() {
+        let stripe = firm_by_id("stripe").unwrap();
+        let (london, london_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        let (onsite, onsite_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "San Francisco, CA",
+            Some("lane:product"),
+            false,
+        );
+        let (exec, exec_reasons, _, _) = score_lead(
+            stripe,
+            "Account Executive",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        let (fullstack, fullstack_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Fullstack Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(london, 113.0);
+        assert_eq!(onsite, 13.0);
+        assert!(london > onsite);
+        assert!(london_reasons.iter().any(|reason| reason == "america_eu"));
+        assert!(london_reasons
+            .iter()
+            .any(|reason| reason == "profile_hits:2"));
+        assert!(onsite_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable"));
+        assert!(onsite_reasons.iter().all(|reason| reason != "america_eu"));
+        assert_eq!(exec, 5.0);
+        assert!(exec_reasons
+            .iter()
+            .any(|reason| reason == "not_engineering"));
+        assert!(exec_reasons.iter().any(|reason| reason == "america_eu"));
+        assert_eq!(fullstack, 113.0);
+        assert!(fullstack > exec);
+        assert!(fullstack_reasons
+            .iter()
+            .any(|reason| reason == "profile_hits:2"));
+        assert!(query_matches(
+            "Senior Fullstack Engineer",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(query_matches(
+            "Backend Developer",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(query_matches("FDE", "London", Some("lane:product")));
+        assert!(query_matches(
+            "Forward Deployed Specialist",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
+            "Account Executive",
+            "London",
+            Some("lane:product")
+        ));
+
+        let open = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            ..Default::default()
+        });
+        let ids: Vec<&str> = open.iter().map(|firm| firm.id).collect();
+        assert_eq!(ids, crate::product_lane::FIRM_IDS);
+        let stripe_only = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            firms: vec!["stripe".into()],
+            ..Default::default()
+        });
+        assert_eq!(stripe_only.len(), 1);
+        assert_eq!(stripe_only[0].id, "stripe");
+        let unknown = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            firms: vec!["not-a-real-firm".into()],
+            ..Default::default()
+        });
+        assert!(unknown.is_empty());
     }
 }
