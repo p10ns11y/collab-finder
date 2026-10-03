@@ -13,7 +13,7 @@ first-class** — none is a rare special case.
 |------|-----------|-------------------------|------------------|
 | Cash / career (hiring loop) | `air` | **Aircraft** | high priority, turbulence expected and acceptable |
 | Season (time-bound life logistics) | `water` | **Sailing** | most uncertainty — wind and wait, cannot force progress |
-| Son / body (human-only) | `land` | **Automobiles** | relative slowness is fine, do not agent-force |
+| Family care / health (human-only) | `land` | **Automobiles** | relative slowness is fine, do not agent-force |
 | Debt **and Mission** (hardest) | `space` | **Deep space** | hard cognitive load, uncertain SoT, high-stakes relevance filter |
 
 ### The Space family carries two contents: Debt and Mission
@@ -22,7 +22,7 @@ There is no fifth slot. **Debt** and **Mission** both ride the Space family, bec
 same energy signature: hard cognitive load, an uncertain source of truth, and a high-stakes
 relevance bar where the leverage is small and the signal delays are long.
 
-- **Debt** — inkasso, Kronofogden, creditor payoff, CSN: the original Space content.
+- **Debt** — repayment obligations: the original Space content.
 - **Mission** — the high-relevance, high-uncertainty **hunt lane**: Mission Pull, the maintained
   firm-list, Next 10, mission leads. These are *picking uncertain leads against a high relevance
   bar*, which is a different animal from the ordinary apply·pipeline·cruise (that stays Air). A
@@ -59,7 +59,7 @@ do not play the same *product* role, and the UI now says so. `slotRole()` splits
 - **Career/Cash → `core` ("Product core").** This is what the app is *for*: the hunt for work and
   money. It is the default hero and gets the full berth treatment. Cash is the career money need, so
   it lives in the same Air family — there is no fifth slot.
-- **Debt / Season / Son & body → `spot` ("Life spot").** Real life areas the product keeps in view
+- **Debt / Season / Family care & health → `spot` ("Life spot").** Real life areas the product keeps in view
   so nothing slips, even though they are not the product's job. In the dock they read as quiet
   notification tiles: a danger dot when a risk needs a decision, a soft dot when an act is due.
   (Mission leads ride the Space slot too, but Mission is *cash-adjacent* hunt work — the chip says so
