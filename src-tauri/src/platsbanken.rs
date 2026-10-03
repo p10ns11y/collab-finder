@@ -316,7 +316,12 @@ pub fn utc_today() -> CivilDate {
     civil_from_days(secs.div_euclid(86_400))
 }
 
-pub fn lead_from_parsed(ad: ParsedAd, today: CivilDate) -> PlatsbankenLead {
+pub fn lead_from_parsed(ad: ParsedAd, today: &str) -> PlatsbankenLead {
+    let today = parse_jobtech_date(today).expect("today is YYYY-MM-DD");
+    lead_from_parsed_on(ad, today)
+}
+
+pub(crate) fn lead_from_parsed_on(ad: ParsedAd, today: CivilDate) -> PlatsbankenLead {
     let (boost, mut rank_reasons, favorite_match) = score_favorites(&ad);
     if ad.api_relevance > 0.0 {
         rank_reasons.push(format!("api_relevance:{:.2}", ad.api_relevance));
@@ -569,8 +574,8 @@ mod tests {
             month: 8,
             day: 15,
         };
-        let ml = lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap(), today);
-        let other = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap(), today);
+        let ml = lead_from_parsed_on(parse_ad_value(&sample_ml_hit()).unwrap(), today);
+        let other = lead_from_parsed_on(parse_ad_value(&sample_other_hit()).unwrap(), today);
         assert!(ml.favorite_match);
         assert!(!other.favorite_match);
         assert!(
@@ -583,7 +588,7 @@ mod tests {
 
     #[test]
     fn mark_db_matches_webpage() {
-        let mut leads = vec![lead_from_parsed(
+        let mut leads = vec![lead_from_parsed_on(
             parse_ad_value(&sample_ml_hit()).unwrap(),
             CivilDate {
                 year: 2026,
@@ -690,7 +695,7 @@ mod tests {
         if let Some(date) = published {
             raw["publication_date"] = json!(date);
         }
-        lead_from_parsed(parse_ad_value(&raw).unwrap(), today)
+        lead_from_parsed_on(parse_ad_value(&raw).unwrap(), today)
     }
 
     fn age_tag(lead: &PlatsbankenLead) -> Option<&str> {
@@ -797,7 +802,7 @@ mod tests {
         let today = on_day(2026, 10, 1);
         let mut ml = sample_ml_hit();
         ml["publication_date"] = json!("2026-05-14T00:00:00");
-        let stale_ml = lead_from_parsed(parse_ad_value(&ml).unwrap(), today);
+        let stale_ml = lead_from_parsed_on(parse_ad_value(&ml).unwrap(), today);
         let fresh_other = plain_lead("plain", 5.0, Some("2026-09-28T00:00:00"), today);
         assert_eq!(age_tag(&stale_ml), Some("stale:140d"));
         assert!(stale_ml.favorite_match);

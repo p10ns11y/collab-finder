@@ -336,7 +336,7 @@ pub async fn search_platsbanken(
     let today = platsbanken::utc_today();
     let mut leads: Vec<_> = ads
         .into_iter()
-        .map(|ad| platsbanken::lead_from_parsed(ad, today))
+        .map(|ad| platsbanken::lead_from_parsed_on(ad, today))
         .collect();
     leads = platsbanken::rank_leads(leads);
 
