@@ -251,6 +251,7 @@ function SelectedSwedenLead({
   dispatch: Dispatch<FinderMsg>
   onClear: () => void
 }) {
+  const ageTag = publicationAgeTag(lead.rank_reasons)
   return (
     <div className="space-y-2 rounded-lg border border-border-default bg-surface-1/50 p-3">
       <div className="flex items-start justify-between gap-2">
@@ -263,6 +264,7 @@ function SelectedSwedenLead({
             {lead.employer}
             {lead.municipality ? ` · ${lead.municipality}` : ''}
           </p>
+          {ageTag ? <p className="ui-meta">{ageTag}</p> : null}
         </div>
         <button type="button" className="ui-meta shrink-0 hover:text-ink" onClick={onClear}>
           Clear
@@ -300,6 +302,15 @@ function SelectedSwedenLead({
   )
 }
 
+function publicationAgeTag(reasons: string[]): string | undefined {
+  return reasons.find(
+    (reason) =>
+      reason.startsWith('fresh:') ||
+      reason.startsWith('stale:') ||
+      reason === 'posted:unknown',
+  )
+}
+
 function SwedenLeadRow({
   lead,
   active,
@@ -311,6 +322,7 @@ function SwedenLeadRow({
   onSelect: () => void
   dispatch: Dispatch<FinderMsg>
 }) {
+  const ageTag = publicationAgeTag(lead.rank_reasons)
   return (
     <div
       className={`rounded-lg border px-3 py-2.5 transition-colors ${
@@ -332,7 +344,10 @@ function SwedenLeadRow({
               {lead.occupation ? ` · ${lead.occupation}` : ''}
             </div>
           </div>
-          <span className="ui-meta shrink-0 tabular-nums">rank {lead.rank_score.toFixed(1)}</span>
+          <span className="shrink-0 text-right">
+            {ageTag ? <span className="ui-meta block">{ageTag}</span> : null}
+            <span className="ui-meta tabular-nums">rank {lead.rank_score.toFixed(1)}</span>
+          </span>
         </div>
         {lead.description_snippet ? (
           <p className="mt-1.5 text-xs text-ink-faint line-clamp-2">{lead.description_snippet}</p>

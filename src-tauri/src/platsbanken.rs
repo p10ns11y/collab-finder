@@ -6,6 +6,13 @@ use serde_json::Value;
 
 const JOBSEARCH_BASE: &str = "https://jobsearch.api.jobtechdev.se";
 
+const FRESH_MAX_AGE_DAYS: i64 = 7;
+const STALE_MIN_AGE_DAYS: i64 = 61;
+// One favorite term scores +12. Stay under that so a stale favorite still
+// ranks above a fresh generic lead with the same API relevance.
+const FRESHNESS_BOOST: f64 = 5.0;
+const STALENESS_PENALTY: f64 = 5.0;
+
 /// Soft preference boost for optimal roles; non-matches stay visible for AF reporting.
 const FAVORITE_TERMS: &[&str] = &[
     "machine learning",
@@ -73,10 +80,7 @@ fn resolve_geo_filter(raw: &str) -> Option<GeoFilter> {
     }
     let key = t.to_ascii_lowercase();
     // Normalize common spelling variants without diacritics.
-    let key = key
-        .replace('ö', "o")
-        .replace('ä', "a")
-        .replace('å', "a");
+    let key = key.replace('ö', "o").replace('ä', "a").replace('å', "a");
     match key.as_str() {
         "stockholm" => Some(GeoFilter::MunicipalityCode("0180".into())),
         "goteborg" | "gothenburg" => Some(GeoFilter::MunicipalityCode("1480".into())),
@@ -145,9 +149,8 @@ pub fn parse_ad_value(raw: &Value) -> Result<ParsedAd, String> {
         .and_then(|a| string_field(a, "municipality"));
     let occupation = label_from(raw, "occupation");
 
-    let webpage_url = string_field(raw, "webpage_url").unwrap_or_else(|| {
-        format!("https://arbetsformedlingen.se/platsbanken/annonser/{ad_id}")
-    });
+    let webpage_url = string_field(raw, "webpage_url")
+        .unwrap_or_else(|| format!("https://arbetsformedlingen.se/platsbanken/annonser/{ad_id}"));
     let application_url = raw
         .get("application_details")
         .and_then(|a| string_field(a, "url"));
@@ -157,10 +160,7 @@ pub fn parse_ad_value(raw: &Value) -> Result<ParsedAd, String> {
         .and_then(|d| string_field(d, "text"))
         .unwrap_or_default();
 
-    let api_relevance = raw
-        .get("relevance")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
+    let api_relevance = raw.get("relevance").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
     Ok(ParsedAd {
         ad_id,
@@ -210,12 +210,135 @@ pub fn score_favorites(ad: &ParsedAd) -> (f64, Vec<String>, bool) {
     (boost, reasons, favorite_match)
 }
 
-pub fn lead_from_parsed(ad: ParsedAd) -> PlatsbankenLead {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CivilDate {
+    year: i32,
+    month: u8,
+    day: u8,
+}
+
+fn is_leap(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+fn days_in_month(year: i32, month: u8) -> u8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+fn parse_civil_date(raw: &str) -> Option<CivilDate> {
+    let bytes = raw.as_bytes();
+    if bytes.len() < 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    if bytes.len() > 10 && bytes[10] != b'T' {
+        return None;
+    }
+    let year: i32 = raw[0..4].parse().ok()?;
+    let month: u8 = raw[5..7].parse().ok()?;
+    let day: u8 = raw[8..10].parse().ok()?;
+    if year < 1 || day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(CivilDate { year, month, day })
+}
+
+fn days_from_civil(date: CivilDate) -> i64 {
+    let mut y = i64::from(date.year);
+    let m = i64::from(date.month);
+    let d = i64::from(date.day);
+    if m <= 2 {
+        y -= 1;
+    }
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as u64;
+    let mp = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * mp as u64 + 2) / 5 + d as u64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe as i64 - 719468
+}
+
+fn civil_from_days(mut z: i64) -> CivilDate {
+    z += 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = y + if month <= 2 { 1 } else { 0 };
+    CivilDate {
+        year: year as i32,
+        month: month as u8,
+        day: day as u8,
+    }
+}
+
+fn format_civil(date: CivilDate) -> String {
+    format!("{:04}-{:02}-{:02}", date.year, date.month, date.day)
+}
+
+pub fn today_utc() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format_civil(civil_from_days((secs / 86_400) as i64))
+}
+
+fn posting_age_days(publication_date: &str, today: CivilDate) -> Option<i64> {
+    let posted = parse_civil_date(publication_date)?;
+    Some((days_from_civil(today) - days_from_civil(posted)).max(0))
+}
+
+struct FreshnessAdjustment {
+    delta: f64,
+    reason: Option<String>,
+}
+
+fn freshness_adjustment(publication_date: Option<&str>, today: CivilDate) -> FreshnessAdjustment {
+    let Some(age) = publication_date.and_then(|raw| posting_age_days(raw, today)) else {
+        return FreshnessAdjustment {
+            delta: 0.0,
+            reason: Some("posted:unknown".into()),
+        };
+    };
+    if age <= FRESH_MAX_AGE_DAYS {
+        return FreshnessAdjustment {
+            delta: FRESHNESS_BOOST,
+            reason: Some(format!("fresh:{age}d")),
+        };
+    }
+    if age >= STALE_MIN_AGE_DAYS {
+        return FreshnessAdjustment {
+            delta: -STALENESS_PENALTY,
+            reason: Some(format!("stale:{age}d")),
+        };
+    }
+    FreshnessAdjustment {
+        delta: 0.0,
+        reason: None,
+    }
+}
+
+pub fn lead_from_parsed(ad: ParsedAd, today: &str) -> PlatsbankenLead {
+    let today = parse_civil_date(today).expect("today must be YYYY-MM-DD");
     let (boost, mut rank_reasons, favorite_match) = score_favorites(&ad);
+    let freshness = freshness_adjustment(ad.publication_date.as_deref(), today);
+    if let Some(reason) = freshness.reason {
+        rank_reasons.push(reason);
+    }
     if ad.api_relevance > 0.0 {
         rank_reasons.push(format!("api_relevance:{:.2}", ad.api_relevance));
     }
-    let rank_score = ad.api_relevance + boost;
+    let rank_score = ad.api_relevance + boost + freshness.delta;
     let snippet: String = ad
         .description_text
         .chars()
@@ -256,11 +379,7 @@ pub fn rank_leads(mut leads: Vec<PlatsbankenLead>) -> Vec<PlatsbankenLead> {
 pub fn mark_already_in_db(leads: &mut [PlatsbankenLead], known: &[(String, i64)]) {
     for lead in leads.iter_mut() {
         if let Some((_, id)) = known.iter().find(|(url, _)| {
-            url == &lead.webpage_url
-                || lead
-                    .application_url
-                    .as_ref()
-                    .is_some_and(|app| app == url)
+            url == &lead.webpage_url || lead.application_url.as_ref().is_some_and(|app| app == url)
         }) {
             lead.already_in_db = true;
             lead.opportunity_id = Some(*id);
@@ -294,7 +413,12 @@ pub async fn search_ads(filter: &PlatsbankenSearchFilter) -> Result<Vec<ParsedAd
     let limit = filter.limit.unwrap_or(25).clamp(1, 100);
     let offset = filter.offset.unwrap_or(0);
     let mut url = format!("{JOBSEARCH_BASE}/search?limit={limit}&offset={offset}");
-    if let Some(q) = filter.q.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    if let Some(q) = filter
+        .q
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         url.push_str(&format!("&q={}", urlencoding::encode(q)));
     }
     if let Some(raw) = filter.municipality.as_ref() {
@@ -452,12 +576,20 @@ mod tests {
         })
     }
 
+    fn ranked(raw: Value) -> PlatsbankenLead {
+        lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-08-20")
+    }
+
     #[test]
     fn parses_and_boosts_favorites_above_higher_api_relevance() {
-        let ml = lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap());
-        let other = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap());
+        let ml = ranked(sample_ml_hit());
+        let other = ranked(sample_other_hit());
         assert!(ml.favorite_match);
         assert!(!other.favorite_match);
+        assert!(ml
+            .rank_reasons
+            .iter()
+            .all(|reason| { !reason.starts_with("fresh:") && !reason.starts_with("stale:") }));
         assert!(
             ml.rank_score > other.rank_score,
             "favorite boost should outrank bare api relevance"
@@ -468,7 +600,7 @@ mod tests {
 
     #[test]
     fn mark_db_matches_webpage() {
-        let mut leads = vec![lead_from_parsed(parse_ad_value(&sample_ml_hit()).unwrap())];
+        let mut leads = vec![ranked(sample_ml_hit())];
         mark_already_in_db(
             &mut leads,
             &[(
@@ -492,10 +624,8 @@ mod tests {
     #[test]
     fn ad_id_from_platsbanken_url() {
         assert_eq!(
-            ad_id_from_webpage_url(
-                "https://arbetsformedlingen.se/platsbanken/annonser/31331639"
-            )
-            .as_deref(),
+            ad_id_from_webpage_url("https://arbetsformedlingen.se/platsbanken/annonser/31331639")
+                .as_deref(),
             Some("31331639")
         );
         assert_eq!(ad_id_from_webpage_url("https://jobs.qred.com/x"), None);
@@ -507,14 +637,207 @@ mod tests {
             Some("31331639")
         );
         assert_eq!(
-            ad_id_from_webpage_url("https://jobsearch.api.jobtechdev.se/ad/31331639")
-                .as_deref(),
+            ad_id_from_webpage_url("https://jobsearch.api.jobtechdev.se/ad/31331639").as_deref(),
             Some("31331639")
         );
         assert!(is_cookie_wall_text(
             "Jag godkänner alla kakor. Nödvändiga kakor för webbplatsen."
         ));
-        assert!(!is_cookie_wall_text("Hiring a software engineer in Stockholm"));
+        assert!(!is_cookie_wall_text(
+            "Hiring a software engineer in Stockholm"
+        ));
+    }
+
+    #[test]
+    fn civil_dates_round_trip_and_reject_impossible_days() {
+        assert_eq!(
+            civil_from_days(0),
+            CivilDate {
+                year: 1970,
+                month: 1,
+                day: 1
+            }
+        );
+        assert_eq!(days_from_civil(civil_from_days(20728)), 20728);
+        assert_eq!(
+            civil_from_days(20728),
+            CivilDate {
+                year: 2026,
+                month: 10,
+                day: 2
+            }
+        );
+        assert!(parse_civil_date("2024-02-29").is_some());
+        assert!(parse_civil_date("2000-02-29").is_some());
+        assert!(parse_civil_date("1900-02-29").is_none());
+        assert!(parse_civil_date("2026-02-29").is_none());
+        assert_eq!(
+            days_from_civil(parse_civil_date("2024-03-01").unwrap())
+                - days_from_civil(parse_civil_date("2024-02-28").unwrap()),
+            2
+        );
+        assert_eq!(
+            days_from_civil(parse_civil_date("2026-03-01").unwrap())
+                - days_from_civil(parse_civil_date("2026-02-28").unwrap()),
+            1
+        );
+        let today_text = today_utc();
+        assert!(parse_civil_date(&today_text).is_some(), "{today_text}");
+    }
+
+    #[test]
+    fn civil_day_count_round_trips_across_eras() {
+        for z in -1_000_000..=200_000 {
+            assert_eq!(days_from_civil(civil_from_days(z)), z, "{z}");
+        }
+        let anchors = [
+            CivilDate {
+                year: -471,
+                month: 3,
+                day: 1,
+            },
+            CivilDate {
+                year: 1,
+                month: 1,
+                day: 1,
+            },
+            CivilDate {
+                year: 1970,
+                month: 1,
+                day: 1,
+            },
+            CivilDate {
+                year: 1970,
+                month: 2,
+                day: 15,
+            },
+            CivilDate {
+                year: 2026,
+                month: 2,
+                day: 15,
+            },
+            CivilDate {
+                year: 2026,
+                month: 10,
+                day: 2,
+            },
+        ];
+        for date in anchors {
+            assert_eq!(civil_from_days(days_from_civil(date)), date, "{date:?}");
+        }
+        assert_eq!(
+            days_from_civil(CivilDate {
+                year: 1970,
+                month: 1,
+                day: 1
+            }),
+            0
+        );
+    }
+
+    #[test]
+    fn parse_civil_date_rejects_mixed_separators_and_year_zero() {
+        assert_eq!(
+            parse_civil_date("0001-01-01"),
+            Some(CivilDate {
+                year: 1,
+                month: 1,
+                day: 1
+            })
+        );
+        assert!(parse_civil_date("0000-06-15").is_none());
+        assert!(parse_civil_date("2026-10/02").is_none());
+        assert!(parse_civil_date("2026/10-02").is_none());
+        assert!(parse_civil_date("2026-10-00").is_none());
+        assert!(parse_civil_date("2026-01-31").is_some());
+        assert!(parse_civil_date("2026-04-30").is_some());
+        assert!(parse_civil_date("2026-04-31").is_none());
+    }
+
+    #[test]
+    fn today_utc_is_the_unix_day() {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the unix epoch")
+            .as_secs();
+        let days = (secs / 86_400) as i64;
+        let got = today_utc();
+        let today = format_civil(civil_from_days(days));
+        let yesterday = format_civil(civil_from_days(days - 1));
+        assert!(
+            got == today || got == yesterday,
+            "{got} is not {today} or {yesterday}"
+        );
+    }
+
+    #[test]
+    fn api_relevance_reason_only_when_positive() {
+        let mut raw = sample_other_hit();
+        raw["publication_date"] = json!("2026-09-12T00:00:00");
+        raw["relevance"] = json!(0);
+        let zero = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(
+            zero.rank_reasons
+                .iter()
+                .all(|reason| !reason.starts_with("api_relevance:")),
+            "{:?}",
+            zero.rank_reasons
+        );
+
+        raw["relevance"] = json!(1.5);
+        let positive = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(positive
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "api_relevance:1.50"));
+
+        raw["relevance"] = json!(-2.0);
+        let negative = lead_from_parsed(parse_ad_value(&raw).unwrap(), "2026-10-02");
+        assert!(
+            negative
+                .rank_reasons
+                .iter()
+                .all(|reason| !reason.starts_with("api_relevance:")),
+            "{:?}",
+            negative.rank_reasons
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "today must be YYYY-MM-DD")]
+    fn lead_from_parsed_rejects_a_bad_today() {
+        let _ = lead_from_parsed(parse_ad_value(&sample_other_hit()).unwrap(), "tomorrow");
+    }
+
+    #[test]
+    fn freshness_bands_follow_injected_today() {
+        let today = parse_civil_date("2026-10-02").unwrap();
+        let cases = [
+            ("2026-10-05T00:00:00", FRESHNESS_BOOST, Some("fresh:0d")),
+            ("2026-09-25", FRESHNESS_BOOST, Some("fresh:7d")),
+            ("2026-09-24T00:00:00", 0.0, None),
+            ("2026-09-01T00:00:00", 0.0, None),
+            ("2026-08-03T00:00:00", 0.0, None),
+            ("2026-08-02T00:00:00", -STALENESS_PENALTY, Some("stale:61d")),
+            (
+                "2026-05-01T00:00:00",
+                -STALENESS_PENALTY,
+                Some("stale:154d"),
+            ),
+            ("", 0.0, Some("posted:unknown")),
+            ("not-a-date", 0.0, Some("posted:unknown")),
+            ("01/08/2026", 0.0, Some("posted:unknown")),
+            ("2026-02-29T00:00:00", 0.0, Some("posted:unknown")),
+            ("20260801", 0.0, Some("posted:unknown")),
+        ];
+        for (raw, delta, reason) in cases {
+            let adj = freshness_adjustment(Some(raw), today);
+            assert_eq!(adj.delta, delta, "{raw}");
+            assert_eq!(adj.reason.as_deref(), reason, "{raw}");
+        }
+        let missing = freshness_adjustment(None, today);
+        assert_eq!(missing.delta, 0.0);
+        assert_eq!(missing.reason.as_deref(), Some("posted:unknown"));
     }
 
     #[test]
