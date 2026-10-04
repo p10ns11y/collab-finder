@@ -3,43 +3,52 @@
 //! Seed once: `scripts/seed-operator-config.sh` (copies from gitignored `data/operator/`).
 
 use serde::{Deserialize, Serialize};
-use std::cell::Cell;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 static PACKS_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+#[cfg(test)]
 static FIXTURES_LOCK: Mutex<()> = Mutex::new(());
 
+#[cfg(test)]
 thread_local! {
-    static FIXTURES_DEPTH: Cell<usize> = Cell::new(0);
+    static FIXTURES_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 pub(crate) struct FixturesReadGuard {
-    _lock: Option<MutexGuard<'static, ()>>,
+    #[cfg(test)]
+    _lock: Option<std::sync::MutexGuard<'static, ()>>,
 }
 
 impl Drop for FixturesReadGuard {
     fn drop(&mut self) {
+        #[cfg(test)]
         FIXTURES_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
     }
 }
 
 pub(crate) fn enter_fixtures() -> FixturesReadGuard {
-    let depth = FIXTURES_DEPTH.with(|depth| depth.get());
-    FIXTURES_DEPTH.with(|depth| depth.set(depth.get() + 1));
-    if depth == 0 {
-        FixturesReadGuard {
-            _lock: Some(
-                FIXTURES_LOCK
-                    .lock()
-                    .unwrap_or_else(|poison| poison.into_inner()),
-            ),
+    #[cfg(test)]
+    {
+        let depth = FIXTURES_DEPTH.with(|depth| depth.get());
+        FIXTURES_DEPTH.with(|depth| depth.set(depth.get() + 1));
+        if depth == 0 {
+            FixturesReadGuard {
+                _lock: Some(
+                    FIXTURES_LOCK
+                        .lock()
+                        .unwrap_or_else(|poison| poison.into_inner()),
+                ),
+            }
+        } else {
+            FixturesReadGuard { _lock: None }
         }
-    } else {
-        FixturesReadGuard { _lock: None }
     }
+    #[cfg(not(test))]
+    FixturesReadGuard {}
 }
 
 pub fn set_test_packs_dir(dir: Option<PathBuf>) {

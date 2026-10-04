@@ -50,15 +50,36 @@ pub fn canonical_apply_url(raw: &str) -> String {
     }
 }
 
+pub fn default_exclude_path() -> Option<std::path::PathBuf> {
+    crate::operator_pack::packs_dir()
+        .ok()
+        .map(|dir| dir.join("hard-exclude.json"))
+}
+
+pub fn resolve_exclude_path(flag: Option<&Path>) -> Option<std::path::PathBuf> {
+    match flag {
+        Some(path) => Some(path.to_path_buf()),
+        None => default_exclude_path(),
+    }
+}
+
 pub fn ingest_files(
     db_path: &Path,
     input_json: &Path,
     exclude: Option<&Path>,
+    dry_run: bool,
 ) -> Result<ResearchIngestReport, String> {
+    if !db_path.is_file() {
+        return Err(format!("database not found: {}", db_path.display()));
+    }
     let text = std::fs::read_to_string(input_json).map_err(|err| err.to_string())?;
     let rows: Vec<ResearchLead> = serde_json::from_str(&text).map_err(|err| err.to_string())?;
     let store = SqliteStore::open_at(db_path.to_path_buf())?;
-    ingest(&store, &rows, exclude)
+    if dry_run {
+        preview(&store, &rows, exclude)
+    } else {
+        ingest(&store, &rows, exclude)
+    }
 }
 
 pub fn normalize_firm(name: &str) -> String {
@@ -73,13 +94,34 @@ pub fn ingest(
     rows: &[ResearchLead],
     exclude_config: Option<&Path>,
 ) -> Result<ResearchIngestReport, String> {
-    let prepared = prepare_leads(rows)?;
-    let excluded = excluded_firms(exclude_config)?;
-    let mut known = known_urls(store)?;
-    let (mut report, pending) = classify_leads(&prepared, &excluded, &mut known);
+    let (mut report, pending) = plan(store, rows, exclude_config)?;
     report.inserted_ids = store.insert_research_opportunities(&pending)?;
     report.inserted = report.inserted_ids.len();
     Ok(report)
+}
+
+type PlannedIngest = (ResearchIngestReport, Vec<ResearchInsert>);
+type ResearchInsert = (String, String, String, String);
+
+fn preview(
+    store: &SqliteStore,
+    rows: &[ResearchLead],
+    exclude_config: Option<&Path>,
+) -> Result<ResearchIngestReport, String> {
+    let (mut report, pending) = plan(store, rows, exclude_config)?;
+    report.inserted = pending.len();
+    Ok(report)
+}
+
+fn plan(
+    store: &SqliteStore,
+    rows: &[ResearchLead],
+    exclude_config: Option<&Path>,
+) -> Result<PlannedIngest, String> {
+    let prepared = prepare_leads(rows)?;
+    let excluded = excluded_firms(exclude_config)?;
+    let mut known = known_urls(store)?;
+    Ok(classify_leads(&prepared, &excluded, &mut known))
 }
 
 struct PreparedLead<'a> {
@@ -129,7 +171,7 @@ fn classify_leads(
     rows: &[PreparedLead<'_>],
     excluded: &HashSet<String>,
     known: &mut HashMap<String, i64>,
-) -> (ResearchIngestReport, Vec<(String, String, String, String)>) {
+) -> PlannedIngest {
     let mut report = ResearchIngestReport::default();
     let mut pending = Vec::new();
     for row in rows {
@@ -503,7 +545,8 @@ mod tests {
             r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/from-file"}]"#,
         )
         .unwrap();
-        let report = ingest_files(&db_path, &input, None).unwrap();
+        SqliteStore::open_at(db_path.clone()).unwrap();
+        let report = ingest_files(&db_path, &input, None, false).unwrap();
         assert_eq!(report.inserted, 1);
         let store = SqliteStore::open_at(db_path).unwrap();
         let opp = store
@@ -520,6 +563,83 @@ mod tests {
         );
         assert_eq!(opp.kind, "research");
         assert_eq!(opp.status, "new");
+    }
+
+    #[test]
+    fn ingest_files_refuses_a_missing_database() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("missing.db");
+        let input = dir.path().join("leads.json");
+        fs::write(
+            &input,
+            r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/missing-db"}]"#,
+        )
+        .unwrap();
+        for dry_run in [false, true] {
+            let err = ingest_files(&db_path, &input, None, dry_run).unwrap_err();
+            assert!(err.contains("database not found"), "{err}");
+            assert!(!db_path.exists());
+        }
+    }
+
+    #[test]
+    fn dry_run_reports_counts_without_writing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("ingest.db");
+        let input = dir.path().join("leads.json");
+        let exclude = dir.path().join("hard-exclude.json");
+        fs::write(&exclude, r#"{"firms":["Fabrikam Wait LLC"]}"#).unwrap();
+        fs::write(
+            &input,
+            r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Global","apply_url":"https://jobs.example.test/dry-new"},{"company":"Fabrikam Wait LLC","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/dry-excluded"}]"#,
+        )
+        .unwrap();
+        SqliteStore::open_at(db_path.clone()).unwrap();
+        let preview = ingest_files(&db_path, &input, Some(&exclude), true).unwrap();
+        assert_eq!(preview.inserted, 1);
+        assert_eq!(preview.skipped_excluded, 1);
+        assert_eq!(preview.skipped_existing, 0);
+        assert!(preview.inserted_ids.is_empty());
+        let store = SqliteStore::open_at(db_path.clone()).unwrap();
+        assert!(store
+            .get_opportunities(&OpportunityFilter {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .unwrap()
+            .is_empty());
+        let written = ingest_files(&db_path, &input, Some(&exclude), false).unwrap();
+        assert_eq!(written.inserted, 1);
+        assert_eq!(written.inserted_ids.len(), 1);
+        let again = ingest_files(&db_path, &input, Some(&exclude), true).unwrap();
+        assert_eq!(again.inserted, 0);
+        assert_eq!(again.skipped_existing, 1);
+        assert_eq!(again.skipped_excluded, 1);
+        let store = SqliteStore::open_at(db_path).unwrap();
+        assert_eq!(
+            store
+                .get_opportunities(&OpportunityFilter {
+                    limit: Some(10),
+                    ..Default::default()
+                })
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn exclude_flag_overrides_the_packs_default() {
+        let custom = PathBuf::from("custom-exclude.json");
+        assert_eq!(
+            resolve_exclude_path(Some(&custom)).as_deref(),
+            Some(custom.as_path())
+        );
+        let fallback = resolve_exclude_path(None).expect("packs dir");
+        assert_eq!(
+            fallback.file_name().and_then(|name| name.to_str()),
+            Some("hard-exclude.json")
+        );
     }
 
     #[test]

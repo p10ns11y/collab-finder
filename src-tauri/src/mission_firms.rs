@@ -975,13 +975,7 @@ fn score_product_lead(
         crate::product_lane::extra_query(query).as_deref(),
     );
     let class = crate::america_eu::classify(crate::product_lane::us_employer(firm.id), location);
-    if class.america_quota {
-        reasons.push("america_eu".into());
-    }
-    if !class.stockholm_workable {
-        score -= 100.0;
-        reasons.push("not_stockholm_workable".into());
-    }
+    apply_product_geo(&mut score, &mut reasons, class);
     apply_product_profile(&mut score, &mut reasons, title);
     (
         score,
@@ -989,6 +983,30 @@ fn score_product_lead(
         location_is_texas(location),
         title_terafab_adjacent(title),
     )
+}
+
+const UNKNOWN_LOCATION_PENALTY: f64 = 40.0;
+
+fn apply_product_geo(
+    score: &mut f64,
+    reasons: &mut Vec<String>,
+    class: crate::america_eu::AmericaEuClass,
+) {
+    match class.place {
+        crate::america_eu::GeoPlace::Europe => {
+            if class.america_quota {
+                reasons.push("america_eu".into());
+            }
+        }
+        crate::america_eu::GeoPlace::KnownNonEu => {
+            *score -= 100.0;
+            reasons.push("not_stockholm_workable".into());
+        }
+        crate::america_eu::GeoPlace::Unknown => {
+            *score -= UNKNOWN_LOCATION_PENALTY;
+            reasons.push("unknown_location".into());
+        }
+    }
 }
 
 fn apply_product_profile(score: &mut f64, reasons: &mut Vec<String>, title: &str) {
@@ -1510,7 +1528,7 @@ pub async fn load_tesla_listings(client: &reqwest::Client) -> Result<Vec<Value>,
     )
 }
 
-fn tesla_field<'a>(job: &'a Value, keys: &[&str]) -> Option<&'a str> {
+fn tesla_field(job: &Value, keys: &[&str]) -> Option<&str> {
     for k in keys {
         if let Some(s) = job
             .get(*k)
@@ -2458,5 +2476,108 @@ mod tests {
             ..Default::default()
         });
         assert!(unknown.is_empty());
+    }
+
+    #[test]
+    fn product_lane_keeps_unknown_locations_and_drops_known_non_eu() {
+        let filter = MissionFirmFilter {
+            q: Some("lane:product".into()),
+            ..Default::default()
+        };
+        let railway = firm_by_id("railway").unwrap();
+        let (global, global_reasons, _, _) = score_lead(
+            railway,
+            "Senior Software Engineer",
+            "Global",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(global, 68.0);
+        assert!(global_reasons
+            .iter()
+            .any(|reason| reason == "unknown_location"));
+        assert!(global_reasons
+            .iter()
+            .all(|reason| reason != "not_stockholm_workable"));
+        let stripe = firm_by_id("stripe").unwrap();
+        let (london, _, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        assert!(london > global);
+        let kept = finish_lead(
+            railway,
+            "ashby",
+            "global".into(),
+            "Senior Software Engineer".into(),
+            "Global".into(),
+            "https://example.test/railway".into(),
+            None,
+            &filter,
+        )
+        .expect("unknown location stays");
+        assert_eq!(kept.rank_score, 68.0);
+        assert!(finish_lead(
+            firm_by_id("elevenlabs").unwrap(),
+            "ashby",
+            "uk".into(),
+            "Senior Software Engineer".into(),
+            "United Kingdom".into(),
+            "https://example.test/eleven".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        assert!(finish_lead(
+            firm_by_id("pleo").unwrap(),
+            "ashby",
+            "pleo".into(),
+            "Senior Software Engineer".into(),
+            "UK".into(),
+            "https://example.test/pleo".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        assert!(finish_lead(
+            firm_by_id("doctolib").unwrap(),
+            "ashby",
+            "nantes".into(),
+            "Senior Software Engineer".into(),
+            "Nantes".into(),
+            "https://example.test/doctolib".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        let gitlab = finish_lead(
+            firm_by_id("gitlab").unwrap(),
+            "greenhouse",
+            "uk".into(),
+            "Senior Software Engineer".into(),
+            "Remote, United Kingdom".into(),
+            "https://example.test/gitlab".into(),
+            None,
+            &filter,
+        )
+        .expect("united kingdom stays");
+        assert!(gitlab
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "america_eu"));
+        assert!(finish_lead(
+            stripe,
+            "greenhouse",
+            "ohio".into(),
+            "Senior Software Engineer".into(),
+            "Dublin, Ohio, United States".into(),
+            "https://example.test/ohio".into(),
+            None,
+            &filter,
+        )
+        .is_none());
     }
 }
