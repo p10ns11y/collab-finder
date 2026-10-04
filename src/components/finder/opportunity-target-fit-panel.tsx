@@ -340,6 +340,8 @@ export function OpportunityTargetFitPanel({
   const coverExcerpt = prep?.cover_letter?.trim() ?? ''
   const hasMustGaps = Boolean(fit?.gaps_must?.length)
   const hasNiceGaps = Boolean(fit?.gaps_nice?.length)
+  const showFitDetail = showMore || canPrep
+  const offerApplied = Boolean(pdfNode) || statusNorm === 'applied'
 
   return (
     <Card className="border-border-subtle">
@@ -357,7 +359,6 @@ export function OpportunityTargetFitPanel({
               #{opportunityId ?? '—'}
               {relaxed ? ' · relaxed' : ' · strict'}
               {` · ${pipelineStatusLabel(statusNorm).toLowerCase()}`}
-              {estCost != null ? ` · ~$${estCost.toFixed(3)}` : ''}
             </p>
           </div>
           <Badge tone={tone} className="shrink-0 normal-case tracking-normal">
@@ -386,7 +387,7 @@ export function OpportunityTargetFitPanel({
           <p className="max-w-[65ch] text-[15px] leading-7 text-ink-muted">{fit.rationale}</p>
         ) : null}
 
-        {showDualFit ? (
+        {showFitDetail && showDualFit ? (
           <p className="text-[13px] text-ink-faint">
             You → role {candidateToRole ?? '—'}
             <span className="mx-2 text-border-strong">·</span>
@@ -394,7 +395,7 @@ export function OpportunityTargetFitPanel({
           </p>
         ) : null}
 
-        {(hasMustGaps || hasNiceGaps) && (
+        {showFitDetail && (hasMustGaps || hasNiceGaps) ? (
           <div className="grid max-w-[65ch] gap-6 sm:grid-cols-2">
             {hasMustGaps ? (
               <div>
@@ -417,7 +418,7 @@ export function OpportunityTargetFitPanel({
               </div>
             ) : null}
           </div>
-        )}
+        ) : null}
 
         {dealBreakers.length > 0 ? (
           <div>
@@ -430,7 +431,7 @@ export function OpportunityTargetFitPanel({
           </div>
         ) : null}
 
-        {roleConcerns.length > 0 ? (
+        {showFitDetail && roleConcerns.length > 0 ? (
           <div>
             <h3 className="mb-2 text-[13px] font-medium text-ink">Role concerns</h3>
             <ul className="max-w-[65ch] space-y-1.5 text-[13px] leading-6 text-ink-muted">
@@ -445,7 +446,7 @@ export function OpportunityTargetFitPanel({
           <p className="max-w-[65ch] text-[15px] leading-7 text-ink">{fit.recommended_action}</p>
         ) : null}
 
-        {coverExcerpt ? (
+        {showFitDetail && coverExcerpt ? (
           <p className="max-w-[65ch] line-clamp-5 text-[15px] leading-7 text-ink-muted">{coverExcerpt}</p>
         ) : null}
 
@@ -472,9 +473,9 @@ export function OpportunityTargetFitPanel({
               Artifacts
             </Button>
           ) : null}
-          {onStatusChange && opportunityId != null && opportunityId > 0 ? (
+          {offerApplied && onStatusChange && opportunityId != null && opportunityId > 0 ? (
             <Button
-              variant={statusNorm === 'applied' ? 'primary' : 'ghost'}
+              variant={statusNorm === 'applied' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => onStatusChange(opportunityId, 'applied')}
             >
@@ -549,6 +550,7 @@ export function OpportunityTargetFitPanel({
                   {cvUsedFallback ? ' · fallback' : ''}
                   {previewTruncated ? ' · truncated' : ''}
                   {promptTokens != null ? ` · tokens=${promptTokens}` : ''}
+                  {estCost != null ? ` · ~$${estCost.toFixed(3)}` : ''}
                   {` · ${modelLabel}`}
                 </p>
               ) : null}
