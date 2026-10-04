@@ -414,3 +414,15 @@ pub async fn import_platsbanken_ad(
     opportunity.source_ref = Some(ad.ad_id);
     Ok(opportunity)
 }
+
+#[tauri::command]
+pub fn import_research_opportunities(
+    db: State<'_, AppDb>,
+    rows: Vec<crate::research_ingest::ResearchLead>,
+) -> Result<crate::research_ingest::ResearchIngestReport, String> {
+    let store = db.0.lock().map_err(|e| e.to_string())?;
+    let path = crate::operator_pack::packs_dir()
+        .ok()
+        .map(|dir| dir.join("hard-exclude.json"));
+    crate::research_ingest::ingest(&store, &rows, path.as_deref())
+}

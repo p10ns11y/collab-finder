@@ -873,11 +873,11 @@ mod tests {
             r#"{"algorithm_version":"v1","scored_at":"t","firms":[{"id":"ericsson","name":"UserOverride","hq":"US","depth_geo":"united_states","product_class":"x","theater_saas":false,"product_moat":4,"ai_tsunami":4,"fortress":4,"hiring_signal":3,"spacexai_vector":4}]}"#,
         )
         .unwrap();
+        let _lock = crate::operator_pack::lock_test_fixtures();
         crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
         crate::operator_pack::set_test_packs_dir(Some(packs));
         let uni = load_universe().unwrap();
         let ericsson = uni.firms.iter().find(|f| f.id == "ericsson").unwrap();
         assert_eq!(ericsson.name, "UserOverride");
-        crate::operator_pack::clear_test_fixtures();
     }
 }

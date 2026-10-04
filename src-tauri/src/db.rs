@@ -2126,6 +2126,45 @@ UPDATE opportunities SET applied_at = last_updated WHERE status = 'applied' AND 
             .map_err(|e| e.to_string())?;
         Ok(())
     }
+
+    pub fn list_opportunity_source_urls(&self) -> Result<Vec<(i64, String)>, String> {
+        if !self.is_enabled() {
+            return Ok(Vec::new());
+        }
+        let guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = guard
+            .prepare("SELECT id, source_url FROM opportunities WHERE source_url IS NOT NULL")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn insert_research_opportunities(
+        &self,
+        rows: &[(String, String, String, String)],
+    ) -> Result<Vec<i64>, String> {
+        if !self.is_enabled() {
+            return Ok(vec![0; rows.len()]);
+        }
+        let mut guard = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = guard.transaction().map_err(|e| e.to_string())?;
+        let mut ids = Vec::with_capacity(rows.len());
+        for (source_url, title, company, jd) in rows {
+            tx.execute(
+                "INSERT INTO opportunities (kind, source_url, title, company, jd_text, status, last_updated) VALUES ('research', ?1, ?2, ?3, ?4, 'new', strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+                params![source_url, title, company, jd],
+            )
+            .map_err(|e| e.to_string())?;
+            ids.push(tx.last_insert_rowid());
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(ids)
+    }
 }
 
 // Minimal now() without chrono dep (use sqlite or simple).

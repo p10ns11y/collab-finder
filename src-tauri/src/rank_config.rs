@@ -128,6 +128,7 @@ pub fn set_test_dir(dir: Option<PathBuf>) {
 }
 
 pub fn config_dir() -> Result<PathBuf, String> {
+    let _guard = crate::operator_pack::enter_fixtures();
     if let Some(d) = DIR_OVERRIDE.lock().expect("rank dir").clone() {
         return Ok(d);
     }
@@ -144,6 +145,7 @@ pub fn default_packs_dir() -> Result<PathBuf, String> {
 }
 
 pub fn load() -> RankConfig {
+    let _guard = crate::operator_pack::enter_fixtures();
     if let Some(cfg) = OVERRIDE.lock().expect("rank config").clone() {
         return cfg;
     }
@@ -236,11 +238,10 @@ mod tests {
         let packs = tmp.path().join("packs");
         fs::create_dir_all(&packs).unwrap();
         fs::write(packs.join("universe.json"), r#"{"firms":[{"id":"x"}]}"#).unwrap();
+        let _lock = crate::operator_pack::lock_test_fixtures();
         set_test_dir(Some(tmp.path().to_path_buf()));
         set_test_config(Some(RankConfig::default()));
         let vals = pack_json_values(&["universe.json"]);
         assert_eq!(vals.len(), 1);
-        set_test_config(None);
-        set_test_dir(None);
     }
 }

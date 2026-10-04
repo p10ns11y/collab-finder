@@ -202,6 +202,65 @@ const FIRM_REGISTRY: &[FirmDef] = &[
     },
 ];
 
+const PRODUCT_FIRM_EXTRAS: &[FirmDef] = &[
+    FirmDef {
+        id: "linear",
+        label: "Linear",
+        source: FirmSource::Ashby { board: "linear" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "stripe",
+        label: "Stripe",
+        source: FirmSource::Greenhouse { board: "stripe" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "modal",
+        label: "Modal",
+        source: FirmSource::Ashby { board: "modal" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "elevenlabs",
+        label: "ElevenLabs",
+        source: FirmSource::Ashby {
+            board: "elevenlabs",
+        },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "intercom",
+        label: "Intercom",
+        source: FirmSource::Greenhouse { board: "intercom" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "enode",
+        label: "Enode",
+        source: FirmSource::Ashby { board: "enode" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "railway",
+        label: "Railway",
+        source: FirmSource::Ashby { board: "railway" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "pleo",
+        label: "Pleo",
+        source: FirmSource::Ashby { board: "pleo" },
+        mixed_sw_hw_only: false,
+    },
+    FirmDef {
+        id: "doctolib",
+        label: "Doctolib",
+        source: FirmSource::Greenhouse { board: "doctolib" },
+        mixed_sw_hw_only: false,
+    },
+];
+
 /// Operator overlay — `~/.config/collab-finder/packs/mission-firms.json` (gitignored).
 #[derive(Debug, Deserialize)]
 struct PackFirmFile {
@@ -263,7 +322,9 @@ fn load_pack_firms() -> (
         let Some(source) = pack_source(&row.source, token) else {
             continue;
         };
-        if FIRM_REGISTRY.iter().any(|f| f.id == row.id) {
+        if FIRM_REGISTRY.iter().any(|f| f.id == row.id)
+            || PRODUCT_FIRM_EXTRAS.iter().any(|f| f.id == row.id)
+        {
             continue;
         }
         let def = FirmDef {
@@ -292,6 +353,7 @@ fn pack_layer() -> &'static (
 
 fn all_firm_defs() -> Vec<&'static FirmDef> {
     let mut out: Vec<&'static FirmDef> = FIRM_REGISTRY.iter().collect();
+    out.extend(PRODUCT_FIRM_EXTRAS.iter());
     out.extend(pack_layer().0.iter().copied());
     out
 }
@@ -320,6 +382,7 @@ pub fn default_firm_ids() -> Vec<String> {
     }
     all_firm_defs()
         .into_iter()
+        .filter(|firm| !crate::product_lane::PRODUCT_ONLY_IDS.contains(&firm.id))
         .map(|f| f.id.to_string())
         .collect()
 }
@@ -737,13 +800,50 @@ fn query_tokens(query: Option<&str>) -> Vec<String> {
         .collect()
 }
 
+fn title_query(query: Option<&str>) -> Option<String> {
+    if crate::product_lane::is_product_lane_query(query) {
+        return crate::product_lane::extra_query(query);
+    }
+    let trimmed = query.unwrap_or("").trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn query_matches(title: &str, location: &str, query: Option<&str>) -> bool {
-    let tokens = query_tokens(query);
+    if crate::product_lane::is_product_lane_query(query) && !engineering_title(title) {
+        return false;
+    }
+    let tokens = query_tokens(title_query(query).as_deref());
     if tokens.is_empty() {
         return true;
     }
     let hay = format!("{title} {location}").to_ascii_lowercase();
     tokens.iter().any(|t| hay.contains(t))
+}
+
+fn engineering_title(title: &str) -> bool {
+    let hay = format!(" {} ", title.to_ascii_lowercase());
+    [
+        " engineer ",
+        " engineers ",
+        " developer ",
+        " developers ",
+        " fde ",
+        " forward deployed ",
+    ]
+    .iter()
+    .any(|token| hay.contains(token))
+}
+
+fn profile_term_hits(title: &str) -> usize {
+    let hay = format!(" {} ", title.to_ascii_lowercase());
+    PROFILE_BOOST_TERMS
+        .iter()
+        .filter(|term| hay.contains(&format!(" {term} ")))
+        .count()
 }
 
 pub fn is_mixed_software_hardware(title: &str, department: &str) -> bool {
@@ -851,6 +951,78 @@ fn qualify_prior_delta(firm: &FirmDef) -> i32 {
 }
 
 fn score_lead(
+    firm: &FirmDef,
+    title: &str,
+    location: &str,
+    query: Option<&str>,
+    terafab_bias: bool,
+) -> (f64, Vec<String>, bool, bool) {
+    if crate::product_lane::is_product_lane_query(query) {
+        return score_product_lead(firm, title, location, query);
+    }
+    score_industrial_lead(firm, title, location, query, terafab_bias)
+}
+
+fn score_product_lead(
+    firm: &FirmDef,
+    title: &str,
+    location: &str,
+    query: Option<&str>,
+) -> (f64, Vec<String>, bool, bool) {
+    let (mut score, mut reasons) = crate::product_lane::score(
+        firm.id,
+        title,
+        crate::product_lane::extra_query(query).as_deref(),
+    );
+    let class = crate::america_eu::classify(crate::product_lane::us_employer(firm.id), location);
+    apply_product_geo(&mut score, &mut reasons, class);
+    apply_product_profile(&mut score, &mut reasons, title);
+    (
+        score,
+        reasons,
+        location_is_texas(location),
+        title_terafab_adjacent(title),
+    )
+}
+
+const UNKNOWN_LOCATION_PENALTY: f64 = 40.0;
+
+fn apply_product_geo(
+    score: &mut f64,
+    reasons: &mut Vec<String>,
+    class: crate::america_eu::AmericaEuClass,
+) {
+    match class.place {
+        crate::america_eu::GeoPlace::Europe => {
+            if class.america_quota {
+                reasons.push("america_eu".into());
+            }
+        }
+        crate::america_eu::GeoPlace::KnownNonEu => {
+            *score -= 100.0;
+            reasons.push("not_stockholm_workable".into());
+        }
+        crate::america_eu::GeoPlace::Unknown => {
+            *score -= UNKNOWN_LOCATION_PENALTY;
+            reasons.push("unknown_location".into());
+        }
+    }
+}
+
+fn apply_product_profile(score: &mut f64, reasons: &mut Vec<String>, title: &str) {
+    if engineering_title(title) {
+        let hits = profile_term_hits(title);
+        if hits > 0 {
+            *score += 4.0 * hits as f64;
+            reasons.push(format!("profile_hits:{hits}"));
+        }
+        return;
+    }
+    *score -= 100.0;
+    reasons.push("not_engineering".into());
+}
+
+fn score_industrial_lead(
     firm: &FirmDef,
     title: &str,
     location: &str,
@@ -1005,6 +1177,12 @@ fn finish_lead(
         filter.q.as_deref(),
         filter.terafab_bias,
     );
+    if rank_reasons
+        .iter()
+        .any(|reason| reason == "not_stockholm_workable")
+    {
+        return None;
+    }
     let is_bridge_se = matches!(firm.source, FirmSource::JobTech { .. });
     if filter.texas_only && !texas_match && !is_bridge_se {
         return None;
@@ -1350,7 +1528,7 @@ pub async fn load_tesla_listings(client: &reqwest::Client) -> Result<Vec<Value>,
     )
 }
 
-fn tesla_field<'a>(job: &'a Value, keys: &[&str]) -> Option<&'a str> {
+fn tesla_field(job: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = job
             .get(*k)
@@ -1358,7 +1536,7 @@ fn tesla_field<'a>(job: &'a Value, keys: &[&str]) -> Option<&'a str> {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            return Some(s);
+            return Some(s.to_string());
         }
     }
     None
@@ -1369,12 +1547,9 @@ fn lead_from_tesla(
     job: &Value,
     filter: &MissionFirmFilter,
 ) -> Option<MissionFirmLead> {
-    let title = tesla_field(job, &["title", "t", "jobTitle", "name"])?.to_string();
-    let location = tesla_field(job, &["location", "l", "loc", "city"])
-        .unwrap_or("")
-        .to_string();
-    let department =
-        tesla_field(job, &["department", "dp", "team", "family"]).map(|s| s.to_string());
+    let title = tesla_field(job, &["title", "t", "jobTitle", "name"])?;
+    let location = tesla_field(job, &["location", "l", "loc", "city"]).unwrap_or_default();
+    let department = tesla_field(job, &["department", "dp", "team", "family"]);
     let id = job
         .get("id")
         .map(|v| match v {
@@ -1385,7 +1560,6 @@ fn lead_from_tesla(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| format!("tesla-{}", title.chars().take(24).collect::<String>()));
     let absolute_url = tesla_field(job, &["absolute_url", "url", "applyUrl", "jobUrl"])
-        .map(|s| s.to_string())
         .unwrap_or_else(|| {
             format!(
                 "https://www.tesla.com/careers/search/?query={}",
@@ -1537,6 +1711,13 @@ fn leads_from_pool_for_filter(
             scored.texas_match = texas_match;
             scored.terafab_adjacent = terafab_adjacent;
         }
+        if scored
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable")
+        {
+            continue;
+        }
         by_firm
             .entry(lead.firm_id.clone())
             .or_default()
@@ -1545,9 +1726,20 @@ fn leads_from_pool_for_filter(
     by_firm.into_values().collect()
 }
 
+fn firms_for_filter(filter: &MissionFirmFilter) -> Vec<&'static FirmDef> {
+    let blank = filter.firms.iter().all(|firm| firm.trim().is_empty());
+    if blank && crate::product_lane::is_product_lane_query(filter.q.as_deref()) {
+        return crate::product_lane::FIRM_IDS
+            .iter()
+            .filter_map(|id| firm_by_id(id))
+            .collect();
+    }
+    parse_firm_ids(&filter.firms)
+}
+
 /// Read `search_pool.json` and filter/score leads — no HTTP, no pool mutation.
 pub fn list_cached_mission_leads(filter: &MissionFirmFilter) -> Vec<MissionFirmLead> {
-    let firms = parse_firm_ids(&filter.firms);
+    let firms = firms_for_filter(filter);
     let key = query_cache_key(filter, &firms);
     let pool = load_search_pool();
     eprintln!(
@@ -1562,7 +1754,7 @@ pub fn list_cached_mission_leads(filter: &MissionFirmFilter) -> Vec<MissionFirmL
 pub async fn search_mission_firms(
     filter: &MissionFirmFilter,
 ) -> Result<Vec<MissionFirmLead>, String> {
-    let firms = parse_firm_ids(&filter.firms);
+    let firms = firms_for_filter(filter);
     let key = query_cache_key(filter, &firms);
     let mut pool = load_search_pool();
     pool.version = SEARCH_CACHE_VERSION;
@@ -1775,13 +1967,9 @@ pub fn resolve_tesla_job_for_import(
         })
         .ok_or_else(|| format!("Tesla job id {external_id} not in local dump"))?;
     let title = tesla_field(job, &["title", "t", "jobTitle", "name"])
-        .unwrap_or("Tesla role")
-        .to_string();
-    let location = tesla_field(job, &["location", "l", "loc", "city"])
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or_else(|| "Tesla role".into());
+    let location = tesla_field(job, &["location", "l", "loc", "city"]).unwrap_or_default();
     let url = tesla_field(job, &["absolute_url", "url", "applyUrl", "jobUrl"])
-        .map(|s| s.to_string())
         .or_else(|| {
             absolute_url_hint
                 .map(str::trim)
@@ -1794,10 +1982,9 @@ pub fn resolve_tesla_job_for_import(
                 urlencoding::encode(&title)
             )
         });
-    let desc = tesla_field(job, &["description", "content", "jobDescription", "d"])
-        .unwrap_or("")
-        .to_string();
-    let dept = tesla_field(job, &["department", "dp", "team"]).unwrap_or("");
+    let desc =
+        tesla_field(job, &["description", "content", "jobDescription", "d"]).unwrap_or_default();
+    let dept = tesla_field(job, &["department", "dp", "team"]).unwrap_or_default();
     let jd = format!(
         "# {title}\nCompany: Tesla\nDepartment: {dept}\nLocation: {location}\nURL: {url}\nId: {external_id}\n\n{desc}"
     );
@@ -2058,5 +2245,330 @@ mod tests {
         let out = merge_firm_buckets(buckets, 100);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].title, "Rust Platform Engineer");
+    }
+
+    #[test]
+    fn product_lane_query_keeps_titles_and_skips_default_firm_ids() {
+        assert!(query_matches(
+            "Senior Fullstack Engineer",
+            "Europe",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
+            "Account Executive",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
+            "Senior Fullstack Engineer",
+            "Europe",
+            Some("lane:product typescript")
+        ));
+        assert!(query_matches(
+            "Senior TypeScript Engineer",
+            "Europe",
+            Some("lane:product typescript")
+        ));
+        let tmp = tempfile::tempdir().expect("temp");
+        let ids = {
+            let _lock = crate::operator_pack::lock_test_fixtures();
+            crate::rank_config::set_test_config(None);
+            crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+            default_firm_ids()
+        };
+        assert!(ids.iter().any(|id| id == "spacexai"));
+        assert!(ids.iter().any(|id| id == "spotify"));
+        assert!(!ids.iter().any(|id| id == "linear"));
+        assert!(!ids.iter().any(|id| id == "doctolib"));
+        assert_eq!(firm_by_id("linear").unwrap().label, "Linear");
+        assert_eq!(firm_by_id("elevenlabs").unwrap().id, "elevenlabs");
+        assert!(ashby_board_for_firm("modal").is_some());
+        assert!(greenhouse_board_for_firm("intercom").is_some());
+    }
+
+    #[test]
+    fn product_lane_does_not_take_fortress_or_durability_hits() {
+        let tmp = tempfile::tempdir().expect("temp");
+        let packs = tmp.path().join("packs");
+        std::fs::create_dir_all(&packs).unwrap();
+        std::fs::write(
+            packs.join("universe.json"),
+            r#"{"algorithm_version":"v1","scored_at":"2026-10-03T00:00:00Z","firms":[
+                {"id":"abb","name":"ABB","hq":"CH","depth_geo":"europe","product_class":"industrial","theater_saas":false,"product_moat":4,"ai_tsunami":3,"fortress":4,"hiring_signal":3,"spacexai_vector":2},
+                {"id":"spotify","name":"Spotify","hq":"SE","depth_geo":"sweden","product_class":"audio","theater_saas":true,"product_moat":4,"ai_tsunami":3,"fortress":3,"hiring_signal":3,"spacexai_vector":1}
+            ]}"#,
+        )
+        .unwrap();
+        let _lock = crate::operator_pack::lock_test_fixtures();
+        crate::rank_config::set_test_config(None);
+        crate::operator_pack::set_test_packs_dir(Some(packs));
+        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+
+        let abb = firm_by_id("abb").unwrap();
+        let (default_score, default_reasons, _, _) =
+            score_lead(abb, "Senior Software Engineer", "Zurich", None, false);
+        assert!(default_reasons
+            .iter()
+            .any(|reason| reason == "firm:fortress_industrial"));
+        assert!(default_reasons
+            .iter()
+            .any(|reason| reason.starts_with("durability:")));
+
+        let (product_score, product_reasons, texas, terafab) = score_lead(
+            abb,
+            "Semiconductor Engineer",
+            "Austin, TX",
+            Some("lane:product"),
+            true,
+        );
+        assert_eq!(product_score, -100.0);
+        assert!(product_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable"));
+        assert!(product_reasons.iter().all(|reason| {
+            reason != "america_eu"
+                && reason != "not_engineering"
+                && !reason.starts_with("profile_hits:")
+        }));
+        assert!(texas);
+        assert!(terafab);
+        assert!(product_reasons.iter().all(|reason| {
+            !reason.contains("fortress")
+                && !reason.starts_with("durability")
+                && reason != "geo:texas"
+                && reason != "theme:terafab_adjacent"
+                && reason != "firm:theater_saas"
+        }));
+        assert!(product_score < default_score);
+
+        let spotify = firm_by_id("spotify").unwrap();
+        let (_, saas_reasons, _, _) = score_lead(
+            spotify,
+            "Senior Fullstack Engineer",
+            "Stockholm",
+            None,
+            false,
+        );
+        assert!(saas_reasons
+            .iter()
+            .any(|reason| reason == "firm:theater_saas"));
+        assert!(saas_reasons
+            .iter()
+            .any(|reason| reason.starts_with("durability_exclude")));
+        let (lane_score, lane_reasons, _, _) = score_lead(
+            spotify,
+            "Senior Fullstack Engineer",
+            "Stockholm",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(lane_score, 113.0);
+        assert!(lane_reasons.iter().any(|reason| reason == "product_team"));
+        assert!(lane_reasons.iter().any(|reason| reason == "eu_moat:GDPR"));
+        assert!(lane_reasons.iter().any(|reason| reason == "profile_hits:2"));
+        assert!(lane_reasons.iter().all(|reason| reason != "america_eu"));
+        assert!(lane_reasons.iter().all(|reason| {
+            !reason.contains("fortress")
+                && !reason.starts_with("durability")
+                && reason != "firm:theater_saas"
+        }));
+    }
+
+    #[test]
+    fn product_lane_scores_engineering_titles_and_stockholm_work() {
+        let stripe = firm_by_id("stripe").unwrap();
+        let (london, london_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        let (onsite, onsite_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "San Francisco, CA",
+            Some("lane:product"),
+            false,
+        );
+        let (exec, exec_reasons, _, _) = score_lead(
+            stripe,
+            "Account Executive",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        let (fullstack, fullstack_reasons, _, _) = score_lead(
+            stripe,
+            "Senior Fullstack Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(london, 113.0);
+        assert_eq!(onsite, 13.0);
+        assert!(london > onsite);
+        assert!(london_reasons.iter().any(|reason| reason == "america_eu"));
+        assert!(london_reasons
+            .iter()
+            .any(|reason| reason == "profile_hits:2"));
+        assert!(onsite_reasons
+            .iter()
+            .any(|reason| reason == "not_stockholm_workable"));
+        assert!(onsite_reasons.iter().all(|reason| reason != "america_eu"));
+        assert_eq!(exec, 5.0);
+        assert!(exec_reasons
+            .iter()
+            .any(|reason| reason == "not_engineering"));
+        assert!(exec_reasons.iter().any(|reason| reason == "america_eu"));
+        assert_eq!(fullstack, 113.0);
+        assert!(fullstack > exec);
+        assert!(fullstack_reasons
+            .iter()
+            .any(|reason| reason == "profile_hits:2"));
+        assert!(query_matches(
+            "Senior Fullstack Engineer",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(query_matches(
+            "Backend Developer",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(query_matches("FDE", "London", Some("lane:product")));
+        assert!(query_matches(
+            "Forward Deployed Specialist",
+            "London",
+            Some("lane:product")
+        ));
+        assert!(!query_matches(
+            "Account Executive",
+            "London",
+            Some("lane:product")
+        ));
+
+        let open = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            ..Default::default()
+        });
+        let ids: Vec<&str> = open.iter().map(|firm| firm.id).collect();
+        assert_eq!(ids, crate::product_lane::FIRM_IDS);
+        let stripe_only = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            firms: vec!["stripe".into()],
+            ..Default::default()
+        });
+        assert_eq!(stripe_only.len(), 1);
+        assert_eq!(stripe_only[0].id, "stripe");
+        let unknown = firms_for_filter(&MissionFirmFilter {
+            q: Some("lane:product".into()),
+            firms: vec!["not-a-real-firm".into()],
+            ..Default::default()
+        });
+        assert!(unknown.is_empty());
+    }
+
+    #[test]
+    fn product_lane_keeps_unknown_locations_and_drops_known_non_eu() {
+        let filter = MissionFirmFilter {
+            q: Some("lane:product".into()),
+            ..Default::default()
+        };
+        let railway = firm_by_id("railway").unwrap();
+        let (global, global_reasons, _, _) = score_lead(
+            railway,
+            "Senior Software Engineer",
+            "Global",
+            Some("lane:product"),
+            false,
+        );
+        assert_eq!(global, 68.0);
+        assert!(global_reasons
+            .iter()
+            .any(|reason| reason == "unknown_location"));
+        assert!(global_reasons
+            .iter()
+            .all(|reason| reason != "not_stockholm_workable"));
+        let stripe = firm_by_id("stripe").unwrap();
+        let (london, _, _, _) = score_lead(
+            stripe,
+            "Senior Software Engineer",
+            "London",
+            Some("lane:product"),
+            false,
+        );
+        assert!(london > global);
+        let kept = finish_lead(
+            railway,
+            "ashby",
+            "global".into(),
+            "Senior Software Engineer".into(),
+            "Global".into(),
+            "https://example.test/railway".into(),
+            None,
+            &filter,
+        )
+        .expect("unknown location stays");
+        assert_eq!(kept.rank_score, 68.0);
+        assert!(finish_lead(
+            firm_by_id("elevenlabs").unwrap(),
+            "ashby",
+            "uk".into(),
+            "Senior Software Engineer".into(),
+            "United Kingdom".into(),
+            "https://example.test/eleven".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        assert!(finish_lead(
+            firm_by_id("pleo").unwrap(),
+            "ashby",
+            "pleo".into(),
+            "Senior Software Engineer".into(),
+            "UK".into(),
+            "https://example.test/pleo".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        assert!(finish_lead(
+            firm_by_id("doctolib").unwrap(),
+            "ashby",
+            "nantes".into(),
+            "Senior Software Engineer".into(),
+            "Nantes".into(),
+            "https://example.test/doctolib".into(),
+            None,
+            &filter,
+        )
+        .is_some());
+        let gitlab = finish_lead(
+            firm_by_id("gitlab").unwrap(),
+            "greenhouse",
+            "uk".into(),
+            "Senior Software Engineer".into(),
+            "Remote, United Kingdom".into(),
+            "https://example.test/gitlab".into(),
+            None,
+            &filter,
+        )
+        .expect("united kingdom stays");
+        assert!(gitlab
+            .rank_reasons
+            .iter()
+            .any(|reason| reason == "america_eu"));
+        assert!(finish_lead(
+            stripe,
+            "greenhouse",
+            "ohio".into(),
+            "Senior Software Engineer".into(),
+            "Dublin, Ohio, United States".into(),
+            "https://example.test/ohio".into(),
+            None,
+            &filter,
+        )
+        .is_none());
     }
 }

@@ -124,8 +124,34 @@ export const MISSION_QUERY_CHIPS: readonly HuntRailChip[] = [
   { id: 'workflows', rail: 'stretch', label: 'AI workflows', q: 'AI workflows architect' },
 ]
 
+export const PRODUCT_LANE_QUERY_KEY = 'lane:product'
+
+export const PRODUCT_LANE_FIRM_IDS = [
+  'linear',
+  'stripe',
+  'modal',
+  'elevenlabs',
+  'intercom',
+  'gitlab',
+  'enode',
+  'railway',
+  'pleo',
+  'doctolib',
+  'wolt',
+  'spotify',
+] as const
+
+export const PRODUCT_LANE_PRESET: HuntPreset = {
+  id: 'product-lane',
+  label: 'Product',
+  q: PRODUCT_LANE_QUERY_KEY,
+  rail: 'honest',
+  firms: [...PRODUCT_LANE_FIRM_IDS],
+}
+
 /** Track A role packs (enssembly) — in-repo fallback until pack overlay loads. */
 export const TRACK_A_HUNT_PRESETS: readonly HuntPreset[] = [
+  PRODUCT_LANE_PRESET,
   {
     id: 'track-a-kernel',
     label: 'Kernel / HITL',

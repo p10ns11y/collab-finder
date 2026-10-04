@@ -1,0 +1,14 @@
+[
+  {
+    "company": "Northwind Robotics",
+    "title": "Senior Software Engineer",
+    "location": "Berlin, DE",
+    "apply_url": "https://example.com/jobs/northwind-robotics/senior-software-engineer"
+  },
+  {
+    "company": "Fjord Mobility AB",
+    "title": "Product Engineer",
+    "location": "Stockholm",
+    "apply_url": "https://example.org/jobs/fjord-mobility/product-engineer?team=platform"
+  }
+]
