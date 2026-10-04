@@ -302,31 +302,31 @@ mod tests {
     fn canonical_url_drops_tracking_and_slash() {
         assert_eq!(
             canonical_apply_url(
-                "HTTPS://Stripe.com/jobs/search?utm_source=x&gh_jid=8226261&utm_custom=1&utm_medium=mail#role"
+                "HTTPS://Example.com/jobs/search?utm_source=x&gh_jid=1001&utm_custom=1&utm_medium=mail#role"
             ),
-            "https://stripe.com/jobs/search?gh_jid=8226261"
+            "https://example.com/jobs/search?gh_jid=1001"
         );
         assert_eq!(
-            canonical_apply_url("https://jobs.ashbyhq.com/linear/abc/"),
-            "https://jobs.ashbyhq.com/linear/abc"
+            canonical_apply_url("https://jobs.example.com/fjord-mobility/abc/"),
+            "https://jobs.example.com/fjord-mobility/abc"
         );
         assert_eq!(
             canonical_apply_url(
-                "https://job-boards.greenhouse.io/gitlab/jobs/8693103002 · Poland: https://job-boards.greenhouse.io/gitlab/jobs/8749952002"
+                "https://job-boards.greenhouse.io/northwind/jobs/1001 · Poland: https://job-boards.greenhouse.io/northwind/jobs/1002"
             ),
-            "https://boards.greenhouse.io/gitlab/jobs/8693103002"
+            "https://boards.greenhouse.io/northwind/jobs/1001"
         );
         assert_eq!(
-            canonical_apply_url("http://www.stripe.com/jobs?Gh_jid=AbC&utm_source=x"),
-            "https://stripe.com/jobs?gh_jid=AbC"
+            canonical_apply_url("http://www.example.com/jobs?Gh_jid=AbC&utm_source=x"),
+            "https://example.com/jobs?gh_jid=AbC"
         );
         assert_eq!(
-            canonical_apply_url("https://job-boards.greenhouse.io/gitlab/jobs/1"),
-            canonical_apply_url("https://boards.greenhouse.io/gitlab/jobs/1")
+            canonical_apply_url("https://job-boards.greenhouse.io/northwind/jobs/1"),
+            canonical_apply_url("https://boards.greenhouse.io/northwind/jobs/1")
         );
         assert_eq!(
-            canonical_apply_url("https://www.job-boards.greenhouse.io/gitlab/jobs/1"),
-            "https://boards.greenhouse.io/gitlab/jobs/1"
+            canonical_apply_url("https://www.job-boards.greenhouse.io/northwind/jobs/1"),
+            "https://boards.greenhouse.io/northwind/jobs/1"
         );
         assert_eq!(canonical_apply_url("   "), "");
         assert_eq!(
@@ -343,7 +343,7 @@ mod tests {
         let missing = _dir.path().join("missing-hard-exclude.json");
         let report = ingest(
             &store,
-            &[lead("Railway", "https://jobs.example.test/r")],
+            &[lead("Northwind Robotics", "https://jobs.example.test/r")],
             Some(&missing),
         )
         .unwrap();
@@ -352,7 +352,7 @@ mod tests {
         fs::write(&bad, "not-json").unwrap();
         let err = ingest(
             &store,
-            &[lead("Pleo", "https://jobs.example.test/p")],
+            &[lead("Fjord Mobility AB", "https://jobs.example.test/p")],
             Some(&bad),
         )
         .unwrap_err();
@@ -371,16 +371,19 @@ mod tests {
 
         let rows = vec![
             lead(
-                "Railway",
-                "https://jobs.ashbyhq.com/railway/6ddcfe47-6cce-469b-ba6d-4f0e83440c9d/",
+                "Northwind Robotics",
+                "https://jobs.example.com/northwind/role-1/",
             ),
             lead(
-                "Railway",
-                "https://jobs.ashbyhq.com/railway/6ddcfe47-6cce-469b-ba6d-4f0e83440c9d?utm_source=batch",
+                "Northwind Robotics",
+                "https://jobs.example.com/northwind/role-1?utm_source=batch",
             ),
             lead("Northwind Paper Co", "https://jobs.example.test/northwind"),
-            lead("  Fabrikam   Wait LLC ", "https://jobs.example.test/fabrikam"),
-            lead("Pleo", "https://jobs.ashbyhq.com/pleo/56c51ea0-31c0-492f-bdc7-bd5efff5cd25"),
+            lead(
+                "  Fabrikam   Wait LLC ",
+                "https://jobs.example.test/fabrikam",
+            ),
+            lead("Fjord Mobility AB", "https://jobs.example.org/fjord/role-2"),
         ];
         let report = ingest(&store, &rows, Some(&config)).unwrap();
         assert_eq!(report.inserted, 2);
@@ -422,14 +425,14 @@ mod tests {
     #[test]
     fn existing_db_row_blocks_ingest_without_status_change() {
         let (_dir, store) = temp_store();
-        let fancy = "HTTPS://Jobs.Ashbyhq.com/linear/d3bc1ced-3ce4-4086-a050-555055dbb1ff/?utm_source=newsletter";
+        let fancy = "HTTPS://jobs.example.org/lumen-harbor/role-1/?utm_source=newsletter";
         let id = store
             .upsert_opportunity(
                 "web",
                 Some(fancy),
                 None,
-                Some("Senior / Staff Fullstack Engineer"),
-                Some("Linear"),
+                Some("Senior Software Engineer"),
+                Some("Lumen Harbor"),
                 "# existing\n",
                 "analyzed",
                 None,
@@ -441,8 +444,8 @@ mod tests {
         let report = ingest(
             &store,
             &[lead(
-                "Linear",
-                "https://jobs.ashbyhq.com/linear/d3bc1ced-3ce4-4086-a050-555055dbb1ff",
+                "Lumen Harbor",
+                "https://jobs.example.org/lumen-harbor/role-1",
             )],
             None,
         )
@@ -465,7 +468,7 @@ mod tests {
     #[test]
     fn empty_apply_url_is_rejected() {
         let (_dir, store) = temp_store();
-        let err = ingest(&store, &[lead("Railway", "   ")], None).unwrap_err();
+        let err = ingest(&store, &[lead("Northwind Robotics", "   ")], None).unwrap_err();
         assert!(err.contains("apply_url"));
         let opps = store
             .get_opportunities(&OpportunityFilter {
@@ -482,8 +485,8 @@ mod tests {
         let err = ingest(
             &store,
             &[
-                lead("Railway", "https://jobs.example.test/ok"),
-                lead("Pleo", "   "),
+                lead("Northwind Robotics", "https://jobs.example.test/ok"),
+                lead("Fjord Mobility AB", "   "),
             ],
             None,
         )
@@ -501,8 +504,8 @@ mod tests {
     #[test]
     fn source_url_keeps_the_original_string() {
         let (_dir, store) = temp_store();
-        let raw = "http://www.stripe.com/jobs/listing/?Gh_jid=AbC&utm_source=x";
-        let report = ingest(&store, &[lead("Stripe", raw)], None).unwrap();
+        let raw = "http://www.example.com/jobs/listing/?Gh_jid=AbC&utm_source=x";
+        let report = ingest(&store, &[lead("Bramble Transit", raw)], None).unwrap();
         assert_eq!(report.inserted, 1);
         let opp = store
             .get_opportunities(&OpportunityFilter {
@@ -517,7 +520,10 @@ mod tests {
         assert_eq!(opp.status, "new");
         let again = ingest(
             &store,
-            &[lead("Stripe", "https://stripe.com/jobs/listing?gh_jid=AbC")],
+            &[lead(
+                "Bramble Transit",
+                "https://example.com/jobs/listing?gh_jid=AbC",
+            )],
             None,
         )
         .unwrap();
@@ -542,7 +548,7 @@ mod tests {
         let input = dir.path().join("leads.json");
         fs::write(
             &input,
-            r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/from-file"}]"#,
+            r#"[{"company":"Northwind Robotics","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/from-file"}]"#,
         )
         .unwrap();
         SqliteStore::open_at(db_path.clone()).unwrap();
@@ -572,7 +578,7 @@ mod tests {
         let input = dir.path().join("leads.json");
         fs::write(
             &input,
-            r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/missing-db"}]"#,
+            r#"[{"company":"Northwind Robotics","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/missing-db"}]"#,
         )
         .unwrap();
         for dry_run in [false, true] {
@@ -591,7 +597,7 @@ mod tests {
         fs::write(&exclude, r#"{"firms":["Fabrikam Wait LLC"]}"#).unwrap();
         fs::write(
             &input,
-            r#"[{"company":"Railway","title":"Senior Software Engineer","location":"Global","apply_url":"https://jobs.example.test/dry-new"},{"company":"Fabrikam Wait LLC","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/dry-excluded"}]"#,
+            r#"[{"company":"Northwind Robotics","title":"Senior Software Engineer","location":"Global","apply_url":"https://jobs.example.test/dry-new"},{"company":"Fabrikam Wait LLC","title":"Senior Software Engineer","location":"Europe","apply_url":"https://jobs.example.test/dry-excluded"}]"#,
         )
         .unwrap();
         SqliteStore::open_at(db_path.clone()).unwrap();
@@ -643,14 +649,15 @@ mod tests {
     }
 
     #[test]
-    fn batch_a_fixture_ingests_twenty_two_rows() {
+    fn research_ingest_sample_ingests_every_row() {
         let (_dir, store) = temp_store();
         let path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/batch-a-apply-urls.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/research-ingest-sample.json");
         let text = fs::read_to_string(&path).unwrap();
         let value: Value = serde_json::from_str(&text).unwrap();
         let rows = value.as_array().unwrap();
-        assert_eq!(rows.len(), 22);
+        let count = rows.len();
+        assert!(count >= 2, "{count}");
         let allowed = ["company", "title", "location", "apply_url"];
         for row in rows {
             let object = row.as_object().unwrap();
@@ -658,13 +665,15 @@ mod tests {
             assert_eq!(object.len(), 4);
         }
         let leads: Vec<ResearchLead> = serde_json::from_str(&text).unwrap();
+        assert!(leads.iter().any(|row| row.apply_url.contains('?')));
+        assert!(leads.iter().any(|row| !row.apply_url.contains('?')));
         let urls: HashSet<_> = leads
             .iter()
             .map(|row| canonical_apply_url(&row.apply_url))
             .collect();
-        assert_eq!(urls.len(), 22);
+        assert_eq!(urls.len(), count);
         let report = ingest(&store, &leads, None).unwrap();
-        assert_eq!(report.inserted, 22);
+        assert_eq!(report.inserted, count);
         assert_eq!(report.skipped_existing, 0);
         assert_eq!(report.skipped_excluded, 0);
         let opps = store
@@ -673,7 +682,7 @@ mod tests {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(opps.len(), 22);
+        assert_eq!(opps.len(), count);
         assert!(opps
             .iter()
             .all(|opp| opp.kind == "research" && opp.status == "new"));
@@ -699,13 +708,13 @@ mod tests {
         }
         let second = ingest(&store, &decorated, None).unwrap();
         assert_eq!(second.inserted, 0);
-        assert_eq!(second.skipped_existing, 22);
+        assert_eq!(second.skipped_existing, count);
         let opps = store
             .get_opportunities(&OpportunityFilter {
                 limit: Some(50),
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(opps.len(), 22);
+        assert_eq!(opps.len(), count);
     }
 }
