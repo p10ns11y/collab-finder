@@ -1528,7 +1528,7 @@ pub async fn load_tesla_listings(client: &reqwest::Client) -> Result<Vec<Value>,
     )
 }
 
-fn tesla_field(job: &Value, keys: &[&str]) -> Option<&str> {
+fn tesla_field(job: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = job
             .get(*k)
@@ -1536,7 +1536,7 @@ fn tesla_field(job: &Value, keys: &[&str]) -> Option<&str> {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            return Some(s);
+            return Some(s.to_string());
         }
     }
     None
@@ -1547,12 +1547,9 @@ fn lead_from_tesla(
     job: &Value,
     filter: &MissionFirmFilter,
 ) -> Option<MissionFirmLead> {
-    let title = tesla_field(job, &["title", "t", "jobTitle", "name"])?.to_string();
-    let location = tesla_field(job, &["location", "l", "loc", "city"])
-        .unwrap_or("")
-        .to_string();
-    let department =
-        tesla_field(job, &["department", "dp", "team", "family"]).map(|s| s.to_string());
+    let title = tesla_field(job, &["title", "t", "jobTitle", "name"])?;
+    let location = tesla_field(job, &["location", "l", "loc", "city"]).unwrap_or_default();
+    let department = tesla_field(job, &["department", "dp", "team", "family"]);
     let id = job
         .get("id")
         .map(|v| match v {
@@ -1563,7 +1560,6 @@ fn lead_from_tesla(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| format!("tesla-{}", title.chars().take(24).collect::<String>()));
     let absolute_url = tesla_field(job, &["absolute_url", "url", "applyUrl", "jobUrl"])
-        .map(|s| s.to_string())
         .unwrap_or_else(|| {
             format!(
                 "https://www.tesla.com/careers/search/?query={}",
@@ -1971,13 +1967,9 @@ pub fn resolve_tesla_job_for_import(
         })
         .ok_or_else(|| format!("Tesla job id {external_id} not in local dump"))?;
     let title = tesla_field(job, &["title", "t", "jobTitle", "name"])
-        .unwrap_or("Tesla role")
-        .to_string();
-    let location = tesla_field(job, &["location", "l", "loc", "city"])
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or_else(|| "Tesla role".into());
+    let location = tesla_field(job, &["location", "l", "loc", "city"]).unwrap_or_default();
     let url = tesla_field(job, &["absolute_url", "url", "applyUrl", "jobUrl"])
-        .map(|s| s.to_string())
         .or_else(|| {
             absolute_url_hint
                 .map(str::trim)
@@ -1990,10 +1982,9 @@ pub fn resolve_tesla_job_for_import(
                 urlencoding::encode(&title)
             )
         });
-    let desc = tesla_field(job, &["description", "content", "jobDescription", "d"])
-        .unwrap_or("")
-        .to_string();
-    let dept = tesla_field(job, &["department", "dp", "team"]).unwrap_or("");
+    let desc =
+        tesla_field(job, &["description", "content", "jobDescription", "d"]).unwrap_or_default();
+    let dept = tesla_field(job, &["department", "dp", "team"]).unwrap_or_default();
     let jd = format!(
         "# {title}\nCompany: Tesla\nDepartment: {dept}\nLocation: {location}\nURL: {url}\nId: {external_id}\n\n{desc}"
     );
