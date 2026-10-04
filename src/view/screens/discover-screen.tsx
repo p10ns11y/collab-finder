@@ -158,19 +158,17 @@ export function DiscoverScreen({ view, dispatch }: Props) {
 
   const setupColumn = (
     <>
-      {hasDockedResult ? (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIntent('auto')}
-            aria-label="Hide setup"
-          >
-            Hide setup
-          </Button>
-        </div>
-      ) : null}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setIntent('auto')}
+          aria-label="Hide setup"
+        >
+          Hide setup
+        </Button>
+      </div>
 
       <HireBoardPanel
         hireBoard={model.hireBoard}
@@ -314,7 +312,7 @@ export function DiscoverScreen({ view, dispatch }: Props) {
         ) : (
           <EmptyState
             title="No opportunity selected"
-            description="Pick a row in setup, or evaluate a URL or JD from the button at the bottom right."
+            description="Evaluate a URL or JD."
           />
         )}
       </div>

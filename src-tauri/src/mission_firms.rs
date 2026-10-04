@@ -2570,5 +2570,50 @@ mod tests {
             &filter,
         )
         .is_none());
+        assert!(finish_lead(
+            stripe,
+            "greenhouse",
+            "eindhoven".into(),
+            "Senior Software Engineer".into(),
+            "Eindhoven, NL".into(),
+            "https://example.test/eindhoven".into(),
+            None,
+            &filter,
+        )
+        .is_some_and(|lead| {
+            lead.rank_reasons
+                .iter()
+                .any(|reason| reason == "america_eu")
+                && lead
+                    .rank_reasons
+                    .iter()
+                    .all(|reason| reason != "not_stockholm_workable")
+        }));
+        assert!(finish_lead(
+            stripe,
+            "greenhouse",
+            "kiel".into(),
+            "Senior Software Engineer".into(),
+            "Kiel, DE".into(),
+            "https://example.test/kiel".into(),
+            None,
+            &filter,
+        )
+        .is_some_and(|lead| {
+            lead.rank_reasons
+                .iter()
+                .any(|reason| reason == "unknown_location")
+        }));
+        assert!(finish_lead(
+            stripe,
+            "greenhouse",
+            "wilmington".into(),
+            "Senior Software Engineer".into(),
+            "Wilmington, DE".into(),
+            "https://example.test/wilmington".into(),
+            None,
+            &filter,
+        )
+        .is_none());
     }
 }

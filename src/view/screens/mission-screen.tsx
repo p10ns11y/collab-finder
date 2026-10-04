@@ -205,7 +205,6 @@ export function MissionScreen({ view, dispatch }: Props) {
         {selected ? (
           <SelectedMissionLead
             lead={selected}
-            dispatch={dispatch}
             inspect={model.missionInspect}
             onClear={() => setSelectedKey(null)}
           />
@@ -432,12 +431,10 @@ function DurabilityStrip({
 
 function SelectedMissionLead({
   lead,
-  dispatch,
   inspect,
   onClear,
 }: {
   lead: MissionFirmLead
-  dispatch: Dispatch<FinderMsg>
   inspect: FinderViewState['model']['missionInspect']
   onClear: () => void
 }) {
@@ -469,34 +466,6 @@ function SelectedMissionLead({
         <button type="button" className="ui-meta shrink-0 hover:text-ink" onClick={onClear}>
           Clear
         </button>
-      </div>
-      <div className="flex flex-wrap gap-1">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={lead.already_in_db}
-          onClick={() => dispatch({ type: 'MissionFirmsImportRequested', lead })}
-        >
-          Import
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={() => dispatch({ type: 'MissionFirmsEvaluateRequested', lead })}
-        >
-          Evaluate
-        </Button>
-        <a
-          href={lead.absolute_url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 px-2 text-xs text-ink-muted hover:text-accent"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Open
-        </a>
       </div>
     </div>
   )
@@ -546,23 +515,26 @@ function MissionLeadRow({
           </span>
         ))}
         <div className="ml-auto flex flex-wrap gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={lead.already_in_db}
-            onClick={() => dispatch({ type: 'MissionFirmsImportRequested', lead })}
-          >
-            Import
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => dispatch({ type: 'MissionFirmsEvaluateRequested', lead })}
-          >
-            Evaluate
-          </Button>
+          {active && !lead.already_in_db ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => dispatch({ type: 'MissionFirmsImportRequested', lead })}
+            >
+              Import
+            </Button>
+          ) : null}
+          {active ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => dispatch({ type: 'MissionFirmsEvaluateRequested', lead })}
+            >
+              Evaluate
+            </Button>
+          ) : null}
           <a
             href={lead.absolute_url}
             target="_blank"
