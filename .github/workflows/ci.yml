@@ -45,6 +45,9 @@ jobs:
       - name: Host alias, action pin, secret shapes
         run: bash scripts/ci-fitness.sh
 
+      - name: Area map
+        run: node scripts/area-map.verify.mjs && node scripts/area-map.mjs
+
   check:
     needs: changes
     runs-on: ubuntu-22.04

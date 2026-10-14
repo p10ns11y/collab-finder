@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Run all domain verify runners (pure TS machines + wiring gates).
+ * Run domain verify runners under src/ and script checks under scripts/.
  * Entry: *.verify.mjs wrappers, or *.verify.runner.mjs when no wrapper exists.
  */
 import { readdirSync, statSync } from 'node:fs'
@@ -50,7 +50,8 @@ function allRunners(dir, out = []) {
 
 const wrappers = walk(srcRoot).sort()
 const runners = orphanRunners(wrappers, allRunners(srcRoot)).sort()
-const targets = [...wrappers, ...runners]
+const scriptChecks = walk(join(root, 'scripts')).sort()
+const targets = [...wrappers, ...runners, ...scriptChecks]
 
 if (targets.length === 0) {
   console.error('No verify targets found under src/')
