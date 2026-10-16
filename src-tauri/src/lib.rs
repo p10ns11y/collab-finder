@@ -781,24 +781,157 @@ fn mission_maps_dir() -> std::path::PathBuf {
         .join(".grok/mission-maps")
 }
 
-#[derive(serde::Serialize)]
+const HEADING_SYNC_ERROR: &str = "The mission map did not refresh.";
+const HEADING_SYNC_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(120);
+const HEADING_MAP_FILES: [&str; 3] = ["cash-path-now.json", "contacts.md", "waybar.json"];
+const HEADING_STAMP_FILE: &str = "synced-at";
+const HEADING_OWNER_ERROR_FILE: &str = "sync-error";
+
+fn heading_process_start() -> std::time::SystemTime {
+    static STARTED: std::sync::OnceLock<std::time::SystemTime> = std::sync::OnceLock::new();
+    *STARTED.get_or_init(std::time::SystemTime::now)
+}
+
+#[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct HeadingSnapshot {
     map_json: String,
     contacts: String,
     waybar: String,
+    synced_at: Option<String>,
+    sync_error: Option<String>,
 }
 
-/// Read-only cluster SoT (mission-map owner writes these files).
+/// Read-only cluster SoT. The owner rewrites the three files, then writes `synced-at`.
 #[tauri::command]
 fn read_heading_snapshot() -> Result<HeadingSnapshot, String> {
-    let d = mission_maps_dir();
-    let read = |name: &str| std::fs::read_to_string(d.join(name)).unwrap_or_default();
-    Ok(HeadingSnapshot {
+    Ok(read_heading_snapshot_in(
+        &mission_maps_dir(),
+        heading_process_start(),
+    ))
+}
+
+fn read_heading_snapshot_in(
+    dir: &std::path::Path,
+    process_start: std::time::SystemTime,
+) -> HeadingSnapshot {
+    if owner_error_line(dir).is_some() || !stamp_is_current(dir, process_start) {
+        return HeadingSnapshot {
+            map_json: String::new(),
+            contacts: String::new(),
+            waybar: String::new(),
+            synced_at: None,
+            sync_error: Some(HEADING_SYNC_ERROR.to_string()),
+        };
+    }
+    let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap_or_default();
+    let stamp = std::fs::read_to_string(dir.join(HEADING_STAMP_FILE)).unwrap_or_default();
+    HeadingSnapshot {
         map_json: read("cash-path-now.json"),
         contacts: read("contacts.md"),
         waybar: read("waybar.json"),
-    })
+        synced_at: Some(stamp.trim().to_string()),
+        sync_error: None,
+    }
+}
+
+/// A non-empty `sync-error` line fails the refresh. The text itself is never returned.
+fn owner_error_line(dir: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(dir.join(HEADING_OWNER_ERROR_FILE)).ok()?;
+    let line = text.trim();
+    if line.is_empty() {
+        None
+    } else {
+        Some(line.to_string())
+    }
+}
+
+fn stamp_is_current(dir: &std::path::Path, process_start: std::time::SystemTime) -> bool {
+    let raw = match std::fs::read_to_string(dir.join(HEADING_STAMP_FILE)) {
+        Ok(raw) => raw,
+        Err(_) => return false,
+    };
+    let stamp = match parse_utc_stamp(&raw) {
+        Some(stamp) => stamp,
+        None => return false,
+    };
+    let age = match process_start.duration_since(stamp) {
+        Ok(age) => age,
+        Err(_) => return false,
+    };
+    if age > HEADING_SYNC_MAX_AGE {
+        return false;
+    }
+    for name in HEADING_MAP_FILES {
+        let modified = match std::fs::metadata(dir.join(name)).and_then(|meta| meta.modified()) {
+            Ok(modified) => modified,
+            Err(_) => return false,
+        };
+        if modified > stamp {
+            return false;
+        }
+    }
+    true
+}
+
+fn parse_utc_stamp(raw: &str) -> Option<std::time::SystemTime> {
+    let text = raw.trim();
+    let text = text
+        .strip_suffix('Z')
+        .or_else(|| text.strip_suffix("+00:00"))
+        .or_else(|| text.strip_suffix("-00:00"))?;
+    let (date, time) = text.split_once('T')?;
+    let mut dates = date.split('-');
+    let year: i32 = dates.next()?.parse().ok()?;
+    let month: u32 = dates.next()?.parse().ok()?;
+    let day: u32 = dates.next()?.parse().ok()?;
+    if dates.next().is_some() {
+        return None;
+    }
+    let time = time.split_once('.').map(|(whole, _)| whole).unwrap_or(time);
+    let mut times = time.split(':');
+    let hour: u32 = times.next()?.parse().ok()?;
+    let minute: u32 = times.next()?.parse().ok()?;
+    let second: u32 = times.next()?.parse().ok()?;
+    if times.next().is_some() || hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let days = days_from_civil(year, month, day)?;
+    if days < 0 {
+        return None;
+    }
+    Some(
+        std::time::SystemTime::UNIX_EPOCH
+            + std::time::Duration::from_secs(
+                days as u64 * 86400 + hour as u64 * 3600 + minute as u64 * 60 + second as u64,
+            ),
+    )
+}
+
+fn days_from_civil(year: i32, month: u32, day: u32) -> Option<i64> {
+    let max_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+            if leap {
+                29
+            } else {
+                28
+            }
+        }
+        _ => return None,
+    };
+    if day == 0 || day > max_day {
+        return None;
+    }
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as u64;
+    let mp = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy as u64;
+    Some(era as i64 * 146097 + doe as i64 - 719468)
 }
 
 fn open_route_path() -> std::path::PathBuf {
@@ -1007,6 +1140,7 @@ fn search_quest_turns(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = heading_process_start();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         // Seed reactor from Settings store (same devprofile_path.txt as analyze/prep).
@@ -1120,5 +1254,139 @@ mod open_route_tests {
     #[test]
     fn empty_is_none() {
         assert_eq!(parse_open_route("  \n"), None);
+    }
+}
+
+#[cfg(test)]
+mod heading_snapshot_tests {
+    use super::{parse_utc_stamp, read_heading_snapshot_in, HEADING_SYNC_ERROR};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, SystemTime};
+
+    const NEW_MAP: &str =
+        r#"{"g":"Offer","stages":[{"id":"do-new","what":"Submit the pack","class":"Do"}]}"#;
+    const SEPTEMBER_MAP: &str = r#"{"g":"Land","stages":[{"id":"arr","what":"Land Stockholm Sat 18 Sep","class":"Do"},{"id":"b","what":"Board the arrival","class":"Park"},{"id":"i","what":"Itinerary for the arrival","class":"Park"},{"id":"d","what":"Done with the arrival","class":"Park"}]}"#;
+
+    fn temp_maps() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("temp maps");
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        if let Some(home) = home {
+            assert!(!dir
+                .path()
+                .starts_with(home.join(".local/share/collab-finder")));
+            assert!(!dir.path().starts_with(home.join(".grok")));
+        }
+        dir
+    }
+
+    fn write_at(dir: &Path, name: &str, body: &str, mtime: SystemTime) {
+        let path = dir.join(name);
+        fs::write(&path, body).unwrap();
+        let file = fs::File::options().write(true).open(&path).unwrap();
+        file.set_modified(mtime).unwrap();
+    }
+
+    fn write_trio(dir: &Path, map: &str, mtime: SystemTime) {
+        write_at(dir, "cash-path-now.json", map, mtime);
+        write_at(dir, "contacts.md", "- **Acme** — hr@example.com\n", mtime);
+        write_at(dir, "waybar.json", "X ON / 0 PAUSES\n", mtime);
+    }
+
+    #[test]
+    fn stamp_parses_as_utc() {
+        assert_eq!(
+            parse_utc_stamp("2026-10-16T11:13:00Z").unwrap(),
+            SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_149_180),
+        );
+    }
+
+    #[test]
+    fn rewritten_files_stamp_five_seconds_before_start() {
+        let dir = temp_maps();
+        let stamp = "2026-10-16T11:13:00Z";
+        let stamp_time = parse_utc_stamp(stamp).unwrap();
+        let written = stamp_time - Duration::from_secs(1);
+        write_trio(dir.path(), NEW_MAP, written);
+        write_at(dir.path(), "synced-at", stamp, stamp_time);
+
+        let snap = read_heading_snapshot_in(dir.path(), stamp_time + Duration::from_secs(5));
+        let map: serde_json::Value = serde_json::from_str(&snap.map_json).unwrap();
+        assert_eq!(map["stages"][0]["id"], "do-new");
+        assert_eq!(snap.synced_at.as_deref(), Some(stamp));
+        assert!(snap.sync_error.is_none());
+        assert!(!snap.map_json.contains("18 Sep"));
+    }
+
+    #[test]
+    fn september_map_without_stamp_is_empty() {
+        let dir = temp_maps();
+        let now = parse_utc_stamp("2026-10-16T11:13:00Z").unwrap();
+        write_at(dir.path(), "cash-path-now.json", SEPTEMBER_MAP, now);
+
+        let snap = read_heading_snapshot_in(dir.path(), now);
+        assert!(snap.map_json.is_empty());
+        assert_eq!(snap.sync_error.as_deref(), Some(HEADING_SYNC_ERROR));
+        assert!(snap.synced_at.is_none());
+        assert!(!format!("{snap:?}").contains("Stockholm"));
+    }
+
+    #[test]
+    fn file_touched_after_stamp_is_empty() {
+        let dir = temp_maps();
+        let stamp = "2026-10-16T11:13:00Z";
+        let stamp_time = parse_utc_stamp(stamp).unwrap();
+        write_trio(dir.path(), NEW_MAP, stamp_time - Duration::from_secs(2));
+        write_at(dir.path(), "synced-at", stamp, stamp_time);
+        write_at(
+            dir.path(),
+            "cash-path-now.json",
+            NEW_MAP,
+            stamp_time + Duration::from_secs(1),
+        );
+
+        let snap = read_heading_snapshot_in(dir.path(), stamp_time + Duration::from_secs(5));
+        assert!(snap.map_json.is_empty());
+        assert_eq!(snap.sync_error.as_deref(), Some(HEADING_SYNC_ERROR));
+    }
+
+    #[test]
+    fn stamp_121_seconds_before_start_is_empty() {
+        let dir = temp_maps();
+        let stamp = "2026-10-16T11:13:00Z";
+        let stamp_time = parse_utc_stamp(stamp).unwrap();
+        write_trio(
+            dir.path(),
+            SEPTEMBER_MAP,
+            stamp_time - Duration::from_secs(1),
+        );
+        write_at(dir.path(), "synced-at", stamp, stamp_time);
+
+        let snap = read_heading_snapshot_in(dir.path(), stamp_time + Duration::from_secs(121));
+        assert!(snap.map_json.is_empty());
+        assert_eq!(snap.sync_error.as_deref(), Some(HEADING_SYNC_ERROR));
+        assert!(!snap.map_json.contains("Sep"));
+    }
+
+    #[test]
+    fn owner_error_line_drops_a_fresh_stamp_and_any_path() {
+        let dir = temp_maps();
+        let stamp = "2026-10-16T11:13:00Z";
+        let stamp_time = parse_utc_stamp(stamp).unwrap();
+        write_trio(dir.path(), NEW_MAP, stamp_time - Duration::from_secs(1));
+        write_at(dir.path(), "synced-at", stamp, stamp_time);
+        write_at(
+            dir.path(),
+            "sync-error",
+            "owner failed at /home/operator/maps\n",
+            stamp_time,
+        );
+
+        let snap = read_heading_snapshot_in(dir.path(), stamp_time + Duration::from_secs(5));
+        let dumped = format!("{snap:?}");
+        assert!(snap.map_json.is_empty());
+        assert_eq!(snap.sync_error.as_deref(), Some(HEADING_SYNC_ERROR));
+        assert!(!dumped.contains("/home/"));
+        assert!(!dumped.contains("operator"));
     }
 }
