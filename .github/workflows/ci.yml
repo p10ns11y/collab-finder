@@ -50,6 +50,9 @@ jobs:
       - name: Area map
         run: node --test scripts/area-map-stable.test.mjs && node scripts/area-map.verify.mjs && node scripts/area-map.mjs && node scripts/area-map-graph.mjs --check
 
+      - name: Data check
+        run: node scripts/ci-area-data.mjs
+
   check:
     needs: changes
     runs-on: ubuntu-22.04
