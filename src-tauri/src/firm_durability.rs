@@ -51,20 +51,33 @@ impl DepthGeo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CashEvidence {
+    #[serde(default)]
     pub fy: Option<u16>,
+    #[serde(default)]
     pub currency: Option<String>,
+    #[serde(default)]
     pub scale: Option<String>,
+    #[serde(default)]
     pub revenue: Option<f64>,
+    #[serde(default)]
     pub profit: Option<f64>,
+    #[serde(default)]
     pub profit_kind: Option<String>,
+    #[serde(default)]
     pub fcf: Option<f64>,
+    #[serde(default)]
     pub fcf_kind: Option<String>,
+    #[serde(default)]
     pub net_cash: Option<f64>,
+    #[serde(default)]
     pub order_backlog: Option<f64>,
+    #[serde(default)]
     pub operating_margin_pct: Option<f64>,
+    #[serde(default)]
     pub source: Option<String>,
+    #[serde(default)]
     pub note: Option<String>,
 }
 
@@ -840,6 +853,51 @@ mod tests {
             let ranked = score_for_id("volvo_cars").unwrap();
             assert!(ranked.admitted);
         });
+    }
+
+    #[test]
+    fn example_pack_scores_and_order() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../data/durability/example-pack/universe.json");
+        let raw = std::fs::read_to_string(&path).expect("example pack universe");
+        let value: serde_json::Value = serde_json::from_str(&raw).expect("example pack json");
+        let firms = firms_from_value(&value);
+        assert_eq!(firms.len(), 1, "example pack firm did not parse");
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let packs = tmp.path().join("packs");
+        std::fs::create_dir_all(&packs).expect("packs");
+        let places = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../data/durability/environments.v1.json");
+        std::fs::copy(&places, packs.join("places.json")).expect("places");
+        let _lock = crate::operator_pack::lock_test_fixtures();
+        crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
+        crate::operator_pack::set_test_packs_dir(Some(packs));
+        crate::rank_config::set_test_config(Some(crate::rank_config::RankConfig::default()));
+
+        let cfg = crate::rank_config::RankConfig::default();
+        let mut scored: Vec<_> = firms.iter().map(|firm| score_one(firm, &cfg)).collect();
+        scored.sort_by(|a, b| {
+            b.total
+                .cmp(&a.total)
+                .then_with(|| a.firm.id.cmp(&b.firm.id))
+        });
+        let order: Vec<&str> = scored.iter().map(|row| row.firm.id.as_str()).collect();
+        for row in &scored {
+            println!(
+                "{} {} quality {} place {} total {}",
+                row.firm.id, row.admitted, row.quality, row.place_id, row.total
+            );
+        }
+        println!("order {}", order.join(" "));
+
+        assert_eq!(order, vec!["example_local"]);
+        let only = &scored[0];
+        assert!(only.admitted);
+        assert_eq!(only.quality, 8 * 2 + 7 * 3 + 6 * 3 + 6 * 3 + 5 * 3);
+        assert_eq!(only.place_id, "se_stockholm");
+        assert!(only.geo_bonus > 0);
+        assert_eq!(only.total, only.quality + only.geo_bonus);
     }
 
     #[test]
