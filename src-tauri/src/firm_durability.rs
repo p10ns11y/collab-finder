@@ -867,6 +867,9 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let packs = tmp.path().join("packs");
         std::fs::create_dir_all(&packs).expect("packs");
+        let places = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../data/durability/environments.v1.json");
+        std::fs::copy(&places, packs.join("places.json")).expect("places");
         let _lock = crate::operator_pack::lock_test_fixtures();
         crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
         crate::operator_pack::set_test_packs_dir(Some(packs));
@@ -879,16 +882,21 @@ mod tests {
                 .cmp(&a.total)
                 .then_with(|| a.firm.id.cmp(&b.firm.id))
         });
-        for row in &scored {
-            println!("{} {} {}", row.firm.id, row.admitted, row.total);
-        }
-
         let order: Vec<&str> = scored.iter().map(|row| row.firm.id.as_str()).collect();
+        for row in &scored {
+            println!(
+                "{} {} quality {} place {} total {}",
+                row.firm.id, row.admitted, row.quality, row.place_id, row.total
+            );
+        }
+        println!("order {}", order.join(" "));
+
         assert_eq!(order, vec!["example_local"]);
         let only = &scored[0];
         assert!(only.admitted);
         assert_eq!(only.quality, 8 * 2 + 7 * 3 + 6 * 3 + 6 * 3 + 5 * 3);
         assert_eq!(only.place_id, "se_stockholm");
+        assert!(only.geo_bonus > 0);
         assert_eq!(only.total, only.quality + only.geo_bonus);
     }
 

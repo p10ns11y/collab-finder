@@ -1,6 +1,7 @@
 
 running 1 test
-example_local true 88
+example_local true quality 88 place se_stockholm total 110
+order example_local
 test firm_durability::tests::example_pack_scores_and_order ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 240 filtered out; finished in 0.00s
