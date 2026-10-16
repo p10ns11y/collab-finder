@@ -61,7 +61,7 @@ flowchart LR
   ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `0ea82a9`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `9886587`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
 15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, and `docs` have none. `ops` still chooses which checks run.
 <!-- /area-map-graph:mermaid -->
@@ -89,7 +89,7 @@ An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC 
 | hire-board | data | `src-tauri/src/hire_board.rs`, `src/core/domain/hire-board.ts`, `src/components/finder/hire-board-panel.tsx`, `data/hire-board/**` |
 | profile-data | data | `data/distillation/**` except `data/distillation/x-search/**`, `scripts/prune-public-projects.mjs` |
 | ops | ops | `.github/**`, `scripts/ci-*`, `scripts/run-verify.mjs`, `scripts/cut-release.sh`, `scripts/ensure-lizard.sh`, `scripts/sync-agent-skills.sh`, `scripts/gate.sh`, `scripts/area-map*`, `dx/**`, `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.*`, `src-tauri/icons/**`, `tsconfig.json`, `tsconfig.node.json`, `vite.config.ts`, `postcss.config.js`, `stryker.config.json`, `.gitignore`, `src-tauri/.gitignore`, `session-sot.example`, `skills-lock.json` |
-| docs | docs | `**/*.md`, `docs/**`, `.agents/**`, `.grok/**`, `archive/**`, except `docs/qa/**`, `data/**`, `vendor/**`, `.github/**` |
+| docs | docs | `**/*.md`, `docs/**`, `.agents/**`, `.grok/**`, `archive/**`, except `docs/qa/**`, `data/**`, `vendor/**`, `.github/**`, `src-tauri/tests/**` |
 
 ## Cadence
 
@@ -110,16 +110,16 @@ Lines are added plus deleted on main from 2026-09-16 (30 days) and 2026-07-18 (9
 | runtime | functional | 2 / 39 | 30 / 2,985 | 11 / 11 (11) | Nightly | 10+ neighbours |
 | store | data | 1 / 39 | 13 / 2,099 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
 | bridge | functional | 4 / 25 | 31 / 2,347 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| ops | ops | 6 / 1,655 | 29 / 2,786 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
 | pipeline | functional | 2 / 1,416 | 7 / 2,899 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
 | ingest | data | 1 / 779 | 1 / 779 | 1 / 2 (3) | Weekly | 779 lines in 30 days |
 | credentials | functional | 1 / 624 | 8 / 1,622 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
-| ops | ops | 4 / 271 | 27 / 1,402 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
 | packs | data | 1 / 111 | 17 / 4,700 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
 | network | data | 1 / 2 | 5 / 2,336 | 4 / 4 (5) | Weekly | 1,000+ lines in 90 days |
 | xplore | functional | 1 / 2 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
 | quest | functional | 0 / 0 | 7 / 1,405 | 3 / 4 (5) | Weekly | 1,000+ lines in 90 days |
 | cv-renderer | functional | 3 / 989 | 12 / 5,318 | 0 / 0 (0) | Monthly | no import edges |
-| docs | docs | 11 / 379 | 60 / 12,807 | 0 / 0 (0) | Monthly | no import edges |
+| docs | docs | 13 / 873 | 62 / 13,301 | 0 / 0 (0) | Monthly | no import edges |
 | profile-data | data | 1 / 1 | 3 / 34 | 2 / 0 (2) | Monthly | quiet leaf |
 | hire-board | data | 0 / 0 | 3 / 952 | 3 / 4 (5) | Monthly | quiet leaf |
 
