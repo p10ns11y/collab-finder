@@ -1,0 +1,258 @@
+{
+  "areas": [
+    {
+      "id": "shell",
+      "include": [
+        "src/main.tsx",
+        "src/App.tsx",
+        "src/vite-env.d.ts",
+        "src/app/**",
+        "src/shell/**",
+        "src/lib/**",
+        "src/index.css",
+        "src/types/**",
+        "src/view/finder-app-view.tsx",
+        "src/view/screens/heading-screen.tsx",
+        "src/components/layout/**",
+        "src/components/ui/**",
+        "src/components/finder/command-palette.tsx",
+        "src/components/finder/error-banner.tsx",
+        "src/core/domain/finder-nav*",
+        "src/core/domain/finder-keyboard*",
+        "src/core/domain/heading-*",
+        "index.html"
+      ]
+    },
+    {
+      "id": "runtime",
+      "include": [
+        "src/core/finder/**",
+        "src/core/mvu/**",
+        "src/runtime/**",
+        "src/ports/finder-port.ts",
+        "src/core/async.ts",
+        "src/core/result.ts",
+        "src/core/error.ts"
+      ]
+    },
+    {
+      "id": "bridge",
+      "include": [
+        "src/adapters/tauri/**",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/main.rs",
+        "src-tauri/src/commands/mod.rs",
+        "src-tauri/capabilities/**",
+        "src-tauri/tauri.conf.json",
+        "src-tauri/build.rs"
+      ],
+      "exclude": ["src/adapters/tauri/credentials-adapter.ts"]
+    },
+    {
+      "id": "discover",
+      "include": [
+        "src-tauri/src/opportunity_target.rs",
+        "src-tauri/src/cv_home.rs",
+        "src-tauri/src/xai.rs",
+        "src-tauri/src/llm_route.rs",
+        "src/core/domain/application-pack.ts",
+        "src/core/domain/cv-*",
+        "src/core/domain/discover-*",
+        "src/core/domain/devprofile-path-panel*",
+        "src/core/domain/fit-*",
+        "src/core/domain/llm-route*",
+        "src/core/domain/opportunity-rail-label*",
+        "src/core/domain/opportunity-target*",
+        "src/core/domain/opportunity-url*",
+        "src/core/domain/fixtures/**",
+        "src/components/finder/opportunity-target-fit-panel.tsx",
+        "src/components/finder/artifact-reader.tsx",
+        "src/components/finder/cv-*",
+        "src/view/screens/discover-screen.tsx",
+        "scripts/fit-calibration.mjs"
+      ]
+    },
+    {
+      "id": "hunt",
+      "include": [
+        "src-tauri/src/platsbanken.rs",
+        "src-tauri/src/mission_firms.rs",
+        "src-tauri/src/america_eu.rs",
+        "src-tauri/src/product_lane.rs",
+        "src-tauri/src/commands/hunt.rs",
+        "src-tauri/tests/**",
+        "src/core/domain/hunt-rails*",
+        "src/core/domain/platsbanken*",
+        "src/core/domain/mission-*",
+        "src/core/domain/sweden-hunt*",
+        "src/components/finder/hunt-*",
+        "src/view/screens/sweden-screen.tsx",
+        "src/view/screens/mission-screen.tsx",
+        "data/hunt-presets/**",
+        "data/mission-firms/**",
+        "scripts/generate-firm-list.mjs",
+        "scripts/qa-platsbanken-freshness.sh",
+        "docs/qa/**"
+      ]
+    },
+    {
+      "id": "xplore",
+      "include": [
+        "src-tauri/src/finder_reactor.rs",
+        "src-tauri/src/x_search.rs",
+        "src-tauri/src/x_query.rs",
+        "src/core/domain/finder.ts",
+        "src/core/domain/distillation.ts",
+        "src/core/domain/search-presets.ts",
+        "src/components/finder/search-workspace.tsx",
+        "src/components/finder/tweet-feed.tsx",
+        "src/components/finder/decision-panel.tsx",
+        "src/components/finder/pause-log.tsx",
+        "src/view/screens/xplore-screen.tsx",
+        "data/distillation/x-search/**"
+      ]
+    },
+    {
+      "id": "pipeline",
+      "include": [
+        "src-tauri/src/qualify_policy.rs",
+        "src/core/domain/history.ts",
+        "src/core/domain/pipeline-timeline.ts",
+        "src/core/domain/opportunity-pipeline*",
+        "src/core/domain/apply-reply-lane*",
+        "src/core/domain/qualify-policy*",
+        "src/view/screens/pipeline-screen.tsx",
+        "scripts/export-pipeline.mjs",
+        "scripts/sync-pack-artifacts.py",
+        "scripts/qualify-hillclimb.mjs"
+      ]
+    },
+    {
+      "id": "quest",
+      "include": [
+        "src-tauri/src/local_grok.rs",
+        "src/core/domain/quest*",
+        "src/components/finder/quest-drawer.tsx"
+      ]
+    },
+    {
+      "id": "credentials",
+      "include": [
+        "src-tauri/src/secrets.rs",
+        "src-tauri/src/secrets/**",
+        "src/core/domain/credentials.ts",
+        "src/core/domain/xai-key-*",
+        "src/core/security/**",
+        "src/ports/credentials-port.ts",
+        "src/adapters/tauri/credentials-adapter.ts",
+        "src/components/finder/credentials-*",
+        "src/view/screens/settings-screen.tsx"
+      ]
+    },
+    {
+      "id": "cv-renderer",
+      "include": [
+        "vendor/kanithanj-cv/**",
+        "scripts/install-kanithanj-cv.sh",
+        "scripts/pull-cv-renderer.sh",
+        "scripts/pull-cvdata.sh",
+        "scripts/test-cv-sot.sh",
+        "scripts/test-pull-*"
+      ]
+    },
+    {
+      "id": "store",
+      "include": [
+        "src-tauri/src/db.rs",
+        "src-tauri/src/app_dirs.rs",
+        "src-tauri/src/pulse.rs",
+        "scripts/backup-db.sh",
+        "scripts/pulse-export.mjs",
+        "scripts/pulse-import.mjs",
+        "scripts/seed-testdata-for-ci.sh"
+      ]
+    },
+    {
+      "id": "packs",
+      "include": [
+        "src-tauri/src/operator_pack.rs",
+        "src-tauri/src/rank_config.rs",
+        "src-tauri/src/environment.rs",
+        "src-tauri/src/firm_durability.rs",
+        "src/core/domain/operator-pack-health.ts",
+        "src/core/domain/firm-durability.ts",
+        "src/core/domain/firm-maintained-list*",
+        "src/view/screens/preferences-*",
+        "data/durability/**",
+        "data/pipeline/**",
+        "scripts/seed-operator-config.sh",
+        "scripts/load-pipeline-config.mjs"
+      ]
+    },
+    {
+      "id": "ingest",
+      "include": [
+        "src-tauri/src/research_ingest.rs",
+        "src-tauri/src/bin/**",
+        "src-tauri/fixtures/**"
+      ]
+    },
+    {
+      "id": "network",
+      "include": [
+        "src-tauri/src/network_graph.rs",
+        "src/core/domain/network-graph.ts",
+        "src/view/screens/network-screen.tsx",
+        "data/connections.sample.csv",
+        "data/contacts.sample.csv",
+        "data/network-csv.md"
+      ]
+    },
+    {
+      "id": "hire-board",
+      "include": [
+        "src-tauri/src/hire_board.rs",
+        "src/core/domain/hire-board.ts",
+        "src/components/finder/hire-board-panel.tsx",
+        "data/hire-board/**"
+      ]
+    },
+    {
+      "id": "profile-data",
+      "include": ["data/distillation/**", "scripts/prune-public-projects.mjs"],
+      "exclude": ["data/distillation/x-search/**"]
+    },
+    {
+      "id": "ops",
+      "include": [
+        ".github/**",
+        "scripts/ci-*",
+        "scripts/run-verify.mjs",
+        "scripts/cut-release.sh",
+        "scripts/ensure-lizard.sh",
+        "scripts/sync-agent-skills.sh",
+        "scripts/gate.sh",
+        "scripts/area-map*",
+        "dx/**",
+        "package.json",
+        "pnpm-lock.yaml",
+        "src-tauri/Cargo.*",
+        "src-tauri/icons/**",
+        "tsconfig.json",
+        "tsconfig.node.json",
+        "vite.config.ts",
+        "postcss.config.js",
+        "stryker.config.json",
+        ".gitignore",
+        "src-tauri/.gitignore",
+        "session-sot.example",
+        "skills-lock.json"
+      ]
+    },
+    {
+      "id": "docs",
+      "include": ["**/*.md", "docs/**", ".agents/**", ".grok/**", "archive/**"],
+      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**"]
+    }
+  ]
+}
