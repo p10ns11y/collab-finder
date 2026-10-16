@@ -846,6 +846,12 @@ fn owner_error_line(dir: &std::path::Path) -> Option<String> {
     }
 }
 
+fn unix_whole_secs(time: std::time::SystemTime) -> Option<u64> {
+    time.duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs())
+}
+
 fn stamp_is_current(dir: &std::path::Path, process_start: std::time::SystemTime) -> bool {
     let raw = match std::fs::read_to_string(dir.join(HEADING_STAMP_FILE)) {
         Ok(raw) => raw,
@@ -862,12 +868,20 @@ fn stamp_is_current(dir: &std::path::Path, process_start: std::time::SystemTime)
     if age > HEADING_SYNC_MAX_AGE {
         return false;
     }
+    let stamp_secs = match unix_whole_secs(stamp) {
+        Some(secs) => secs,
+        None => return false,
+    };
     for name in HEADING_MAP_FILES {
         let modified = match std::fs::metadata(dir.join(name)).and_then(|meta| meta.modified()) {
             Ok(modified) => modified,
             Err(_) => return false,
         };
-        if modified > stamp {
+        let modified_secs = match unix_whole_secs(modified) {
+            Some(secs) => secs,
+            None => return false,
+        };
+        if modified_secs > stamp_secs {
             return false;
         }
     }
@@ -1351,6 +1365,20 @@ mod heading_snapshot_tests {
     }
 
     #[test]
+    fn file_in_the_same_second_as_the_stamp_still_shows() {
+        let dir = temp_maps();
+        let stamp = "2026-10-16T11:13:00Z";
+        let stamp_time = parse_utc_stamp(stamp).unwrap();
+        write_trio(dir.path(), NEW_MAP, stamp_time + Duration::from_millis(400));
+        write_at(dir.path(), "synced-at", stamp, stamp_time);
+
+        let snap = read_heading_snapshot_in(dir.path(), stamp_time + Duration::from_secs(5));
+        assert!(snap.map_json.contains("do-new"));
+        assert_eq!(snap.synced_at.as_deref(), Some(stamp));
+        assert!(snap.sync_error.is_none());
+    }
+
+    #[test]
     fn stamp_121_seconds_before_start_is_empty() {
         let dir = temp_maps();
         let stamp = "2026-10-16T11:13:00Z";
@@ -1378,7 +1406,7 @@ mod heading_snapshot_tests {
         write_at(
             dir.path(),
             "sync-error",
-            "owner failed at /home/operator/maps\n",
+            "owner failed at /var/mission-maps/lane-secret\n",
             stamp_time,
         );
 
@@ -1386,7 +1414,7 @@ mod heading_snapshot_tests {
         let dumped = format!("{snap:?}");
         assert!(snap.map_json.is_empty());
         assert_eq!(snap.sync_error.as_deref(), Some(HEADING_SYNC_ERROR));
-        assert!(!dumped.contains("/home/"));
-        assert!(!dumped.contains("operator"));
+        assert!(!dumped.contains("/var/mission-maps"));
+        assert!(!dumped.contains("lane-secret"));
     }
 }
