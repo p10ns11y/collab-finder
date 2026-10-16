@@ -142,3 +142,7 @@ The box to laptop-1 direction runs only on demand, never on the daily timer.
 ## Acceptance
 
 - [x] TODO: script that rebuilds the area graph (TS imports, Rust module paths, IPC command names) and the churn table, with its output committed
+
+## Review
+
+Per-PR review is green CI plus the area owner's look. That is the check while a pull is open. Pulls that already merged keep the bar they met when they landed, and this does not lower that bar.
