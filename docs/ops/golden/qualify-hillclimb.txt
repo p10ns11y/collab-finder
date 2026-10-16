@@ -1,0 +1,14 @@
+{
+  "metric": "false_policy_write_rate_on_generic_rejects",
+  "blinded": true,
+  "generic_count": 10,
+  "before": 1,
+  "after": 0,
+  "delta": -1,
+  "specific_outcome_id": 9105,
+  "specific_firm_key": "legora",
+  "specific_delta": -8,
+  "neko_weight_after_generic": null,
+  "neko_weight_after_specific": null,
+  "note": "Before counts an unguarded reject step on every generic row. After, those rows leave the prior unchanged. The specific-feedback row is not part of the rate; it still writes one step."
+}

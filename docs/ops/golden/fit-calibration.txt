@@ -1,0 +1,59 @@
+{
+  "paired": 0,
+  "unscored": 6,
+  "censored": 6,
+  "mae": null,
+  "brier": null,
+  "reliability": [
+    {
+      "lo": 0,
+      "hi": 20,
+      "n": 0,
+      "mean_predicted": null,
+      "mean_outcome": null,
+      "gap": null
+    },
+    {
+      "lo": 20,
+      "hi": 40,
+      "n": 0,
+      "mean_predicted": null,
+      "mean_outcome": null,
+      "gap": null
+    },
+    {
+      "lo": 40,
+      "hi": 60,
+      "n": 0,
+      "mean_predicted": null,
+      "mean_outcome": null,
+      "gap": null
+    },
+    {
+      "lo": 60,
+      "hi": 80,
+      "n": 0,
+      "mean_predicted": null,
+      "mean_outcome": null,
+      "gap": null
+    },
+    {
+      "lo": 80,
+      "hi": 100,
+      "n": 0,
+      "mean_predicted": null,
+      "mean_outcome": null,
+      "gap": null
+    }
+  ],
+  "label_map": {
+    "positive": [
+      "interview",
+      "offer"
+    ],
+    "negative": [
+      "rejected",
+      "withdrawn"
+    ]
+  }
+}
