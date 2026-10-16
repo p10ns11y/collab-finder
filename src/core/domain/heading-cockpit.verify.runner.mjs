@@ -8,8 +8,7 @@ import {
   groupStagesExcludingDo,
   isHitlPause,
   nextDoFrame,
-  nextDoGlanceCount,
-  NEXT_DO_BEFORE_GLANCE,
+  NEXT_DO_FRAME,
   NEXT_DO_HIDDEN_CHROME,
   parseContactsActionable,
   parseMissionMap,
@@ -101,9 +100,9 @@ const cash = [
 const frame = nextDoFrame(cash)
 must(frame.next?.id === 'do1', 'next do is the first Do')
 must(frame.hitl.length === 1 && frame.hitl[0].id === 'captcha', 'CAPTCHA stays, other classes do not')
-must(frame.hidden.join(',') === NEXT_DO_HIDDEN_CHROME.join(','), 'craft fleet people weather log are hidden')
-must(nextDoGlanceCount(frame) <= 2, 'glance budget is the act plus pauses')
-must(nextDoGlanceCount(frame) < NEXT_DO_BEFORE_GLANCE, 'fewer surfaces than the old cockpit')
+must(frame.frame.join(',') === NEXT_DO_FRAME.join(','), 'frame is chip, weather, badges, arrive, extra-acts')
+must(frame.hidden.join(',') === NEXT_DO_HIDDEN_CHROME.join(','), 'fleet, people, and log stay off')
+must(!frame.frame.includes('sailing') && !frame.hidden.includes('chip'), 'sailing is not a fourth view')
 must(isHitlPause({ what: 'BankID signature' }), 'bankid is a pause')
 must(isHitlPause({ what: 'Pay the invoice' }), 'pay is a pause')
 must(isHitlPause({ what: 'Send the application' }), 'send is a pause')

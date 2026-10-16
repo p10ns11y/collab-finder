@@ -248,7 +248,11 @@ export function isHitlPause(stage: MissionStage): boolean {
   return HITL_PAUSE.test(blob)
 }
 
-export const NEXT_DO_HIDDEN_CHROME = ['craft', 'fleet', 'people', 'weather', 'log'] as const
+/** Frame around the one act. Sailing is not a member of this list. */
+export const NEXT_DO_FRAME = ['chip', 'weather', 'badges', 'arrive', 'extra-acts'] as const
+
+/** Fleet, people, and the stage log stay off the screen. */
+export const NEXT_DO_HIDDEN_CHROME = ['fleet', 'people', 'log'] as const
 
 /** Bands the pre-strip Navigating screen placed around the act. */
 export const NEXT_DO_BEFORE_GLANCE = 6
@@ -257,6 +261,7 @@ export type NextDoFrame = {
   next: MissionStage | null
   heroIsHitl: boolean
   hitl: MissionStage[]
+  frame: typeof NEXT_DO_FRAME
   hidden: typeof NEXT_DO_HIDDEN_CHROME
 }
 
@@ -274,6 +279,7 @@ export function nextDoFrame(stages: MissionStage[]): NextDoFrame {
     next,
     heroIsHitl: next ? isHitlPause(next) : false,
     hitl,
+    frame: NEXT_DO_FRAME,
     hidden: NEXT_DO_HIDDEN_CHROME,
   }
 }

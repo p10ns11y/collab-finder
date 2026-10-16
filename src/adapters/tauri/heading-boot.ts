@@ -5,6 +5,22 @@ export type HeadingSnapshot = {
   mapJson: string
   contacts: string
   waybar: string
+  syncedAt: string | null
+  syncError: string | null
+}
+
+const UTC_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Day, month, year, and clock. The year keeps an older month from reading as current. */
+export function formatSyncedAt(stamp: string): string {
+  const date = new Date(stamp)
+  if (Number.isNaN(date.getTime())) return ''
+  const day = date.getUTCDate()
+  const month = UTC_MONTHS[date.getUTCMonth()]
+  const year = date.getUTCFullYear()
+  const hour = String(date.getUTCHours()).padStart(2, '0')
+  const minute = String(date.getUTCMinutes()).padStart(2, '0')
+  return `${day} ${month} ${year}, ${hour}:${minute} UTC`
 }
 
 /** Cluster `mm-waybar open` asked for Heading; opp hydrate must not steal Discover. */
