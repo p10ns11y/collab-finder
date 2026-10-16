@@ -137,6 +137,8 @@ Apart from area rows: 30 days 3 commits / 1,751 lines; 90 days 18 commits / 8,53
 | Monday 03:30 | Weekly area review |
 | 1st of the month 04:30 | Monthly area review, then recompute the churn table and area map from a fresh 30 / 90-day window and let the cadence follow |
 
+The box to laptop-1 direction runs only on demand, never on the daily timer.
+
 ## Acceptance
 
 - [x] TODO: script that rebuilds the area graph (TS imports, Rust module paths, IPC command names) and the churn table, with its output committed
