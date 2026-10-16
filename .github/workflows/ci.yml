@@ -48,7 +48,7 @@ jobs:
         run: bash scripts/ci-fitness.sh
 
       - name: Area map
-        run: node scripts/area-map.verify.mjs && node scripts/area-map.mjs && node scripts/area-map-graph.mjs --check
+        run: node --test scripts/area-map-stable.test.mjs && node scripts/area-map.verify.mjs && node scripts/area-map.mjs && node scripts/area-map-graph.mjs --check
 
   check:
     needs: changes
