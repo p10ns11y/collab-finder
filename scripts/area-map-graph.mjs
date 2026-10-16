@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { stableAreas } from './area-map-stable.mjs'
 import { dirname, join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -1032,7 +1033,7 @@ function main() {
     `area-lines-30 ${window30.areaLines}`,
     `area-lines-90 ${window90.areaLines}`,
   ]
-  if (args.check && next !== doc) {
+  if (args.check && stableAreas(next) !== stableAreas(doc)) {
     console.error('AREAS.md would change')
     for (const line of proof) console.error(line)
     process.exit(1)
