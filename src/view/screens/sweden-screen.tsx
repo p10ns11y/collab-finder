@@ -45,7 +45,6 @@ export function SwedenScreen({ view, dispatch }: Props) {
   const droppedHint = queryPrep.dropped.length
     ? `Removed from query: ${queryPrep.dropped.join(', ')}`
     : null
-  const selected = leads.find((lead) => lead.ad_id === selectedAdId)
   const fitForThisHunt = huntFitVisibleForLeads(view, leads)
 
   return (
@@ -168,14 +167,6 @@ export function SwedenScreen({ view, dispatch }: Props) {
           </div>
         </div>
 
-        {selected ? (
-          <SelectedSwedenLead
-            lead={selected}
-            dispatch={dispatch}
-            onClear={() => setSelectedAdId(null)}
-          />
-        ) : null}
-
         {err ? (
           <p className="rounded-md border border-border-subtle bg-surface-0/60 px-2 py-1.5 text-xs text-ink">
             {err}
@@ -242,66 +233,6 @@ export function SwedenScreen({ view, dispatch }: Props) {
   )
 }
 
-function SelectedSwedenLead({
-  lead,
-  dispatch,
-  onClear,
-}: {
-  lead: PlatsbankenLead
-  dispatch: Dispatch<FinderMsg>
-  onClear: () => void
-}) {
-  const ageTag = publicationAgeTag(lead.rank_reasons)
-  return (
-    <div className="space-y-2 rounded-lg border border-border-default bg-surface-1/50 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-ink truncate">
-            {lead.favorite_match ? '★ ' : ''}
-            {lead.headline}
-          </p>
-          <p className="ui-meta truncate">
-            {lead.employer}
-            {lead.municipality ? ` · ${lead.municipality}` : ''}
-          </p>
-          {ageTag ? <p className="ui-meta">{ageTag}</p> : null}
-        </div>
-        <button type="button" className="ui-meta shrink-0 hover:text-ink" onClick={onClear}>
-          Clear
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {lead.already_in_db && lead.opportunity_id ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => dispatch({ type: 'PlatsbankenRemoveRequested', lead })}
-          >
-            Remove
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={() => dispatch({ type: 'PlatsbankenEvaluateRequested', lead })}
-        >
-          Evaluate
-        </Button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 px-2 text-xs text-ink-muted hover:text-accent"
-          onClick={() => openExternalUrl(lead.webpage_url)}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Platsbanken
-        </button>
-      </div>
-    </div>
-  )
-}
-
 function publicationAgeTag(reasons: string[]): string | undefined {
   return reasons.find(
     (reason) =>
@@ -356,7 +287,7 @@ function SwedenLeadRow({
       <div className="mt-2 flex flex-wrap items-center gap-1">
         {lead.already_in_db ? <Chip active>Saved</Chip> : null}
         <div className="ml-auto flex flex-wrap gap-1">
-          {lead.already_in_db && lead.opportunity_id ? (
+          {active && lead.already_in_db && lead.opportunity_id ? (
             <Button
               type="button"
               variant="ghost"
@@ -366,14 +297,16 @@ function SwedenLeadRow({
               Remove
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => dispatch({ type: 'PlatsbankenEvaluateRequested', lead })}
-          >
-            Evaluate
-          </Button>
+          {active ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => dispatch({ type: 'PlatsbankenEvaluateRequested', lead })}
+            >
+              Evaluate
+            </Button>
+          ) : null}
           <button
             type="button"
             className="inline-flex items-center px-1.5 text-ink-muted hover:text-ink"

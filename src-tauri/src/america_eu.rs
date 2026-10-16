@@ -18,25 +18,49 @@ const EU_CITIES: &[&str] = &[
     "amsterdam",
     "barcelona",
     "berlin",
+    "bratislava",
+    "bremen",
     "brussels",
+    "cologne",
     "copenhagen",
+    "delft",
+    "dortmund",
+    "dresden",
     "dublin",
+    "dusseldorf",
     "edinburgh",
+    "eindhoven",
+    "frankfurt",
     "gothenburg",
     "goteborg",
+    "groningen",
+    "haarlem",
+    "hague",
+    "hamburg",
+    "hannover",
+    "hanover",
     "helsinki",
+    "leipzig",
     "lisbon",
     "london",
+    "maastricht",
     "madrid",
     "malmo",
     "munich",
     "nantes",
+    "nuremberg",
     "oslo",
     "paris",
     "prague",
+    "rotterdam",
     "stockholm",
+    "stuttgart",
     "tallinn",
+    "utrecht",
+    "valletta",
+    "vienna",
     "warsaw",
+    "wien",
     "zurich",
 ];
 
@@ -85,7 +109,8 @@ const EU_PHRASES: &[&[&str]] = &[&["czech", "republic"], &["united", "kingdom"]]
 
 const EU_CODES: &[&str] = &[
     "at", "be", "bg", "ch", "cy", "cz", "de", "dk", "ee", "es", "fi", "fr", "gb", "gr", "hr", "hu",
-    "ie", "is", "it", "li", "lt", "lu", "lv", "nl", "no", "pl", "pt", "ro", "se", "si", "uk",
+    "ie", "is", "it", "li", "lt", "lu", "lv", "mt", "nl", "no", "pl", "pt", "ro", "se", "si", "sk",
+    "uk",
 ];
 
 const ADMIN_CODES: &[&str] = &[
@@ -156,6 +181,17 @@ const NON_EU_MARKERS: &[&str] = &["canada", "israel", "ontario", "us", "usa"];
 
 const US_CITY_PHRASES: &[&[&str]] = &[&["palo", "alto"], &["san", "francisco"]];
 
+const NORTH_AMERICA_CITIES: &[&str] = &[
+    "billings",
+    "bozeman",
+    "dover",
+    "helena",
+    "missoula",
+    "regina",
+    "saskatoon",
+    "wilmington",
+];
+
 pub fn classify(us_employer: bool, location: &str) -> AmericaEuClass {
     let place = place_of(location);
     let stockholm_workable = place == GeoPlace::Europe;
@@ -217,7 +253,9 @@ fn segment_place(segment: &str) -> GeoPlace {
         return GeoPlace::KnownNonEu;
     }
     if let Some(place) = admin_code_place(&tokens) {
-        return place;
+        if place != GeoPlace::Unknown || !us_city(&tokens) {
+            return place;
+        }
     }
     if eu_place(&tokens) || global_remote(&tokens) {
         return GeoPlace::Europe;
@@ -281,11 +319,20 @@ fn admin_code_place(tokens: &[String]) -> Option<GeoPlace> {
     if !ADMIN_CODES.contains(&code.as_str()) {
         return None;
     }
-    if EU_CODES.contains(&code.as_str()) && eu_place(tokens) {
-        Some(GeoPlace::Europe)
-    } else {
-        Some(GeoPlace::KnownNonEu)
+    let colliding = EU_CODES.contains(&code.as_str());
+    if colliding && eu_place(tokens) {
+        return Some(GeoPlace::Europe);
     }
+    if colliding && !north_america_city(tokens) {
+        return Some(GeoPlace::Unknown);
+    }
+    Some(GeoPlace::KnownNonEu)
+}
+
+fn north_america_city(tokens: &[String]) -> bool {
+    tokens
+        .iter()
+        .any(|token| NORTH_AMERICA_CITIES.contains(&token.as_str()))
 }
 
 fn global_remote(tokens: &[String]) -> bool {
@@ -423,6 +470,24 @@ mod tests {
             ("Remote, United Kingdom; Canada", true, europe),
             ("Dublin, Ohio", true, non_eu),
             ("Amsterdam, New York", true, non_eu),
+            ("Eindhoven, NL", true, europe),
+            ("Rotterdam, NL", true, europe),
+            ("Utrecht, NL", true, europe),
+            ("The Hague, NL", true, europe),
+            ("Hamburg, DE", true, europe),
+            ("Frankfurt, DE", true, europe),
+            ("Cologne, DE", true, europe),
+            ("Stuttgart, DE", true, europe),
+            ("Vienna", true, europe),
+            ("Bratislava, SK", true, europe),
+            ("Valletta, MT", true, europe),
+            ("SK", true, europe),
+            ("MT", true, europe),
+            ("Kiel, DE", true, unknown),
+            ("Dover, DE", true, non_eu),
+            ("Helena, MT", true, non_eu),
+            ("Regina, SK", true, non_eu),
+            ("San Francisco, DE", true, non_eu),
         ];
         for (location, us_employer, place) in cases {
             let stockholm_workable = place == GeoPlace::Europe;

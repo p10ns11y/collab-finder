@@ -252,7 +252,7 @@
     {
       "id": "docs",
       "include": ["**/*.md", "docs/**", ".agents/**", ".grok/**", "archive/**"],
-      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**"]
+      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**", "src-tauri/tests/**"]
     }
   ]
 }

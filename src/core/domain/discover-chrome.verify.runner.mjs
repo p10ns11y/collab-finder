@@ -29,18 +29,26 @@ assert(typeof discoverChromeIntentAfterOppChange === 'function', 'shipped discov
 assert(
   eq(resolveDiscoverChrome({ hasResult: false, intent: 'auto' }), {
     kind: 'idle',
+    setup: 'folded',
+    evaluate: false,
+  }),
+  'no result + auto -> idle setup folded',
+)
+assert(
+  eq(resolveDiscoverChrome({ hasResult: false, intent: 'setup-open' }), {
+    kind: 'idle',
     setup: 'open',
     evaluate: false,
   }),
-  'no result + auto -> idle setup open',
+  'no result + setup-open -> operator asked for the workshop',
 )
 assert(
   eq(resolveDiscoverChrome({ hasResult: false, intent: 'evaluate' }), {
     kind: 'idle',
-    setup: 'open',
+    setup: 'folded',
     evaluate: true,
   }),
-  'no result + evaluate -> idle with overlay',
+  'no result + evaluate -> overlay, setup stays folded',
 )
 
 assert(
