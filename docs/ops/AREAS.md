@@ -2,6 +2,7 @@
 
 Every tracked file belongs to one area. Tests and `*.verify.mjs` runners sit with the area they cover.
 
+<!-- area-map-graph:mermaid -->
 ```mermaid
 flowchart LR
   subgraph hubs["Wiring hubs"]
@@ -32,38 +33,38 @@ flowchart LR
   end
 
   hubs <-->|"UI kit, messages, IPC"| screens
-  bridge --> store
 
-  discover <--> credentials
-  discover <--> hire_board
+  bridge --> store
   discover <--> hunt
-  discover <--> packs
-  discover <--> pipeline
   discover <--> xplore
+  discover <--> pipeline
+  discover <--> credentials
+  discover <--> packs
+  discover <--> hire_board
   discover --> store
-  discover -->|"installs at runtime"| cv_renderer
-  credentials <--> store
-  network <--> store
-  xplore <--> store
-  hunt --> ingest
-  hunt --> packs
   hunt --> pipeline
+  hunt --> packs
   hunt --> store
-  ingest --> packs
-  ingest --> store
-  hire_board --> store
-  quest --> store
-  quest -->|"bundled data"| profile_data
-  xplore -->|"bundled data"| profile_data
-  network --> xplore
-  packs --> xplore
+  hunt --> ingest
   pipeline --> xplore
+  packs --> xplore
+  network --> xplore
+  xplore <--> store
+  xplore --> profile_data
+  quest --> store
+  quest --> profile_data
+  credentials --> store
   store --> packs
+  ingest --> packs
+  network <--> store
+  hire_board --> store
+  ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `0ea82a9`. The hub edge folds 56 links (UI kit, messages, IPC). The other 34 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `0ea82a9`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
-Sixteen areas share one tree. `discover` has 11 neighbours. `store` is the data area the most others depend on. Cycles run through `discover` and `store`. `profile-data` and `cv-renderer` only have incoming edges. `ops` and `docs` have none. `ops` still chooses which checks run.
+15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, and `docs` have none. `ops` still chooses which checks run.
+<!-- /area-map-graph:mermaid -->
 
 `*` stays inside one path segment. `**` walks directories. `docs/ops/areas.json` is the config the check reads.
 
@@ -98,30 +99,34 @@ In order:
 2. **Monthly** when it has no import edges and no effect on the build, or it is a quiet leaf: under 200 lines in 30 days, under 1,000 in 90, and at most 5 neighbours.
 3. **Weekly** otherwise.
 
-Lines are added plus deleted on main from 2026-09-07 (30 days) and 2026-07-09 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. Edges are distinct neighbours on the graph above.
+<!-- area-map-graph:cadence -->
+Lines are added plus deleted on main from 2026-09-16 (30 days) and 2026-07-18 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. A path that is gone at the tip is counted on the apart line, not in an area row. Edges are distinct neighbours on the graph above.
 
 | Area | Kind | 30 days: commits / lines | 90 days: commits / lines | Edges in / out (neighbours) | Cadence | Reason |
 |---|---|---|---|---|---|---|
-| shell | functional | 10 / 4,245 | 25 / 5,307 | 11 / 10 (11) | Nightly | Highest code churn; every screen mounts through it |
-| hunt | functional | 6 / 3,094 | 28 / 8,765 | 4 / 8 (8) | Nightly | High churn; two hunt screens and the Platsbanken source |
-| pipeline | functional | 5 / 2,356 | 8 / 3,057 | 5 / 5 (6) | Nightly | High churn; writes outcomes and the qualify policy |
-| discover | functional | 10 / 1,676 | 38 / 12,319 | 9 / 11 (11) | Nightly | Most-changed area over 90 days; writes prep artifacts; calls the SI provider |
-| runtime | functional | 6 / 124 | 37 / 3,289 | 11 / 11 (11) | Nightly | Hub: every message and effect passes through it |
-| bridge | functional | 6 / 159 | 35 / 2,397 | 7 / 12 (12) | Nightly | Hub: all 75 IPC commands and the capabilities file |
-| store | data | 3 / 796 | 13 / 2,099 | 9 / 4 (10) | Nightly | Owns the schema, migrations and the snapshot path |
-| credentials | functional | 2 / 1,054 | 14 / 2,594 | 5 / 5 (5) | Weekly | Medium churn; holds secrets (immediate-fix rules apply any day) |
-| packs | data | 1 / 111 | 17 / 4,700 | 7 / 5 (8) | Weekly | Quiet now, heavy over 90 days; 8 neighbours |
-| xplore | functional | 2 / 95 | 11 / 678 | 8 / 5 (9) | Weekly | Low churn, 9 neighbours |
-| network | data | 2 / 49 | 5 / 2,336 | 4 / 4 (5) | Weekly | Over 1,000 lines in 90 days; holds contact data |
-| quest | functional | 0 / 0 | 7 / 1,405 | 3 / 4 (5) | Weekly | Over 1,000 lines in 90 days |
-| ingest | data | 1 / 779 | 1 / 779 | 1 / 2 (3) | Weekly | New in the 30-day window |
-| cv-renderer | functional | 3 / 989 | 12 / 5,318 | 1 / 0 (1) | Weekly | Leaf, but 989 lines in 30 days |
-| ops | ops | 8 / 307 | 30 / 1,584 | 0 / 0 (0) | Weekly | No import edges, but sets which checks run for every area |
-| hire-board | data | 0 / 0 | 3 / 952 | 3 / 4 (5) | Monthly | Quiet: under 1,000 lines in 90 days |
-| profile-data | data | 1 / 1 | 6 / 605 | 2 / 0 (2) | Monthly | Quiet leaf; a change pulls in quest and xplore through the link walk |
-| docs | docs | 21 / 8,997 | 71 / 18,845 | 0 / 0 (0) | Monthly | No runtime edges; a code review that finds a stale doc logs it |
+| hunt | functional | 4 / 2,891 | 28 / 8,765 | 4 / 8 (8) | Nightly | 1,500+ lines in 30 days |
+| discover | functional | 4 / 676 | 27 / 8,377 | 9 / 10 (10) | Nightly | 10+ neighbours |
+| shell | functional | 4 / 603 | 22 / 4,714 | 11 / 10 (11) | Nightly | 10+ neighbours |
+| runtime | functional | 2 / 39 | 30 / 2,985 | 11 / 11 (11) | Nightly | 10+ neighbours |
+| store | data | 1 / 39 | 13 / 2,099 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
+| bridge | functional | 4 / 25 | 31 / 2,347 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| pipeline | functional | 2 / 1,416 | 7 / 2,899 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
+| ingest | data | 1 / 779 | 1 / 779 | 1 / 2 (3) | Weekly | 779 lines in 30 days |
+| credentials | functional | 1 / 624 | 8 / 1,622 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
+| ops | ops | 4 / 271 | 27 / 1,402 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| packs | data | 1 / 111 | 17 / 4,700 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
+| network | data | 1 / 2 | 5 / 2,336 | 4 / 4 (5) | Weekly | 1,000+ lines in 90 days |
+| xplore | functional | 1 / 2 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
+| quest | functional | 0 / 0 | 7 / 1,405 | 3 / 4 (5) | Weekly | 1,000+ lines in 90 days |
+| cv-renderer | functional | 3 / 989 | 12 / 5,318 | 0 / 0 (0) | Monthly | no import edges |
+| docs | docs | 11 / 379 | 60 / 12,807 | 0 / 0 (0) | Monthly | no import edges |
+| profile-data | data | 1 / 1 | 3 / 34 | 2 / 0 (2) | Monthly | quiet leaf |
+| hire-board | data | 0 / 0 | 3 / 952 | 3 / 4 (5) | Monthly | quiet leaf |
 
-7 nightly, 8 weekly, 3 monthly.
+6 nightly, 8 weekly, 4 monthly.
+
+Apart from area rows: 30 days 3 commits / 1,751 lines; 90 days 18 commits / 8,530 lines.
+<!-- /area-map-graph:cadence -->
 
 ## Schedule (UTC)
 
@@ -134,4 +139,4 @@ Lines are added plus deleted on main from 2026-09-07 (30 days) and 2026-07-09 (9
 
 ## Acceptance
 
-- [ ] TODO: script that rebuilds the area graph (TS imports, Rust module paths, IPC command names) and the churn table, with its output committed
+- [x] TODO: script that rebuilds the area graph (TS imports, Rust module paths, IPC command names) and the churn table, with its output committed

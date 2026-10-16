@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -143,7 +143,8 @@ must(doc.includes('Monday 03:30'), 'weekly clock')
 must(doc.includes('02:30'), 'nightly clock')
 must(doc.includes('04:30'), 'monthly clock')
 must(doc.includes('laptop-1'), 'snapshot host alias')
-must(/^- \[ \] TODO: script that rebuilds the area graph/m.test(doc), 'churn rebuild TODO')
+must(existsSync(join(root, 'scripts/area-map-graph.mjs')), 'graph script')
+must(/^- \[x\] TODO: script that rebuilds the area graph/m.test(doc), 'churn rebuild TODO')
 
 let findings = ''
 try {
