@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Shared fit/prep major pane for Discover · Mission · Sweden.
  * Same OpportunityTargetFitPanel wiring — hunt screens stay φ-consistent.

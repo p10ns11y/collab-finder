@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Navigating — one Next Do, with the transport frame around that act.
  * Stages paint only when synced-at is current. A failed refresh is one sentence

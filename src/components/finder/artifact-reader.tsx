@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Full-viewport artifact workspace: file tree + preview (text / PDF).
  * Edit / LLM tweaks are out of scope.

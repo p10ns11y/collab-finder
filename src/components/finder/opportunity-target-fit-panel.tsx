@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { ExternalLink, BookOpen, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 export type DiscoverChromeIntent = 'auto' | 'setup-open' | 'evaluate'
 
 export type DiscoverChrome = {

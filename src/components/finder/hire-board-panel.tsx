@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import { Button } from '../ui/button'

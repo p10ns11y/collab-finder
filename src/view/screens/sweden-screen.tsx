@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Sweden — full-viewport Platsbanken / JobTech AF runway (peer to Discover).
  * THESIS: Sweden-specific hunt with room for AF workflows; not a Discover side panel.

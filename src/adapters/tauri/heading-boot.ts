@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { safeInvoke } from './safe-invoke'
 import { applyScreenHash } from '../../core/domain/finder-nav'
 

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Hire board — ephemeral sheet leads (filter + skim). Durable rows live in Opportunity.
  * Sheet URL/id: gitignored `data/hire-board/config.local.json` (see config.example.json).

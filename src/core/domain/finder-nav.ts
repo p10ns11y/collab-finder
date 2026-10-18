@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Screen navigation — hash + cluster route helpers. Pure; no I/O except applyScreenHash.
  */

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { X } from 'lucide-react'
 import { Chip } from '../ui/chip'
 import type { HuntPreset } from '../../core/domain/hunt-rails'

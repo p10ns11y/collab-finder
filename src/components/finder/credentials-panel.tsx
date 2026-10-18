@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { KeyRound, Loader2, Trash2 } from 'lucide-react'
 import type { BearerStorageStatus } from '../../core/domain/credentials'
 import { activeSourceLabel } from '../../core/domain/credentials'

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Navigating cockpit — pure transforms over mission-map SoT (cash-path-now.json,
  * waybar.json, contacts.md). No I/O; heading-screen reads via heading-boot.

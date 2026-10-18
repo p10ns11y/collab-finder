@@ -858,11 +858,13 @@ fn get_fit_mode() -> String {
     DEFAULT_FIT_MODE.to_string()
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 pub(crate) fn get_fit_mode_cmd() -> Result<String, String> {
     Ok(get_fit_mode())
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 pub(crate) fn set_fit_mode_cmd(mode: Option<String>) -> Result<String, String> {
     let normalized = match &mode {

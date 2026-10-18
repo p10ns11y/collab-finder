@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import profileStrategyMd from '../../../data/distillation/curation/profile-and-strategy.md?raw'
 import operatorsMd from '../../../data/distillation/x-search/operators.md?raw'
 

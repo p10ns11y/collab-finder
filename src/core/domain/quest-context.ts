@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import constraintsCompact from '../../../data/distillation/curation/candidate-constraints-compact.txt?raw'
 import projectsFocused from '../../../data/distillation/public-projects-focused-flatten.json'
 import { clipChars } from './quest'

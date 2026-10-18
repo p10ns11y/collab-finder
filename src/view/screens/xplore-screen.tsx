@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { DecisionPanel } from '../../components/finder/decision-panel'
 import { CvCycleContextPanel } from '../../components/finder/cv-cycle-context-panel'
 import { PauseLog } from '../../components/finder/pause-log'

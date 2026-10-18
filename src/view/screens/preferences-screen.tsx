@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Preferences — full-viewport app tuning (peer to Mission / Sweden).
  * Connection secrets stay on Settings; this screen is rank, fit, devprofile, references.

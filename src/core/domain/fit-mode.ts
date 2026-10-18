@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /** Fit evaluation mode for Discover analyze (strict dual-fit vs relaxed simple fitness). */
 
 export const FIT_MODES = ['strict', 'relaxed'] as const

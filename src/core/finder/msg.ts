@@ -17,6 +17,7 @@ import type { NetworkFilter, NetworkGraphResult } from '../domain/network-graph'
 import type { AppError } from '../error'
 
 /** All state transitions are explicit messages — no hidden setState. */
+// DEPRECATED(rebuild): Quest*, Xplore (Cycle/Hydrate/Lookup/Promote/Reactor/Search*/PresetSelected/QueryChanged), MissionFirm*/MissionLead*/Platsbanken*/Hunt*/HireBoard*, Network*, ScreenChanged, Palette* — see docs/DEPRECATIONS.md
 export type FinderMsg =
   | { type: 'AppStarted' }
   | { type: 'GlobalError'; error: AppError }

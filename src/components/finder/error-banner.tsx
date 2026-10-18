@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { X } from 'lucide-react'
 import { Button } from '../ui/button'
 

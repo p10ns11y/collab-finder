@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Pure label for Discover opportunity rail rows.
  * Pass pre-shortened `urlLabel` from displayOpportunityUrl when needed (keeps this

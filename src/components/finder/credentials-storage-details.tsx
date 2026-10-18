@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { AlertTriangle, FileKey, KeyRound, Server, ShieldCheck } from 'lucide-react'
 import {
   activeSourceLabel,

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { useMemo, useState } from 'react'
 import { ExternalLink, Loader2, Mail, Network, Phone, RefreshCw, Sparkles, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Pure state machine for Settings → devprofile path panel.
  * Isolated local async form (Tauri path config) — not finder MVU domain.

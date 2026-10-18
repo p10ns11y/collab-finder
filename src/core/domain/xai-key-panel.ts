@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Settings → xAI key/model panel.
  * XState machine is the behavior; `xaiPanelReducer` is the pure step used by the view.

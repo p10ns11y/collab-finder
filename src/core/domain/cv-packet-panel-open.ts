@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Pure open-state rules for the CV packet collapsible panel.
  *

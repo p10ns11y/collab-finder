@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import type { ReactNode } from 'react'
 
 type Props = {

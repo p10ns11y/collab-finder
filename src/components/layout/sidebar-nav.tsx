@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import type { LucideIcon } from 'lucide-react'
 import {
   Compass,

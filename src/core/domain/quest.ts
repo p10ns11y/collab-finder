@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Local Grok quest drawer — compact harness + snapshot, not a repo dump.
  * Evaluate/prep stay on the xAI API. This surface is read-only Q&A via grok -p.

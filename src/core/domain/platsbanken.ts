@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Platsbanken emergency rail — JobTech JobSearch (AF runway / benefits reporting).
  * Search auto-persists snippets; Evaluate fetches full JD → fit / prep / export pack.

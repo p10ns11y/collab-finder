@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { ChevronLeft, ExternalLink, PenLine } from 'lucide-react'
 import { PauseLog } from '../../components/finder/pause-log'

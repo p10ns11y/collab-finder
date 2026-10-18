@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Kanban, RefreshCw } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'

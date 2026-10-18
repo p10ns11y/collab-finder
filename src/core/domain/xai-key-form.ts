@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Settings xAI key/model form seam.
  * Base schema keeps key and model optional. The settings consumer config

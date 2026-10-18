@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Mission — full-viewport career-board hunt (peer to Discover).
  * THESIS: Scan ranked postings in the major pane; filters stay on the φ-minor rail.

@@ -3,9 +3,11 @@
 pub mod hunt;
 
 use crate::db::SqliteStore;
+#[allow(deprecated)]
 use crate::finder_reactor::{CycleResult, Decision, FinderReactor};
 use crate::x_search::{XRateInfo, XTweet};
 
+#[allow(deprecated)]
 pub(crate) fn lead_status_from_decision(decision: &Decision) -> &'static str {
     if decision.guards_triggered.is_empty() {
         "analyzed"
@@ -68,6 +70,7 @@ pub(crate) fn persist_cycle_search(
     Ok(run_id)
 }
 
+#[allow(deprecated)]
 pub(crate) fn persist_cycle_lead(store: &SqliteStore, result: &CycleResult) -> Result<i64, String> {
     let Some(best) = &result.best_tweet else {
         return Ok(0);
@@ -104,6 +107,7 @@ pub(crate) fn persist_promote_event(
         .map(|_| ())
 }
 
+#[allow(deprecated)]
 pub(crate) fn promote_message(
     reactor: &mut FinderReactor,
     lead_id: &str,
@@ -112,9 +116,11 @@ pub(crate) fn promote_message(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::db::SqliteStore;
+    #[allow(deprecated)]
     use crate::finder_reactor::Guard;
     use tempfile::TempDir;
 

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Label } from '../ui/label'

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { Loader2 } from 'lucide-react'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'

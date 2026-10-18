@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Dual-rail hunt keys. JobTech `q` is freetext / AND-ish — never send OR / - / quotes.
  * Rail A (honest) = only what previous employment directly supports (Oneflow/Weavler).

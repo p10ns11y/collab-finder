@@ -1,13 +1,19 @@
+#![cfg_attr(test, allow(deprecated))]
+
 pub mod america_eu;
 mod app_dirs;
 mod commands;
 mod cv_home;
 mod db;
 mod environment;
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 mod finder_reactor;
 mod firm_durability;
 mod hire_board;
 mod llm_route;
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 mod local_grok;
 mod mission_firms;
 mod network_graph;
@@ -34,9 +40,12 @@ use commands::{
     promote_message,
 };
 use cv_home::{get_cv_home_status, install_kanithanj_cv};
+#[allow(deprecated)]
 use finder_reactor::{CycleResult, FinderReactor, Guard, ReactorState};
 use llm_route::{get_llm_route_status, set_llm_route_quality};
+#[allow(deprecated)]
 use local_grok::run_local_grok_quest;
+#[allow(deprecated)]
 use opportunity_target::{
     analyze_opportunity_target, export_application_pack, fetch_opportunity_target_page,
     generate_apply_cv, get_devprofile_path, get_devprofile_path_cmd, get_fit_mode_cmd,
@@ -55,6 +64,7 @@ pub use opportunity_target::{
     OpportunityTargetAnalysisResult, OpportunityTargetPageResult, OpportunityTargetPrepResult,
 };
 
+#[allow(deprecated)]
 pub struct AppReactor(pub Mutex<FinderReactor>);
 pub struct AppDb(pub StdMutex<db::SqliteStore>);
 
@@ -175,6 +185,12 @@ async fn search_x_recent(
     Ok(tweets)
 }
 
+// Tauri copies the return type into a sibling const, outside a function-level allow.
+#[allow(deprecated)]
+type FinderCycleCmdResult = Result<CycleResult, String>;
+
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn run_finder_cycle_cmd(
     db: State<'_, AppDb>,
@@ -182,7 +198,7 @@ async fn run_finder_cycle_cmd(
     reactor: State<'_, AppReactor>,
     query: String,
     cv_summary: String,
-) -> Result<CycleResult, String> {
+) -> FinderCycleCmdResult {
     let bearer = x_bearer()?;
     let start = std::time::Instant::now();
     let mut rguard = reactor.0.lock().await;
@@ -331,15 +347,22 @@ async fn run_finder_cycle_cmd(
     Ok(result)
 }
 
+// Tauri copies the return type into a sibling const, outside a function-level allow.
+#[allow(deprecated)]
+type ReactorStateCmdResult = Result<ReactorState, String>;
+
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn get_reactor_state(
     _db: State<'_, AppDb>,
     reactor: State<'_, AppReactor>,
-) -> Result<ReactorState, String> {
+) -> ReactorStateCmdResult {
     let guard = reactor.0.lock().await;
     Ok(guard.state.clone())
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn promote_lead(
     db: State<'_, AppDb>,
@@ -357,6 +380,7 @@ async fn promote_lead(
     Ok(msg)
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn get_search_history(
     db: State<'_, AppDb>,
@@ -368,6 +392,7 @@ async fn get_search_history(
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn get_search_run(
     db: State<'_, AppDb>,
@@ -378,6 +403,7 @@ async fn get_search_run(
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn get_leads(
     db: State<'_, AppDb>,
@@ -405,6 +431,7 @@ async fn get_dashboard_stats(db: State<'_, AppDb>) -> Result<db::DashboardStats,
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn get_recent_pauses(
     db: State<'_, AppDb>,
@@ -679,6 +706,7 @@ fn save_rank_config(
     rank_config::view()
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn get_x_search_catalog() -> Result<serde_json::Value, String> {
     serde_json::from_str(&operator_pack::x_search_queries_json()).map_err(|e| e.to_string())
@@ -774,6 +802,7 @@ fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn mission_maps_dir() -> std::path::PathBuf {
     std::env::var_os("HOME")
         .map(std::path::PathBuf::from)
@@ -787,11 +816,13 @@ const HEADING_MAP_FILES: [&str; 3] = ["cash-path-now.json", "contacts.md", "wayb
 const HEADING_STAMP_FILE: &str = "synced-at";
 const HEADING_OWNER_ERROR_FILE: &str = "sync-error";
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn heading_process_start() -> std::time::SystemTime {
     static STARTED: std::sync::OnceLock<std::time::SystemTime> = std::sync::OnceLock::new();
     *STARTED.get_or_init(std::time::SystemTime::now)
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct HeadingSnapshot {
@@ -803,6 +834,8 @@ struct HeadingSnapshot {
 }
 
 /// Read-only cluster SoT. The owner rewrites the three files, then writes `synced-at`.
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn read_heading_snapshot() -> Result<HeadingSnapshot, String> {
     Ok(read_heading_snapshot_in(
@@ -811,6 +844,8 @@ fn read_heading_snapshot() -> Result<HeadingSnapshot, String> {
     ))
 }
 
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn read_heading_snapshot_in(
     dir: &std::path::Path,
     process_start: std::time::SystemTime,
@@ -836,6 +871,7 @@ fn read_heading_snapshot_in(
 }
 
 /// A non-empty `sync-error` line fails the refresh. The text itself is never returned.
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn owner_error_line(dir: &std::path::Path) -> Option<String> {
     let text = std::fs::read_to_string(dir.join(HEADING_OWNER_ERROR_FILE)).ok()?;
     let line = text.trim();
@@ -846,12 +882,15 @@ fn owner_error_line(dir: &std::path::Path) -> Option<String> {
     }
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn unix_whole_secs(time: std::time::SystemTime) -> Option<u64> {
     time.duration_since(std::time::SystemTime::UNIX_EPOCH)
         .ok()
         .map(|duration| duration.as_secs())
 }
 
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn stamp_is_current(dir: &std::path::Path, process_start: std::time::SystemTime) -> bool {
     let raw = match std::fs::read_to_string(dir.join(HEADING_STAMP_FILE)) {
         Ok(raw) => raw,
@@ -888,6 +927,8 @@ fn stamp_is_current(dir: &std::path::Path, process_start: std::time::SystemTime)
     true
 }
 
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn parse_utc_stamp(raw: &str) -> Option<std::time::SystemTime> {
     let text = raw.trim();
     let text = text
@@ -922,6 +963,7 @@ fn parse_utc_stamp(raw: &str) -> Option<std::time::SystemTime> {
     )
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn days_from_civil(year: i32, month: u32, day: u32) -> Option<i64> {
     let max_day = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -948,10 +990,13 @@ fn days_from_civil(year: i32, month: u32, day: u32) -> Option<i64> {
     Some(era as i64 * 146097 + doe as i64 - 719468)
 }
 
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn open_route_path() -> std::path::PathBuf {
     mission_maps_dir().join("open-route")
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 fn parse_open_route(raw: &str) -> Option<String> {
     let t = raw.trim();
     if t.is_empty() {
@@ -962,6 +1007,8 @@ fn parse_open_route(raw: &str) -> Option<String> {
 }
 
 /// Peek cluster route. Do not delete — hydrate / a second window must still see `heading`.
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn read_cluster_route() -> Result<Option<String>, String> {
     let p = open_route_path();
@@ -973,6 +1020,8 @@ fn read_cluster_route() -> Result<Option<String>, String> {
 }
 
 /// Drop the one-shot file after Heading is actually on screen.
+#[allow(deprecated)]
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn clear_cluster_route() -> Result<(), String> {
     let p = open_route_path();
@@ -1047,6 +1096,7 @@ async fn select_hire_board_lead(
         .ok_or_else(|| format!("opportunity {id} missing after upsert"))
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn search_past_tweets(
     db: State<'_, AppDb>,
@@ -1060,6 +1110,7 @@ async fn search_past_tweets(
 }
 
 /// Re-fetch full post content from X on demand (not persisted; handles deletions via 404).
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 async fn hydrate_tweet(id: String) -> Result<XTweet, String> {
     let bearer = x_bearer()?;
@@ -1097,6 +1148,7 @@ struct PersistQuestTurnInput {
     prompt_chars: Option<i64>,
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn persist_quest_turn(db: State<'_, AppDb>, input: PersistQuestTurnInput) -> Result<(), String> {
     let _ = db.0.lock().map(|s| {
@@ -1114,6 +1166,7 @@ fn persist_quest_turn(db: State<'_, AppDb>, input: PersistQuestTurnInput) -> Res
     Ok(())
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn load_latest_quest_thread(db: State<'_, AppDb>) -> Result<Option<db::QuestThread>, String> {
     db.0.lock()
@@ -1121,6 +1174,7 @@ fn load_latest_quest_thread(db: State<'_, AppDb>) -> Result<Option<db::QuestThre
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn load_quest_thread(
     db: State<'_, AppDb>,
@@ -1131,6 +1185,7 @@ fn load_quest_thread(
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn list_quest_threads(
     db: State<'_, AppDb>,
@@ -1141,6 +1196,7 @@ fn list_quest_threads(
         .map_err(|e| e.to_string())?
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 fn search_quest_turns(
     db: State<'_, AppDb>,
@@ -1153,6 +1209,7 @@ fn search_quest_turns(
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(deprecated)]
 pub fn run() {
     let _ = heading_process_start();
     tauri::Builder::default()
@@ -1257,6 +1314,7 @@ pub fn run() {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod open_route_tests {
     use super::parse_open_route;
 
@@ -1272,6 +1330,7 @@ mod open_route_tests {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod heading_snapshot_tests {
     use super::{parse_utc_stamp, read_heading_snapshot_in, HEADING_SYNC_ERROR};
     use std::fs;

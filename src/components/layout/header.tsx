@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { Command, Radar } from 'lucide-react'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'

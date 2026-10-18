@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Mission firms — SpaceXAI / Tesla / Swedish JobTech / Nordic+EU career boards.
  * Pull is query-keyed: same query reuses cache; new query fetches and appends to the pool.

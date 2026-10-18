@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import type { Tweet } from '../../core/domain/finder'

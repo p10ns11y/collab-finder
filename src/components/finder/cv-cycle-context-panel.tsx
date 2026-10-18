@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { safeInvoke } from '../../adapters/tauri/safe-invoke'
 import { describeCvCycleContext } from '../../core/domain/cv-cycle-context'

@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { useEffect, useRef } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '../ui/button'

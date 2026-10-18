@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import * as React from 'react'
 import { useMachine } from '@xstate/react'
 import { KeyRound, Loader2, Sparkles, Trash2 } from 'lucide-react'

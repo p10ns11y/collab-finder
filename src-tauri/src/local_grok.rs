@@ -93,6 +93,7 @@ fn asks_for_trauma(question: &str) -> bool {
     false
 }
 
+#[deprecated(note = "kanithanj rebuild: see docs/DEPRECATIONS.md")]
 #[tauri::command]
 pub async fn run_local_grok_quest(input: LocalGrokQuestInput) -> Result<LocalGrokQuestResult, String> {
     if asks_for_trauma(user_question(&input.prompt)) {
@@ -302,6 +303,7 @@ fn display_bin(p: &Path) -> String {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

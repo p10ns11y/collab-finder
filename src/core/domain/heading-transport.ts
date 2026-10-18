@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Navigating transport model — pure slot/craft/weather transforms over mission-map SoT.
  *

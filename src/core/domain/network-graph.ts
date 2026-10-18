@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /** Personal network graph — local CSV (gitignored PII). Mirrors network_graph.rs. */
 
 export type NetworkCategory =

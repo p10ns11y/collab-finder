@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { AppShell } from '../components/layout/app-shell'
 import { Header } from '../components/layout/header'
 import { SidebarNav } from '../components/layout/sidebar-nav'

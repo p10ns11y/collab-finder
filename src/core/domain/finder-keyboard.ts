@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 /**
  * Pure keyboard → finder navigation helpers.
  * Used by React shell; testable without DOM.

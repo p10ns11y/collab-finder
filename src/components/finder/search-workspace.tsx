@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { Loader2, Search, Sparkles } from 'lucide-react'
 import type { SearchPreset } from '../../core/domain/finder'
 import { Button } from '../ui/button'

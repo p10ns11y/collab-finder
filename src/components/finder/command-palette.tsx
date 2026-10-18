@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import { useEffect, useRef } from 'react'
 import type { PaletteItem } from '../../core/finder/selectors'
 import type { FinderMsg } from '../../core/finder/msg'

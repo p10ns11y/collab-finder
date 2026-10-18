@@ -1,3 +1,4 @@
+// DEPRECATED(rebuild): see docs/DEPRECATIONS.md
 import catalog from '../../../data/distillation/x-search/queries.json'
 
 export type SearchPresetTier = 'priority' | 'core' | 'niche' | 'community'
