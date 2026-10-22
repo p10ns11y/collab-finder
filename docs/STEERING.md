@@ -38,11 +38,15 @@ Warm-path output holds **counts per firm only**. No names, emails or profiles ev
 flowchart TD
   Q{Can a rule decide it?} -->|yes| DET[det: v1 is all here]
   Q -->|no, typed + repeated| S1[s1: none planned]
-  Q -->|no, unstructured| S2["s2, parked: IR PDF to cash evidence,<br/>cached by doc hash, then det"]
+  Q -->|no, unstructured| S2["s2: not in this repo<br/>owning private app runs it;<br/>collab-finder reads its evidence file"]
   Q -->|his fact or his click| H[human: confirm unsure firm matches]
 ```
 
-v1 makes no SI calls. `xai.rs`, `llm_route.rs`, `local_grok.rs` and `finder_reactor.rs` work (their tests pass and the xAI path answers live), but SI belongs in Ensembly and Kanithanj (private). They move there and leave collab-finder, rather than staying as fallbacks.
+collab-finder makes no SI calls, now or later. `xai.rs`, `llm_route.rs`, `local_grok.rs` and `finder_reactor.rs` work: 37 tests pass, and xAI, X and local Grok answered in live smoke runs (see PR #102). But SI belongs elsewhere:
+
+- **Kanithanj (private)** gets the job-hunt flows worth keeping, with their tuned prompts, revised for current needs as new work there. Moving the model-call and API-key code out of this public repo is also safer.
+- **Ensembly** gets only the rule, no code: use SI only when a fixed rule can't decide; otherwise rank deterministically.
+- Whatever isn't kept is deleted.
 
 ## Keep / cut
 
@@ -76,6 +80,7 @@ The PR #101 marker list is reused as the delete order. Items are deleted one sli
 flowchart LR
   A[1 steering doc + identity] --> B[2 facts firms CLI] --> C[3 facts warm CLI]
   B --> D[4 cut quest]
+  K["Kanithanj has the SI keepers + tests"] --> E
   D --> E[5 cut xplore, move SI out]
   E --> F[6 cut hunt sources + CV]
   F --> G{7 shell: anyone opening it?}
@@ -87,5 +92,5 @@ Each slice is one PR. Each slice is green on `pnpm gate` and `cargo test`. A cut
 
 ## Out of scope
 
-- Any change to the downstream app. Merging several facts files there is its own task.
+- Any change to the downstream app: merging several facts files, and taking in the SI keepers, are tasks run there by its own loop. Step 5 here waits for the keepers to land.
 - Real data in git. Fixtures stay synthetic: `data/*.sample.csv`, the example universe.
