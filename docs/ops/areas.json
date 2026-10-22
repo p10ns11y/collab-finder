@@ -179,11 +179,13 @@
         "src-tauri/src/rank_config.rs",
         "src-tauri/src/environment.rs",
         "src-tauri/src/firm_durability.rs",
+        "src-tauri/src/facts.rs",
         "src/core/domain/operator-pack-health.ts",
         "src/core/domain/firm-durability.ts",
         "src/core/domain/firm-maintained-list*",
         "src/view/screens/preferences-*",
         "data/durability/**",
+        "data/facts/**",
         "data/pipeline/**",
         "scripts/seed-operator-config.sh",
         "scripts/load-pipeline-config.mjs"

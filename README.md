@@ -1,6 +1,8 @@
-# kanithanj.ai (collab-finder)
+# collab-finder
 
-Self-guarded Tauri desktop — hunt high-fit roles, prepare application packs, track pipeline in SQLite; you step in when guards fire, not every step.
+collab-finder: deterministic firm and warm-path facts for a downstream pick step.
+
+Steering: [docs/STEERING.md](docs/STEERING.md)
 
 **Agents:** [AGENTS.md](AGENTS.md) · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
 
