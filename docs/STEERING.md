@@ -42,7 +42,7 @@ flowchart TD
   Q -->|his fact or his click| H[human: confirm unsure firm matches]
 ```
 
-v1 makes no SI calls. `xai.rs`, `llm_route.rs`, `local_grok.rs` and `finder_reactor.rs` are deleted, not kept around as fallbacks.
+v1 makes no SI calls. `xai.rs`, `llm_route.rs`, `local_grok.rs` and `finder_reactor.rs` work (their tests pass and the xAI path answers live), but SI belongs in Ensembly and Kanithanj (private). They move there and leave collab-finder, rather than staying as fallbacks.
 
 ## Keep / cut
 
@@ -61,7 +61,7 @@ flowchart LR
     c3["cv_home.rs, vendor/kanithanj-cv"]
     c4["pipeline, discover, sweden, mission screens"]
   end
-  subgraph CUTSI["CUT (fake or unneeded SI)"]
+  subgraph CUTSI["MOVE (working SI, moving to Ensembly/Kanithanj)"]
     s1["finder_reactor.rs"]
     s2["local_grok.rs"]
     s3["xai.rs, llm_route.rs"]
@@ -76,7 +76,7 @@ The PR #101 marker list is reused as the delete order. Items are deleted one sli
 flowchart LR
   A[1 steering doc + identity] --> B[2 facts firms CLI] --> C[3 facts warm CLI]
   B --> D[4 cut quest]
-  D --> E[5 cut xplore + SI]
+  D --> E[5 cut xplore, move SI out]
   E --> F[6 cut hunt sources + CV]
   F --> G{7 shell: anyone opening it?}
   G -->|no| H[drop Tauri, CLI only]
