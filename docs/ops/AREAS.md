@@ -61,7 +61,7 @@ flowchart LR
   ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `dcb596e`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `e155c47`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
 15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, and `docs` have none. `ops` still chooses which checks run.
 <!-- /area-map-graph:mermaid -->
@@ -100,26 +100,26 @@ In order:
 3. **Weekly** otherwise.
 
 <!-- area-map-graph:cadence -->
-Lines are added plus deleted on main from 2026-09-16 (30 days) and 2026-07-18 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. A path that is gone at the tip is counted on the apart line, not in an area row. Edges are distinct neighbours on the graph above.
+Lines are added plus deleted on main from 2026-09-22 (30 days) and 2026-07-24 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. A path that is gone at the tip is counted on the apart line, not in an area row. Edges are distinct neighbours on the graph above.
 
 | Area | Kind | 30 days: commits / lines | 90 days: commits / lines | Edges in / out (neighbours) | Cadence | Reason |
 |---|---|---|---|---|---|---|
-| hunt | functional | 4 / 2,891 | 28 / 8,765 | 4 / 8 (8) | Nightly | 1,500+ lines in 30 days |
+| hunt | functional | 5 / 3,220 | 29 / 9,094 | 4 / 8 (8) | Nightly | 1,500+ lines in 30 days |
+| discover | functional | 5 / 765 | 28 / 8,466 | 9 / 10 (10) | Nightly | 10+ neighbours |
 | shell | functional | 6 / 723 | 24 / 4,834 | 11 / 10 (11) | Nightly | 10+ neighbours |
-| discover | functional | 4 / 676 | 27 / 8,377 | 9 / 10 (10) | Nightly | 10+ neighbours |
-| bridge | functional | 6 / 357 | 33 / 2,679 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| bridge | functional | 7 / 358 | 34 / 2,680 | 7 / 12 (12) | Nightly | 10+ neighbours |
 | runtime | functional | 2 / 39 | 30 / 2,985 | 11 / 11 (11) | Nightly | 10+ neighbours |
 | store | data | 1 / 39 | 13 / 2,099 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
-| ops | ops | 6 / 1,655 | 29 / 2,786 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| ops | ops | 10 / 2,872 | 33 / 4,003 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
 | pipeline | functional | 2 / 1,416 | 7 / 2,899 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
-| ingest | data | 1 / 779 | 1 / 779 | 1 / 2 (3) | Weekly | 779 lines in 30 days |
+| ingest | data | 2 / 822 | 2 / 822 | 1 / 2 (3) | Weekly | 822 lines in 30 days |
 | credentials | functional | 1 / 624 | 8 / 1,622 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
-| packs | data | 1 / 111 | 17 / 4,700 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
+| packs | data | 4 / 540 | 20 / 5,129 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
 | network | data | 1 / 2 | 5 / 2,336 | 4 / 4 (5) | Weekly | 1,000+ lines in 90 days |
 | xplore | functional | 1 / 2 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
 | quest | functional | 0 / 0 | 7 / 1,405 | 3 / 4 (5) | Weekly | 1,000+ lines in 90 days |
+| docs | docs | 25 / 1,120 | 74 / 13,548 | 0 / 0 (0) | Monthly | no import edges |
 | cv-renderer | functional | 3 / 989 | 12 / 5,318 | 0 / 0 (0) | Monthly | no import edges |
-| docs | docs | 15 / 887 | 64 / 13,315 | 0 / 0 (0) | Monthly | no import edges |
 | profile-data | data | 1 / 1 | 3 / 34 | 2 / 0 (2) | Monthly | quiet leaf |
 | hire-board | data | 0 / 0 | 3 / 952 | 3 / 4 (5) | Monthly | quiet leaf |
 
