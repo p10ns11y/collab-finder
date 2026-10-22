@@ -4,6 +4,7 @@ mod commands;
 mod cv_home;
 mod db;
 mod environment;
+pub mod facts;
 mod finder_reactor;
 mod firm_durability;
 mod hire_board;

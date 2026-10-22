@@ -2,7 +2,7 @@
 
 ## Positioning
 
-collab-finder is a self-guarded, agentic opportunity reactor for a solo operator: hunt high-fit roles and collabs, prepare application materials, and track history in SQLite — with explicit gates before any external portfolio mutation.
+collab-finder: deterministic firm and warm-path facts for a downstream pick step. See [docs/STEERING.md](docs/STEERING.md).
 
 ## Users
 

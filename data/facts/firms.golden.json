@@ -1,0 +1,162 @@
+{
+  "algorithm_version": "facts-v1",
+  "note": "Sourced from the durability universe (public IR). Missing values are unknown.",
+  "postings": {
+    "abb": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://new.abb.com/news/detail/132985/q4-2025-results",
+          "value": 1.0
+        }
+      }
+    },
+    "asml": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.asml.com/news/press-releases/2026/q4-2025-financial-results",
+          "value": 1.0
+        }
+      }
+    },
+    "atlas_copco": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.atlascopcogroup.com/en/investors/reports-and-presentations/latest-annual-report-highlights",
+          "value": 1.0
+        }
+      }
+    },
+    "bolt": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    },
+    "ericsson": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.ericsson.com/en/press-releases/2026/1/ericsson-rapporterar-fjarde-kvartalet-och-helaret-2025",
+          "value": 1.0
+        }
+      }
+    },
+    "gitlab": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "hiring_theatre"
+        },
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    },
+    "hive": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "hiring_theatre"
+        },
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    },
+    "klarna": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "hiring_theatre"
+        },
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    },
+    "nvidia": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2026 https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2026",
+          "value": 1.0
+        }
+      }
+    },
+    "saab": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.saab.com/investors/annual-report-2025",
+          "value": 1.0
+        }
+      }
+    },
+    "sandvik": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.annualreport.sandvik/en/2025/to-our-shareholders/sandvik-as-an-investment.html",
+          "value": 1.0
+        }
+      }
+    },
+    "siemens": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://press.siemens.com/global/en/pressrelease/earnings-release-and-financial-results-q4-fy-2025",
+          "value": 1.0
+        }
+      }
+    },
+    "spotify": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "hiring_theatre"
+        },
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    },
+    "tesla": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q4-2025-Update.pdf",
+          "value": 0.75
+        }
+      }
+    },
+    "volvo_cars": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://news.cision.com/volvo-car-ab--publ-/r/volvo-cars-q4-2025--turnaround-plan-on-track--but-challenging-external-environment,c4302907",
+          "value": 0.5
+        }
+      }
+    },
+    "volvo_group": {
+      "comp_stability": {
+        "funding_runway": {
+          "basis": "IR fy2025 https://www.volvogroup.com/en/news-and-media/news/2026/jan/volvo-group--the-fourth-quarter-and-full-year-2025.html",
+          "value": 1.0
+        }
+      }
+    },
+    "wolt": {
+      "red_flags": [
+        {
+          "hard": false,
+          "reason": "hiring_theatre"
+        },
+        {
+          "hard": false,
+          "reason": "theater_saas"
+        }
+      ]
+    }
+  }
+}

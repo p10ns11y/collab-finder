@@ -1,7 +1,7 @@
 # Agent instructions — collab-finder
 
 **Owner:** Kanithanj Desk  
-**Product:** **kanithanj.ai** — Tauri desktop hunt reactor (high-fit roles, application packs, SQLite history).
+**Product:** collab-finder: deterministic firm and warm-path facts for a downstream pick step. See [docs/STEERING.md](docs/STEERING.md).
 
 > **Load rule:** Sticky router only. Expand [docs/agent-playbook.md](docs/agent-playbook.md) **only if** routing or conventions are ambiguous.
 
