@@ -6,6 +6,17 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "verdict", "reasons", "confidence", "rule_ids"],
+  "$defs": {
+    "company_audit_input": {
+      "description": "Input on Posting.company_audit (missing = unaudited). Built from public company facts only; mirrors `ensembly apps audit status` exit codes 0 pass, 3 flag, 4 block, 5 unaudited/stale.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict"],
+      "properties": {
+        "verdict": { "type": "string", "enum": ["pass", "flag", "block", "unaudited", "stale"] }
+      }
+    }
+  },
   "properties": {
     "schema_version": { "type": "string", "enum": ["decision.v1"] },
     "verdict": { "type": "string", "enum": ["apply", "prep", "skip", "park"] },

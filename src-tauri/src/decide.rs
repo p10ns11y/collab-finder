@@ -68,6 +68,26 @@ pub struct Posting {
     /// YYYY-MM-DD the posting was observed (makes freshness deterministic).
     pub seen_on: String,
     pub repost_count: u32,
+    /// Company audit from public company facts (mirrors the Ensembly
+    /// `ensembly apps audit status` contract: exit 0 pass, 3 flag, 4 block,
+    /// 5 unaudited/stale). Missing = unaudited. decide does no I/O to get it.
+    #[serde(default)]
+    pub company_audit: Option<CompanyAudit>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuditVerdict {
+    Pass,
+    Flag,
+    Block,
+    Unaudited,
+    Stale,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompanyAudit {
+    pub verdict: AuditVerdict,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
