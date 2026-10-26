@@ -294,3 +294,67 @@ fn module_has_no_network_process_or_submit_capability() {
         );
     }
 }
+
+#[test]
+fn helpers_dates_tokens_and_registry_are_exact() {
+    assert_eq!(days("1970-01-01"), Some(0));
+    assert_eq!(days("2000-03-01"), Some(11_017));
+    assert_eq!(days("2024-02-29"), Some(19_782));
+    assert_eq!(days("2026-10-26"), Some(20_752));
+    assert_eq!(days("1969-12-31"), Some(-1));
+    assert_eq!(days("2026-13-01"), None);
+    assert_eq!(days("2026-00-10"), None);
+    assert_eq!(days("2026-10-32"), None);
+    assert_eq!(days("2026-10-00"), None);
+    assert!(!rule_exists("R.MADE.UP"));
+    assert!(RULES.iter().all(|r| rule_exists(r.id)));
+    assert_eq!(tokens("C++/Rust-dev c#"), vec!["c++", "rust", "dev", "c#"]);
+}
+
+#[test]
+fn freshness_boundary_and_future_date() {
+    let mut p = good_posting();
+    p.posted_on = "2026-09-11".into(); // exactly 45 days: not stale
+    assert!(!cites(&decide(&p, &profile()), "R.FRESH.STALE"));
+    p.posted_on = "2026-09-10".into(); // 46 days: stale
+    assert!(cites(&decide(&p, &profile()), "R.FRESH.STALE"));
+    p.posted_on = "2026-10-27".into(); // after seen_on: invalid
+    assert!(cites(&decide(&p, &profile()), "R.FRESH.UNKNOWN"));
+}
+
+#[test]
+fn same_company_different_title_is_not_a_duplicate() {
+    let mut p = good_posting();
+    p.company = "Quillfeather Labs".into();
+    let d = decide(&p, &profile());
+    assert!(!cites(&d, "R.DUP.ALREADY_APPLIED"));
+    assert_eq!(d.verdict, Verdict::Apply);
+}
+
+#[test]
+fn confidence_is_a_fixed_function_of_fit() {
+    let with_text = |t: &str| {
+        let mut p = good_posting();
+        p.title = "Engineer".into();
+        p.text = t.into();
+        decide(&p, &profile())
+    };
+    let full = decide(&good_posting(), &profile());
+    assert_eq!((full.verdict, full.confidence), (Verdict::Apply, 95));
+    let half = with_text("rust and react");
+    assert_eq!((half.verdict, half.confidence), (Verdict::Prep, 73));
+    let fit = half
+        .reasons
+        .iter()
+        .find(|r| r.rule_id == "R.FIT.SKILL_OVERLAP")
+        .unwrap();
+    assert_eq!(fit.effect, Effect::Support);
+    let quarter = with_text("rust only");
+    assert_eq!((quarter.verdict, quarter.confidence), (Verdict::Skip, 84));
+    let fit = quarter
+        .reasons
+        .iter()
+        .find(|r| r.rule_id == "R.FIT.SKILL_OVERLAP")
+        .unwrap();
+    assert_eq!(fit.effect, Effect::Penalty);
+}
