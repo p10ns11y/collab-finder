@@ -344,6 +344,8 @@ fn confidence_is_a_fixed_function_of_fit() {
     };
     let full = decide(&good_posting(), &profile());
     assert_eq!((full.verdict, full.confidence), (Verdict::Apply, 95));
+    let three = with_text("rust typescript react");
+    assert_eq!((three.verdict, three.confidence), (Verdict::Apply, 84));
     let half = with_text("rust and react");
     assert_eq!((half.verdict, half.confidence), (Verdict::Prep, 73));
     let fit = half
