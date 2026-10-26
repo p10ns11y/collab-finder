@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "collab-finder/decision.v1.schema.json",
+  "title": "Decision (Stage 1, typed rule-based)",
+  "description": "Output of collab-finder decide(posting, profile). Stage 1 is typed rule-based only: no SI, no learned model, no network, no submit. Every reason cites a rule_id from the rule registry in src-tauri/src/decide.rs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "verdict", "reasons", "confidence", "rule_ids"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["decision.v1"] },
+    "verdict": { "type": "string", "enum": ["apply", "prep", "skip", "park"] },
+    "reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "effect", "evidence"],
+        "properties": {
+          "rule_id": { "type": "string", "pattern": "^R\\.[A-Z]+\\.[A-Z_]+$" },
+          "effect": { "type": "string", "enum": ["veto", "park", "support", "penalty", "note"] },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "rule_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^R\\.[A-Z]+\\.[A-Z_]+$" }
+    }
+  }
+}
