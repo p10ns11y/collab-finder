@@ -154,6 +154,26 @@ pub const RULES: &[RuleDef] = &[
         summary: "same URL or same company+title already applied",
     },
     RuleDef {
+        id: "R.AUDIT.PASS",
+        summary: "company audit passed (public company facts); no verdict effect",
+    },
+    RuleDef {
+        id: "R.AUDIT.FLAG",
+        summary: "company audit flagged; park for human review",
+    },
+    RuleDef {
+        id: "R.AUDIT.BLOCK",
+        summary: "company audit blocked; hard veto",
+    },
+    RuleDef {
+        id: "R.AUDIT.UNAUDITED",
+        summary: "company not audited (or field missing); park",
+    },
+    RuleDef {
+        id: "R.AUDIT.STALE",
+        summary: "company audit is stale; park until re-audited",
+    },
+    RuleDef {
         id: "R.INJECT.IGNORED",
         summary: "instruction-like text in posting noted and ignored",
     },
@@ -180,6 +200,7 @@ const INJECTION_PHRASES: &[&str] = &[
     "apply now",
     "system prompt",
     "system:",
+    "audit passed",
 ];
 
 pub fn rule_exists(id: &str) -> bool {
@@ -325,6 +346,42 @@ pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
         )),
     }
 
+    // Company audit (input only; decide never fetches it).
+    let audit = posting.company_audit.as_ref().map(|a| a.verdict);
+    let audit_reason = match audit {
+        Some(AuditVerdict::Pass) => {
+            reason("R.AUDIT.PASS", Effect::Note, "company audit: pass".into())
+        }
+        Some(AuditVerdict::Block) => reason(
+            "R.AUDIT.BLOCK",
+            Effect::Veto,
+            "company audit: block (scam or other hard risk)".into(),
+        ),
+        Some(AuditVerdict::Flag) => reason(
+            "R.AUDIT.FLAG",
+            Effect::Park,
+            "company audit: flag; needs human review before any pack or application".into(),
+        ),
+        Some(AuditVerdict::Stale) => reason(
+            "R.AUDIT.STALE",
+            Effect::Park,
+            "company audit: stale; re-audit before any pack or application".into(),
+        ),
+        Some(AuditVerdict::Unaudited) | None => reason(
+            "R.AUDIT.UNAUDITED",
+            Effect::Park,
+            format!(
+                "company audit: {}; audit before any pack or application",
+                if audit.is_none() {
+                    "missing"
+                } else {
+                    "unaudited"
+                }
+            ),
+        ),
+    };
+    reasons.push(audit_reason);
+
     // Ghost signal.
     if posting.repost_count >= GHOST_REPOSTS {
         reasons.push(reason(
@@ -392,6 +449,10 @@ pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
     } else if has(Effect::Veto) {
         (Verdict::Skip, 95)
     } else if has(Effect::Park) {
+        (Verdict::Park, 60)
+    } else if audit != Some(AuditVerdict::Pass) {
+        // Unreachable today (every non-pass audit adds a veto or park reason);
+        // kept as a guard so apply/prep can never happen without an audit pass.
         (Verdict::Park, 60)
     } else if ratio >= APPLY_AT {
         (Verdict::Apply, 50 + (45.0 * ratio).round() as u8)
