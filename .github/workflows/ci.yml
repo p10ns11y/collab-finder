@@ -113,6 +113,9 @@ jobs:
       - name: Lizard (cyclomatic complexity, CCN ≤ 15)
         run: bash scripts/ci-complexity.sh
 
+      - name: Lizard setup shell test
+        run: bash scripts/test-ensure-lizard.sh
+
   crap_report:
     needs: changes
     if: needs.changes.outputs.release_build == 'true'

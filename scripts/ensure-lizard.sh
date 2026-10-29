@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Install lizard into a repo-local venv (Ubuntu 22.04 CI has old pip — no --break-system-packages).
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV="${ROOT}/.ci-venv-lizard"
 
 if "${VENV}/bin/python" -c "import lizard" 2>/dev/null; then
   export PATH="${VENV}/bin:${PATH}"
+  if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    lizard "$@"
+  fi
   return 0 2>/dev/null || exit 0
 fi
 

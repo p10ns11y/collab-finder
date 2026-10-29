@@ -232,6 +232,7 @@
         "scripts/run-verify.mjs",
         "scripts/cut-release.sh",
         "scripts/ensure-lizard.sh",
+        "scripts/test-ensure-lizard.sh",
         "scripts/sync-agent-skills.sh",
         "scripts/gate.sh",
         "scripts/area-map*",
