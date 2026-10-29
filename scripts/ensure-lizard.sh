@@ -6,7 +6,7 @@ VENV="${ROOT}/.ci-venv-lizard"
 
 if "${VENV}/bin/python" -c "import lizard" 2>/dev/null; then
   export PATH="${VENV}/bin:${PATH}"
-  exit 0
+  return 0 2>/dev/null || exit 0
 fi
 
 echo "== ensure-lizard: creating venv at .ci-venv-lizard"
