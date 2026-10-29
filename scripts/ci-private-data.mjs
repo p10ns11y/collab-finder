@@ -138,9 +138,13 @@ function fileText(path) {
 function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..')
   const out = []
+  const skippedPdfs = []
   for (const rel of trackedFiles(root)) {
     const text = fileText(join(root, rel))
-    if (text === null) continue
+    if (text === null) {
+      if (rel.toLowerCase().endsWith('.pdf')) skippedPdfs.push(rel)
+      continue
+    }
     for (const f of scanText(text)) out.push(`${rel}:${f.line} ${f.category}`)
   }
   if (out.length) {
@@ -148,6 +152,7 @@ function main() {
     for (const line of out) console.error(`  ${line}`)
     process.exit(1)
   }
+  if (skippedPdfs.length) console.log(`note: ${skippedPdfs.length} PDF(s) not scanned (pdftotext missing or failed); install poppler-utils`)
   console.log('== OK: no private data in tracked files')
 }
 
