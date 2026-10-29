@@ -495,11 +495,68 @@ pub fn install_test_fixtures() -> TestFixturesGuard {
             }
         }
     }
+    seed_missing_from_repo(&packs);
     crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
     set_test_packs_dir(Some(packs));
     TestFixturesGuard {
         _tmpdir: tmp,
         _lock: lock,
+    }
+}
+
+/// Repo files that seed a test pack, mirroring scripts/seed-testdata-for-ci.sh,
+/// so `cargo test --lib` passes on a fresh clone without the seed step.
+#[cfg(test)]
+const REPO_SEEDS: &[(&str, &str)] = &[
+    ("data/durability/universe.v1.json", "universe.json"),
+    ("data/durability/environments.v1.json", "places.json"),
+    ("data/distillation/cv-packet-distilled.txt", "cv-packet.txt"),
+    (
+        "data/distillation/curation/candidate-constraints-compact.txt",
+        "constraints-strict.txt",
+    ),
+    (
+        "data/distillation/curation/candidate-constraints-relaxed.txt",
+        "constraints-relaxed.txt",
+    ),
+    (
+        "data/distillation/curation/proof-variants.md",
+        "proof-variants.md",
+    ),
+    (
+        "data/distillation/public-projects-focused-flatten.json",
+        "public-projects-focused.json",
+    ),
+    (
+        "data/distillation/public-projects.json",
+        "public-projects.json",
+    ),
+    (
+        "data/distillation/public-projects-clean.json",
+        "public-projects-clean.json",
+    ),
+    (
+        "data/distillation/x-search/queries.json",
+        "x-search-queries.json",
+    ),
+    (
+        "data/durability/example-pack/hunt-rails.json",
+        "hunt-rails.json",
+    ),
+    (
+        "data/durability/example-pack/mission-firms.json",
+        "mission-firms.json",
+    ),
+];
+
+#[cfg(test)]
+fn seed_missing_from_repo(packs: &std::path::Path) {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    for (src, name) in REPO_SEEDS {
+        let dest = packs.join(name);
+        if !dest.exists() {
+            let _ = fs::copy(root.join(src), dest);
+        }
     }
 }
 
