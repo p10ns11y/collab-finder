@@ -116,6 +116,9 @@
       "id": "pipeline",
       "include": [
         "src-tauri/src/qualify_policy.rs",
+        "src-tauri/src/decide.rs",
+        "src-tauri/src/decide/**",
+        "src-tauri/schemas/**",
         "src/core/domain/history.ts",
         "src/core/domain/pipeline-timeline.ts",
         "src/core/domain/opportunity-pipeline*",
