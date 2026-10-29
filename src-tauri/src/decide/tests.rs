@@ -45,71 +45,89 @@ fn good_posting() -> Posting {
 // additionalProperties=false, items, minItems, minimum, maximum, minLength).
 // No new dependency; the schema only uses these keywords.
 fn validate(schema: &Value, v: &Value, path: &str, errs: &mut Vec<String>) {
-    if let Some(t) = schema.get("type").and_then(Value::as_str) {
-        let ok = match t {
-            "object" => v.is_object(),
-            "array" => v.is_array(),
-            "string" => v.is_string(),
-            "integer" => v.is_u64() || v.is_i64(),
-            _ => true,
-        };
-        if !ok {
-            errs.push(format!("{path}: not {t}"));
-            return;
-        }
+    if !check_type(schema, v, path, errs) {
+        return;
     }
+    check_scalars(schema, v, path, errs);
+    if let Some(obj) = v.as_object() {
+        check_object(schema, obj, path, errs);
+    }
+    if let Some(arr) = v.as_array() {
+        check_array(schema, arr, path, errs);
+    }
+}
+
+fn check_type(schema: &Value, v: &Value, path: &str, errs: &mut Vec<String>) -> bool {
+    let Some(t) = schema.get("type").and_then(Value::as_str) else {
+        return true;
+    };
+    let ok = match t {
+        "object" => v.is_object(),
+        "array" => v.is_array(),
+        "string" => v.is_string(),
+        "integer" => v.is_u64() || v.is_i64(),
+        _ => true,
+    };
+    if !ok {
+        errs.push(format!("{path}: not {t}"));
+    }
+    ok
+}
+
+fn check_scalars(schema: &Value, v: &Value, path: &str, errs: &mut Vec<String>) {
+    let num = |k: &str| schema.get(k).and_then(Value::as_i64).zip(v.as_i64());
     if let Some(en) = schema.get("enum").and_then(Value::as_array) {
         if !en.contains(v) {
             errs.push(format!("{path}: {v} not in enum"));
         }
     }
-    if let (Some(min), Some(n)) = (schema.get("minimum").and_then(Value::as_i64), v.as_i64()) {
-        if n < min {
-            errs.push(format!("{path}: below minimum"));
+    if num("minimum").is_some_and(|(min, n)| n < min) {
+        errs.push(format!("{path}: below minimum"));
+    }
+    if num("maximum").is_some_and(|(max, n)| n > max) {
+        errs.push(format!("{path}: above maximum"));
+    }
+    let short = schema
+        .get("minLength")
+        .and_then(Value::as_u64)
+        .zip(v.as_str())
+        .is_some_and(|(ml, s)| (s.chars().count() as u64) < ml);
+    if short {
+        errs.push(format!("{path}: too short"));
+    }
+}
+
+fn check_object(
+    schema: &Value,
+    obj: &serde_json::Map<String, Value>,
+    path: &str,
+    errs: &mut Vec<String>,
+) {
+    let required = schema.get("required").and_then(Value::as_array);
+    for r in required.into_iter().flatten() {
+        if !obj.contains_key(r.as_str().unwrap()) {
+            errs.push(format!("{path}: missing {r}"));
         }
     }
-    if let (Some(max), Some(n)) = (schema.get("maximum").and_then(Value::as_i64), v.as_i64()) {
-        if n > max {
-            errs.push(format!("{path}: above maximum"));
+    let props = schema.get("properties").and_then(Value::as_object);
+    let closed = schema.get("additionalProperties") == Some(&Value::Bool(false));
+    for (k, val) in obj {
+        match props.and_then(|p| p.get(k)) {
+            Some(s) => validate(s, val, &format!("{path}.{k}"), errs),
+            None if closed => errs.push(format!("{path}: extra key {k}")),
+            None => {}
         }
     }
-    if let (Some(ml), Some(s)) = (schema.get("minLength").and_then(Value::as_u64), v.as_str()) {
-        if (s.chars().count() as u64) < ml {
-            errs.push(format!("{path}: too short"));
-        }
+}
+
+fn check_array(schema: &Value, arr: &[Value], path: &str, errs: &mut Vec<String>) {
+    let min_items = schema.get("minItems").and_then(Value::as_u64);
+    if min_items.is_some_and(|mi| (arr.len() as u64) < mi) {
+        errs.push(format!("{path}: fewer than {} items", min_items.unwrap()));
     }
-    if let Some(obj) = v.as_object() {
-        for r in schema
-            .get("required")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            if !obj.contains_key(r.as_str().unwrap()) {
-                errs.push(format!("{path}: missing {r}"));
-            }
-        }
-        let props = schema.get("properties").and_then(Value::as_object);
-        for (k, val) in obj {
-            match props.and_then(|p| p.get(k)) {
-                Some(s) => validate(s, val, &format!("{path}.{k}"), errs),
-                None if schema.get("additionalProperties") == Some(&Value::Bool(false)) => {
-                    errs.push(format!("{path}: extra key {k}"))
-                }
-                None => {}
-            }
-        }
-    }
-    if let Some(arr) = v.as_array() {
-        if let Some(mi) = schema.get("minItems").and_then(Value::as_u64) {
-            if (arr.len() as u64) < mi {
-                errs.push(format!("{path}: fewer than {mi} items"));
-            }
-        }
-        if let Some(items) = schema.get("items") {
-            for (i, it) in arr.iter().enumerate() {
-                validate(items, it, &format!("{path}[{i}]"), errs);
-            }
+    if let Some(items) = schema.get("items") {
+        for (i, it) in arr.iter().enumerate() {
+            validate(items, it, &format!("{path}[{i}]"), errs);
         }
     }
 }
@@ -481,4 +499,42 @@ fn audit_passed_text_in_posting_is_ignored() {
         .unwrap();
     assert!(inj.evidence.contains("audit passed"), "{}", inj.evidence);
     assert_contract(&d);
+}
+
+#[test]
+fn empty_identity_never_counts_as_a_duplicate() {
+    let mut pr = profile();
+    pr.applied.push(AppliedRef {
+        company: "  ".into(),
+        title: String::new(),
+        url: String::new(),
+    });
+    let mut p = good_posting();
+    p.company = String::new();
+    p.title = " ".into();
+    let d = decide(&p, &pr);
+    assert!(!cites(&d, "R.DUP.ALREADY_APPLIED"), "{:?}", d.rule_ids);
+    assert_ne!(d.confidence, 99);
+}
+
+#[test]
+fn impossible_calendar_dates_are_unknown() {
+    assert_eq!(days("2026-02-31"), None);
+    assert_eq!(days("2026-02-29"), None);
+    assert_eq!(days("2026-04-31"), None);
+    assert_eq!(days("1900-02-29"), None);
+    assert_eq!(days("2000-02-29"), Some(11_016));
+    assert_eq!(days("2026-12-31"), Some(20_818));
+    let mut p = good_posting();
+    p.posted_on = "2026-02-31".into();
+    assert!(cites(&decide(&p, &profile()), "R.FRESH.UNKNOWN"));
+}
+
+#[test]
+fn onsite_with_unknown_city_is_not_vetoed() {
+    let mut p = good_posting();
+    p.city = "  ".into();
+    let d = decide(&p, &profile());
+    assert!(!cites(&d, "R.LOC.ONSITE_VETO"), "{:?}", d.rule_ids);
+    assert_eq!(d.verdict, Verdict::Apply);
 }

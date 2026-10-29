@@ -224,22 +224,41 @@ fn norm(s: &str) -> String {
     tokens(s).join(" ")
 }
 
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+fn days_in_month(y: i64, m: i64) -> i64 {
+    match m {
+        2 if is_leap(y) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
 /// Days since 1970-01-01 for a YYYY-MM-DD date (proleptic Gregorian).
+/// Impossible dates (2026-02-31) are None, i.e. unknown.
 fn days(date: &str) -> Option<i64> {
     let mut it = date.trim().splitn(3, '-');
     let y: i64 = it.next()?.parse().ok()?;
     let m: i64 = it.next()?.parse().ok()?;
     let d: i64 = it.next()?.parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
-        return None;
-    }
+    is_real_date(y, m, d).then(|| civil_days(y, m, d))
+}
+
+fn is_real_date(y: i64, m: i64, d: i64) -> bool {
+    (1..=12).contains(&m) && d >= 1 && d <= days_in_month(y, m)
+}
+
+fn civil_days(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;
     let mp = (m + 9) % 12;
     let doy = (153 * mp + 2) / 5 + d - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    Some(era * 146_097 + doe - 719_468)
+    era * 146_097 + doe - 719_468
 }
 
 fn reason(id: &str, effect: Effect, evidence: String) -> Reason {
@@ -251,92 +270,105 @@ fn reason(id: &str, effect: Effect, evidence: String) -> Reason {
     }
 }
 
-/// Stage 1 entry point. Pure and deterministic: same input, same output.
-pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
-    let mut reasons = Vec::new();
-    let text = tokens(&format!("{} {}", posting.title, posting.text));
-    let lower = posting.text.to_lowercase();
-
-    // Duplicates.
-    let dup = profile.applied.iter().find(|a| {
-        (!a.url.is_empty() && a.url.trim() == posting.url.trim())
-            || (norm(&a.company) == norm(&posting.company)
-                && norm(&a.title) == norm(&posting.title))
-    });
-    if let Some(a) = dup {
-        reasons.push(reason(
-            "R.DUP.ALREADY_APPLIED",
-            Effect::Veto,
-            format!("already applied: {} / {}", a.company.trim(), a.title.trim()),
-        ));
+fn is_duplicate(a: &AppliedRef, posting: &Posting) -> bool {
+    let url = a.url.trim();
+    if !url.is_empty() && url == posting.url.trim() {
+        return true;
     }
+    let (company, title) = (norm(&a.company), norm(&a.title));
+    // An empty identity never matches: it says nothing about the posting.
+    !company.is_empty()
+        && !title.is_empty()
+        && company == norm(&posting.company)
+        && title == norm(&posting.title)
+}
 
-    // Scam signals.
+fn dup_rule(posting: &Posting, profile: &Profile) -> Option<Reason> {
+    let a = profile.applied.iter().find(|a| is_duplicate(a, posting))?;
+    Some(reason(
+        "R.DUP.ALREADY_APPLIED",
+        Effect::Veto,
+        format!("already applied: {} / {}", a.company.trim(), a.title.trim()),
+    ))
+}
+
+fn scam_rule(text: &[String]) -> Option<Reason> {
     let scams: Vec<&str> = SCAM_PHRASES
         .iter()
         .copied()
-        .filter(|p| has_phrase(&text, p))
+        .filter(|p| has_phrase(text, p))
         .collect();
-    if !scams.is_empty() {
-        reasons.push(reason(
-            "R.SCAM.SIGNAL",
-            Effect::Veto,
-            format!("phrases: {}", scams.join(", ")),
-        ));
+    if scams.is_empty() {
+        return None;
     }
+    Some(reason(
+        "R.SCAM.SIGNAL",
+        Effect::Veto,
+        format!("phrases: {}", scams.join(", ")),
+    ))
+}
 
-    // Location / visa hard rules.
+fn location_rule(posting: &Posting, profile: &Profile) -> Option<Reason> {
     let city = posting.city.trim().to_lowercase();
-    if !posting.remote
-        && !profile
-            .cities
-            .iter()
-            .any(|c| c.trim().to_lowercase() == city)
-    {
-        reasons.push(reason(
-            "R.LOC.ONSITE_VETO",
-            Effect::Veto,
-            format!(
-                "on-site in {}, profile cities: {}",
-                posting.city.trim(),
-                profile.cities.join(", ")
-            ),
-        ));
+    // Remote roles and an unknown city never veto.
+    if posting.remote || city.is_empty() {
+        return None;
     }
+    if profile
+        .cities
+        .iter()
+        .any(|c| c.trim().to_lowercase() == city)
+    {
+        return None;
+    }
+    Some(reason(
+        "R.LOC.ONSITE_VETO",
+        Effect::Veto,
+        format!(
+            "on-site in {}, profile cities: {}",
+            posting.city.trim(),
+            profile.cities.join(", ")
+        ),
+    ))
+}
+
+fn visa_rule(posting: &Posting, profile: &Profile) -> Option<Reason> {
     let country = posting.country.trim().to_uppercase();
     let authorized = profile
         .work_authorized_in
         .iter()
         .any(|c| c.trim().to_uppercase() == country);
-    if !authorized {
-        match posting.visa_sponsorship {
-            Some(false) => reasons.push(reason(
-                "R.VISA.NO_SPONSOR_VETO",
-                Effect::Veto,
-                format!("role in {country}, not authorized, posting says no sponsorship"),
-            )),
-            None => reasons.push(reason(
-                "R.VISA.UNKNOWN",
-                Effect::Park,
-                format!("role in {country}, not authorized, sponsorship not stated"),
-            )),
-            Some(true) => {}
-        }
+    if authorized {
+        return None;
     }
+    match posting.visa_sponsorship {
+        Some(false) => Some(reason(
+            "R.VISA.NO_SPONSOR_VETO",
+            Effect::Veto,
+            format!("role in {country}, not authorized, posting says no sponsorship"),
+        )),
+        None => Some(reason(
+            "R.VISA.UNKNOWN",
+            Effect::Park,
+            format!("role in {country}, not authorized, sponsorship not stated"),
+        )),
+        Some(true) => None,
+    }
+}
 
-    // Freshness.
+fn freshness_rule(posting: &Posting) -> Option<Reason> {
     match (days(&posting.posted_on), days(&posting.seen_on)) {
         (Some(p), Some(s)) if s >= p => {
             let age = s - p;
-            if age > STALE_DAYS {
-                reasons.push(reason(
+            (age > STALE_DAYS).then(|| {
+                reason(
                     "R.FRESH.STALE",
                     Effect::Park,
                     format!("{age} days old when seen (limit {STALE_DAYS})"),
-                ));
-            }
+                )
+            })
         }
-        _ => reasons.push(reason(
+        _ => Some(reason(
             "R.FRESH.UNKNOWN",
             Effect::Note,
             format!(
@@ -345,10 +377,11 @@ pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
             ),
         )),
     }
+}
 
-    // Company audit (input only; decide never fetches it).
-    let audit = posting.company_audit.as_ref().map(|a| a.verdict);
-    let audit_reason = match audit {
+/// Company audit (input only; decide never fetches it).
+fn audit_rule(audit: Option<AuditVerdict>) -> Reason {
+    match audit {
         Some(AuditVerdict::Pass) => {
             reason("R.AUDIT.PASS", Effect::Note, "company audit: pass".into())
         }
@@ -367,53 +400,55 @@ pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
             Effect::Park,
             "company audit: stale; re-audit before any pack or application".into(),
         ),
-        Some(AuditVerdict::Unaudited) | None => reason(
-            "R.AUDIT.UNAUDITED",
-            Effect::Park,
-            format!(
-                "company audit: {}; audit before any pack or application",
-                if audit.is_none() {
-                    "missing"
-                } else {
-                    "unaudited"
-                }
-            ),
-        ),
-    };
-    reasons.push(audit_reason);
+        Some(AuditVerdict::Unaudited) => unaudited("unaudited"),
+        None => unaudited("missing"),
+    }
+}
 
-    // Ghost signal.
-    if posting.repost_count >= GHOST_REPOSTS {
-        reasons.push(reason(
+fn unaudited(what: &str) -> Reason {
+    reason(
+        "R.AUDIT.UNAUDITED",
+        Effect::Park,
+        format!("company audit: {what}; audit before any pack or application"),
+    )
+}
+
+fn ghost_rule(posting: &Posting) -> Option<Reason> {
+    (posting.repost_count >= GHOST_REPOSTS).then(|| {
+        reason(
             "R.GHOST.REPOSTED",
             Effect::Park,
             format!(
                 "reposted {} times (limit {GHOST_REPOSTS})",
                 posting.repost_count
             ),
-        ));
-    }
+        )
+    })
+}
 
-    // Prompt injection: noted, never obeyed.
+/// Prompt injection: noted, never obeyed.
+fn injection_rule(lower: &str) -> Option<Reason> {
     let inj: Vec<&str> = INJECTION_PHRASES
         .iter()
         .copied()
         .filter(|p| lower.contains(p))
         .collect();
-    if !inj.is_empty() {
-        reasons.push(reason(
+    (!inj.is_empty()).then(|| {
+        reason(
             "R.INJECT.IGNORED",
             Effect::Note,
             format!("instruction-like text ignored: {}", inj.join(", ")),
-        ));
-    }
+        )
+    })
+}
 
-    // Fit (always reported).
+/// Fit (always reported). Returns the reason and the skill-overlap ratio.
+fn fit_rule(text: &[String], profile: &Profile) -> (Reason, f64) {
     let matched: Vec<&str> = profile
         .skills
         .iter()
         .map(String::as_str)
-        .filter(|s| has_phrase(&text, s))
+        .filter(|s| has_phrase(text, s))
         .collect();
     let total = profile.skills.len();
     let ratio = if total == 0 {
@@ -421,47 +456,78 @@ pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
     } else {
         matched.len() as f64 / total as f64
     };
-    let fit_effect = if ratio >= PREP_AT {
+    let effect = if ratio >= PREP_AT {
         Effect::Support
     } else {
         Effect::Penalty
     };
-    reasons.push(reason(
+    let list = if matched.is_empty() {
+        "none".to_string()
+    } else {
+        matched.join(", ")
+    };
+    let r = reason(
         "R.FIT.SKILL_OVERLAP",
-        fit_effect,
-        format!(
-            "{}/{} skills: {}",
-            matched.len(),
-            total,
-            if matched.is_empty() {
-                "none".to_string()
-            } else {
-                matched.join(", ")
-            }
-        ),
-    ));
+        effect,
+        format!("{}/{} skills: {}", matched.len(), total, list),
+    );
+    (r, ratio)
+}
 
+fn fit_verdict(ratio: f64) -> (Verdict, u8) {
+    let scaled = |x: f64| 50 + (45.0 * x).round() as u8;
+    if ratio >= APPLY_AT {
+        (Verdict::Apply, scaled(ratio))
+    } else if ratio >= PREP_AT {
+        (Verdict::Prep, scaled(ratio))
+    } else {
+        (Verdict::Skip, scaled(1.0 - ratio))
+    }
+}
+
+/// Every non-pass audit adds a veto or park reason, so reaching the fit
+/// branch already implies an audit pass.
+fn verdict_of(reasons: &[Reason], dup: bool, scam: bool, ratio: f64) -> (Verdict, u8) {
     let has = |e: Effect| reasons.iter().any(|r| r.effect == e);
-    let (verdict, confidence) = if dup.is_some() {
+    if dup {
         (Verdict::Skip, 99)
-    } else if !scams.is_empty() {
+    } else if scam {
         (Verdict::Skip, 90)
     } else if has(Effect::Veto) {
         (Verdict::Skip, 95)
     } else if has(Effect::Park) {
         (Verdict::Park, 60)
-    } else if audit != Some(AuditVerdict::Pass) {
-        // Unreachable today (every non-pass audit adds a veto or park reason);
-        // kept as a guard so apply/prep can never happen without an audit pass.
-        (Verdict::Park, 60)
-    } else if ratio >= APPLY_AT {
-        (Verdict::Apply, 50 + (45.0 * ratio).round() as u8)
-    } else if ratio >= PREP_AT {
-        (Verdict::Prep, 50 + (45.0 * ratio).round() as u8)
     } else {
-        (Verdict::Skip, 50 + (45.0 * (1.0 - ratio)).round() as u8)
-    };
+        fit_verdict(ratio)
+    }
+}
 
+/// Stage 1 entry point. Pure and deterministic: same input, same output.
+pub fn decide(posting: &Posting, profile: &Profile) -> Decision {
+    let text = tokens(&format!("{} {}", posting.title, posting.text));
+    let lower = posting.text.to_lowercase();
+    let audit = posting.company_audit.as_ref().map(|a| a.verdict);
+
+    let dup = dup_rule(posting, profile);
+    let scam = scam_rule(&text);
+    let (is_dup, is_scam) = (dup.is_some(), scam.is_some());
+    let mut reasons: Vec<Reason> = [
+        dup,
+        scam,
+        location_rule(posting, profile),
+        visa_rule(posting, profile),
+        freshness_rule(posting),
+        Some(audit_rule(audit)),
+        ghost_rule(posting),
+        injection_rule(&lower),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let (fit, ratio) = fit_rule(&text, profile);
+    reasons.push(fit);
+
+    let (verdict, confidence) = verdict_of(&reasons, is_dup, is_scam, ratio);
     let mut rule_ids: Vec<String> = reasons.iter().map(|r| r.rule_id.clone()).collect();
     rule_ids.sort();
     rule_ids.dedup();
