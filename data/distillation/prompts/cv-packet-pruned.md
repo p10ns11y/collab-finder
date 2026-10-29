@@ -2,7 +2,7 @@
 
 Canonical body: [`cv-packet-distilled.txt`](../cv-packet-distilled.txt) (also `defaultCvSummary` in `x-search/queries.json`).
 
-Sources: PDF CV (`peramanathan-sathyamoorthy-cv.pdf`) + featured projects (`public-projects-focused-flatten.json`).
+Sources: PDF CV (`sample-cv.pdf`) + featured projects (`public-projects-focused-flatten.json`).
 
 Use as `CV_PACKET` / Discover textarea default until devprofile guard loads live CV.
 

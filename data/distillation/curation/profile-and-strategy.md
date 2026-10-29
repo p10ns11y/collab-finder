@@ -41,7 +41,7 @@ LinkedIn, Arbetsförmedlingen, Wellfound, SwissDevJobs, Japan-Dev, SpaceX career
 
 - **SpaceXAI** (xAI dissolved as separate co.; AI division of SpaceX — Grok, X platform, Colossus):
   - SpaceX careers: https://www.spacex.com/careers/
-  - Direct apply (engineers/physicists, ~3 bullets on exceptional ability): **ai_eng@spacex.com**
+  - Direct apply (engineers/physicists, ~3 bullets on exceptional ability): **careers@example.com (sample address; use the company careers page)**
   - Legacy role boards (may still list xAI titles): https://x.ai/careers · https://job-boards.greenhouse.io/xai/
 - **Macrohard** (SpaceXAI division — agent/GUI emulation, Applied AI): SpaceX/xAI career boards — search “Macrohard” / Computer Control
 - **Terafab** (Tesla × SpaceX × SpaceXAI chip fab): https://terafab.ai · roles often on https://www.tesla.com/careers/search/ (query: terafab)

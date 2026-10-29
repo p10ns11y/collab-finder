@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { scanText, luhnOk } from './ci-private-data.mjs'
+import { scanText, luhnOk, pdfText } from './ci-private-data.mjs'
 
 // Fixtures are built at runtime from clearly fake parts; nothing real-looking is committed.
 const at = 'a' + 't'
@@ -55,4 +55,11 @@ test('negative controls: clean text passes', () => {
 test('luhn check digit', () => {
   assert.equal(luhnOk('1212121212'), true)
   assert.equal(luhnOk('1212121213'), false)
+})
+
+test('pdf text: returns extracted text, or null when pdftotext is missing', () => {
+  const ok = () => ({ status: 0, stdout: `mail ${fakeMail}` })
+  assert.deepEqual(scanText(pdfText('x.pdf', ok)).map((f) => f.category), ['email'])
+  const missing = () => ({ error: new Error('ENOENT'), status: null, stdout: '' })
+  assert.equal(pdfText('x.pdf', missing), null)
 })

@@ -3,6 +3,7 @@
  * Fail when tracked text holds private data: phone numbers, email addresses,
  * Windows home paths, Swedish personnummer, or debt amounts.
  * Unix home paths (/home/<name>, /Users/<name>) are already checked by ci-host-alias.mjs.
+ * PDFs are scanned through pdftotext when it is installed; skipped otherwise.
  * Prints file:line and category only, never the matched value.
  * Tests: node --test scripts/ci-private-data.test.mjs
  */
@@ -123,11 +124,22 @@ function readText(path) {
   }
 }
 
+/** Extracted PDF text via pdftotext; null when the tool is missing (scan skips PDFs then). */
+export function pdfText(path, run = spawnSync) {
+  const res = run('pdftotext', ['-q', path, '-'], { encoding: 'utf8' })
+  if (res.error || res.status !== 0) return null
+  return res.stdout
+}
+
+function fileText(path) {
+  return path.toLowerCase().endsWith('.pdf') ? pdfText(path) : readText(path)
+}
+
 function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..')
   const out = []
   for (const rel of trackedFiles(root)) {
-    const text = readText(join(root, rel))
+    const text = fileText(join(root, rel))
     if (text === null) continue
     for (const f of scanText(text)) out.push(`${rel}:${f.line} ${f.category}`)
   }
