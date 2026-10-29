@@ -61,4 +61,4 @@ See [docs/ci.md](docs/ci.md) for CI jobs.
 | [docs/system-one-jev.md](docs/system-one-jev.md) | System One + Two hunt loop (Fit Reflex note) |
 | [docs/release.md](docs/release.md) | Tag → GitHub Release binary |
 
-Private tool for p10ns11y.
+Public app behind kanithanj.ai: a desktop app that helps job seekers find openings, check fit, and prepare applications.

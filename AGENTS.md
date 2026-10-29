@@ -1,6 +1,6 @@
 # Agent instructions — collab-finder
 
-**Owner:** Kanithanj Desk  
+**Owner:** Fleet Desk; day-to-day operator: Kanithanj Desk  
 **Product:** collab-finder: deterministic firm and warm-path facts for a downstream pick step. See [docs/STEERING.md](docs/STEERING.md).
 
 > **Load rule:** Sticky router only. Expand [docs/agent-playbook.md](docs/agent-playbook.md) **only if** routing or conventions are ambiguous.

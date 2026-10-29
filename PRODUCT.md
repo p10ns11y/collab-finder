@@ -6,7 +6,7 @@ collab-finder: deterministic firm and warm-path facts for a downstream pick step
 
 ## Users
 
-Solo operator / builder (primary: the project author) on a desktop Tauri app. Context: deep work sessions, intermittent autonomous reactor runs, credentials in the keyring. Intervention only when self-guards pause (fit, cost, rate, CV promote).
+Job seekers using the kanithanj.ai desktop app (Tauri) to find openings and prepare applications. Context: deep work sessions, intermittent autonomous reactor runs, credentials in the keyring. Intervention only when self-guards pause (fit, cost, rate, CV promote).
 
 ## Operating Context
 
