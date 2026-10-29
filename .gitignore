@@ -78,3 +78,10 @@ vendor/kanithanj-cv/.pull-quarantine/
 # TypeScript / Vite build artifacts
 *.tsbuildinfo
 vite.config.d.ts
+
+# Personal CV data: local only, never commit. The tracked cvdata.json and
+# cvdata.example.json stay tracked; these patterns catch private copies beside them.
+vendor/kanithanj-cv/src/data/*.local.json
+vendor/kanithanj-cv/src/data/cvdata.private.json
+vendor/kanithanj-cv/src/data/cvdata.personal.json
+*cv-data*.json

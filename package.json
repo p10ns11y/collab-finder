@@ -13,6 +13,7 @@
     "mutate:xai-panel": "stryker run",
     "ci-check": "bash scripts/ci-check.sh",
     "ci-check-light": "bash scripts/ci-check-light.sh",
+    "private-data": "node --test scripts/ci-private-data.test.mjs && node scripts/ci-private-data.mjs",
     "gate": "bash scripts/gate.sh",
     "export-pipeline": "node scripts/export-pipeline.mjs",
     "pulse-export": "node scripts/pulse-export.mjs",
