@@ -3,6 +3,7 @@ mod app_dirs;
 mod commands;
 mod cv_home;
 mod db;
+pub mod decide;
 mod environment;
 pub mod facts;
 mod finder_reactor;
