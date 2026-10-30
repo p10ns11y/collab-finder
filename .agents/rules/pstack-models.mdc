@@ -1,0 +1,26 @@
+---
+description: pstack per-role model choices (overrides skill defaults)
+alwaysApply: true
+---
+# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
+# budget: medium (high)
+# Real slugs are not yet confirmed from a Task model list, so every role is `auto` (parent model; cloud runs use grok-4.7 at reasoning effort high).
+# Candidates once confirmed: grok-4.7-high-fast (code roles), claude-opus-5-5-high (judgment roles).
+feature, refactoring: auto
+bug-fix: auto
+perf-issue: auto
+hillclimb: auto
+judgment and prose: auto
+hardest tasks: auto
+how explorer: auto
+how explainer: auto
+why investigators: auto
+why synthesizer: auto
+reflect tooling: auto
+reflect judgment, divergent, synthesizer: auto
+arena runners: auto, auto
+arena cross-judge pool: auto
+swarm workers: auto
+architect runners: auto, auto
+interrogate reviewers: auto, auto
