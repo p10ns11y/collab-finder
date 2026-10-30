@@ -487,20 +487,80 @@ pub fn install_test_fixtures() -> TestFixturesGuard {
     let packs = tmp.path().join("packs");
     fs::create_dir_all(&packs).expect("packs dir");
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata");
-    if src.is_dir() {
-        for ent in fs::read_dir(&src).into_iter().flatten().flatten() {
-            let path = ent.path();
-            if path.is_file() {
-                let _ = fs::copy(&path, packs.join(path.file_name().unwrap()));
-            }
-        }
-    }
+    install_pack_files(&src, &packs);
     crate::rank_config::set_test_dir(Some(tmp.path().to_path_buf()));
     set_test_packs_dir(Some(packs));
     TestFixturesGuard {
         _tmpdir: tmp,
         _lock: lock,
     }
+}
+
+/// Copy testdata first, then fill gaps from `scripts/seed-testdata-for-ci.sh`.
+/// A file already in testdata is left as-is.
+#[cfg(test)]
+fn install_pack_files(testdata: &Path, packs: &Path) {
+    if testdata.is_dir() {
+        for ent in fs::read_dir(testdata).into_iter().flatten().flatten() {
+            let path = ent.path();
+            if path.is_file() {
+                let Some(name) = path.file_name() else {
+                    continue;
+                };
+                let _ = fs::copy(&path, packs.join(name));
+            }
+        }
+    }
+    seed_missing_from_repo(packs);
+}
+
+/// Pairs of (repo-relative source, pack file name) from the seed script.
+#[cfg(test)]
+fn repo_seed_pairs() -> Vec<(String, String)> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/seed-testdata-for-ci.sh");
+    let script = fs::read_to_string(&path).unwrap_or_else(|err| {
+        panic!("missing seed script scripts/seed-testdata-for-ci.sh: {err}");
+    });
+    let pairs = parse_seed_script(&script);
+    if pairs.is_empty() {
+        panic!("seed script scripts/seed-testdata-for-ci.sh has no copy lines");
+    }
+    pairs
+}
+
+#[cfg(test)]
+fn parse_seed_script(script: &str) -> Vec<(String, String)> {
+    script
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("copy \"$ROOT/")?;
+            let (src, rest) = rest.split_once("\" \"")?;
+            let name = rest.strip_suffix('"')?;
+            if src.is_empty() || name.is_empty() {
+                return None;
+            }
+            Some((src.to_string(), name.to_string()))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn seed_missing_from_repo(packs: &Path) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+    for (src, name) in repo_seed_pairs() {
+        let dest = packs.join(&name);
+        if dest.exists() {
+            continue;
+        }
+        copy_repo_seed(&root, &src, &dest);
+    }
+}
+
+#[cfg(test)]
+fn copy_repo_seed(root: &Path, src_rel: &str, dest: &Path) {
+    fs::copy(root.join(src_rel), dest).unwrap_or_else(|err| {
+        panic!("missing seed {src_rel}: {err}");
+    });
 }
 
 #[cfg(test)]
@@ -560,5 +620,47 @@ mod pack_status_tests {
         let status = pack_status().expect("status");
         assert_eq!(status.health, OperatorPackHealth::Stub);
         assert!(!status.seeded);
+    }
+
+    #[test]
+    fn testdata_file_survives_installer() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let testdata = tmp.path().join("testdata");
+        let packs = tmp.path().join("packs");
+        fs::create_dir_all(&testdata).expect("testdata");
+        fs::create_dir_all(&packs).expect("packs");
+        let marker = "distinct-testdata-universe-not-from-repo\n";
+        fs::write(testdata.join("universe.json"), marker).expect("marker");
+        install_pack_files(&testdata, &packs);
+        let kept = fs::read_to_string(packs.join("universe.json")).expect("installed universe");
+        assert_eq!(
+            kept, marker,
+            "installer overwrote a file already present in testdata"
+        );
+        assert!(packs.join("places.json").is_file());
+    }
+
+    #[test]
+    fn seed_pairs_come_from_seed_script() {
+        let pairs = repo_seed_pairs();
+        let mut names: Vec<&str> = pairs.iter().map(|(_, name)| name.as_str()).collect();
+        let mut expected = EXPECTED_PACK_FILES.to_vec();
+        names.sort_unstable();
+        expected.sort_unstable();
+        assert_eq!(names, expected);
+        for (src, _) in &pairs {
+            assert!(src.starts_with("data/"), "{src}");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "missing seed")]
+    fn missing_repo_seed_fails_clearly() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        copy_repo_seed(
+            tmp.path(),
+            "data/no-such-seed.json",
+            &tmp.path().join("universe.json"),
+        );
     }
 }
