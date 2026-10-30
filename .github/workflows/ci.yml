@@ -103,7 +103,7 @@ jobs:
 
   complexity:
     needs: changes
-    if: needs.changes.outputs.app_source == 'true'
+    if: needs.changes.result == 'success'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -112,6 +112,9 @@ jobs:
 
       - name: Lizard (cyclomatic complexity, CCN ≤ 15)
         run: bash scripts/ci-complexity.sh
+
+      - name: Lizard setup shell test
+        run: bash scripts/test-ensure-lizard.sh
 
   crap_report:
     needs: changes
