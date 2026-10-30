@@ -5,6 +5,7 @@ alwaysApply: true
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
 # `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
 # budget: medium (high)
+# Fallback: claude-opus-5-5-high is third-party API usage billed separately. If it is not available or not entitled, use grok-4.7-high-fast for that role (and for that panel entry) instead of failing or switching to another third-party model.
 # Models follow the pstack recommendation at budget medium (high); slugs are as recommended by pstack setup.
 feature, refactoring: grok-4.7-high-fast
 bug-fix: grok-4.7-high-fast
