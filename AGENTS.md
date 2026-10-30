@@ -50,6 +50,7 @@ ln -sfn ../.agents/skills .cursor/skills
 ```
 
 Portable catalog: [skills.sh/p10ns11y/skills](https://www.skills.sh/p10ns11y/skills) · lock: [skills-lock.json](skills-lock.json) · restore: `npx skills experimental_install` · sync: `./scripts/sync-agent-skills.sh --lock`. Deep wiring: [.agents/README.md](.agents/README.md) · [docs/agent-playbook.md](docs/agent-playbook.md).
+- pstack model roles and tstack skills-first rule: .agents/rules/pstack-models.mdc, .agents/rules/tstack-workflow.mdc
 
 ## Routing (load on match only)
 

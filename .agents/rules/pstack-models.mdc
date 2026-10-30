@@ -1,0 +1,26 @@
+---
+description: pstack per-role model choices (overrides skill defaults)
+alwaysApply: true
+---
+# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
+# budget: medium (high)
+# Third-party models (claude-opus-5-5-*) are billed separately and are not used here; collaboration with Claude happens outside Cursor. Every role runs on a Grok model.
+# Models follow the pstack recommendation at budget medium (high); slugs are as recommended by pstack setup.
+feature, refactoring: grok-4.7-high-fast
+bug-fix: grok-4.7-high-fast
+perf-issue: grok-4.7-high-fast
+hillclimb: grok-4.7-high-fast
+judgment and prose: grok-4.7-high-fast
+hardest tasks: grok-4.7-high-fast
+how explorer: grok-4.7-high-fast
+how explainer: grok-4.7-high-fast
+why investigators: grok-4.7-high-fast
+why synthesizer: grok-4.7-high-fast
+reflect tooling: grok-4.7-high-fast
+reflect judgment, divergent, synthesizer: grok-4.7-high-fast
+arena runners: grok-4.7-high-fast, grok-4.7-high-fast
+arena cross-judge pool: grok-4.7-high-fast, grok-4.7-high-fast
+swarm workers: grok-4.7-high-fast
+architect runners: grok-4.7-high-fast, grok-4.7-high-fast
+interrogate reviewers: grok-4.7-high-fast, grok-4.7-high-fast

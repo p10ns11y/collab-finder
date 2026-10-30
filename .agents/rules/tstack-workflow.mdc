@@ -1,0 +1,35 @@
+---
+description: tstack workflow and skills-first rule for coding agents in this repo
+alwaysApply: true
+---
+# tstack workflow (skills first)
+
+The closest AGENTS.md wins over this rule. This rule adds; it does not replace it.
+
+## Before any tech task
+1. Name the skills for the task and read each SKILL.md before you edit. An empty skill list does not mean none apply: look for SKILL.md files.
+2. Pick from this table, at most four skills:
+
+| Task | Load first |
+|------|------------|
+| Feature or bug fix | test-driven-development, principle-experience-first (feature) or systematic-debugging (bug) |
+| Refactor or cleanup | principle-encode-lessons-in-structure, principle-boundary-discipline |
+| Two fixes that disagree | principle-attack-the-premise |
+| Any claim of done | verification-before-completion |
+| Commit, PR, issue, public doc | public-host-alias |
+| Long or multi-step work | tstack tomato-loop (time-boxed block), then harvest |
+| Repo work from a plan | tstack pstack-map route, then poteto-mode |
+
+3. Model per role comes from `pstack-models.mdc`.
+
+## While working
+- Branch and PR only. Never merge, force-push, rewrite history, tag or release.
+- Merges are checked with `tstack/bin/merge-check` by the owner, not by you.
+- Fixtures are fictional. Hosts are named laptop-1, laptop-2, mac-mini or box.
+- No real hostnames, usernames, home paths, phone numbers or email addresses.
+- New prose says SI, not AI.
+
+## Report
+- List the skills you actually loaded, as `skill: <name>` lines in the PR body.
+- Add `proof: <link or path>` for each claim.
+- Then: read only, ran locally, tests and CI, not run (always present).
