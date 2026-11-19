@@ -1,4 +1,3 @@
-// Parse an untrusted pool file: every row goes through the strict allow-list scan; any failure rejects the whole pool.
 import { err, ok, Result } from 'neverthrow';
 import type { PoolError } from './errors.ts';
 import { privacyScan, type PublicPool, type PublicRow } from './schema.ts';

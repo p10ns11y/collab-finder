@@ -1,4 +1,3 @@
-// match(profile, pool): deterministic rules, no network, no clock except the injected `now` (staleness only).
 import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
@@ -29,7 +28,6 @@ export type MatchResult = {
 };
 export type MatchError = VisitorError;
 
-// ---------- input railway ----------
 const PHONE_CANDIDATE = /\+?\d[\d\s().-]{7,}\d/g;
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const ID_NUMBER = /\b(?:19|20)?\d{6}[-+]\d{4}\b/g;
@@ -46,7 +44,7 @@ export function findPii(text: string): ReadonlyArray<PiiSpan> {
   }
   return spans.sort((a, b) => a.start - b.start);
 }
-/** Replace detected PII with a neutral marker. Runs locally; nothing leaves the browser. */
+
 export function redactPii(text: string): string {
   let out = text;
   for (const s of [...findPii(text)].sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + `[${s.pii} removed]` + out.slice(s.end);
@@ -77,7 +75,6 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   return ok({ roles: roles.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority });
 }
 
-// ---------- row rules ----------
 const regionOk = (pref: RegionPref, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
   if (r === null || r === 'other' || r === '') return 'unknown';

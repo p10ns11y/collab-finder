@@ -1,4 +1,3 @@
-// Fixed vocabulary. Matching only ever reports these labels back, never the visitor's raw text.
 export type TermKind = 'role' | 'skill' | 'generic';
 export type Term = { key: string; label: string; kind: TermKind; re: RegExp };
 
@@ -29,13 +28,11 @@ export const TERMS: ReadonlyArray<Term> = [
   t('software', 'software engineering', 'generic', 'software (?:engineer(?:ing)?|developer|development)|swe|programmer|developer|coder'),
 ];
 
-/** Pool role_tags that are specific enough to count as title evidence. Broad tags (si-llm, agentic, physical) are ignored. */
 export const TAG_TERMS: Readonly<Record<string, string>> = {
   typescript: 'typescript', react: 'react', platform: 'platform', frontend: 'frontend', fullstack: 'fullstack',
   'forward-deployed': 'fde', 'product-engineer': 'product',
 };
 
-/** Roles the pool does not contain (it was built for software & AI engineering, mid level and up). */
 export const OUTSIDE_POOL = /(?:^|[^a-z])(?:nurse|nursing|doctor|physician|teacher|sales|account executive|marketing|recruit(?:er|ing)|accountant|accounting|lawyer|legal|cashier|driver|chef|waiter|ios|android|mobile|swift|kotlin|java|customer support|customer service|hr|human resources|copywriter|translator)(?=$|[^a-z])/i;
 
 export const LEVELS = ['junior', 'mid', 'senior', 'staff', 'principal'] as const;
@@ -53,7 +50,7 @@ export const levelOf = (text: string): Level | null => {
   if (y?.[1]) { const n = Number(y[1]); return n < 2 ? 'junior' : n < 5 ? 'mid' : 'senior'; }
   return null;
 };
-/** Pool seniority strings → level. lead ≈ staff. */
+
 export const levelOfPool = (s: string | null): Level | null =>
   s === 'mid' ? 'mid' : s === 'senior' ? 'senior' : s === 'staff' || s === 'lead' ? 'staff' : s === 'principal' ? 'principal' : s === 'junior' ? 'junior' : null;
 

@@ -1,4 +1,3 @@
-// Identical-output contract: every surface is a thin adapter over one core and must return byte-equal output.
 import { err, ok, type Result, type ResultAsync } from 'neverthrow';
 import type { AppError, Surface, SurfaceError, Warning } from './errors.ts';
 import type { GroupKey, MatchInput } from './decisions.ts';
@@ -9,7 +8,7 @@ export type MatchOutput = {
   totals: Record<GroupKey, number>; warnings: ReadonlyArray<Warning>;
 };
 export type SurfaceAdapter = (input: MatchInput) => ResultAsync<MatchOutput, AppError>;
-export type Contract = { readonly [S in Surface]: SurfaceAdapter };   // missing a surface = type error
+export type Contract = { readonly [S in Surface]: SurfaceAdapter };
 
 export function checkIdentical(outs: Readonly<Record<Surface, MatchOutput>>): Result<MatchOutput, SurfaceError> {
   const ref = outs.web;

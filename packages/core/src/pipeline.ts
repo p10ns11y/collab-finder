@@ -1,4 +1,3 @@
-// Railway: validate → piiCheck → rateLimit → match → group → render. Each step returns Result; first error switches track.
 import { err, errAsync, ok, okAsync, Result, ResultAsync } from 'neverthrow';
 import { match } from 'ts-pattern';
 import type { Actor, AppError, PiiKind, Source, VisitorError, Warning } from './errors.ts';
@@ -52,18 +51,15 @@ export const render = (g: Grouped): Result<Rendered, AppError> => {
   return ok({ groups, totals, warnings: g.warnings });
 };
 
-/** The whole match railway. Same function for web, CLI, MCP, skill, WebMCP: only `fx` and `from` differ. */
 export const runMatch = (fx: { pool: PoolStore; clock: Clock; log: Log }, d: { fit: DecideFit; group: DecideGroup }, from: Actor) =>
   (input: MatchInput): ResultAsync<Rendered, AppError> =>
     validate(input).andThen(piiCheck(from)).asyncAndThen(matchStep(fx, d.fit)).andThen(groupStep(d.group, input)).andThen(render)
       .map(r => (fx.log.emit({ evt: 'match', ms: 0, count: r.totals.fitsNow }), r))
       .mapErr(e => (fx.log.emit({ evt: 'match', ms: 0, errorKind: e.kind }), e));
 
-/** Refresh needs Fetch, so it cannot be called with LocalFx. Swap only via DecideRefreshSwap. */
 export const refresh = (fx: { fetch: Fetch; pool: PoolStore; clock: Clock }, swap: DecideRefreshSwap, fetchAll: (f: Fetch) => ResultAsync<{ next: PublicPool; perSource: Record<Source, { before: number; after: number; ok: boolean }> }, AppError>) =>
   fetchAll(fx.fetch).andThen(({ next, perSource }) => swap.decide({ perSource }).andThen(d => (d === 'swap' ? fx.pool.swap(next).map(() => 'swapped' as const) : okAsync('kept' as const))));
 
-/** Every error is handled: exhaustive map from error → recovery the UI/agent shows. Adding a variant without a case = type error. */
 export const OUT_OF_SCOPE_MSG = 'We cover software & AI engineering roles at ~510 tech companies, SE/EU/UK/US.';
 export type Recovery =
   | { ui: 'out-of-scope'; msg: string } | { ui: 'inline-field-error'; msg: string } | { ui: 'redact-preview'; spans: number } | { ui: 'retry-after'; s: number }

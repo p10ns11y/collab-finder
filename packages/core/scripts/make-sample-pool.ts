@@ -1,4 +1,3 @@
-// Writes fixtures/pool.sample.json: SYNTHETIC rows only (fictional companies, example.com links). Deterministic.
 import { writeFileSync } from 'node:fs';
 import { parsePool } from '../src/pool.ts';
 

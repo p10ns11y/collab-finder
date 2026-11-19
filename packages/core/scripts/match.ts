@@ -1,4 +1,3 @@
-// Eval/CLI entry over the same core: node scripts/match.ts --pool <file> [--now ISO] [--limit N] < profile.json
 import { readFileSync } from 'node:fs';
 import { match, parsePool } from '../src/index.ts';
 

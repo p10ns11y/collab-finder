@@ -1,4 +1,3 @@
-// Decision models as effect slots. Same signature; handler = fast rules/learned path, or slow AI path that needs approval.
 import { okAsync, type ResultAsync } from 'neverthrow';
 import type { AiCall, SpendApproval } from './effects.ts';
 import type { IntelError, PoolError, PackError, Source } from './errors.ts';
@@ -16,13 +15,11 @@ export type DecideRefreshSwap = Decide<{ perSource: Record<Source, { before: num
 export type DecideClaimOK    = Decide<{ claim: string; liveFeatures: ReadonlySet<string> }, 'ok', PackError>;
 export type DecideProvider   = Decide<{ task: 'rank' | 'pack'; budgetUsd: number }, 'default' | 'fake' | 'xai' | 'decisions-model', IntelError>;
 
-/** Fast path: rules, free, deterministic (tonight's default). */
 export const rulesGroup: DecideGroup = {
   path: 'rules',
   decide: ({ fit }) => okAsync(fit.score >= 80 ? 'fitsNow' : fit.score >= 60 ? 'stepTowardGoal' : 'stretch'),
 };
 
-/** Slow path: same slot, but cannot be constructed without a SpendApproval minted by UserConsent. */
 export function aiGroup(ai: AiCall, approval: SpendApproval, parse: (raw: unknown) => ResultAsync<GroupKey, IntelError>): DecideGroup {
   return { path: 'ai', decide: ({ input, fit }) => ai.complete(`group ${fit.row.id} for goal: ${input.goal ?? ''}`, approval).andThen(parse) };
 }
