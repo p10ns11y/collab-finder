@@ -1,4 +1,4 @@
-import { safeInvoke } from './safe-invoke'
+import { isTauri, safeInvoke } from './safe-invoke'
 import { applyScreenHash } from '../../core/domain/finder-nav'
 
 export type HeadingSnapshot = {
@@ -66,15 +66,11 @@ export function headingBootFromCluster(
   })
 }
 
-function isTauriShell(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-}
-
 /** Focus + poll: already-running CF never sees AppStarted again after waybar click. */
 export function watchClusterRoute(
   dispatch: (msg: { type: 'ScreenChanged'; screen: 'heading' }) => void,
 ): () => void {
-  if (!isTauriShell()) {
+  if (!isTauri()) {
     return () => {}
   }
   const onFocus = () => {

@@ -37,7 +37,7 @@ export function Header({
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-semibold tracking-tight text-ink">
-              collab-finder
+              kanithanj.ai
             </span>
             {screenTitle && (
               <>

@@ -332,7 +332,7 @@ export function MaintainedFirmListPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Mission firm list</CardTitle>
-          <CardDescription>Loading maintained registry…</CardDescription>
+          <CardDescription>{notice ?? 'Loading maintained registry…'}</CardDescription>
         </CardHeader>
       </Card>
     )
