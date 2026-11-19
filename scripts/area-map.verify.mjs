@@ -31,6 +31,7 @@ const AREA_IDS = [
   'hire-board',
   'profile-data',
   'ops',
+  'kanithanj-v0',
   'docs',
 ]
 

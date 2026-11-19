@@ -260,6 +260,11 @@
       ]
     },
     {
+      "id": "kanithanj-v0",
+      "include": ["packages/**", "apps/**", "spec/**"],
+      "exclude": ["**/*.md"]
+    },
+    {
       "id": "docs",
       "include": ["**/*.md", "docs/**", ".agents/**", ".grok/**", "archive/**"],
       "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**", "src-tauri/tests/**", "src/web/fixtures/**"]
