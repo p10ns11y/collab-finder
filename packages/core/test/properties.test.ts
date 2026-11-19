@@ -68,9 +68,7 @@ test('no known mismatch in fitsNow: a fits-now title always shares a term with t
     return r.value.groups.fitsNow.every(x => {
       const row = pool.rows.find(y => y.id === x.id)!;
       const theirs = termsIn(row.title);
-      for (const t of ['typescript', 'react', 'platform', 'frontend', 'fullstack']) if (row.role_tags.includes(t)) theirs.add(t);
-      if (row.role_tags.includes('forward-deployed')) theirs.add('fde');
-      if (row.role_tags.includes('product-engineer')) theirs.add('product');
+      for (const t of ['typescript', 'react']) if (row.role_tags.includes(t)) theirs.add(t);
       return [...mine].some(t => theirs.has(t)) && !/manager|director|head of/i.test(row.title)
         && (p.region === 'any' || row.region === 'remote-anywhere' || row.region === p.region || (p.region === 'EU' && row.region === 'SE'));
     });

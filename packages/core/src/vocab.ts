@@ -52,9 +52,11 @@ export const levelOf = (text: string): Level | null => {
 };
 
 export const levelOfPool = (s: string | null): Level | null =>
-  s === 'mid' ? 'mid' : s === 'senior' ? 'senior' : s === 'staff' || s === 'lead' ? 'staff' : s === 'principal' ? 'principal' : s === 'junior' ? 'junior' : null;
+  s === 'mid' ? 'mid' : s === 'senior' ? 'senior' : s === 'staff' || s === 'lead' ? 'staff' : s === 'principal' ? 'principal' : s === 'junior' || s === 'intern' ? 'junior' : null;
 
 export const termsIn = (text: string): Set<string> => new Set(TERMS.filter(x => x.re.test(text)).map(x => x.key));
 export const label = (key: string): string => TERMS.find(x => x.key === key)?.label ?? key;
 export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?.kind ?? 'skill';
+export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
+export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;

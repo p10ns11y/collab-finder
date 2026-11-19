@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { LEVELS, MANAGER_TITLE, OUTSIDE_POOL, TAG_TERMS, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, NON_ENGINEERING_TITLE, OUTSIDE_POOL, TAG_TERMS, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -88,35 +88,39 @@ const remoteOk = (pref: RemotePref, r: PublicRow['remote']): 'yes' | 'no' | 'unk
   if (pref === 'remote') return r === 'remote' ? 'yes' : 'no';
   return r === 'remote' || r === 'hybrid' ? 'yes' : 'no';
 };
-const rowTerms = (row: PublicRow): Set<string> => {
-  const s = termsIn(row.title);
-  for (const tag of row.role_tags) { const k = TAG_TERMS[tag]; if (k) s.add(k); }
-  return s;
+const rowTerms = (row: PublicRow): { title: Set<string>; tags: Set<string> } => {
+  const tags = new Set<string>();
+  for (const tag of row.role_tags) { const k = TAG_TERMS[tag]; if (k) tags.add(k); }
+  return { title: termsIn(row.title), tags };
 };
 const dayMs = 864e5;
 const ageOf = (iso: string, now: Date): number => { const t = Date.parse(iso); return Number.isFinite(t) ? Math.max(0, Math.floor((now.getTime() - t) / dayMs)) : 9999; };
 
+export const inScope = (row: PublicRow): boolean =>
+  row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
+
 type Scored = { group: GroupKey; row: MatchRow };
 function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'>>, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
-  const wantsManager = false;
-  if (MANAGER_TITLE.test(row.title) && !wantsManager) return null;
+  if (!inScope(row)) return null;
   const rt = rowTerms(row);
-  const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.has(k));
-  const skillHits = u.skills.filter(k => rt.has(k));
-  const genericHit = u.roles.includes('software') && rt.has('software');
-  const goalHits = u.goal.filter(k => rt.has(k));
-  if (!roleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
+  const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));
+  const tagRoleHits = u.roles.filter(k => kindOf(k) === 'role' && !rt.title.has(k) && rt.tags.has(k));
+  const skillHits = u.skills.filter(k => rt.title.has(k) || rt.tags.has(k));
+  const genericHit = u.roles.includes('software') && rt.title.has('software');
+  const goalHits = u.goal.filter(k => rt.title.has(k));
+  if (!roleHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
   const reg = regionOk(p.region, row.region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   const rowLevel = levelOfPool(row.seniority) ?? levelOf(row.title);
   let levelGap = 0;
   if (u.seniority && rowLevel) levelGap = LEVELS.indexOf(rowLevel) - LEVELS.indexOf(u.seniority);
-  if (levelGap >= 2 || levelGap <= -2) return null;
+  if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
 
   const reasons: string[] = [];
-  if (roleHits.length || skillHits.length) reasons.push(`Title matches what you do: ${[...roleHits, ...skillHits].map(label).join(', ')}`);
+  if (roleHits.length) reasons.push(`Title matches what you do: ${roleHits.map(label).join(', ')}`);
+  if (tagRoleHits.length || skillHits.length) reasons.push(`Tagged with: ${[...tagRoleHits, ...skillHits].map(label).join(', ')}`);
   else if (genericHit) reasons.push('General software engineering title');
   if (goalHits.length) reasons.push(`Toward your goal: ${goalHits.map(label).join(', ')}`);
   if (!rowLevel) reasons.push('Seniority not stated in the posting');
@@ -130,7 +134,7 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
   const stale = ageDays > STALE_DAYS;
   reasons.push(row.status === 'open' ? `Open when last checked (${row.status_checked_at.slice(0, 10)})` : 'Status unknown, verify before applying');
 
-  const score = roleHits.length * 30 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
+  const score = roleHits.length * 30 + tagRoleHits.length * 10 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
     - (levelGap === 1 ? 10 : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20);
 
   const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0;
