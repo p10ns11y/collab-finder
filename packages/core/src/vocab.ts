@@ -5,13 +5,13 @@ const t = (key: string, label: string, kind: TermKind, src: string): Term => ({ 
 
 export const TERMS: ReadonlyArray<Term> = [
   t('backend', 'backend', 'role', 'back[- ]?end|server[- ]side|apis?'),
-  t('frontend', 'frontend', 'role', 'front[- ]?end|ui engineer(?:ing)?|web (?:engineer|developer)'),
-  t('fullstack', 'full-stack', 'role', 'full[- ]?stack'),
+  t('frontend', 'frontend', 'role', 'front[- ]?end|ui engineer(?:ing)?|web (?:engineer|developer)|web applications?|web apps?|web development'),
+  t('fullstack', 'full-stack', 'role', 'full[- ]?stack|web applications?|web apps?|web development'),
   t('platform', 'platform', 'role', 'platform'),
   t('infra', 'infrastructure', 'role', 'infra(?:structure)?|cloud|kubernetes|k8s|devops|sre|site reliability|reliability|observability'),
   t('data', 'data engineering', 'role', 'data (?:engineer(?:ing)?|platform|infrastructure|pipelines?)|analytics engineer(?:ing)?|etl|spark|data warehouse'),
   t('ml', 'machine learning', 'role', 'machine learning|ml|mlops|deep learning|computer vision|applied scientist|research engineer(?:ing)?|model training'),
-  t('ai', 'AI / LLM', 'role', 'ai|a\\.i\\.|artificial intelligence|llms?|gen ?ai|generative|agents?|agentic|nlp|inference|rag'),
+  t('ai', 'AI / LLM', 'role', 'ai|a\\.i\\.|artificial intelligence|llms?|gen ?ai|generative|ai agents?|agents? (?:engineer(?:ing)?|platform|systems?|infrastructure|sdk)|agentic|nlp|inference|rag'),
   t('security', 'security', 'role', 'security|appsec|infosec|application security'),
   t('product', 'product engineering', 'role', 'product engineer(?:ing)?'),
   t('fde', 'forward-deployed', 'role', 'forward[- ]deployed|fde|solutions? engineer(?:ing)?|customer engineer(?:ing)?|deployment engineer'),
@@ -25,7 +25,7 @@ export const TERMS: ReadonlyArray<Term> = [
   t('rust', 'Rust', 'skill', 'rust'),
   t('cpp', 'C++', 'skill', 'c\\+\\+|cpp'),
   t('sql', 'SQL / Postgres', 'skill', 'sql|postgres(?:ql)?'),
-  t('software', 'software engineering', 'generic', 'software (?:engineer(?:ing)?|developer|development)|swe|programmer|developer|coder'),
+  t('software', 'software engineering', 'generic', 'software (?:engineer(?:ing)?|developer|development)|swe|programmer|developer|coder|member of technical staff|mts'),
 ];
 
 export const TAG_TERMS: Readonly<Record<string, string>> = {
@@ -44,7 +44,9 @@ const LEVEL_RE: ReadonlyArray<[Level, RegExp]> = [
   ['junior', /(?:^|[^a-z])(?:junior|jr\.?|intern(?:ship)?|graduate|entry[- ]level|new grad|trainee)(?=$|[^a-z])/i],
   ['mid', /(?:^|[^a-z])(?:mid[- ]?level|intermediate|mid)(?=$|[^a-z])/i],
 ];
-export const levelOf = (text: string): Level | null => {
+export const MTS = /member of technical staff|(?:^|[^a-z])mts(?=$|[^a-z])/gi;
+export const levelOf = (raw: string): Level | null => {
+  const text = raw.replace(MTS, ' ');
   for (const [lvl, re] of LEVEL_RE) if (re.test(text)) return lvl;
   const y = /(\d{1,2})\+?\s*(?:years|yrs|yoe)/i.exec(text);
   if (y?.[1]) { const n = Number(y[1]); return n < 2 ? 'junior' : n < 5 ? 'mid' : 'senior'; }
@@ -58,5 +60,16 @@ export const termsIn = (text: string): Set<string> => new Set(TERMS.filter(x => 
 export const label = (key: string): string => TERMS.find(x => x.key === key)?.label ?? key;
 export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?.kind ?? 'skill';
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
-export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
+export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
+export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
+export const NARROWING_ROLES: ReadonlySet<string> = new Set(['frontend', 'backend', 'embedded', 'security', 'data', 'ml', 'fde']);
+export const COVERS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  fullstack: ['frontend', 'backend'], ml: ['ai', 'data'], ai: ['ml'], platform: ['infra', 'backend'], infra: ['platform'], distributed: ['backend'], product: ['frontend', 'backend', 'fullstack'],
+};
+export const PLACES: ReadonlyArray<[string, RegExp]> = [
+  ['SE', /(?:^|[^a-z])(?:sweden|stockholm|gothenburg|g[öo]teborg|malm[öo]|uppsala|swedish)(?=$|[^a-z])/i],
+  ['UK', /(?:^|[^a-z])(?:uk|united kingdom|london|manchester|edinburgh|cambridge)(?=$|[^a-z])/i],
+  ['US', /(?:^|[^a-z])(?:usa|united states|new york|nyc|san francisco|bay area|seattle|austin|boston)(?=$|[^a-z])/i],
+  ['EU', /(?:^|[^a-z])(?:berlin|munich|amsterdam|paris|madrid|barcelona|lisbon|dublin|copenhagen|helsinki|oslo|warsaw|vienna|zurich|europe)(?=$|[^a-z])/i],
+];

@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, NON_ENGINEERING_TITLE, OUTSIDE_POOL, TAG_TERMS, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -13,14 +13,14 @@ export const DEFAULT_LIMIT = 30;
 export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type MatchProfile = { description: string; goal?: string; region?: RegionPref; remote?: RemotePref };
-export type MatchOptions = { now?: Date; limit?: number };
+export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
 
 export type MatchRow = {
   id: string; title: string; company: string; url: string; location: string | null;
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
   lastChecked: string; ageDays: number; stale: boolean; score: number; reasons: ReadonlyArray<string>;
 };
-export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null };
+export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string> };
 export type MatchResult = {
   coreVersion: string; poolVersion: string;
   groups: Record<GroupKey, ReadonlyArray<MatchRow>>; totals: Record<GroupKey, number>;
@@ -72,7 +72,8 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
     return err({ kind: 'OutOfScope', reason: OUTSIDE_POOL.test(p.description) ? 'outside-pool-roles' : 'no-engineering-terms' });
   const specific = roles.filter(k => kindOf(k) === 'role');
   if (specific.length === 0 && skills.length === 0 && OUTSIDE_POOL.test(p.description)) return err({ kind: 'OutOfScope', reason: 'outside-pool-roles' });
-  return ok({ roles: roles.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority });
+  const places = PLACES.filter(([, re]) => re.test(p.description)).map(([r]) => r);
+  return ok({ roles: roles.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority, places });
 }
 
 const regionOk = (pref: RegionPref, r: string | null): 'yes' | 'no' | 'unknown' => {
@@ -113,10 +114,15 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
 
   const reg = regionOk(p.region, row.region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
-  const rowLevel = levelOfPool(row.seniority) ?? levelOf(row.title);
+  MTS.lastIndex = 0;
+  const isMts = MTS.test(row.title); MTS.lastIndex = 0;
+  const rowLevel = isMts ? levelOf(row.title) : (levelOfPool(row.seniority) ?? levelOf(row.title));
   let levelGap = 0;
   if (u.seniority && rowLevel) levelGap = LEVELS.indexOf(rowLevel) - LEVELS.indexOf(u.seniority);
   if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
+
+  const mine = new Set([...u.roles, ...u.goal, ...[...u.roles, ...u.goal].flatMap(k => COVERS[k] ?? [])]);
+  const narrowedAway = [...rt.title].some(k => NARROWING_ROLES.has(k) && !mine.has(k)) || (MOBILE_TITLE.test(row.title) && !mine.has('mobile'));
 
   const reasons: string[] = [];
   if (roleHits.length) reasons.push(`Title matches what you do: ${roleHits.map(label).join(', ')}`);
@@ -128,16 +134,22 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
   else if (levelGap === 1) reasons.push(`One level above yours (${rowLevel})`);
   else reasons.push(`Level fits: ${rowLevel}`);
   reasons.push(reg === 'unknown' ? 'Location not confirmed, check the posting' : `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`);
+  if (narrowedAway) reasons.push('Title points to a different specialty than yours');
   if (rem === 'unknown') reasons.push('Remote policy not stated');
   else if (p.remote !== 'any') reasons.push(`Work mode: ${row.remote}`);
   const ageDays = ageOf(row.status_checked_at, now);
   const stale = ageDays > STALE_DAYS;
   reasons.push(row.status === 'open' ? `Open when last checked (${row.status_checked_at.slice(0, 10)})` : 'Status unknown, verify before applying');
 
+  const placeBonus = row.region !== null && u.places.includes(row.region) ? 6 : 0;
+  const exactLevel = u.seniority !== null && rowLevel !== null && levelGap === 0 ? 4 : 0;
+  const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
   const score = roleHits.length * 30 + tagRoleHits.length * 10 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
-    - (levelGap === 1 ? 10 : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20);
+    + placeBonus + exactLevel + tagDepth + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
+    - (levelGap === 1 ? 10 : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
+    - (narrowedAway ? 8 : 0);
 
-  const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0;
+  const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0 && !narrowedAway;
   const strongCore = roleHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit));
   let group: GroupKey;
   if (goalHits.length && certain && (strongCore || skillHits.length || genericHit)) group = 'stepTowardGoal';
@@ -159,7 +171,8 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
     const prefs = { region: p.region ?? 'any', remote: p.remote ?? 'any' } as const;
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
-    for (const row of pool.rows) { const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
+    const excluded = new Set(opts.excludeIds ?? []);
+    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
     const totals = { fitsNow: all.fitsNow.length, stepTowardGoal: all.stepTowardGoal.length, stretch: all.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
       const widen: Array<'region' | 'remote' | 'goal'> = [];

@@ -1,0 +1,46 @@
+name: v0-verify
+
+on:
+  push:
+    branches: [v0/rebuild]
+  pull_request:
+    paths:
+      - 'packages/core/**'
+      - 'apps/web/**'
+      - 'spec/tla/**'
+      - '.github/workflows/v0-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/core
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npx tsc --noEmit
+      - run: node --test test/*.test.ts
+      - name: no code comments
+        run: "! grep -rnE '^\\s*//|/\\*' src test scripts --include='*.ts' | grep -v '@ts-expect-error'"
+
+  tla:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TLA_JAR_URL: https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+      TLA_JAR_SHA256: fdffef247f563ef6edbfd44958d2a82db79e7564e07cb673262d896353fa6713
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: curl -fsSL -o /tmp/tla2tools.jar "$TLA_JAR_URL"
+      - run: echo "$TLA_JAR_SHA256  /tmp/tla2tools.jar" | sha256sum -c -
+      - run: java -version
+      - working-directory: spec/tla
+        run: java -cp /tmp/tla2tools.jar tlc2.TLC -workers auto -cleanup WebTraps.tla | tee /tmp/tlc.log && grep -q 'No error has been found' /tmp/tlc.log
