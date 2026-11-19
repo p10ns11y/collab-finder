@@ -15,10 +15,13 @@ export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type MatchProfile = { description: string; goal?: string; region?: RegionPref; remote?: RemotePref };
 export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
 
+export type Tier = 0 | 1 | 2;
+export const LEVEL_STEP = 10;
+export const GENERALIST_ROLES: ReadonlySet<string> = new Set(['software', 'fullstack', 'frontend']);
 export type MatchRow = {
   id: string; title: string; company: string; url: string; location: string | null;
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
-  lastChecked: string; ageDays: number; stale: boolean; score: number; reasons: ReadonlyArray<string>;
+  lastChecked: string; ageDays: number; stale: boolean; tier: Tier; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
 };
 export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string> };
 export type MatchResult = {
@@ -108,9 +111,14 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
   const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));
   const tagRoleHits = u.roles.filter(k => kindOf(k) === 'role' && !rt.title.has(k) && rt.tags.has(k));
   const skillHits = u.skills.filter(k => rt.title.has(k) || rt.tags.has(k));
-  const genericHit = u.roles.includes('software') && rt.title.has('software');
+  const generalist = u.roles.some(k => GENERALIST_ROLES.has(k));
+  const generalistTitle = rt.title.has('software') || rt.title.has('product') || rt.tags.has('product');
+  const generalistHit = generalist && !roleHits.length && generalistTitle ? [rt.title.has('product') || rt.tags.has('product') ? 'product' : 'software'] : [];
+  const coveredHits = [...rt.title].filter(k => kindOf(k) === 'role' && !roleHits.includes(k) && u.roles.some(m => (COVERS[m] ?? []).includes(k)));
+  const titleHits = [...roleHits, ...generalistHit];
+  const genericHit = !titleHits.length && u.roles.includes('software') && rt.title.has('software');
   const goalHits = u.goal.filter(k => rt.title.has(k));
-  if (!roleHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
+  if (!titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
   const reg = regionOk(p.region, row.region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
@@ -122,10 +130,10 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
   if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
 
   const mine = new Set([...u.roles, ...u.goal, ...[...u.roles, ...u.goal].flatMap(k => COVERS[k] ?? [])]);
-  const narrowedAway = [...rt.title].some(k => NARROWING_ROLES.has(k) && !mine.has(k)) || (MOBILE_TITLE.test(row.title) && !mine.has('mobile'));
+  const narrowedAway = (MOBILE_TITLE.test(row.title) && !mine.has('mobile')) || (!roleHits.length && !coveredHits.length && [...rt.title].some(k => NARROWING_ROLES.has(k) && !mine.has(k)));
 
   const reasons: string[] = [];
-  if (roleHits.length) reasons.push(`Title matches what you do: ${roleHits.map(label).join(', ')}`);
+  if (titleHits.length || coveredHits.length) reasons.push(`Title matches what you do: ${[...titleHits, ...coveredHits].map(label).join(', ')}`);
   if (tagRoleHits.length || skillHits.length) reasons.push(`Tagged with: ${[...tagRoleHits, ...skillHits].map(label).join(', ')}`);
   else if (genericHit) reasons.push('General software engineering title');
   if (goalHits.length) reasons.push(`Toward your goal: ${goalHits.map(label).join(', ')}`);
@@ -142,28 +150,48 @@ function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'
   reasons.push(row.status === 'open' ? `Open when last checked (${row.status_checked_at.slice(0, 10)})` : 'Status unknown, verify before applying');
 
   const placeBonus = row.region !== null && u.places.includes(row.region) ? 6 : 0;
-  const exactLevel = u.seniority !== null && rowLevel !== null && levelGap === 0 ? 4 : 0;
   const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
-  const score = roleHits.length * 30 + tagRoleHits.length * 10 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
-    + placeBonus + exactLevel + tagDepth + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
-    - (levelGap === 1 ? 10 : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
+  const score = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
+    + placeBonus + tagDepth + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
+    - (levelGap === 1 ? LEVEL_STEP : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
     - (narrowedAway ? 8 : 0);
 
   const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0 && !narrowedAway;
-  const strongCore = roleHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit));
+  const strongCore = titleHits.length > 0 || coveredHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit));
   let group: GroupKey;
   if (goalHits.length && certain && (strongCore || skillHits.length || genericHit)) group = 'stepTowardGoal';
   else if (strongCore && certain && !goalHits.length) group = 'fitsNow';
   else group = 'stretch';
 
+  const tier: Tier = reg !== 'yes' ? 2 : row.status === 'open' && rem === 'yes' && levelGap <= 0 ? 0 : 1;
   return { group, row: {
     id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region: row.region, remote: row.remote,
-    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, score, reasons,
+    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, score, reasons, alsoIds: [],
   } };
 }
 
 const byRank = (a: MatchRow, b: MatchRow): number =>
-  b.score - a.score || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  a.tier - b.tier || b.score - a.score || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+export const normalizedTitle = (t: string): string =>
+  t.toLowerCase().split('|')[0]!.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .replace(/\s[-–—]\s[^-–—]*(?:remote|hybrid|on-?site|emea|europe|americas|apac|\beu\b|\bus\b|\buk\b)[^-–—]*$/, ' ')
+    .replace(/[^a-z0-9+#]+/g, ' ').trim();
+const collapse = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
+  const byKey = new Map<string, MatchRow>();
+  const order: string[] = [];
+  for (const r of rows) {
+    const key = `${r.company.toLowerCase().trim()}|${normalizedTitle(r.title)}`;
+    const head = byKey.get(key);
+    if (head) byKey.set(key, { ...head, alsoIds: [...head.alsoIds, r.id] });
+    else { byKey.set(key, r); order.push(key); }
+  }
+  return order.map(k => {
+    const r = byKey.get(k)!;
+    const n = r.alsoIds.length;
+    return n ? { ...r, reasons: [...r.reasons, `Also listed in ${n} more ${n === 1 ? 'location' : 'locations'}`] } : r;
+  });
+};
 
 export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOptions = {}): Result<MatchResult, MatchError> {
   const now = opts.now ?? new Date();
@@ -173,7 +201,8 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const excluded = new Set(opts.excludeIds ?? []);
     for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
-    const totals = { fitsNow: all.fitsNow.length, stepTowardGoal: all.stepTowardGoal.length, stretch: all.stretch.length };
+    const ranked = { fitsNow: collapse(all.fitsNow.sort(byRank)), stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank)), stretch: collapse(all.stretch.sort(byRank)) };
+    const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
       const widen: Array<'region' | 'remote' | 'goal'> = [];
       if (prefs.region !== 'any') widen.push('region');
@@ -182,9 +211,9 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
       return err<MatchResult, MatchError>({ kind: 'ZeroResults', widen });
     }
     const groups = {
-      fitsNow: all.fitsNow.sort(byRank).slice(0, limit),
-      stepTowardGoal: all.stepTowardGoal.sort(byRank).slice(0, limit),
-      stretch: all.stretch.sort(byRank).slice(0, limit),
+      fitsNow: ranked.fitsNow.slice(0, limit),
+      stepTowardGoal: ranked.stepTowardGoal.slice(0, limit),
+      stretch: ranked.stretch.slice(0, limit),
     };
     const warnings: Warning[] = [];
     const poolAge = ageOf(pool.checkedRange.to, now);

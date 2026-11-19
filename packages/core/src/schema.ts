@@ -7,7 +7,7 @@ export const PERSONAL_KEYS = ['fit_score', 'fit_reasons', 'eu_moat', 'prior_appl
 export type PersonalKey = (typeof PERSONAL_KEYS)[number];
 
 export const PublicRowSchema = z.strictObject({
-  id: z.string(), source: z.string(), company: z.string(), title: z.string(), url: z.url(),
+  id: z.string(), source: z.string(), company: z.string(), title: z.string(), url: z.url({ protocol: /^https?$/ }),
   location: z.string().nullable(), remote: z.enum(['remote', 'hybrid', 'onsite', 'unknown']),
   region: z.string().nullable(), role_tags: z.array(z.string()), seniority: z.string().nullable(),
   posted_at: z.string().nullable(), status: z.enum(['open', 'closed', 'unknown']), status_checked_at: z.string(),

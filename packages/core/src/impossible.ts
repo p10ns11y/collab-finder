@@ -12,7 +12,7 @@ declare const row: PublicRow;
 refresh(localFx, swap, () => { throw 0; });
 
 // @ts-expect-error
-ai.complete('rank', { approvedBy: 'Peramanathan', scope: 'x', maxUsd: 1, expiresAt: '' });
+ai.complete('rank', { approvedBy: 'owner', scope: 'x', maxUsd: 1, expiresAt: '' });
 
 // @ts-expect-error
 const leak: PublicRow = { ...row, fit_score: 94 };

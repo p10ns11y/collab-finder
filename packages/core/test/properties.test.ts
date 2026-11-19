@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { match, parsePool, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow } from '../src/index.ts';
-import { TERMS, termsIn } from '../src/vocab.ts';
+import { match, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow } from '../src/index.ts';
+import { COVERS, LEVELS, TERMS, termsIn } from '../src/vocab.ts';
 import type { MatchRow } from '../src/match.ts';
 
 const PHRASES = ['backend', 'frontend', 'full-stack', 'platform', 'infrastructure', 'data engineering', 'machine learning', 'AI', 'LLM', 'security',
@@ -15,26 +15,29 @@ const STATUSES = ['open', 'closed', 'unknown'] as const;
 const POOL_SENIORITY = ['mid', 'senior', 'staff', 'lead', 'principal', 'unknown', null] as const;
 const NOW = new Date('2026-11-19T20:00:00Z');
 
+const IN_SCOPE = PHRASES.filter(x => termsIn(x).size > 0 && !/manager|head of|director|customer service/i.test(x));
 const phraseList = fc.array(fc.constantFrom(...PHRASES), { minLength: 1, maxLength: 4 });
+const inScopeList = fc.array(fc.constantFrom(...IN_SCOPE), { minLength: 1, maxLength: 3 });
 const rowArb = (n: number): fc.Arbitrary<PublicRow> => fc.record({
-  level: fc.constantFrom(...LEVEL_WORDS), words: phraseList, region: fc.constantFrom(...REGIONS), remote: fc.constantFrom(...REMOTES),
-  status: fc.constantFrom(...STATUSES), seniority: fc.constantFrom(...POOL_SENIORITY), day: fc.integer({ min: 1, max: 28 }),
+  level: fc.constantFrom(...LEVEL_WORDS), words: fc.oneof({ weight: 3, arbitrary: inScopeList }, { weight: 1, arbitrary: phraseList }), region: fc.constantFrom(...REGIONS), remote: fc.constantFrom(...REMOTES, 'remote'),
+  status: fc.constantFrom(...STATUSES, 'open', 'open'), seniority: fc.constantFrom(...POOL_SENIORITY), day: fc.integer({ min: 1, max: 28 }),
   tags: fc.subarray(['typescript', 'react', 'platform', 'frontend', 'fullstack', 'forward-deployed', 'product-engineer', 'si-llm', 'agentic', 'physical']),
 }).map(r => ({
   id: `prop:${n}`, source: 'synthetic', company: `Company ${n % 7}`, title: `${r.level} ${r.words.join(', ')} Engineer`.trim(),
   url: `https://jobs.example.com/${n}`, location: null, remote: r.remote, region: r.region, role_tags: r.tags, seniority: r.seniority,
   posted_at: null, status: r.status, status_checked_at: `2026-11-${String(r.day).padStart(2, '0')}T08:00:00Z`,
 }));
-const poolArb: fc.Arbitrary<PublicPool> = fc.integer({ min: 0, max: 60 }).chain(len =>
+const poolArb: fc.Arbitrary<PublicPool> = fc.oneof({ weight: 1, arbitrary: fc.integer({ min: 0, max: 4 }) }, { weight: 5, arbitrary: fc.integer({ min: 5, max: 60 }) }).chain(len =>
   fc.tuple(...Array.from({ length: len }, (_, i) => rowArb(i))).map(rows => ({ version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows })));
 const profileArb: fc.Arbitrary<MatchProfile> = fc.record({
-  level: fc.constantFrom(...LEVEL_WORDS), words: phraseList, filler: fc.string({ maxLength: 40 }), goal: fc.array(fc.constantFrom(...PHRASES), { maxLength: 3 }),
-  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any'),
+  level: fc.constantFrom(...LEVEL_WORDS.filter(x => x !== 'Junior')), words: fc.oneof({ weight: 4, arbitrary: inScopeList }, { weight: 1, arbitrary: phraseList }),
+  filler: fc.oneof({ weight: 3, arbitrary: fc.constant('') }, { weight: 1, arbitrary: fc.string({ maxLength: 40 }) }), goal: fc.array(fc.constantFrom(...PHRASES), { maxLength: 3 }),
+  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any', 'any'),
 }).map(p => ({ description: `${p.level} engineer working on ${p.words.join(' and ')} ${p.filler}`, goal: p.goal.join(' '), region: p.region, remote: p.remote }) as MatchProfile);
 
 const RUNS = { numRuns: 400, seed: 20261119 };
 const allRows = (r: ReturnType<typeof match>) => (r.isOk() ? [...r.value.groups.fitsNow, ...r.value.groups.stepTowardGoal, ...r.value.groups.stretch] : []);
-const OUTPUT_KEYS = new Set(['id', 'title', 'company', 'url', 'location', 'region', 'remote', 'seniority', 'status', 'lastChecked', 'ageDays', 'stale', 'score', 'reasons']);
+const OUTPUT_KEYS = new Set(['id', 'title', 'company', 'url', 'location', 'region', 'remote', 'seniority', 'status', 'lastChecked', 'ageDays', 'stale', 'tier', 'score', 'reasons', 'alsoIds']);
 
 
 const ok = (p: MatchProfile, pool: PublicPool, extra: Record<string, unknown> = {}) => match(p, pool, { now: NOW, ...extra });
@@ -51,6 +54,7 @@ const reasonOk = (r: string, row: MatchRow) =>
     'Title points to a different specialty than yours', 'Status unknown, verify before applying'].includes(r)
   || /^(Posting level: |Level fits: )(mid|senior|staff|principal)$/.test(r) || /^One level above yours \((mid|senior|staff|principal)\)$/.test(r)
   || r === `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`
+  || /^Also listed in (1 more location|([2-9]|\d\d+) more locations)$/.test(r)
   || /^Work mode: (remote|hybrid|onsite)$/.test(r) || r === `Open when last checked (${row.lastChecked.slice(0, 10)})`;
 const compat = (pref: string, region: string | null) =>
   region !== null && region !== 'other' && (region === 'remote-anywhere' || pref === 'any' || region === pref || (pref === 'EU' && region === 'SE'));
@@ -86,7 +90,7 @@ test('P4 byte-identical on rerun and under any row order', () => {
 });
 
 test('P5 a row appears in at most one group', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => { const ids = allRows(ok(p, pool)).map(x => x.id); return new Set(ids).size === ids.length; }), RUNS);
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => { const ids = allRows(ok(p, pool)).flatMap(x => [x.id, ...x.alsoIds]); return new Set(ids).size === ids.length; }), RUNS);
 });
 
 test('P6 each group length ≤ limit and totals ≥ length', () => {
@@ -96,11 +100,11 @@ test('P6 each group length ≤ limit and totals ≥ length', () => {
   }), RUNS);
 });
 
-test('P7 groups ranked by score desc, lastChecked desc, id asc', () => {
+test('P7 groups ranked by tier asc, score desc, lastChecked desc, id asc', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool)).every(g => g.every((x, i) => {
     const y = g[i + 1];
     if (!y) return true;
-    return x.score > y.score || (x.score === y.score && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)));
+    return x.tier < y.tier || (x.tier === y.tier && (x.score > y.score || (x.score === y.score && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))));
   }))), RUNS);
 });
 
@@ -167,7 +171,7 @@ test('P15 manager, director, head-of and VP titles never appear', () => {
 test('P16 output ids come from the pool and are never URLs', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
     const byId = rowById(pool);
-    return allRows(ok(p, pool)).every(x => byId.has(x.id) && !x.id.includes('://'));
+    return allRows(ok(p, pool)).every(x => [x.id, ...x.alsoIds].every(id => byId.has(id) && !id.includes('://')));
   }), RUNS);
 });
 
@@ -187,12 +191,15 @@ test('a fits-now title always shares a term with the description', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
     const r = ok(p, pool);
     if (r.isErr()) return true;
-    const mine = termsIn(p.description);
+    const said = termsIn(p.description);
+    const mine = new Set([...said, ...[...said].flatMap(k => COVERS[k] ?? [])]);
+    if ([...said].some(k => GENERALIST_ROLES.has(k))) { mine.add('software'); mine.add('product'); }
     const byId = rowById(pool);
     return r.value.groups.fitsNow.every(x => {
       const row = byId.get(x.id)!;
       const theirs = termsIn(row.title);
       for (const t of ['typescript', 'react']) if (row.role_tags.includes(t)) theirs.add(t);
+      if (row.role_tags.includes('product-engineer')) theirs.add('product');
       return [...mine].some(t => theirs.has(t));
     });
   }), RUNS);
@@ -203,4 +210,144 @@ test('never throws on arbitrary input', () => {
     const r = match({ description: d, ...(g === null ? {} : { goal: g }) }, pool, { now: NOW });
     return r.isOk() || typeof r.error.kind === 'string';
   }), RUNS);
+});
+
+const BIG = { limit: 10_000 };
+const groupIndex = (r: ReturnType<typeof match>, id: string): number => groupsOf(r).findIndex(g => g.some(x => x.id === id || x.alsoIds.includes(id)));
+const confirmedIn = (pref: string | undefined, region: string | null) => compat(pref ?? 'any', region);
+
+test('P17 no two rows in a group share company and normalized title', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(g => {
+    const keys = g.map(x => `${x.company.toLowerCase().trim()}|${normalizedTitle(x.title)}`);
+    return new Set(keys).size === keys.length;
+  })), RUNS);
+});
+
+test('P18 excludeIds never appear in any group at any limit, collapsed ids included', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.array(fc.nat()), fc.integer({ min: 1, max: 100 }), (p, pool, picks, limit) => {
+    const ex = picks.map(i => pool.rows[i % Math.max(1, pool.rows.length)]?.id).filter((x): x is string => !!x);
+    const set = new Set(ex);
+    return allRows(ok(p, pool, { excludeIds: ex, limit })).every(x => !set.has(x.id) && x.alsoIds.every(id => !set.has(id)));
+  }), RUNS);
+});
+
+test('P19 in stretch every confirmed-place row ranks above every unconfirmed-place row', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const flags = r.value.groups.stretch.map(x => confirmedIn(p.region, x.region));
+    return flags.every((c, i) => c || flags.slice(i).every(f => !f));
+  }), RUNS);
+});
+
+const levelPair = fc.record({
+  row: rowArb(0).filter(r => !/member of technical staff/i.test(r.title)), at: fc.integer({ min: 1, max: LEVELS.length - 2 }), words: phraseList,
+  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any'),
+}).map(({ row, at, words, region, remote }) => {
+  const mine = LEVELS[at]!;
+  const plain = { ...row, title: row.title.replace(/^(Junior|Mid-level|Senior|Staff|Lead|Principal) /, ''), status: 'open' as const };
+  const profile = { description: `${mine} engineer working on ${words.join(' and ')}`, region, remote } as MatchProfile;
+  return { profile, fit: { ...plain, seniority: mine }, up: { ...plain, seniority: LEVELS[at + 1]! } };
+});
+const scoreOf = (p: MatchProfile, row: PublicRow) => allRows(ok(p, { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: [row] })).find(x => x.id === row.id)?.score;
+
+test('P20 one level up never raises the score and lowers it by exactly the fixed step', () => {
+  fc.assert(fc.property(levelPair, ({ profile, fit, up }) => {
+    const a = scoreOf(profile, fit);
+    const b = scoreOf(profile, up);
+    return a === undefined ? b === undefined : b !== undefined && b <= a && a - b === LEVEL_STEP;
+  }), RUNS);
+});
+
+const roleTermArb = fc.constantFrom(...PHRASES.filter(x => [...termsIn(x)].some(k => TERMS.find(t => t.key === k)?.kind !== 'skill')));
+test('P21 adding a role term the title contains never moves that row to a lower group', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.nat(), roleTermArb, (p, pool, k, phrase) => {
+    const before = ok(p, pool, BIG);
+    if (before.isErr()) return true;
+    const shown = allRows(before);
+    const target = shown[k % Math.max(1, shown.length)];
+    if (!target || !new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(target.title)) return true;
+    const after = ok({ ...p, description: `${p.description} ${phrase}` }, pool, BIG);
+    if (after.isErr()) return false;
+    const was = groupIndex(before, target.id);
+    const now = groupIndex(after, target.id);
+    const rank = (g: number) => (g === 2 ? 1 : 0);
+    return now !== -1 && rank(now) <= rank(was);
+  }), RUNS);
+});
+
+const generalistArb = fc.record({
+  who: fc.constantFrom('software engineer', 'full-stack developer', 'frontend engineer', 'web developer building web applications'),
+  title: fc.constantFrom('Software Engineer', 'Product Engineer', 'Senior Software Engineer', 'Senior Product Engineer', 'Software Engineer - Product Engineering'),
+  region: fc.constantFrom('SE', 'EU', 'UK', 'US'),
+});
+test('N1 plain Software Engineer and Product Engineer titles are a role match for generalist profiles', () => {
+  fc.assert(fc.property(generalistArb, ({ who, title, region }) => {
+    const row: PublicRow = { id: 'n1', source: 'synthetic', company: 'Acme', title, url: 'https://jobs.example.com/n1', location: null, remote: 'remote', region,
+      role_tags: [], seniority: 'senior', posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' };
+    const r = ok({ description: `Senior ${who} with ten years of experience`, region, remote: 'any' }, { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: [row] });
+    return r.isOk() && r.value.groups.fitsNow.some(x => x.id === 'n1' && x.reasons.some(z => z.startsWith('Title matches what you do: ')));
+  }), RUNS);
+});
+
+test('N2 in every group no unconfirmed-place row outranks a confirmed-place row', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(g => {
+    const flags = g.map(x => confirmedIn(p.region, x.region));
+    return flags.every((c, i) => c || flags.slice(i).every(f => !f));
+  })), RUNS);
+});
+
+test('N3 a one-level-up row keeps a score within the fixed step of the fitting row', () => {
+  fc.assert(fc.property(levelPair, ({ profile, fit, up }) => {
+    const a = scoreOf(profile, fit);
+    const b = scoreOf(profile, up);
+    return a === undefined || (b !== undefined && b >= a - LEVEL_STEP);
+  }), RUNS);
+});
+
+test('N4 collapsing loses no row: shown ids plus collapsed ids equal the uncollapsed set', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const ids = allRows(r).flatMap(x => [x.id, ...x.alsoIds]).sort();
+    const one = (row: PublicRow) => allRows(ok(p, { ...pool, rows: [row] }, BIG)).map(x => x.id);
+    const expected = pool.rows.flatMap(one).sort();
+    return JSON.stringify(ids) === JSON.stringify(expected);
+  }), RUNS);
+});
+
+test('coverage floor: generated runs mostly reach a verdict and many fill fits-now', () => {
+  const runs = fc.sample(fc.tuple(profileArb, poolArb), { numRuns: 400, seed: RUNS.seed }).map(([p, pool]) => ok(p, pool));
+  const errors = runs.filter(r => r.isErr()).length;
+  const withFits = runs.filter(r => r.isOk() && r.value.groups.fitsNow.length > 0).length;
+  const withStep = runs.filter(r => r.isOk() && r.value.groups.stepTowardGoal.length > 0).length;
+  if (errors > 160 || withFits < 120 || withStep < 20) throw new Error(`coverage too thin: errors ${errors}, fitsNow ${withFits}, step ${withStep} of 400`);
+});
+
+const NARROW_TITLES = ['Security', 'Embedded', 'Firmware', 'Machine Learning', 'Forward Deployed', 'Backend', 'Frontend', 'iOS', 'Android', 'Mobile', 'Data Platform'];
+const mismatchArb = fc.record({
+  level: fc.constantFrom('', 'Senior', 'Staff'), generalist: fc.boolean(), skills: fc.subarray(['TypeScript', 'React', 'Python', 'Rust', 'golang'], { minLength: 1 }),
+  narrow: fc.constantFrom(...NARROW_TITLES), shape: fc.constantFrom('lead', 'suffix'), tags: fc.subarray(['typescript', 'react']),
+  region: fc.constantFrom('SE', 'EU', 'UK', 'US'),
+}).map(m => {
+  const who = m.generalist ? 'software engineer' : 'engineer';
+  const profile = { description: `${m.level} ${who} working with ${m.skills.join(' and ')}`.trim(), region: m.region, remote: 'any' } as MatchProfile;
+  const title = m.shape === 'lead' ? `${m.level} ${m.narrow} Engineer`.trim() : `${m.level} Software Engineer, ${m.narrow}`.trim();
+  const row: PublicRow = { id: 'r6', source: 'synthetic', company: 'Acme', title, url: 'https://jobs.example.com/r6', location: null, remote: 'remote', region: m.region,
+    role_tags: m.tags, seniority: m.level ? m.level.toLowerCase() : null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' };
+  return { profile, row };
+});
+test('R6 a title naming a specialty the profile does not cover never reaches fits-now or step-toward-goal', () => {
+  fc.assert(fc.property(mismatchArb, ({ profile, row }) => {
+    const r = ok(profile, { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: [row] });
+    return r.isErr() || (r.value.groups.fitsNow.length === 0 && r.value.groups.stepTowardGoal.length === 0);
+  }), RUNS);
+});
+
+test('R6 is live: the same mismatch rows do surface, in stretch', () => {
+  const shown = fc.sample(mismatchArb, { numRuns: 200, seed: RUNS.seed }).filter(({ profile, row }) => {
+    const r = ok(profile, { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: [row] });
+    return r.isOk() && r.value.groups.stretch.some(x => x.id === 'r6' && x.reasons.includes('Title points to a different specialty than yours'));
+  }).length;
+  if (shown < 100) throw new Error(`only ${shown} of 200 mismatch rows reached stretch with the specialty reason`);
 });

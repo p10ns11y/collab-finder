@@ -5,10 +5,11 @@ States == {"loadingPool", "poolError", "idle", "matching", "inputError", "piiWar
            "outOfScope", "zeroResults", "results"}
 Inputs == {"empty", "short", "long", "pii", "outOfScope", "zero", "ok"}
 Ready == {"idle", "inputError", "piiWarning", "outOfScope", "zeroResults", "results"}
+Shown == Ready \ {"idle"}
 
-VARIABLES state, input, poolCached, poolStale, staleBanner, requests
+VARIABLES state, input, poolCached, poolStale, staleBanner, requests, shownFor
 
-vars == <<state, input, poolCached, poolStale, staleBanner, requests>>
+vars == <<state, input, poolCached, poolStale, staleBanner, requests, shownFor>>
 
 TypeOK ==
   /\ state \in States
@@ -17,6 +18,7 @@ TypeOK ==
   /\ poolStale \in BOOLEAN
   /\ staleBanner \in BOOLEAN
   /\ requests \subseteq {"poolAsset"}
+  /\ shownFor \in Inputs \cup {"none"}
 
 Init ==
   /\ state = "loadingPool"
@@ -25,36 +27,38 @@ Init ==
   /\ poolStale \in BOOLEAN
   /\ staleBanner = FALSE
   /\ requests = {}
+  /\ shownFor = "none"
 
 PoolLoaded ==
   /\ state = "loadingPool"
   /\ state' = "idle"
   /\ poolCached' = TRUE
   /\ requests' = requests \cup {"poolAsset"}
-  /\ UNCHANGED <<input, poolStale, staleBanner>>
+  /\ UNCHANGED <<input, poolStale, staleBanner, shownFor>>
 
 PoolFailed ==
   /\ state = "loadingPool"
   /\ ~poolCached
   /\ state' = "poolError"
-  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests>>
+  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests, shownFor>>
 
 Retry ==
   /\ state = "poolError"
   /\ state' = "loadingPool"
-  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests>>
+  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests, shownFor>>
 
 Edit ==
   /\ state \in Ready
   /\ \E i \in Inputs : input' = i
   /\ state' = "idle"
   /\ staleBanner' = FALSE
+  /\ shownFor' = "none"
   /\ UNCHANGED <<poolCached, poolStale, requests>>
 
 Submit ==
   /\ state \in Ready
   /\ state' = "matching"
-  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests>>
+  /\ UNCHANGED <<input, poolCached, poolStale, staleBanner, requests, shownFor>>
 
 Outcome(i) ==
   CASE i \in {"empty", "short", "long"} -> "inputError"
@@ -67,18 +71,21 @@ Finish ==
   /\ state = "matching"
   /\ state' = Outcome(input)
   /\ staleBanner' = (Outcome(input) = "results" /\ poolStale)
+  /\ shownFor' = input
   /\ UNCHANGED <<input, poolCached, poolStale, requests>>
 
 RemovePii ==
   /\ state = "piiWarning"
   /\ \E i \in Inputs \ {"pii"} : input' = i
   /\ state' = "idle"
+  /\ shownFor' = "none"
   /\ UNCHANGED <<poolCached, poolStale, staleBanner, requests>>
 
 WidenFilters ==
   /\ state = "zeroResults"
   /\ \E i \in {"zero", "ok"} : input' = i
-  /\ state' = "idle"
+  /\ state' = "matching"
+  /\ shownFor' = "none"
   /\ UNCHANGED <<poolCached, poolStale, staleBanner, requests>>
 
 Next == PoolLoaded \/ PoolFailed \/ Retry \/ Edit \/ Submit \/ Finish \/ RemovePii \/ WidenFilters
@@ -90,6 +97,7 @@ ResultsNeedPool == state \in Ready \cup {"matching"} => poolCached
 StaleAlwaysBannered == (state = "results" /\ poolStale) => staleBanner
 PiiNeverMatched == state = "results" => input # "pii"
 OutOfScopeNeverResults == state = "results" => input = "ok"
+ShownMatchesForm == state \in Shown => shownFor = input
 
 NeverStuck == \A s \in States : [](state = s => <>(state \in {"idle", "results"} /\ state # s) \/ s \in {"idle", "results"})
 EventuallyUsable == <>(state = "idle")

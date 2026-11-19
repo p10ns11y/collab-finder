@@ -19,6 +19,8 @@ const PERSONAS: Record<string, MatchProfile> = {
   mlUk: { description: 'Machine learning engineer working on LLM inference', region: 'UK', remote: 'hybrid' },
   genericSwe: { description: 'Software engineer with 6 years of experience building web apps' },
   fdeAny: { description: 'Forward deployed engineer, Python and TypeScript, customer facing', goal: 'AI agents' },
+  mismatchGeneralist: { description: 'Senior software engineer, TypeScript and React, 8 years of web applications', region: 'any' },
+  mismatchSkillsOnly: { description: 'Senior engineer who writes TypeScript and Python every day' },
   nurse: { description: 'Registered nurse with 8 years in intensive care' },
   iosJunior: { description: 'Junior iOS developer looking for my first job' },
   sales: { description: 'Account executive in B2B SaaS sales, quota carrier' },
@@ -96,4 +98,28 @@ test('30 abuse inputs: never throw, always a typed result', () => {
     const r = match({ description: d, goal: d }, pool, { now });
     assert.ok(r.isOk() || typeof r.error.kind === 'string');
   }
+});
+
+test('mentoring juniors or a graduate degree never trips the junior gate', () => {
+  for (const d of ['Backend engineer, 9 years, I mentor junior engineers on Go and Postgres', 'Senior Java developer with a graduate degree in computer science', 'Platform engineer who onboards new graduates and interns']) {
+    const r = match({ description: d }, pool, { now });
+    assert.ok(!(r.isErr() && r.error.kind === 'OutOfScope'), d);
+  }
+  const j = match({ description: 'Junior developer looking for my first role' }, pool, { now });
+  assert.ok(j.isErr() && j.error.kind === 'OutOfScope' && j.error.reason === 'junior');
+});
+
+test('Java and Kotlin profiles are in scope', () => {
+  for (const d of ['Java developer with Spring Boot', 'Backend engineer writing Kotlin services']) {
+    const r = match({ description: d }, pool, { now });
+    assert.ok(!(r.isErr() && r.error.kind === 'OutOfScope'), d);
+  }
+});
+
+test('pool urls must be http or https', () => {
+  const base = pool.rows[0]!;
+  for (const url of ['javascript:alert(1)', 'data:text/html,hi', 'vbscript:msgbox', 'ftp://jobs.example.com/x', 'file:///etc/hosts']) {
+    assert.ok(parsePool({ ...pool, rows: [{ ...base, url }] }).isErr(), url);
+  }
+  assert.ok(parsePool({ ...pool, rows: [{ ...base, url: 'http://jobs.example.com/x' }] }).isOk());
 });

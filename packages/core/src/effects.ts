@@ -5,7 +5,7 @@ import type { PublicPool } from './schema.ts';
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };
 
-export type SpendApproval = Brand<{ approvedBy: 'Peramanathan'; scope: string; maxUsd: number; expiresAt: string }, 'SpendApproval'>;
+export type SpendApproval = Brand<{ approvedBy: 'owner'; scope: string; maxUsd: number; expiresAt: string }, 'SpendApproval'>;
 export type EngineRow = Brand<Readonly<Record<string, unknown>>, 'EngineRow'>;
 
 export interface Clock { now(): Date }

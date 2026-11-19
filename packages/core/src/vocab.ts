@@ -24,6 +24,7 @@ export const TERMS: ReadonlyArray<Term> = [
   t('go', 'Go', 'skill', 'golang|go (?:engineer|developer)'),
   t('rust', 'Rust', 'skill', 'rust'),
   t('cpp', 'C++', 'skill', 'c\\+\\+|cpp'),
+  t('java', 'Java / Kotlin', 'skill', 'java|kotlin|jvm|spring boot|scala'),
   t('sql', 'SQL / Postgres', 'skill', 'sql|postgres(?:ql)?'),
   t('software', 'software engineering', 'generic', 'software (?:engineer(?:ing)?|developer|development)|swe|programmer|developer|coder|member of technical staff|mts'),
 ];
@@ -33,8 +34,9 @@ export const TAG_TERMS: Readonly<Record<string, string>> = {
   'forward-deployed': 'fde', 'product-engineer': 'product',
 };
 
-export const OUTSIDE_POOL = /(?:^|[^a-z])(?:nurse|nursing|doctor|physician|teacher|sales|account executive|marketing|recruit(?:er|ing)|accountant|accounting|lawyer|legal|cashier|driver|chef|waiter|ios|android|mobile|swift|kotlin|java|customer support|customer service|hr|human resources|copywriter|translator)(?=$|[^a-z])/i;
+export const OUTSIDE_POOL = /(?:^|[^a-z])(?:nurse|nursing|doctor|physician|teacher|sales|account executive|marketing|recruit(?:er|ing)|accountant|accounting|lawyer|legal|cashier|driver|chef|waiter|ios|android|mobile|swift|customer support|customer service|hr|human resources|copywriter|translator)(?=$|[^a-z])/i;
 
+export const NOT_MY_LEVEL = /(?:mentor|coach|manag|lead|led|onboard|hire|hiring|hired|train|support|teach|taught|guid)[a-z]*\s+(?:(?:of|for|the|our|new|a|team|several|many|\d+)\s+)*(?:junior|graduate|intern|trainee|new grad)s?|(?:post)?graduate (?:degree|diploma|studies|program(?:me)?|school)|graduated/gi;
 export const LEVELS = ['junior', 'mid', 'senior', 'staff', 'principal'] as const;
 export type Level = (typeof LEVELS)[number];
 const LEVEL_RE: ReadonlyArray<[Level, RegExp]> = [
@@ -46,7 +48,7 @@ const LEVEL_RE: ReadonlyArray<[Level, RegExp]> = [
 ];
 export const MTS = /member of technical staff|(?:^|[^a-z])mts(?=$|[^a-z])/gi;
 export const levelOf = (raw: string): Level | null => {
-  const text = raw.replace(MTS, ' ');
+  const text = raw.replace(MTS, ' ').replace(NOT_MY_LEVEL, ' ');
   for (const [lvl, re] of LEVEL_RE) if (re.test(text)) return lvl;
   const y = /(\d{1,2})\+?\s*(?:years|yrs|yoe)/i.exec(text);
   if (y?.[1]) { const n = Number(y[1]); return n < 2 ? 'junior' : n < 5 ? 'mid' : 'senior'; }

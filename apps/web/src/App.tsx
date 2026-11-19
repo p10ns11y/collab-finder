@@ -82,6 +82,7 @@ export function App() {
     requestAnimationFrame(() => resultsRef.current?.focus());
   }, [pool, description, goal, region, remote]);
 
+  const formChanged = () => setView({ kind: 'idle' });
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setView({ kind: 'idle' }); };
   const widen = (w: string) => {
@@ -118,24 +119,24 @@ export function App() {
         <div className="grid gap-2">
           <Label htmlFor="description">About you</Label>
           <Textarea id="description" name="description" value={description} maxLength={MAX_CHARS + 200}
-            onChange={e => { setDescription(e.target.value); if (view.kind !== 'results') setView({ kind: 'idle' }); }}
+            onChange={e => { setDescription(e.target.value); formChanged(); }}
             placeholder="e.g. Senior backend engineer, 8 years of Go and Postgres, distributed systems" aria-describedby="description-help" autoComplete="off" spellCheck />
           <p id="description-help" className="text-xs text-text-muted">At least {MIN_CHARS} characters. Skip your name, email and phone: they are not needed.</p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
-          <Input id="goal" ref={goalRef} name="goal" value={goal} onChange={e => setGoal(e.target.value)} placeholder="e.g. AI infrastructure" autoComplete="off" />
+          <Input id="goal" ref={goalRef} name="goal" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. AI infrastructure" autoComplete="off" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label htmlFor="region">Region</Label>
-            <Select id="region" value={region} onChange={e => setRegion(e.target.value as RegionPref)}>
+            <Select id="region" value={region} onChange={e => { setRegion(e.target.value as RegionPref); formChanged(); }}>
               {REGIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="remote">Work mode</Label>
-            <Select id="remote" value={remote} onChange={e => setRemote(e.target.value as RemotePref)}>
+            <Select id="remote" value={remote} onChange={e => { setRemote(e.target.value as RemotePref); formChanged(); }}>
               {REMOTES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </div>

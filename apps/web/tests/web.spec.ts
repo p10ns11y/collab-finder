@@ -106,3 +106,19 @@ test('axe: no WCAG A/AA violations on results and trap states', async ({ page })
   console.log(`AXE violations=${found.length} ${[...new Set(found)].join(',')}`);
   expect(found).toEqual([]);
 });
+
+test('any form change clears shown results, as the spec Edit step does', async ({ page }) => {
+  for (const change of [
+    () => page.getByLabel('About you').fill(`${DESCRIPTION} and Rust`),
+    () => page.getByLabel(/Where do you want to grow/).fill('developer tools'),
+    () => page.getByLabel('Region').selectOption('UK'),
+    () => page.getByLabel('Work mode').selectOption('hybrid'),
+  ]) {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await fill(page, DESCRIPTION);
+    await expect(page.getByTestId('results')).toBeVisible();
+    await change();
+    await expect(page.getByTestId('results')).toHaveCount(0);
+  }
+});
