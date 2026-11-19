@@ -4,6 +4,7 @@ import { SidebarNav } from '../components/layout/sidebar-nav'
 import { CommandPalette } from '../components/finder/command-palette'
 import { QuestDrawer } from '../components/finder/quest-drawer'
 import { ErrorBanner } from '../components/finder/error-banner'
+import { isTauri } from '../adapters/tauri/safe-invoke'
 import type { FinderViewState } from '../core/finder/selectors'
 import type { Dispatch } from '../core/mvu/engine'
 import type { FinderMsg } from '../core/finder/msg'
@@ -94,6 +95,15 @@ export function FinderAppView({ view, dispatch }: Props) {
       >
         {/* Global banner + framed viewport (shared product surface) */}
         <div className="flex h-full flex-col overflow-hidden p-3 pt-2">
+          {!isTauri() && (
+            <div
+              role="status"
+              className="mb-2 shrink-0 rounded-lg border border-accent/30 bg-accent-soft/40 px-3 py-2.5 text-xs leading-relaxed text-ink-muted"
+            >
+              You are viewing the kanithanj.ai web preview. Job lists, applications and live data
+              need the desktop app.
+            </div>
+          )}
           {banner && (
             <div className="mb-2 shrink-0">
               <ErrorBanner message={banner} onDismiss={() => dispatch({ type: 'BannerDismissed' })} />

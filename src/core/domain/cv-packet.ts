@@ -15,7 +15,7 @@ const CJK_RE = /[\u4e00-\u9fff]/g
 /** Private-use / unpaired-surrogate debris often left by UTF-16 pair mis-decode. */
 const PU_RE = /[\ue000-\uf8ff]/
 /** Expected anchors in our distilled packet (and agent variants). */
-const ANCHOR_RE = /PROFILE|Peramanathan|AGENT CONTEXT|CORE IDENTITY|Senior Software Engineer/i
+const ANCHOR_RE = /PROFILE|AGENT CONTEXT|CORE IDENTITY|Senior Software Engineer/i
 
 /**
  * True when `s` looks like a usable English (or mixed) CV packet for this app.

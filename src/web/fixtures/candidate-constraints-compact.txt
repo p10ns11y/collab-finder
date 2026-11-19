@@ -1,0 +1,4 @@
+# Demo constraints for the kanithanj.ai web preview only. Not a real person.
+Preferred example locations: Lisbon, demo-remote.
+Made-up company examples: Northwind Labs, Contoso Robotics, Rivermark Studio.
+Deal-breakers in this fixture are invented and are not anyone's real constraints.

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:web": "tsc -b && vite build --mode web-preview",
     "type-check": "tsc -b",
     "preview": "vite preview",
     "tauri": "tauri",

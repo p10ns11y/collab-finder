@@ -53,6 +53,28 @@ jobs:
       - name: Data check
         run: node scripts/ci-area-data.mjs
 
+  web-preview:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Web preview build and privacy scan
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:web
+          node scripts/scan-web-privacy.mjs
+
   check:
     needs: changes
     runs-on: ubuntu-22.04

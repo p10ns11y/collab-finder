@@ -47,6 +47,21 @@ const s2 = sanitizeCvPacket(good, 'FALLBACK')
 assert(!s2.wasCorrupted && s2.source === 'candidate' && s2.value === good, 'sanitize keeps good candidate')
 assert(/[\u4e00-\u9fff]/.test(bad), 'mojibake contains CJK units')
 
+const generic = 'PROFILE\nA software engineer working on TypeScript and Rust tools for a product team. ' +
+  'AGENT CONTEXT follows with CORE IDENTITY notes. Senior Software Engineer experience is described in English prose for this packet.'
+assert(isPlausibleCvPacket(generic), 'generic anchors without a personal name stay plausible')
+
+const { operatorPersonalNames } = await import(
+  pathToFileURL(join(root, 'scripts/operator-personal-names.mjs')).href
+)
+const names = operatorPersonalNames(root)
+assert(names.length === 2, 'operator first and last name can be read from the distilled packet')
+const source = readFileSync(join(here, 'cv-packet.ts'), 'utf8')
+for (const name of names) {
+  assert(!source.includes(name), 'cv-packet.ts does not bake in an operator personal name')
+}
+assert(isPlausibleCvPacket(good), 'distilled packet is still plausible after the generic anchors')
+
 if (failed) {
   console.error(`\n${failed} assertion(s) failed`)
   process.exit(1)

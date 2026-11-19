@@ -1,8 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { toAppError, type AppError } from '../../core/error'
-import { fromPromise, type Result } from '../../core/result'
+import { err, ok, type Result } from '../../core/result'
+import { DESKTOP_APP_NEEDED, isTauri, webPreviewResult } from './web-preview'
 
-const ipcDebug = import.meta.env.DEV
+export { DESKTOP_APP_NEEDED, isTauri }
+
+const ipcDebug = typeof import.meta.env !== 'undefined' && Boolean(import.meta.env.DEV)
 
 function summarizeIpcArgs(command: string, args?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!args) return args
@@ -26,12 +29,21 @@ export async function safeInvoke<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<Result<T, AppError>> {
+  if (!isTauri()) {
+    return webPreviewResult<T>(command) as Result<T, AppError>
+  }
+
   const t0 = ipcDebug ? performance.now() : 0
   if (ipcDebug) {
     console.debug('[ipc →]', command, summarizeIpcArgs(command, args))
   }
 
-  const result = await fromPromise(invoke<T>(command, args), toAppError)
+  let result: Result<T, AppError>
+  try {
+    result = ok(await invoke<T>(command, args))
+  } catch (cause) {
+    result = err(toAppError(cause))
+  }
 
   if (ipcDebug) {
     const ms = (performance.now() - t0).toFixed(0)

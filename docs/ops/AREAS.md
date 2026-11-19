@@ -61,7 +61,7 @@ flowchart LR
   ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `e155c47`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `2977f3b`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
 15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, and `docs` have none. `ops` still chooses which checks run.
 <!-- /area-map-graph:mermaid -->
@@ -72,7 +72,7 @@ An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC 
 
 | Area | Kind | Owns |
 |---|---|---|
-| shell | functional | `src/main.tsx`, `src/App.tsx`, `src/vite-env.d.ts`, `src/app/**`, `src/shell/**`, `src/lib/**`, `src/index.css`, `src/types/**`, `src/view/finder-app-view.tsx`, `src/view/screens/heading-screen.tsx`, `src/components/layout/**`, `src/components/ui/**`, `src/components/finder/command-palette.tsx`, `src/components/finder/error-banner.tsx`, `src/core/domain/finder-nav*`, `src/core/domain/finder-keyboard*`, `src/core/domain/heading-*`, `index.html` |
+| shell | functional | `src/main.tsx`, `src/App.tsx`, `src/vite-env.d.ts`, `src/app/**`, `src/shell/**`, `src/lib/**`, `src/index.css`, `src/types/**`, `src/view/finder-app-view.tsx`, `src/view/web-preview-chrome.verify.mjs`, `src/view/screens/heading-screen.tsx`, `src/components/layout/**`, `src/components/ui/**`, `src/components/finder/command-palette.tsx`, `src/components/finder/error-banner.tsx`, `src/core/domain/finder-nav*`, `src/core/domain/finder-keyboard*`, `src/core/domain/heading-*`, `index.html` |
 | runtime | functional | `src/core/finder/**`, `src/core/mvu/**`, `src/runtime/**`, `src/ports/finder-port.ts`, `src/core/async.ts`, `src/core/result.ts`, `src/core/error.ts` |
 | bridge | functional | `src/adapters/tauri/**` except `src/adapters/tauri/credentials-adapter.ts`, `src-tauri/src/lib.rs`, `src-tauri/src/main.rs`, `src-tauri/src/commands/mod.rs`, `src-tauri/capabilities/**`, `src-tauri/tauri.conf.json`, `src-tauri/build.rs` |
 | discover | functional | `src-tauri/src/opportunity_target.rs`, `src-tauri/src/cv_home.rs`, `src-tauri/src/xai.rs`, `src-tauri/src/llm_route.rs`, `src/core/domain/application-pack.ts`, `src/core/domain/cv-*`, `src/core/domain/discover-*`, `src/core/domain/devprofile-path-panel*`, `src/core/domain/fit-*`, `src/core/domain/llm-route*`, `src/core/domain/opportunity-rail-label*`, `src/core/domain/opportunity-target*`, `src/core/domain/opportunity-url*`, `src/core/domain/fixtures/**`, `src/components/finder/opportunity-target-fit-panel.tsx`, `src/components/finder/artifact-reader.tsx`, `src/components/finder/cv-*`, `src/view/screens/discover-screen.tsx`, `scripts/fit-calibration.mjs` |
@@ -87,9 +87,9 @@ An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC 
 | ingest | data | `src-tauri/src/research_ingest.rs`, `src-tauri/src/bin/**`, `src-tauri/fixtures/**` |
 | network | data | `src-tauri/src/network_graph.rs`, `src/core/domain/network-graph.ts`, `src/view/screens/network-screen.tsx`, `data/connections.sample.csv`, `data/contacts.sample.csv`, `data/network-csv.md` |
 | hire-board | data | `src-tauri/src/hire_board.rs`, `src/core/domain/hire-board.ts`, `src/components/finder/hire-board-panel.tsx`, `data/hire-board/**` |
-| profile-data | data | `data/distillation/**` except `data/distillation/x-search/**`, `scripts/prune-public-projects.mjs` |
-| ops | ops | `.github/**`, `scripts/ci-*`, `scripts/run-verify.mjs`, `scripts/cut-release.sh`, `scripts/ensure-lizard.sh`, `scripts/test-ensure-lizard.sh`, `scripts/sync-agent-skills.sh`, `scripts/gate.sh`, `scripts/area-map*`, `dx/**`, `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.*`, `src-tauri/icons/**`, `tsconfig.json`, `tsconfig.node.json`, `vite.config.ts`, `postcss.config.js`, `stryker.config.json`, `.gitignore`, `src-tauri/.gitignore`, `session-sot.example`, `skills-lock.json` |
-| docs | docs | `**/*.md`, `docs/**`, `.agents/**`, `.grok/**`, `archive/**`, except `docs/qa/**`, `data/**`, `vendor/**`, `.github/**`, `src-tauri/tests/**` |
+| profile-data | data | `data/distillation/**` except `data/distillation/x-search/**`, `scripts/prune-public-projects.mjs`, `src/web/fixtures/**` |
+| ops | ops | `.github/**`, `scripts/ci-*`, `scripts/run-verify.mjs`, `scripts/cut-release.sh`, `scripts/ensure-lizard.sh`, `scripts/test-ensure-lizard.sh`, `scripts/sync-agent-skills.sh`, `scripts/gate.sh`, `scripts/area-map*`, `scripts/scan-web-privacy.mjs`, `scripts/operator-personal-names.mjs`, `scripts/web-preview*`, `dx/**`, `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.*`, `src-tauri/icons/**`, `tsconfig.json`, `tsconfig.node.json`, `vite.config.ts`, `postcss.config.js`, `stryker.config.json`, `.gitignore`, `src-tauri/.gitignore`, `session-sot.example`, `skills-lock.json` |
+| docs | docs | `**/*.md`, `docs/**`, `.agents/**`, `.grok/**`, `archive/**`, except `docs/qa/**`, `data/**`, `vendor/**`, `.github/**`, `src-tauri/tests/**`, `src/web/fixtures/**` |
 
 ## Cadence
 
@@ -100,32 +100,32 @@ In order:
 3. **Weekly** otherwise.
 
 <!-- area-map-graph:cadence -->
-Lines are added plus deleted on main from 2026-09-22 (30 days) and 2026-07-24 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. A path that is gone at the tip is counted on the apart line, not in an area row. Edges are distinct neighbours on the graph above.
+Lines are added plus deleted on main from 2026-10-20 (30 days) and 2026-08-21 (90 days). Lockfiles and binaries are left out. A commit counts once for each area it touches. A path that is gone at the tip is counted on the apart line, not in an area row. Edges are distinct neighbours on the graph above.
 
 | Area | Kind | 30 days: commits / lines | 90 days: commits / lines | Edges in / out (neighbours) | Cadence | Reason |
 |---|---|---|---|---|---|---|
-| hunt | functional | 5 / 3,220 | 29 / 9,094 | 4 / 8 (8) | Nightly | 1,500+ lines in 30 days |
-| discover | functional | 5 / 765 | 28 / 8,466 | 9 / 10 (10) | Nightly | 10+ neighbours |
-| shell | functional | 6 / 723 | 24 / 4,834 | 11 / 10 (11) | Nightly | 10+ neighbours |
-| bridge | functional | 7 / 358 | 34 / 2,680 | 7 / 12 (12) | Nightly | 10+ neighbours |
-| runtime | functional | 2 / 39 | 30 / 2,985 | 11 / 11 (11) | Nightly | 10+ neighbours |
-| store | data | 1 / 39 | 13 / 2,099 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
-| ops | ops | 10 / 2,872 | 33 / 4,003 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
-| pipeline | functional | 2 / 1,416 | 7 / 2,899 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
-| ingest | data | 2 / 822 | 2 / 822 | 1 / 2 (3) | Weekly | 822 lines in 30 days |
-| credentials | functional | 1 / 624 | 8 / 1,622 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
-| packs | data | 4 / 540 | 20 / 5,129 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
-| network | data | 1 / 2 | 5 / 2,336 | 4 / 4 (5) | Weekly | 1,000+ lines in 90 days |
-| xplore | functional | 1 / 2 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
-| quest | functional | 0 / 0 | 7 / 1,405 | 3 / 4 (5) | Weekly | 1,000+ lines in 90 days |
-| docs | docs | 25 / 1,120 | 74 / 13,548 | 0 / 0 (0) | Monthly | no import edges |
-| cv-renderer | functional | 3 / 989 | 12 / 5,318 | 0 / 0 (0) | Monthly | no import edges |
-| profile-data | data | 1 / 1 | 3 / 34 | 2 / 0 (2) | Monthly | quiet leaf |
-| hire-board | data | 0 / 0 | 3 / 952 | 3 / 4 (5) | Monthly | quiet leaf |
+| bridge | functional | 3 / 4 | 18 / 1,449 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| shell | functional | 0 / 0 | 16 / 4,424 | 11 / 10 (11) | Nightly | 10+ neighbours |
+| discover | functional | 0 / 0 | 17 / 2,433 | 9 / 10 (10) | Nightly | 10+ neighbours |
+| runtime | functional | 0 / 0 | 13 / 1,107 | 11 / 11 (11) | Nightly | 10+ neighbours |
+| store | data | 0 / 0 | 6 / 1,053 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
+| pipeline | functional | 1 / 1,128 | 8 / 4,027 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
+| packs | data | 2 / 483 | 15 / 2,042 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
+| ops | ops | 2 / 70 | 20 / 2,999 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| hunt | functional | 0 / 0 | 17 / 5,264 | 4 / 8 (8) | Weekly | 1,000+ lines in 90 days |
+| credentials | functional | 0 / 0 | 2 / 1,054 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
+| xplore | functional | 0 / 0 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
+| docs | docs | 6 / 246 | 53 / 6,143 | 0 / 0 (0) | Monthly | no import edges |
+| ingest | data | 1 / 43 | 2 / 822 | 1 / 2 (3) | Monthly | quiet leaf |
+| cv-renderer | functional | 0 / 0 | 11 / 2,944 | 0 / 0 (0) | Monthly | no import edges |
+| network | data | 0 / 0 | 3 / 54 | 4 / 4 (5) | Monthly | quiet leaf |
+| hire-board | data | 0 / 0 | 2 / 36 | 3 / 4 (5) | Monthly | quiet leaf |
+| quest | functional | 0 / 0 | 1 / 25 | 3 / 4 (5) | Monthly | quiet leaf |
+| profile-data | data | 0 / 0 | 1 / 1 | 2 / 0 (2) | Monthly | quiet leaf |
 
-6 nightly, 8 weekly, 4 monthly.
+5 nightly, 6 weekly, 7 monthly.
 
-Apart from area rows: 30 days 3 commits / 1,751 lines; 90 days 18 commits / 8,530 lines.
+Apart from area rows: 30 days 0 commits / 0 lines; 90 days 9 commits / 7,340 lines.
 <!-- /area-map-graph:cadence -->
 
 ## Schedule (UTC)

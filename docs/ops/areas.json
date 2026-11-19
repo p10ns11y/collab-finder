@@ -12,6 +12,7 @@
         "src/index.css",
         "src/types/**",
         "src/view/finder-app-view.tsx",
+        "src/view/web-preview-chrome.verify.mjs",
         "src/view/screens/heading-screen.tsx",
         "src/components/layout/**",
         "src/components/ui/**",
@@ -224,7 +225,7 @@
     },
     {
       "id": "profile-data",
-      "include": ["data/distillation/**", "scripts/prune-public-projects.mjs"],
+      "include": ["data/distillation/**", "scripts/prune-public-projects.mjs", "src/web/fixtures/**"],
       "exclude": ["data/distillation/x-search/**"]
     },
     {
@@ -239,6 +240,9 @@
         "scripts/sync-agent-skills.sh",
         "scripts/gate.sh",
         "scripts/area-map*",
+        "scripts/scan-web-privacy.mjs",
+        "scripts/operator-personal-names.mjs",
+        "scripts/web-preview*",
         "dx/**",
         "package.json",
         "pnpm-lock.yaml",
@@ -258,7 +262,7 @@
     {
       "id": "docs",
       "include": ["**/*.md", "docs/**", ".agents/**", ".grok/**", "archive/**"],
-      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**", "src-tauri/tests/**"]
+      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**", "src-tauri/tests/**", "src/web/fixtures/**"]
     }
   ]
 }
