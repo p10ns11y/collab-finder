@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
-  type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
+  corpusStats, findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  type CorpusStats, type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Badge } from './components/ui/badge.tsx';
@@ -9,7 +9,7 @@ import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
 
-type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
+type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool; stats: CorpusStats };
 type View =
   | { kind: 'idle' }
   | { kind: 'inputError'; msg: string }
@@ -28,7 +28,7 @@ const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (i
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'junior': 'The pool has mid-level and senior roles only, no junior, intern or graduate roles yet.',
-  'outside-pool-roles': 'The pool has no nursing, sales, mobile, Java or management roles.',
+  'outside-pool-roles': 'We do not match nursing, sales, mobile-only or management profiles yet.',
   'no-engineering-terms': 'We could not find a software or AI engineering skill or role in your description.',
 };
 const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', productOnly: 'Include agencies and freelance', goal: 'Add a goal', seniority: 'Any level' };
@@ -68,7 +68,7 @@ export function App() {
         const parts = await Promise.all(head.shards.filter((f): f is string => typeof f === 'string' && /^pool-\d+\.json$/.test(f)).map(f => getJson(`/${f}`)));
         return { version: head.version, checkedRange: head.checkedRange, rows: parts.flatMap(p => ((p as { rows?: unknown }).rows as unknown[] | undefined) ?? []) };
       })
-      .then((raw: unknown) => { const p = parsePool(raw); setPool(p.isOk() ? { kind: 'ready', pool: p.value } : { kind: 'failed' }); })
+      .then((raw: unknown) => { const p = parsePool(raw); setPool(p.isOk() ? { kind: 'ready', pool: p.value, stats: corpusStats(p.value.rows) } : { kind: 'failed' }); })
       .catch(() => setPool({ kind: 'failed' }));
   }, []);
   useEffect(loadPool, [loadPool]);
@@ -78,7 +78,7 @@ export function App() {
   const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean }) => {
     if (pool.kind !== 'ready') return;
     const t0 = performance.now();
-    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
+    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool, { stats: pool.stats });
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());

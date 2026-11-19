@@ -33,3 +33,11 @@ flowchart LR
 - `spec/tla/WebTraps.tla` models every form field (description, goal, regions, work mode, product companies only) as one `Edit` step that clears the shown verdict, and widening (any region, any work mode, include agencies) as an immediate rerun. The product filter adds no new state, so the statechart is unchanged. TLC checks `ShownMatchesForm`: a shown verdict always belongs to the current form. `check/contract.test.ts` fails if the `View` kinds in `App.tsx` drift from the spec's `Ready` set or if a field stops resetting the view.
 - `NoDescriptionInRequests` in the spec only restates that the model has no request carrying text. The privacy claim rests on the Playwright test that records every request and finds 0 carrying the description or goal.
 - `check/contract.test.ts` also pins the CSP and security headers in `vercel.json` and checks the built page has no inline script, style or handler the CSP would block.
+
+## How results are ordered
+
+- Each group is ordered by certainty tier first (place confirmed and level fits, then one level up or unknown status, then place not confirmed), then by lexical relevance: BM25 between the description plus goal tokens and each row's title plus role tags, after a small stop-word and synonym table. Corpus statistics are computed once per pool load, so a match on the real pool takes under 150 ms in the browser.
+- A role one level above yours loses a fixed step of relevance. A city or country you name adds a small boost.
+- Rows collapse into one only when the title differs by location parts alone, such as `, Rome`, ` - Berlin`, `(London)` or `| Sweden | Remote`.
+- Mobile-titled rows for a profile without mobile terms stay in stretch, never in its top 10 while other stretch rows remain. Rows with no other overlap sit at the bottom.
+- The goal signals `frontier AI labs` and `product teams` are understood but match titles only, and few titles name them (9 and 1 in the v0 pool). They become company-level signals in v1.

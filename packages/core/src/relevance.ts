@@ -1,0 +1,84 @@
+import type { PublicRow } from './schema.ts';
+
+const STOP = new Set([
+  'a', 'an', 'and', 'or', 'the', 'of', 'in', 'on', 'at', 'for', 'to', 'with', 'by', 'from', 'as', 'is', 'are', 'be', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
+  'it', 'its', 'this', 'that', 'into', 'over', 'about', 'who', 'what', 'where', 'how', 'than', 'then', 'also', 'like', 'such', 'want', 'wants', 'looking', 'work',
+  'working', 'worked', 'build', 'building', 'built', 'years', 'year', 'yrs', 'experience', 'based', 'mostly', 'some', 'very', 'more', 'most', 'new', 'own',
+  'junior', 'mid', 'level', 'senior', 'sr', 'staff', 'lead', 'principal', 'distinguished', 'intern', 'graduate', 'ii', 'iii', 'iv', 'm', 'f', 'd', 'x', 'w',
+  'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett',
+]);
+
+const SYNONYMS: ReadonlyArray<[RegExp, string]> = [
+  [/\bfull[\s-]?stack\b/g, ' fullstack '],
+  [/\bfront[\s-]?end\b/g, ' frontend '],
+  [/\bback[\s-]?end\b/g, ' backend '],
+  [/\bmachine learning\b/g, ' ml '],
+  [/\bartificial intelligence\b/g, ' ai '],
+  [/\bgen\s?ai\b|\bgenerative ai\b/g, ' ai generative '],
+  [/\bforward[\s-]deployed\b/g, ' fde '],
+  [/\bsite reliability\b/g, ' sre '],
+  [/\bdistributed systems?\b/g, ' distributed '],
+  [/\bdeveloper (?:tools|experience)\b/g, ' devtools '],
+  [/\bmember of technical staff\b/g, ' mts '],
+  [/\bweb (?:applications?|apps?)\b/g, ' web fullstack '],
+  [/\bproduct engineer(?:ing)?\b/g, ' productengineer '],
+  [/\bdata engineer(?:ing)?\b/g, ' dataengineer '],
+  [/\bnode\.?js\b/g, ' node '],
+  [/\bnext\.?js\b/g, ' react '],
+  [/\breact\.?js\b/g, ' react '],
+  [/\breact native\b/g, ' react mobile '],
+  [/\bc\+\+/g, ' cpp '],
+  [/\bc#/g, ' csharp '],
+  [/\.net\b/g, ' dotnet '],
+  [/\bspring boot\b/g, ' java '],
+];
+const TOKEN_MAP: Readonly<Record<string, string>> = {
+  ia: 'ai', llms: 'llm', agentic: 'agent', agents: 'agent', ml: 'ml', mlops: 'ml', k8s: 'kubernetes', golang: 'go', javascript: 'typescript', js: 'typescript',
+  ts: 'typescript', postgresql: 'postgres', sql: 'postgres', swe: 'engineer', engineers: 'engineer', engineering: 'engineer', developer: 'engineer', developers: 'engineer',
+  dev: 'engineer', programmer: 'engineer', utvecklare: 'engineer', mjukvaruutvecklare: 'engineer', ingenjör: 'engineer', systemutvecklare: 'engineer', fullstackutvecklare: 'fullstack',
+  robots: 'robot', robotics: 'robot', vehicles: 'vehicle', devices: 'device', drones: 'drone', satellites: 'satellite', apis: 'api', services: 'service', systems: 'system',
+  platforms: 'platform', products: 'product', models: 'model', pipelines: 'pipeline', infra: 'infrastructure', devops: 'infrastructure', cloud: 'infrastructure', sre: 'infrastructure',
+  ios: 'mobile', android: 'mobile', swift: 'mobile', kotlin: 'java', jvm: 'java', scala: 'java', django: 'python', fastapi: 'python', flask: 'python', rails: 'ruby',
+  appsec: 'security', infosec: 'security', firmware: 'embedded', ui: 'frontend', ux: 'frontend', compilers: 'compiler', inference: 'inference', rag: 'llm',
+};
+
+export const tokensOf = (text: string): string[] => {
+  let t = ` ${text.toLowerCase()} `;
+  for (const [re, to] of SYNONYMS) t = t.replace(re, to);
+  return t.split(/[^a-z0-9+#åäöéü]+/).filter(Boolean).map(w => TOKEN_MAP[w] ?? w).filter(w => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w));
+};
+export const rowTokens = (row: Pick<PublicRow, 'title' | 'role_tags'>): string[] => [...tokensOf(row.title), ...row.role_tags.flatMap(t => tokensOf(t.replace(/[-_]/g, ' ')))];
+
+export type CorpusStats = { readonly n: number; readonly avgLen: number; readonly df: ReadonlyMap<string, number> };
+export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_tags' | 'status'>>): CorpusStats => {
+  const df = new Map<string, number>();
+  let n = 0;
+  let total = 0;
+  for (const r of rows) {
+    if (r.status === 'closed') continue;
+    const toks = rowTokens(r);
+    n += 1;
+    total += toks.length;
+    for (const t of new Set(toks)) df.set(t, (df.get(t) ?? 0) + 1);
+  }
+  return { n, avgLen: n ? total / n : 1, df };
+};
+
+const K1 = 1.2;
+const B = 0.75;
+export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => new Set([...tokensOf(description), ...tokensOf(goal)]);
+export const relevance = (query: ReadonlySet<string>, row: Pick<PublicRow, 'title' | 'role_tags'>, stats: CorpusStats): number => {
+  const toks = rowTokens(row);
+  if (!toks.length) return 0;
+  const tf = new Map<string, number>();
+  for (const t of toks) tf.set(t, (tf.get(t) ?? 0) + 1);
+  const norm = 1 - B + B * (toks.length / (stats.avgLen || 1));
+  let s = 0;
+  for (const [t, f] of [...tf].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    if (!query.has(t)) continue;
+    const df = stats.df.get(t) ?? 0;
+    const idf = Math.log(1 + (stats.n - df + 0.5) / (df + 0.5));
+    s += idf * (f * (K1 + 1)) / (f + K1 * norm);
+  }
+  return Math.round(s * 1e4) / 1e4;
+};

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { corpusStats, queryTokens, relevance, rowTokens, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import type { MatchRow } from '../src/match.ts';
 
@@ -39,7 +39,7 @@ const profileArb: fc.Arbitrary<MatchProfile> = fc.record({
 
 const RUNS = { numRuns: 400, seed: 20261119 };
 const allRows = (r: ReturnType<typeof match>) => (r.isOk() ? [...r.value.groups.fitsNow, ...r.value.groups.stepTowardGoal, ...r.value.groups.stretch] : []);
-const OUTPUT_KEYS = new Set(['id', 'title', 'company', 'url', 'location', 'region', 'remote', 'seniority', 'status', 'lastChecked', 'ageDays', 'stale', 'tier', 'score', 'reasons', 'alsoIds']);
+const OUTPUT_KEYS = new Set(['id', 'title', 'company', 'url', 'location', 'region', 'remote', 'seniority', 'status', 'lastChecked', 'ageDays', 'stale', 'tier', 'relevance', 'score', 'reasons', 'alsoIds']);
 
 
 const ok = (p: MatchProfile, pool: PublicPool, extra: Record<string, unknown> = {}) => match(p, pool, { now: NOW, ...extra });
@@ -104,12 +104,14 @@ test('P6 each group length ≤ limit and totals ≥ length', () => {
   }), RUNS);
 });
 
-test('P7 groups ranked by tier asc, score desc, lastChecked desc, id asc', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool)).every(g => g.every((x, i) => {
+const mobileProfile = (p: MatchProfile) => MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`);
+const withoutMobile = (p: MatchProfile, g: ReadonlyArray<MatchRow>) => (mobileProfile(p) ? g : g.filter(x => !MOBILE_TITLE.test(x.title)));
+test('P7 groups ranked by tier asc, relevance desc, score desc, lastChecked desc, id asc', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
     const y = g[i + 1];
     if (!y) return true;
-    return x.tier < y.tier || (x.tier === y.tier && (x.score > y.score || (x.score === y.score && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))));
-  }))), RUNS);
+    return x.tier < y.tier || (x.tier === y.tier && (x.relevance > y.relevance || (x.relevance === y.relevance && (x.score > y.score || (x.score === y.score && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))))));
+  }); })), RUNS);
 });
 
 test('P8 descriptions without engineering vocabulary are OutOfScope', () => {
@@ -155,13 +157,14 @@ test('P13 adding a closed row never changes the output', () => {
 
 test('P14 removing a row not in the output leaves every shown group unchanged', () => {
   fc.assert(fc.property(profileArb, poolArb, fc.nat(), (p, pool, k) => {
-    const before = ok(p, pool, { limit: 5 });
+    const stats = corpusStats(pool.rows);
+    const before = ok(p, pool, { limit: 5, stats });
     if (before.isErr() || pool.rows.length === 0) return true;
     const shown = new Set(allRows(before).map(x => x.id));
     const candidates = pool.rows.filter(r => !shown.has(r.id));
     const drop = candidates[k % Math.max(1, candidates.length)];
     if (!drop) return true;
-    const after = ok(p, { ...pool, rows: pool.rows.filter(r => r.id !== drop.id) }, { limit: 5 });
+    const after = ok(p, { ...pool, rows: pool.rows.filter(r => r.id !== drop.id) }, { limit: 5, stats });
     if (after.isErr()) return false;
     const ids = (r: typeof before) => r.isOk() ? groupsOf(r).map(g => g.map(x => x.id)) : [];
     return JSON.stringify(ids(before)) === JSON.stringify(ids(after));
@@ -239,7 +242,7 @@ test('P19 in stretch every confirmed-place row ranks above every unconfirmed-pla
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
     const r = ok(p, pool, BIG);
     if (r.isErr()) return true;
-    const flags = r.value.groups.stretch.map(x => confirmedIn(p.region, x.region));
+    const flags = withoutMobile(p, r.value.groups.stretch).map(x => confirmedIn(p.region, x.region));
     return flags.every((c, i) => c || flags.slice(i).every(f => !f));
   }), RUNS);
 });
@@ -296,7 +299,7 @@ test('N1 plain Software Engineer and Product Engineer titles are a role match fo
 
 test('N2 in every group no unconfirmed-place row outranks a confirmed-place row', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(g => {
-    const flags = g.map(x => confirmedIn(p.region, x.region));
+    const flags = withoutMobile(p, g).map(x => confirmedIn(p.region, x.region));
     return flags.every((c, i) => c || flags.slice(i).every(f => !f));
   })), RUNS);
 });
@@ -369,10 +372,17 @@ test('P22 every vocab goal term in the goal text reaches understood.goal', () =>
   }), RUNS);
 });
 
-test('P22 the multi-part goal reaches the matcher as several signals', () => {
-  const u = understand({ description: 'Senior software engineer building web applications with TypeScript and React',
-    goal: 'agentic AI engineering on product teams, physical products (devices, robots, vehicles), frontier AI labs' })._unsafeUnwrap();
-  for (const k of ['agents', 'ai', 'physical', 'frontier', 'productteams']) if (!u.goal.includes(k)) throw new Error(`missing goal signal ${k}: ${u.goal.join(',')}`);
+test('P22 a multi-part goal reaches the matcher as several signals', () => {
+  fc.assert(fc.property(fc.subarray(['AI agents', 'drones for agriculture', 'research labs', 'developer tools', 'data engineering', 'security'], { minLength: 2 }), parts => {
+    const goal = parts.join(', ');
+    const u = understand({ description: 'Mid-level backend engineer working with Python and Postgres', goal })._unsafeUnwrap();
+    return u.goal.length >= parts.length && parts.every(x => [...termsIn(x)].some(k => u.goal.includes(k)));
+  }), RUNS);
+});
+
+test('C3 autonomous alone is not a physical-products signal; devices, robots, vehicles, drones, satellites and hardware are', () => {
+  for (const x of ['Autonomous Supply Chains', 'autonomous agents', 'autonomy at work']) if (termsIn(x).has('physical')) throw new Error(x);
+  for (const x of ['devices', 'robot', 'robotics', 'vehicle', 'hardware', 'drone', 'satellite', 'embedded', 'autonomous vehicles', 'autonomous driving']) if (!termsIn(x).has('physical')) throw new Error(x);
 });
 
 test('P23 level words in a past-tense clause never set the current level', () => {
@@ -393,11 +403,29 @@ test('P24 every step-toward-goal row has a title term from understood.goal', () 
   }), RUNS);
 });
 
-test('P25 a profile without mobile terms sees no mobile title in the stretch top 10', () => {
+test('P25 a profile without mobile terms sees no mobile title in the stretch top 10 while other stretch rows remain', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
-    if (MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`)) return true;
-    const r = ok(p, pool);
-    return r.isErr() || r.value.groups.stretch.slice(0, 10).every(x => !MOBILE_TITLE.test(x.title));
+    if (mobileProfile(p)) return true;
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const st = r.value.groups.stretch;
+    const others = st.filter(x => !MOBILE_TITLE.test(x.title)).length;
+    return st.slice(0, Math.min(10, others)).every(x => !MOBILE_TITLE.test(x.title));
+  }), RUNS);
+});
+
+test('P25 mobile rows are never dropped: they sit in stretch, never in fits-now or step', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    if (mobileProfile(p)) return true;
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const mobileIds = (q: MatchProfile) => { const x = ok(q, { ...pool, rows: pool.rows.map(row => ({ ...row, title: row.title.replace(/\b(iOS|Android|Mobile)\b/g, 'Widget') })) }, BIG); return x; };
+    const stripped = mobileIds(p);
+    const shownNow = new Set(allRows(r).flatMap(x => [x.id, ...x.alsoIds]));
+    const mobileRows = pool.rows.filter(row => MOBILE_TITLE.test(row.title)).map(row => row.id);
+    const shownStripped = new Set(allRows(stripped).flatMap(x => [x.id, ...x.alsoIds]));
+    return mobileRows.every(id => !shownStripped.has(id) || shownNow.has(id))
+      && [...r.value.groups.fitsNow, ...r.value.groups.stepTowardGoal].every(x => !MOBILE_TITLE.test(x.title));
   }), RUNS);
 });
 
@@ -446,4 +474,130 @@ test('product-only filter is live: generated pools do contain flagged rows that 
     return on < off;
   }).length;
   if (removed < 20) throw new Error(`filter removed rows in only ${removed} of 200 runs`);
+});
+
+const tokenArb = fc.constantFrom('backend', 'frontend', 'fullstack', 'platform', 'python', 'typescript', 'react', 'go', 'rust', 'ai', 'ml', 'security', 'data', 'robot', 'device', 'agent', 'infrastructure', 'payments', 'search', 'growth');
+test('relevance is monotonic: adding a token the row carries never lowers it, adding any token never lowers it', () => {
+  fc.assert(fc.property(profileArb, poolArb, tokenArb, fc.nat(), (p, pool, extra, k) => {
+    if (!pool.rows.length) return true;
+    const stats = corpusStats(pool.rows);
+    const row = pool.rows[k % pool.rows.length]!;
+    const q = queryTokens(p.description, p.goal ?? '');
+    const own = rowTokens(row);
+    const add = own.length ? own[k % own.length]! : extra;
+    const base = relevance(q, row, stats);
+    return relevance(new Set([...q, add]), row, stats) >= base && relevance(new Set([...q, extra]), row, stats) >= base
+      && (q.has(add) || !own.includes(add) || relevance(new Set([...q, add]), row, stats) > base);
+  }), RUNS);
+});
+
+test('relevance is shuffle-invariant and identical on rerun', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.integer(), (p, pool, seed) => {
+    const order = [...pool.rows].map((row, i) => ({ row, k: Math.imul(i + 1, seed | 1) >>> 0 })).sort((x, y) => x.k - y.k).map(x => x.row);
+    const a = corpusStats(pool.rows);
+    const b = corpusStats(order);
+    const q = queryTokens(p.description, p.goal ?? '');
+    return pool.rows.every(row => relevance(q, row, a) === relevance(q, row, b) && relevance(q, row, a) === relevance(q, row, corpusStats(pool.rows)));
+  }), RUNS);
+});
+
+test('relevance through match: adding a title token of a shown row to the description never lowers its relevance', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.nat(), (p, pool, k) => {
+    const stats = corpusStats(pool.rows);
+    const before = ok(p, pool, { ...BIG, stats });
+    if (before.isErr()) return true;
+    const shown = allRows(before);
+    const row = shown[k % Math.max(1, shown.length)];
+    if (!row) return true;
+    const toks = rowTokens({ title: row.title, role_tags: [] });
+    const tok = toks[k % Math.max(1, toks.length)];
+    if (!tok || /^(?:mobile|junior|intern|manager)$/.test(tok)) return true;
+    const after = ok({ ...p, description: `${p.description} ${tok}` }, pool, { ...BIG, stats });
+    if (after.isErr()) return true;
+    const again = allRows(after).find(x => x.id === row.id);
+    return !again || again.relevance >= row.relevance;
+  }), RUNS);
+});
+
+const LOCATIONS = ['', ', Rome', ', Paris', ' - Berlin', ' - EMEA Remote', ' (London)', ' | Sweden | Remote', ' (Remote, EU)', ', Stockholm', ' - US Remote'];
+const ROLE_PARTS = ['', ' (Runtime)', ' (Infrastructure)', ' (Backend Leaning)', ', Developer Enablement', ' - Telemetry', ' (AI Platform)', ', Payments'];
+const dupPool = fc.record({
+  base: fc.constantFrom('Senior Backend Engineer', 'Platform Engineer', 'Full-Stack Engineer', 'AI Engineer', 'Senior Software Engineer'),
+  variants: fc.array(fc.record({ role: fc.constantFrom(...ROLE_PARTS), loc: fc.constantFrom(...LOCATIONS), region: fc.constantFrom('SE', 'EU', 'UK') }), { minLength: 2, maxLength: 8 }),
+}).map(({ base, variants }) => ({
+  base, variants,
+  pool: { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: variants.map((v, i): PublicRow => ({
+    id: `dup:${i}`, source: 'synthetic', company: 'Acme', title: `${base}${v.role}${v.loc}`, url: `https://jobs.example.com/d${i}`, location: null, remote: 'remote',
+    region: v.region, role_tags: ['typescript'], seniority: 'senior', posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' })) } as PublicPool,
+}));
+const DUP_PROFILE: MatchProfile = { description: 'Senior backend platform software engineer, full-stack, AI, TypeScript', region: 'any', remote: 'any' };
+
+test('C1 two rows with different role words never merge; P26 every absorbed id has the same company and location-free title', () => {
+  fc.assert(fc.property(dupPool, ({ pool }) => {
+    const r = ok(DUP_PROFILE, pool, BIG);
+    if (r.isErr()) return true;
+    const byId = rowById(pool);
+    return allRows(r).every(x => x.alsoIds.every(id => {
+      const other = byId.get(id)!;
+      return other.company === x.company && normalizedTitle(other.title) === normalizedTitle(x.title);
+    }));
+  }), RUNS);
+});
+
+test('P27 "Also listed in N more locations" has N = alsoIds and absorbed titles differ only in location parts', () => {
+  fc.assert(fc.property(dupPool, ({ pool, variants, base }) => {
+    const r = ok(DUP_PROFILE, pool, BIG);
+    if (r.isErr()) return true;
+    return allRows(r).every(x => {
+      const reason = x.reasons.find(z => z.startsWith('Also listed in '));
+      const n = reason ? Number(/(\d+)/.exec(reason)![1]) : 0;
+      if (n !== x.alsoIds.length) return false;
+      const role = (id: string) => variants[Number(id.slice(4))]!.role;
+      return x.alsoIds.every(id => role(id) === role(x.id)) && x.title.startsWith(base);
+    });
+  }), RUNS);
+});
+
+test('C2 trailing ", City" and " - City" are location parts; role parts are not', () => {
+  for (const l of LOCATIONS.filter(Boolean)) if (normalizedTitle(`AI/ML Engineer${l}`) !== normalizedTitle('AI/ML Engineer')) throw new Error(l);
+  for (const r of ROLE_PARTS.filter(Boolean)) if (normalizedTitle(`Platform Engineer${r}`) === normalizedTitle('Platform Engineer')) throw new Error(r);
+  if (!isLocationPart('Remote, EU') || isLocationPart('Runtime') || isLocationPart('Payments')) throw new Error('isLocationPart');
+});
+
+test('collapse in fits-now: location-only duplicates show once with the rest in alsoIds', () => {
+  fc.assert(fc.property(dupPool, ({ pool, variants }) => {
+    const r = ok(DUP_PROFILE, pool, BIG);
+    if (r.isErr()) return true;
+    const fits = r.value.groups.fitsNow;
+    const roles = new Map<string, number>();
+    for (const [i, v] of variants.entries()) if (fits.some(x => x.id === `dup:${i}` || x.alsoIds.includes(`dup:${i}`))) roles.set(v.role, (roles.get(v.role) ?? 0) + 1);
+    return fits.length === roles.size && fits.reduce((n, x) => n + 1 + x.alsoIds.length, 0) === [...roles.values()].reduce((a, b) => a + b, 0);
+  }), RUNS);
+});
+
+test('no fits-now row is above the profile level', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool, BIG);
+    if (r.isErr() || !r.value.understood.seniority) return true;
+    const mine = LEVELS.indexOf(r.value.understood.seniority);
+    return r.value.groups.fitsNow.every(x => x.seniority === null || LEVELS.indexOf(x.seniority as typeof LEVELS[number]) <= mine);
+  }), RUNS);
+});
+
+test('P28 widening the region list never drops a fits-now row', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.subarray(['SE', 'EU', 'UK', 'US'] as const, { minLength: 1 }), fc.subarray(['SE', 'EU', 'UK', 'US'] as const), (p, pool, small, extra) => {
+    const big = [...new Set([...small, ...extra])];
+    const fits = (region: RegionChoice) => { const r = ok({ ...p, region }, pool, BIG); return new Set(r.isOk() ? r.value.groups.fitsNow.flatMap(x => [x.id, ...x.alsoIds]) : []); };
+    const a = fits(small);
+    const b = fits(big);
+    return [...a].every(id => b.has(id));
+  }), RUNS);
+});
+
+test('C4 multi-region rows interleave by relevance, not by region order', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const a = ok({ ...p, region: ['SE', 'UK', 'EU'] }, pool, BIG);
+    const b = ok({ ...p, region: ['UK', 'EU', 'SE'] }, pool, BIG);
+    return JSON.stringify(a.isOk() ? a.value.groups : a.error) === JSON.stringify(b.isOk() ? b.value.groups : b.error);
+  }), RUNS);
 });

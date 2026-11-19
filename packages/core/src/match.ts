@@ -2,7 +2,8 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { corpusStats, queryTokens, relevance, type CorpusStats } from './relevance.ts';
+import { isLocationPart, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -18,7 +19,10 @@ export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<Re
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
 };
-export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
+export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string>; stats?: CorpusStats };
+export const LEVEL_RELEVANCE_STEP = 1;
+export const PLACE_RELEVANCE = 0.5;
+export const MOBILE_FREE_TOP = 10;
 
 export type Tier = 0 | 1 | 2;
 export const LEVEL_STEP = 10;
@@ -26,7 +30,7 @@ export const GENERALIST_ROLES: ReadonlySet<string> = new Set(['software', 'fulls
 export type MatchRow = {
   id: string; title: string; company: string; url: string; location: string | null;
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
-  lastChecked: string; ageDays: number; stale: boolean; tier: Tier; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
+  lastChecked: string; ageDays: number; stale: boolean; tier: Tier; relevance: number; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
 };
 export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string> };
 export type MatchResult = {
@@ -107,12 +111,11 @@ const ageOf = (iso: string, now: Date): number => { const t = Date.parse(iso); r
 export const inScope = (row: PublicRow): boolean =>
   row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
 
-type Scored = { group: GroupKey; row: MatchRow };
-type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean };
+type Scored = { group: GroupKey; row: MatchRow; mobile: 'none' | 'covered' | 'bottom' };
+type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; query: ReadonlySet<string>; stats: CorpusStats };
 function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
   if (!inScope(row)) return null;
-  if (!p.mobile && MOBILE_TITLE.test(row.title)) return null;
   if (p.productOnly && isAgencyRow(row)) return null;
   const rt = rowTerms(row);
   const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));
@@ -137,7 +140,8 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
 
   const mine = new Set([...u.roles, ...u.goal, ...[...u.roles, ...u.goal].flatMap(k => COVERS[k] ?? [])]);
-  const narrowedAway = (MOBILE_TITLE.test(row.title) && !mine.has('mobile')) || (!roleHits.length && !coveredHits.length && [...rt.title].some(k => NARROWING_ROLES.has(k) && !mine.has(k)));
+  const mobileMismatch = !p.mobile && MOBILE_TITLE.test(row.title);
+  const narrowedAway = mobileMismatch || (!roleHits.length && !coveredHits.length && [...rt.title].some(k => NARROWING_ROLES.has(k) && !mine.has(k)));
 
   const reasons: string[] = [];
   if (titleHits.length || coveredHits.length) reasons.push(`Title matches what you do: ${[...titleHits, ...coveredHits].map(label).join(', ')}`);
@@ -170,20 +174,38 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   else if (strongCore && certain && !goalHits.length) group = 'fitsNow';
   else group = 'stretch';
 
+  const rel = Math.round((relevance(p.query, row, p.stats) + (row.region !== null && u.places.includes(row.region) ? PLACE_RELEVANCE : 0)
+    - (levelGap === 1 ? LEVEL_RELEVANCE_STEP : 0)) * 1e4) / 1e4;
   const tier: Tier = reg !== 'yes' ? 2 : row.status === 'open' && rem === 'yes' && levelGap <= 0 ? 0 : 1;
   return { group, row: {
     id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region: row.region, remote: row.remote,
-    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, score, reasons, alsoIds: [],
-  } };
+    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, relevance: rel, score, reasons, alsoIds: [],
+  }, mobile: !mobileMismatch ? 'none' : roleHits.length || skillHits.length || coveredHits.length ? 'covered' : 'bottom' };
 }
 
 const byRank = (a: MatchRow, b: MatchRow): number =>
-  a.tier - b.tier || b.score - a.score || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  a.tier - b.tier || b.relevance - a.relevance || b.score - a.score || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-export const normalizedTitle = (t: string): string =>
-  t.toLowerCase().split('|')[0]!.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/\s[-–—]\s[^-–—]*(?:remote|hybrid|on-?site|emea|europe|americas|apac|\beu\b|\bus\b|\buk\b)[^-–—]*$/, ' ')
-    .replace(/[^a-z0-9+#]+/g, ' ').trim();
+export const normalizedTitle = (t: string): string => {
+  const segments = t.split('|').map(x => x.trim());
+  let head = [segments[0] ?? '', ...segments.slice(1).filter(x => !isLocationPart(x))].join(' ');
+  head = head.replace(/\(([^)]*)\)|\[([^\]]*)\]/g, (m, a: string | undefined, b: string | undefined) => (isLocationPart(a ?? b ?? '') ? ' ' : m));
+  for (;;) {
+    const m = /\s*(?:\s[-–—]\s|,\s*)([^,\-–—]+)$/.exec(head);
+    if (!m || !isLocationPart(m[1]!)) break;
+    head = head.slice(0, m.index);
+  }
+  return head.toLowerCase().replace(/[^a-z0-9+#åäö]+/g, ' ').trim();
+};
+const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>) => (a: MatchRow, b: MatchRow): number =>
+  Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(a, b);
+const mobileLast = (rows: ReadonlyArray<MatchRow>, mobileOf: ReadonlyMap<string, Scored['mobile']>): MatchRow[] => {
+  const isMobile = (r: MatchRow) => mobileOf.get(r.id) !== 'none';
+  const others = rows.filter(r => !isMobile(r));
+  const top = others.slice(0, MOBILE_FREE_TOP);
+  const rest = rows.filter(r => !top.includes(r));
+  return [...top, ...rest];
+};
 const collapse = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
   const byKey = new Map<string, MatchRow>();
   const order: string[] = [];
@@ -204,11 +226,13 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
-    const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true };
+    const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true,
+      query: queryTokens(p.description, p.goal ?? ''), stats: opts.stats ?? corpusStats(pool.rows) };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
+    const mobileOf = new Map<string, Scored['mobile']>();
     const excluded = new Set(opts.excludeIds ?? []);
-    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
-    const ranked = { fitsNow: collapse(all.fitsNow.sort(byRank)), stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank)), stretch: collapse(all.stretch.sort(byRank)) };
+    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); } }
+    const ranked = { fitsNow: collapse(all.fitsNow.sort(byRank)), stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank)), stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf))), mobileOf) };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
       const widen: Array<'region' | 'remote' | 'goal' | 'productOnly'> = [];

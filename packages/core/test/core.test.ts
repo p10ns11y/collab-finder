@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { match, parsePool, redactPii, findPii, type MatchProfile, type PublicPool } from '../src/index.ts';
+import { corpusStats, isAgencyRow, match, parsePool, redactPii, findPii, type MatchProfile, type PublicPool } from '../src/index.ts';
 import { ABUSE_INPUTS, SYNTHETIC_EMAIL, SYNTHETIC_ID, SYNTHETIC_PHONE } from './abuse.ts';
 
 const raw = JSON.parse(readFileSync(new URL('../fixtures/pool.sample.json', import.meta.url), 'utf8'));
@@ -123,4 +123,40 @@ test('pool urls must be http or https', () => {
     assert.ok(parsePool({ ...pool, rows: [{ ...base, url }] }).isErr(), url);
   }
   assert.ok(parsePool({ ...pool, rows: [{ ...base, url: 'http://jobs.example.com/x' }] }).isOk());
+});
+
+const oneRow = (title: string, extra: Partial<PublicPool['rows'][number]> = {}): PublicPool => ({
+  version: 'case', checkedRange: { from: '2026-11-01', to: '2026-11-18' },
+  rows: [{ id: 'case:1', source: 'synthetic', company: 'Example Co', title, url: 'https://jobs.example.com/case', location: null, remote: 'remote', region: 'EU',
+    role_tags: [], seniority: 'senior', posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z', ...extra }],
+});
+const groupOf = (r: ReturnType<typeof match>) => r.isOk() ? (Object.entries(r.value.groups).find(([, v]) => v.some(x => x.id === 'case:1'))?.[0] ?? 'none') : r.error.kind;
+
+test('golden case: a Backend Security Engineer is fits-now for a plain backend profile, because the title names backend', () => {
+  assert.equal(groupOf(match({ description: 'Senior backend engineer with Go and Postgres', region: 'EU' }, oneRow('Backend Security Engineer'), { now })), 'fitsNow');
+  assert.equal(groupOf(match({ description: 'Senior backend engineer with Go and Postgres', region: 'EU' }, oneRow('Security Engineer, Postgres'), { now })), 'stretch');
+});
+
+test('golden case: React Native rows stay in stretch for a React profile, mobile rows are never dropped', () => {
+  const p = { description: 'Senior frontend engineer with React and TypeScript', region: 'EU' as const };
+  assert.equal(groupOf(match(p, oneRow('Senior React Native Engineer', { role_tags: ['react'] }), { now })), 'stretch');
+  assert.equal(groupOf(match(p, oneRow('Senior iOS Engineer', { role_tags: ['typescript'] }), { now })), 'stretch');
+});
+
+test('a bare Consulting suffix at a product company is not an agency signal', () => {
+  assert.equal(isAgencyRow({ company: 'Example AI', title: 'Founding Full Stack Software Engineer, Consulting' }), false);
+  assert.equal(isAgencyRow({ company: 'Example Legal', title: 'Legal Engineer - Tax & Consulting' }), false);
+  assert.equal(isAgencyRow({ company: 'Nordic Consulting Group', title: 'Backend Engineer' }), true);
+  assert.equal(isAgencyRow({ company: 'Example Co', title: 'Backend Engineer (Contract)' }), true);
+});
+
+test('speed: a 30,000-row pool matches within budget once corpus stats are cached', () => {
+  const rows = Array.from({ length: 100 }, (_, k) => pool.rows.map(r => ({ ...r, id: `${r.id}#${k}` }))).flat();
+  const big = { ...pool, rows };
+  const stats = corpusStats(big.rows);
+  match(PERSONAS['seniorFullstackSe']!, big, { now, stats });
+  const t0 = performance.now();
+  for (let i = 0; i < 3; i++) match(PERSONAS['seniorFullstackSe']!, big, { now, stats });
+  const ms = (performance.now() - t0) / 3;
+  assert.ok(ms < 400, `${Math.round(ms)} ms`);
 });

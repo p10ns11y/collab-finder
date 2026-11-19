@@ -17,7 +17,7 @@ export const TERMS: ReadonlyArray<Term> = [
   t('fde', 'forward-deployed', 'role', 'forward[- ]deployed|fde|solutions? engineer(?:ing)?|customer engineer(?:ing)?|deployment engineer'),
   t('distributed', 'distributed systems', 'role', 'distributed systems?|systems engineer(?:ing)?'),
   t('agents', 'AI agents', 'domain', 'agentic|agents?|multi-agent|agent (?:platform|systems?|frameworks?|sdk|infrastructure|runtime)'),
-  t('physical', 'physical products', 'domain', 'physical (?:products?|ai|world|systems?)|devices?|robots?|robotics|vehicles?|autonomous|autonomy|drones?|hardware|embodied|automotive'),
+  t('physical', 'physical products', 'domain', 'physical (?:products?|ai|world)|devices?|robots?|robotics|vehicles?|hardware|drones?|satellites?|embedded|embodied|autonomous (?:vehicles?|driving|robots?|drones?)'),
   t('frontier', 'frontier AI labs', 'domain', 'frontier (?:ai )?(?:labs?|models?|research)|ai labs?|research labs?|foundation models?'),
   t('productteams', 'product teams', 'domain', 'product (?:teams?|companies|company|orgs?|organi[sz]ations?)|product-led'),
   t('embedded', 'embedded / robotics', 'role', 'embedded|firmware|robotics?|autonomy|hardware'),
@@ -82,7 +82,26 @@ export const PLACES: ReadonlyArray<[string, RegExp]> = [
   ['EU', /(?:^|[^a-z])(?:berlin|munich|amsterdam|paris|madrid|barcelona|lisbon|dublin|copenhagen|helsinki|oslo|warsaw|vienna|zurich|europe)(?=$|[^a-z])/i],
 ];
 
-export const AGENCY_TITLE = /(?:^|[^a-z])(?:freelanc(?:e|er|ing)|contractor|(?:fixed[- ]term )?contract (?:role|position|basis|assignment)|\(contract\)|consultants?|consulting|konsult(?:er)?|underkonsult|it-konsult|uppdrag|interim|for (?:our|a) client|on behalf of|för (?:vår|en) kund|hos (?:vår|en) kund|bli rekryterad|staff augmentation|nearshore|offshore)(?=$|[^a-z])/i;
+export const AGENCY_TITLE = /(?:^|[^a-z])(?:freelanc(?:e|er|ing)|contractor|(?:fixed[- ]term )?contract (?:role|position|basis|assignment)|\(contract\)|consultants?|konsult(?:er)?|underkonsult|it-konsult|uppdrag|interim|for (?:our|a) client|on behalf of|för (?:vår|en) kund|hos (?:vår|en) kund|bli rekryterad|staff augmentation|nearshore|offshore)(?=$|[^a-z])/i;
 export const CLIENT_PLACEMENT = /(?:[Dd]eveloper|[Ee]ngineer|[Uu]tvecklare|[Aa]rchitect|[Aa]rkitekt|[Ss]pecialist|[Kk]onsult|[Tt]ester|[Dd]esigner)s?\s+(?:to|till)\s+(?!(?:Join|Work|Help|Build|Lead|Shape|Scale|Grow|Our|The|A)\b)[A-ZÅÄÖ][\w&.-]*(?:\s+[A-ZÅÄÖ][\w&.-]*){0,3}\s*!?\s*$/;
 export const AGENCY_COMPANY = /(?:^|[^a-z])(?:consult(?:ing|ancy|ants?)?|konsult(?:er|bolag)?|recruit(?:ment|ing|ers)?|rekryter(?:ing)?|staffing|bemanning|talent|agency|byr[åa]|outsourc(?:e|ing)|freelanc(?:e|ers?)|it[- ]services|tech[- ]services|nearshore|offshore|headhunt(?:ing|ers)?)(?=$|[^a-z])/i;
 export const isAgencyRow = (row: { title: string; company: string }): boolean => AGENCY_TITLE.test(row.title) || CLIENT_PLACEMENT.test(row.title) || AGENCY_COMPANY.test(row.company);
+
+const PLACE_WORDS = new Set(('remote hybrid onsite on-site site anywhere worldwide global emea europe european eu uk us usa united states kingdom americas america apac latam nordics nordic dach benelux cee '
+  + 'sweden swedish stockholm gothenburg göteborg goteborg malmö malmo uppsala lund linköping linkoping örebro västerås umeå '
+  + 'london manchester edinburgh cambridge oxford bristol leeds glasgow belfast england scotland wales ireland dublin '
+  + 'new york nyc san francisco bay area seattle austin boston chicago los angeles denver atlanta miami washington dc texas california '
+  + 'canada toronto vancouver montreal mexico brazil sao são paulo argentina buenos aires '
+  + 'berlin munich münchen hamburg frankfurt cologne köln stuttgart düsseldorf germany deutschland amsterdam rotterdam utrecht eindhoven netherlands '
+  + 'paris lyon toulouse nantes france madrid barcelona valencia seville spain lisbon porto portugal rome milan turin italy '
+  + 'copenhagen aarhus denmark oslo bergen norway helsinki espoo tampere finland warsaw krakow kraków wroclaw wrocław gdansk poland '
+  + 'vienna austria zurich zürich geneva lausanne basel bern switzerland brussels antwerp belgium luxembourg prague czech czechia '
+  + 'budapest hungary bucharest romania sofia bulgaria athens greece tallinn estonia riga latvia vilnius lithuania belgrade serbia zagreb croatia '
+  + 'kyiv ukraine istanbul turkey tel aviv israel dubai uae india bangalore bengaluru hyderabad pune singapore tokyo japan seoul korea sydney melbourne australia canberra auckland').split(' '));
+const PLACE_FILLER = new Set('and or in based only office first time zone zones timezone friendly the of within across from area region country countries city cities x f m d w h genders all gender'.split(' '));
+export const isLocationPart = (text: string): boolean => {
+  const words = text.toLowerCase().split(/[^a-zà-öø-ÿ]+/).filter(Boolean);
+  if (!words.length) return false;
+  if (words.every(w => PLACE_FILLER.has(w))) return /[xfmdwh]\s*\/\s*[xfmdwh]|genders?/i.test(text);
+  return words.every(w => PLACE_WORDS.has(w) || PLACE_FILLER.has(w)) && words.some(w => PLACE_WORDS.has(w));
+};
