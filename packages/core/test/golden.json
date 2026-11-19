@@ -40,12 +40,12 @@
    "greenhouse:9546610",
    "greenhouse:9566900",
    "greenhouse:3342379",
-   "ashby:20025ddd-3894-3e30-e928-72497c444f6f",
-   "greenhouse:2063677",
    "greenhouse:6112671",
    "greenhouse:8141343",
+   "ashby:20025ddd-3894-3e30-e928-72497c444f6f",
    "ashby:36627818-2d73-896e-d1eb-ab4d8d364377",
    "greenhouse:2528644",
+   "greenhouse:2063677",
    "greenhouse:2747276",
    "greenhouse:6117549",
    "lever:39171065-b48d-5519-b51c-ac13dab077e3",
@@ -163,7 +163,6 @@
    "greenhouse:8968335"
   ],
   "stretch": [
-   "ashby:0df47a1d-df0c-e09b-7ec8-4ab08114e7e4",
    "ashby:11e5f4b5-134c-7faf-802b-32b0a9c31f4f",
    "ashby:74dac8e4-5c82-9f02-9ee1-4282811d54ed",
    "ashby:a3779232-ff04-2e1c-9327-459b61e0f9a1",
@@ -192,7 +191,8 @@
    "ashby:e10f1319-2c17-384c-07fb-39647b110308",
    "ashby:ec1ac3cb-442d-e1c9-4ab2-cb6e18b156e8",
    "ashby:f1e74675-8be4-e1c7-ba8b-4dc3d04f87f6",
-   "greenhouse:6001167"
+   "greenhouse:6001167",
+   "greenhouse:7521906"
   ]
  },
  "mismatchGeneralist": {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { match, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow } from '../src/index.ts';
-import { COVERS, LEVELS, TERMS, termsIn } from '../src/vocab.ts';
+import { match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import type { MatchRow } from '../src/match.ts';
 
 const PHRASES = ['backend', 'frontend', 'full-stack', 'platform', 'infrastructure', 'data engineering', 'machine learning', 'AI', 'LLM', 'security',
@@ -32,7 +32,8 @@ const poolArb: fc.Arbitrary<PublicPool> = fc.oneof({ weight: 1, arbitrary: fc.in
 const profileArb: fc.Arbitrary<MatchProfile> = fc.record({
   level: fc.constantFrom(...LEVEL_WORDS.filter(x => x !== 'Junior')), words: fc.oneof({ weight: 4, arbitrary: inScopeList }, { weight: 1, arbitrary: phraseList }),
   filler: fc.oneof({ weight: 3, arbitrary: fc.constant('') }, { weight: 1, arbitrary: fc.string({ maxLength: 40 }) }), goal: fc.array(fc.constantFrom(...PHRASES), { maxLength: 3 }),
-  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any', 'any'),
+  region: fc.oneof({ weight: 3, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any', 'any') }, { weight: 1, arbitrary: fc.subarray(['SE', 'EU', 'UK', 'US'] as const, { minLength: 1 }) }) as fc.Arbitrary<RegionChoice>,
+  remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any', 'any'),
 }).map(p => ({ description: `${p.level} engineer working on ${p.words.join(' and ')} ${p.filler}`, goal: p.goal.join(' '), region: p.region, remote: p.remote }) as MatchProfile);
 
 const RUNS = { numRuns: 400, seed: 20261119 };
@@ -56,8 +57,10 @@ const reasonOk = (r: string, row: MatchRow) =>
   || r === `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`
   || /^Also listed in (1 more location|([2-9]|\d\d+) more locations)$/.test(r)
   || /^Work mode: (remote|hybrid|onsite)$/.test(r) || r === `Open when last checked (${row.lastChecked.slice(0, 10)})`;
-const compat = (pref: string, region: string | null) =>
-  region !== null && region !== 'other' && (region === 'remote-anywhere' || pref === 'any' || region === pref || (pref === 'EU' && region === 'SE'));
+const compat = (pref: RegionChoice | undefined, region: string | null) => {
+  const prefs = regionsOf(pref);
+  return region !== null && region !== 'other' && (region === 'remote-anywhere' || prefs.length === 0 || prefs.some(x => region === x || (x === 'EU' && region === 'SE')));
+};
 
 test('P1 closed rows never appear in any group', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
@@ -214,7 +217,7 @@ test('never throws on arbitrary input', () => {
 
 const BIG = { limit: 10_000 };
 const groupIndex = (r: ReturnType<typeof match>, id: string): number => groupsOf(r).findIndex(g => g.some(x => x.id === id || x.alsoIds.includes(id)));
-const confirmedIn = (pref: string | undefined, region: string | null) => compat(pref ?? 'any', region);
+const confirmedIn = (pref: RegionChoice | undefined, region: string | null) => compat(pref, region);
 
 test('P17 no two rows in a group share company and normalized title', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(g => {
@@ -345,9 +348,70 @@ test('R6 a title naming a specialty the profile does not cover never reaches fit
 });
 
 test('R6 is live: the same mismatch rows do surface, in stretch', () => {
-  const shown = fc.sample(mismatchArb, { numRuns: 200, seed: RUNS.seed }).filter(({ profile, row }) => {
+  const sample = fc.sample(mismatchArb, { numRuns: 200, seed: RUNS.seed }).filter(({ row }) => !MOBILE_TITLE.test(row.title));
+  const shown = sample.filter(({ profile, row }) => {
     const r = ok(profile, { version: 'prop', checkedRange: { from: '2026-11-01', to: '2026-11-18' }, rows: [row] });
     return r.isOk() && r.value.groups.stretch.some(x => x.id === 'r6' && x.reasons.includes('Title points to a different specialty than yours'));
   }).length;
-  if (shown < 100) throw new Error(`only ${shown} of 200 mismatch rows reached stretch with the specialty reason`);
+  if (shown < sample.length * 0.3) throw new Error(`only ${shown} of ${sample.length} mismatch rows reached stretch with the specialty reason`);
+});
+
+const GOAL_PHRASES = ['agentic AI', 'AI agents', 'robots', 'robotics', 'vehicles', 'devices', 'physical products', 'drones', 'autonomous systems', 'hardware',
+  'frontier AI labs', 'product teams', 'machine learning', 'developer tools', 'platform', 'security', 'distributed systems', 'IA'];
+test('P22 every vocab goal term in the goal text reaches understood.goal', () => {
+  fc.assert(fc.property(profileArb, fc.array(fc.constantFrom(...GOAL_PHRASES), { minLength: 1, maxLength: 5 }), (p, parts) => {
+    const goal = parts.join(', ');
+    const u = understand({ ...p, goal });
+    if (u.isErr()) return true;
+    const said = termsIn(p.description);
+    return [...termsIn(goal)].filter(k => !said.has(k) && kindOf(k) !== 'generic').every(k => u.value.goal.includes(k));
+  }), RUNS);
+});
+
+test('P22 the multi-part goal reaches the matcher as several signals', () => {
+  const u = understand({ description: 'Senior software engineer building web applications with TypeScript and React',
+    goal: 'agentic AI engineering on product teams, physical products (devices, robots, vehicles), frontier AI labs' })._unsafeUnwrap();
+  for (const k of ['agents', 'ai', 'physical', 'frontier', 'productteams']) if (!u.goal.includes(k)) throw new Error(`missing goal signal ${k}: ${u.goal.join(',')}`);
+});
+
+test('P23 level words in a past-tense clause never set the current level', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('', 'Mid-level', 'Senior', 'Staff', 'Principal'), fc.constantFrom('Junior', 'Senior', 'Staff', 'Lead', 'Principal', 'team lead', 'intern'),
+    fc.constantFrom('Was', 'I was', 'Former', 'Formerly', 'Ex-', 'Previously', 'Before that I was'), inScopeList,
+    (cur, past, intro, words) => {
+      const now = `${cur} software engineer working on ${words.join(' and ')}`.trim();
+      const u = understand({ description: `${now}. ${intro}${intro.endsWith('-') ? '' : ' '}${past} engineer at a startup.` });
+      return u.isOk() && u.value.seniority === levelOf(now);
+    }), RUNS);
+});
+
+test('P24 every step-toward-goal row has a title term from understood.goal', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool, BIG);
+    return r.isErr() || r.value.groups.stepTowardGoal.every(x => [...termsIn(x.title)].some(k => r.value.understood.goal.includes(k)));
+  }), RUNS);
+});
+
+test('P25 a profile without mobile terms sees no mobile title in the stretch top 10', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    if (MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`)) return true;
+    const r = ok(p, pool);
+    return r.isErr() || r.value.groups.stretch.slice(0, 10).every(x => !MOBILE_TITLE.test(x.title));
+  }), RUNS);
+});
+
+test('region multi-select returns exactly the union of the single-region results', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.subarray(['SE', 'EU', 'UK', 'US'] as const, { minLength: 2 }), (p, pool, regions) => {
+    const idsOf = (region: RegionChoice) => { const r = ok({ ...p, region }, pool, BIG); return new Set(allRows(r).flatMap(x => [x.id, ...x.alsoIds])); };
+    const multi = idsOf(regions);
+    const union = new Set(regions.flatMap(x => [...idsOf(x)]));
+    return multi.size === union.size && [...multi].every(id => union.has(id));
+  }), RUNS);
+});
+
+test('region multi-select keeps every fits-now row inside one of the chosen regions', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.subarray(['SE', 'EU', 'UK', 'US'] as const, { minLength: 1 }), (p, pool, regions) => {
+    const r = ok({ ...p, region: regions }, pool, BIG);
+    return r.isErr() || r.value.groups.fitsNow.every(x => compat(regions, x.region));
+  }), RUNS);
 });

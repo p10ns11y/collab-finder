@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -12,7 +12,12 @@ export const DEFAULT_LIMIT = 30;
 
 export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
-export type MatchProfile = { description: string; goal?: string; region?: RegionPref; remote?: RemotePref };
+export type RegionChoice = RegionPref | ReadonlyArray<RegionPref>;
+export type MatchProfile = { description: string; goal?: string; region?: RegionChoice; remote?: RemotePref };
+export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<RegionPref, 'any'>> => {
+  const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
+  return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
+};
 export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
 
 export type Tier = 0 | 1 | 2;
@@ -67,8 +72,8 @@ export function validateProfile(p: MatchProfile): Result<MatchProfile, VisitorEr
 export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   const d = termsIn(p.description);
   const g = termsIn(p.goal ?? '');
-  const seniority = levelOf(p.description);
-  const roles = [...d].filter(k => kindOf(k) !== 'skill');
+  const seniority = currentLevel(p.description);
+  const roles = [...d].filter(k => kindOf(k) === 'role' || kindOf(k) === 'generic');
   const skills = [...d].filter(k => kindOf(k) === 'skill');
   if (seniority === 'junior') return err({ kind: 'OutOfScope', reason: 'junior' });
   if (roles.length === 0 && skills.length === 0)
@@ -79,12 +84,11 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   return ok({ roles: roles.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority, places });
 }
 
-const regionOk = (pref: RegionPref, r: string | null): 'yes' | 'no' | 'unknown' => {
+const regionOk = (prefs: ReadonlyArray<Exclude<RegionPref, 'any'>>, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
   if (r === null || r === 'other' || r === '') return 'unknown';
-  if (pref === 'any') return 'yes';
-  if (pref === 'EU') return r === 'EU' || r === 'SE' ? 'yes' : 'no';
-  return r === pref ? 'yes' : 'no';
+  if (prefs.length === 0) return 'yes';
+  return prefs.some(pref => (pref === 'EU' ? r === 'EU' || r === 'SE' : r === pref)) ? 'yes' : 'no';
 };
 const remoteOk = (pref: RemotePref, r: PublicRow['remote']): 'yes' | 'no' | 'unknown' => {
   if (pref === 'any' || pref === 'onsite') return r === 'unknown' ? (pref === 'any' ? 'yes' : 'unknown') : 'yes';
@@ -104,23 +108,25 @@ export const inScope = (row: PublicRow): boolean =>
   row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
 
 type Scored = { group: GroupKey; row: MatchRow };
-function judge(u: Understood, p: Required<Pick<MatchProfile, 'region' | 'remote'>>, row: PublicRow, now: Date): Scored | null {
+type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean };
+function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
   if (!inScope(row)) return null;
+  if (!p.mobile && MOBILE_TITLE.test(row.title)) return null;
   const rt = rowTerms(row);
   const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));
   const tagRoleHits = u.roles.filter(k => kindOf(k) === 'role' && !rt.title.has(k) && rt.tags.has(k));
   const skillHits = u.skills.filter(k => rt.title.has(k) || rt.tags.has(k));
   const generalist = u.roles.some(k => GENERALIST_ROLES.has(k));
   const generalistTitle = rt.title.has('software') || rt.title.has('product') || rt.tags.has('product');
-  const generalistHit = generalist && !roleHits.length && generalistTitle ? [rt.title.has('product') || rt.tags.has('product') ? 'product' : 'software'] : [];
   const coveredHits = [...rt.title].filter(k => kindOf(k) === 'role' && !roleHits.includes(k) && u.roles.some(m => (COVERS[m] ?? []).includes(k)));
+  const generalistHit = generalist && !roleHits.length && !coveredHits.length && generalistTitle ? [rt.title.has('product') || rt.tags.has('product') ? 'product' : 'software'] : [];
   const titleHits = [...roleHits, ...generalistHit];
   const genericHit = !titleHits.length && u.roles.includes('software') && rt.title.has('software');
   const goalHits = u.goal.filter(k => rt.title.has(k));
   if (!titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
-  const reg = regionOk(p.region, row.region); if (reg === 'no') return null;
+  const reg = regionOk(p.regions, row.region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   MTS.lastIndex = 0;
   const isMts = MTS.test(row.title); MTS.lastIndex = 0;
@@ -197,7 +203,7 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
-    const prefs = { region: p.region ?? 'any', remote: p.remote ?? 'any' } as const;
+    const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`) };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const excluded = new Set(opts.excludeIds ?? []);
     for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
@@ -205,7 +211,7 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
       const widen: Array<'region' | 'remote' | 'goal'> = [];
-      if (prefs.region !== 'any') widen.push('region');
+      if (prefs.regions.length) widen.push('region');
       if (prefs.remote !== 'any') widen.push('remote');
       if (!u.goal.length) widen.push('goal');
       return err<MatchResult, MatchError>({ kind: 'ZeroResults', widen });

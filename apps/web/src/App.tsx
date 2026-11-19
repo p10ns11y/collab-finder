@@ -23,7 +23,8 @@ const GROUPS: ReadonlyArray<{ key: GroupKey; title: string; blurb: string }> = [
   { key: 'stepTowardGoal', title: 'Step toward your goal', blurb: 'Uses what you do and adds what you want to grow into.' },
   { key: 'stretch', title: 'Stretch', blurb: 'Worth a look: a level up, or a detail we could not confirm.' },
 ];
-const REGIONS: ReadonlyArray<[RegionPref, string]> = [['any', 'Anywhere'], ['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
+type Place = Exclude<RegionPref, 'any'>;
+const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'junior': 'The pool has mid-level and senior roles only, no junior, intern or graduate roles yet.',
@@ -49,7 +50,7 @@ export function App() {
   const [pool, setPool] = useState<PoolState>({ kind: 'loading' });
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
-  const [region, setRegion] = useState<RegionPref>('any');
+  const [regions, setRegions] = useState<ReadonlyArray<Place>>([]);
   const [remote, setRemote] = useState<RemotePref>('any');
   const [view, setView] = useState<View>({ kind: 'idle' });
   const goalRef = useRef<HTMLInputElement>(null);
@@ -73,20 +74,20 @@ export function App() {
 
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}`).map(s => s.pii))], [description, goal]);
 
-  const run = useCallback((over?: { region?: RegionPref; remote?: RemotePref }) => {
+  const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref }) => {
     if (pool.kind !== 'ready') return;
     const t0 = performance.now();
-    const r = match({ description, goal, region: over?.region ?? region, remote: over?.remote ?? remote }, pool.pool);
+    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote }, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());
-  }, [pool, description, goal, region, remote]);
+  }, [pool, description, goal, regions, remote]);
 
   const formChanged = () => setView({ kind: 'idle' });
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setView({ kind: 'idle' }); };
   const widen = (w: string) => {
-    if (w === 'region') { setRegion('any'); run({ region: 'any' }); }
+    if (w === 'region') { setRegions([]); run({ regions: [] }); }
     else if (w === 'remote') { setRemote('any'); run({ remote: 'any' }); }
     else goalRef.current?.focus();
   };
@@ -129,10 +130,19 @@ export function App() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="region">Region</Label>
-            <Select id="region" value={region} onChange={e => { setRegion(e.target.value as RegionPref); formChanged(); }}>
-              {REGIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </Select>
+            <fieldset className="grid gap-2" aria-describedby="region-help">
+              <legend className="text-sm font-medium">Regions</legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {REGIONS.map(([v, l]) => (
+                  <label key={v} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-accent"
+                      onChange={() => { setRegions(regions.includes(v) ? regions.filter(x => x !== v) : [...regions, v]); formChanged(); }} />
+                    {l}
+                  </label>
+                ))}
+              </div>
+              <p id="region-help" className="text-xs text-text-muted">Pick any. None picked means anywhere.</p>
+            </fieldset>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="remote">Work mode</Label>

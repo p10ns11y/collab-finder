@@ -47,7 +47,7 @@ test('trap states: out of scope, zero results, PII warning, input error', async 
   await page.getByTestId('pii-blocked').getByRole('button', { name: 'Remove them' }).click();
   await expect(page.getByTestId('pii-warning')).toHaveCount(0);
   await expect(page.getByLabel('About you')).toHaveValue(/\[email removed\]/);
-  await page.getByLabel('Region').selectOption('US');
+  await page.getByLabel('United States', { exact: true }).check();
   await page.getByLabel('Work mode').selectOption('remote');
   await fill(page, 'Principal embedded firmware engineer for robotics hardware in Rust');
   const zero = page.getByTestId('zero-results');
@@ -111,7 +111,8 @@ test('any form change clears shown results, as the spec Edit step does', async (
   for (const change of [
     () => page.getByLabel('About you').fill(`${DESCRIPTION} and Rust`),
     () => page.getByLabel(/Where do you want to grow/).fill('developer tools'),
-    () => page.getByLabel('Region').selectOption('UK'),
+    () => page.getByLabel('United Kingdom', { exact: true }).check(),
+    () => page.getByLabel('EU (includes Sweden)', { exact: true }).check(),
     () => page.getByLabel('Work mode').selectOption('hybrid'),
   ]) {
     await page.goto('/');

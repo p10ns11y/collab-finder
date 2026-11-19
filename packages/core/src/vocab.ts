@@ -1,4 +1,4 @@
-export type TermKind = 'role' | 'skill' | 'generic';
+export type TermKind = 'role' | 'skill' | 'generic' | 'domain';
 export type Term = { key: string; label: string; kind: TermKind; re: RegExp };
 
 const t = (key: string, label: string, kind: TermKind, src: string): Term => ({ key, label, kind, re: new RegExp(`(?:^|[^a-z0-9+#])(?:${src})(?=$|[^a-z0-9+#])`, 'i') });
@@ -11,11 +11,15 @@ export const TERMS: ReadonlyArray<Term> = [
   t('infra', 'infrastructure', 'role', 'infra(?:structure)?|cloud|kubernetes|k8s|devops|sre|site reliability|reliability|observability'),
   t('data', 'data engineering', 'role', 'data (?:engineer(?:ing)?|platform|infrastructure|pipelines?)|analytics engineer(?:ing)?|etl|spark|data warehouse'),
   t('ml', 'machine learning', 'role', 'machine learning|ml|mlops|deep learning|computer vision|applied scientist|research engineer(?:ing)?|model training'),
-  t('ai', 'AI / LLM', 'role', 'ai|a\\.i\\.|artificial intelligence|llms?|gen ?ai|generative|ai agents?|agents? (?:engineer(?:ing)?|platform|systems?|infrastructure|sdk)|agentic|nlp|inference|rag'),
+  t('ai', 'AI / LLM', 'role', 'ai|ia|a\\.i\\.|artificial intelligence|llms?|gen ?ai|generative|ai agents?|agents? (?:engineer(?:ing)?|platform|systems?|infrastructure|sdk)|agentic|nlp|inference|rag'),
   t('security', 'security', 'role', 'security|appsec|infosec|application security'),
   t('product', 'product engineering', 'role', 'product engineer(?:ing)?'),
   t('fde', 'forward-deployed', 'role', 'forward[- ]deployed|fde|solutions? engineer(?:ing)?|customer engineer(?:ing)?|deployment engineer'),
   t('distributed', 'distributed systems', 'role', 'distributed systems?|systems engineer(?:ing)?'),
+  t('agents', 'AI agents', 'domain', 'agentic|agents?|multi-agent|agent (?:platform|systems?|frameworks?|sdk|infrastructure|runtime)'),
+  t('physical', 'physical products', 'domain', 'physical (?:products?|ai|world|systems?)|devices?|robots?|robotics|vehicles?|autonomous|autonomy|drones?|hardware|embodied|automotive'),
+  t('frontier', 'frontier AI labs', 'domain', 'frontier (?:ai )?(?:labs?|models?|research)|ai labs?|research labs?|foundation models?'),
+  t('productteams', 'product teams', 'domain', 'product (?:teams?|companies|company|orgs?|organi[sz]ations?)|product-led'),
   t('embedded', 'embedded / robotics', 'role', 'embedded|firmware|robotics?|autonomy|hardware'),
   t('devtools', 'developer tools', 'role', 'developer tools|devtools|developer experience|devex|compilers?|build systems?'),
   t('typescript', 'TypeScript', 'skill', 'typescript|javascript|node(?:\\.?js)?'),
@@ -37,6 +41,8 @@ export const TAG_TERMS: Readonly<Record<string, string>> = {
 export const OUTSIDE_POOL = /(?:^|[^a-z])(?:nurse|nursing|doctor|physician|teacher|sales|account executive|marketing|recruit(?:er|ing)|accountant|accounting|lawyer|legal|cashier|driver|chef|waiter|ios|android|mobile|swift|customer support|customer service|hr|human resources|copywriter|translator)(?=$|[^a-z])/i;
 
 export const NOT_MY_LEVEL = /(?:mentor|coach|manag|lead|led|onboard|hire|hiring|hired|train|support|teach|taught|guid)[a-z]*\s+(?:(?:of|for|the|our|new|a|team|several|many|\d+)\s+)*(?:junior|graduate|intern|trainee|new grad)s?|(?:post)?graduate (?:degree|diploma|studies|program(?:me)?|school)|graduated/gi;
+export const PAST_CLAUSE = /(?:^|[.;,!?\n]|\band\b)\s*(?:i\s+)?(?:was|were|former(?:ly)?|ex-|previously|used to be|earlier|prior to that|before that)[^.;!?\n]*/gi;
+export const currentLevel = (text: string): Level | null => levelOf(text.replace(PAST_CLAUSE, ' '));
 export const LEVELS = ['junior', 'mid', 'senior', 'staff', 'principal'] as const;
 export type Level = (typeof LEVELS)[number];
 const LEVEL_RE: ReadonlyArray<[Level, RegExp]> = [
