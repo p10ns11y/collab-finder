@@ -4,7 +4,7 @@
  * Chrome with no Tauri runtime. Fails on a throw, a console error, or a
  * request to any host other than this preview server.
  *
- * Run after `pnpm build`: node scripts/web-preview-smoke.mjs
+ * Run after `pnpm build:web`: node scripts/web-preview-smoke.mjs
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -14,9 +14,9 @@ import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = join(root, 'dist')
+const dist = join(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
 if (!existsSync(dist)) {
-  console.error('web-preview-smoke: dist/ is missing. Run pnpm build first.')
+  console.error('web-preview-smoke: web output is missing. Run pnpm build:web first.')
   process.exit(1)
 }
 

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 /**
- * Scan the Vite web output (dist/) so a public live link cannot ship
- * private profile, ledger, CV, standing-answer or host data.
+ * Scan the public web-preview output so a live link cannot ship
+ * private profile, ledger, CV, standing-answer, host or name data.
  *
- * Run after `pnpm build`: node scripts/scan-web-privacy.mjs
+ * Run after `pnpm build:web`: node scripts/scan-web-privacy.mjs
+ * Optional dir: node scripts/scan-web-privacy.mjs dist-web
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { operatorPersonalNames } from './operator-personal-names.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = join(root, 'dist')
+const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
 
 if (!existsSync(dist)) {
-  console.error('scan-web-privacy: dist/ is missing. Run pnpm build first.')
+  console.error(`scan-web-privacy: ${relative(root, dist) || dist} is missing. Run pnpm build:web first.`)
   process.exit(1)
 }
 
@@ -65,6 +67,20 @@ const homeHits = hits(/\/home\/|\/Users\/|\\Users\\/).filter((row) => {
 section('home paths', homeHits)
 section('private host markers', hits(/mza\s*pan|100\.64\.|tailscale/i))
 
+const names = operatorPersonalNames(root)
+if (names.length !== 2) {
+  console.error('scan-web-privacy: could not read the operator first and last name from the distilled CV packet')
+  process.exit(1)
+}
+const nameHits = []
+for (const name of names) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (const row of hits(new RegExp(escaped, 'i'))) {
+    nameHits.push(row)
+  }
+}
+section('operator personal name', [...new Set(nameHits)])
+
 const personalSources = [
   'data/distillation/curation/profile-and-strategy.md',
   'data/distillation/curation/candidate-constraints-compact.txt',
@@ -95,10 +111,11 @@ const mustBeEmpty = [
   'cv.normalized',
   'home paths',
   'private host markers',
+  'operator personal name',
   'real operator files leaking into dist',
 ]
 
-console.log(`scanned ${textFiles.length} files under dist/\n`)
+console.log(`scanned ${textFiles.length} files under ${relative(root, dist)}\n`)
 for (const { name, rows } of report) {
   const preview = rows.slice(0, 15)
   console.log(`== ${name}: ${rows.length} hit(s)`)
@@ -109,7 +126,7 @@ for (const { name, rows } of report) {
 }
 
 if (failed > 0) {
-  console.error('FAIL: dist/ looks like it ships private or operator data')
+  console.error(`FAIL: ${relative(root, dist)} looks like it ships private or operator data`)
   process.exit(1)
 }
-console.log('OK: dist/ has no private profile, ledger, CV, standing-answer, phone or host data')
+console.log(`OK: ${relative(root, dist)} has no private profile, ledger, CV, standing-answer, phone, host or name data`)

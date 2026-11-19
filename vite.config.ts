@@ -3,10 +3,15 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Tauri sets TAURI_PLATFORM / TAURI_ENV when bundling the desktop shell.
-// A plain `vite build` / `vite` is the public web preview and must not ship
-// operator profile, project or constraint files.
-const isTauriBuild = Boolean(process.env.TAURI_PLATFORM || process.env.TAURI_ENV)
+/**
+ * Demo fixtures are an explicit opt-in for the public web preview.
+ * Use `pnpm build:web` (`vite build --mode web-preview`) or `WEB_PREVIEW=1`.
+ * The default `pnpm build`, including Tauri 2's `beforeBuildCommand`, keeps
+ * the real operator files. Tauri 2 sets TAURI_ENV_PLATFORM, not TAURI_PLATFORM.
+ */
+function isWebPreview(mode: string): boolean {
+  return mode === 'web-preview' || process.env.WEB_PREVIEW === '1'
+}
 
 function webPreviewFixturePlugin(): Plugin {
   const fixtures = path.resolve(__dirname, 'src/web/fixtures')
@@ -28,7 +33,7 @@ function webPreviewFixturePlugin(): Plugin {
     name: 'web-preview-fixtures',
     enforce: 'pre',
     resolveId(source, importer) {
-      if (isTauriBuild || !importer || !source) return null
+      if (!importer || !source) return null
       const queryIndex = source.indexOf('?')
       const bare = queryIndex === -1 ? source : source.slice(0, queryIndex)
       const query = queryIndex === -1 ? '' : source.slice(queryIndex)
@@ -42,33 +47,40 @@ function webPreviewFixturePlugin(): Plugin {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [webPreviewFixturePlugin(), react()],
-  resolve: {
-    alias: {
-      '@core': path.resolve(__dirname, 'src/core'),
-      '@ports': path.resolve(__dirname, 'src/ports'),
-      '@adapters': path.resolve(__dirname, 'src/adapters'),
-      '@runtime': path.resolve(__dirname, 'src/runtime'),
-      '@view': path.resolve(__dirname, 'src/view'),
-      '@data': path.resolve(__dirname, 'data'),
+export default defineConfig(({ mode }) => {
+  const webPreview = isWebPreview(mode)
+  const tauriPlatform = process.env.TAURI_ENV_PLATFORM || process.env.TAURI_PLATFORM
+  const tauriDebug = process.env.TAURI_ENV_DEBUG || process.env.TAURI_DEBUG
+  return {
+    plugins: [...(webPreview ? [webPreviewFixturePlugin()] : []), react()],
+    resolve: {
+      alias: {
+        '@core': path.resolve(__dirname, 'src/core'),
+        '@ports': path.resolve(__dirname, 'src/ports'),
+        '@adapters': path.resolve(__dirname, 'src/adapters'),
+        '@runtime': path.resolve(__dirname, 'src/runtime'),
+        '@view': path.resolve(__dirname, 'src/view'),
+        '@data': path.resolve(__dirname, 'data'),
+      },
     },
-  },
-  // Tauri expects a fixed port in dev
-  server: {
-    port: 5173,
-    strictPort: true,
-    // Tauri dev server needs host for some setups
-    host: '127.0.0.1',
-  },
-  // to access the Tauri environment variables set by the CLI with process.env.TAURI_*
-  envPrefix: ['VITE_', 'TAURI_'],
-  build: {
-    // Tauri uses Chromium on Windows and WebKit on macOS and Linux
-    target: process.env.TAURI_PLATFORM == 'windows' ? 'chrome105' : 'safari13',
-    // don't minify for debug builds
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    // produce sourcemaps for debug builds
-    sourcemap: !!process.env.TAURI_DEBUG,
-  },
+    // Tauri expects a fixed port in dev
+    server: {
+      port: 5173,
+      strictPort: true,
+      // Tauri dev server needs host for some setups
+      host: '127.0.0.1',
+    },
+    // to access the Tauri environment variables set by the CLI with process.env.TAURI_*
+    envPrefix: ['VITE_', 'TAURI_'],
+    build: {
+      outDir: webPreview && mode === 'web-preview' ? 'dist-web' : 'dist',
+      emptyOutDir: true,
+      // Tauri uses Chromium on Windows and WebKit on macOS and Linux
+      target: tauriPlatform == 'windows' ? 'chrome105' : 'safari13',
+      // don't minify for debug builds
+      minify: !tauriDebug ? 'esbuild' : false,
+      // produce sourcemaps for debug builds
+      sourcemap: !!tauriDebug,
+    },
+  }
 })
