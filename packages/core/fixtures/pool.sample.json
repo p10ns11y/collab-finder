@@ -1,0 +1,797 @@
+{
+ "version": "synthetic-2026-11-19",
+ "checkedRange": {
+  "from": "2026-11-10",
+  "to": "2026-11-18"
+ },
+ "rows": [
+  {
+   "id": "synthetic:0000",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Senior Backend Engineer",
+   "url": "https://jobs.example.com/northwind-ai/0",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0001",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Senior Backend Engineer",
+   "url": "https://jobs.example.com/fjordline-systems/1",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0002",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Staff Backend Engineer, Payments",
+   "url": "https://jobs.example.com/lumen-data/2",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0003",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Staff Backend Engineer, Payments",
+   "url": "https://jobs.example.com/kestrel-robotics/3",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "closed",
+   "status_checked_at": "2026-11-13T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0004",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Backend Engineer",
+   "url": "https://jobs.example.com/polar-payments/4",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [],
+   "seniority": "mid",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-14T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0005",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Backend Engineer",
+   "url": "https://jobs.example.com/brightpath-health-tech/5",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [],
+   "seniority": "mid",
+   "posted_at": null,
+   "status": "unknown",
+   "status_checked_at": "2026-11-15T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0006",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Senior Full-Stack Engineer (TypeScript, React)",
+   "url": "https://jobs.example.com/cobalt-cloud/6",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [
+    "typescript",
+    "react",
+    "fullstack"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-16T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0007",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Senior Full-Stack Engineer (TypeScript, React)",
+   "url": "https://jobs.example.com/tessellate-labs/7",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [
+    "typescript",
+    "react",
+    "fullstack"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-17T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0008",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Full Stack Developer",
+   "url": "https://jobs.example.com/northwind-ai/8",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [
+    "fullstack"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-18T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0009",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Full Stack Developer",
+   "url": "https://jobs.example.com/fjordline-systems/9",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [
+    "fullstack"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0010",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Senior Frontend Engineer",
+   "url": "https://jobs.example.com/lumen-data/10",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [
+    "frontend",
+    "react"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0011",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Senior Frontend Engineer",
+   "url": "https://jobs.example.com/kestrel-robotics/11",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [
+    "frontend",
+    "react"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0012",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Platform Engineer",
+   "url": "https://jobs.example.com/polar-payments/12",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [
+    "platform"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-13T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0013",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Platform Engineer",
+   "url": "https://jobs.example.com/brightpath-health-tech/13",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [
+    "platform"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-14T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0014",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Senior Platform Engineer, Kubernetes",
+   "url": "https://jobs.example.com/cobalt-cloud/14",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [
+    "platform"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-15T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0015",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Senior Platform Engineer, Kubernetes",
+   "url": "https://jobs.example.com/tessellate-labs/15",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [
+    "platform"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-16T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0016",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Machine Learning Engineer",
+   "url": "https://jobs.example.com/northwind-ai/16",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [
+    "si-llm"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-17T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0017",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Machine Learning Engineer",
+   "url": "https://jobs.example.com/fjordline-systems/17",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [
+    "si-llm"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-18T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0018",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Senior AI Engineer, LLM Applications",
+   "url": "https://jobs.example.com/lumen-data/18",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [
+    "si-llm",
+    "agentic"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "unknown",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0019",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Senior AI Engineer, LLM Applications",
+   "url": "https://jobs.example.com/kestrel-robotics/19",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [
+    "si-llm",
+    "agentic"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0020",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Staff Engineer, AI Infrastructure",
+   "url": "https://jobs.example.com/polar-payments/20",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [
+    "si-llm"
+   ],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "closed",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0021",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Staff Engineer, AI Infrastructure",
+   "url": "https://jobs.example.com/brightpath-health-tech/21",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [
+    "si-llm"
+   ],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-13T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0022",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Senior Data Engineer",
+   "url": "https://jobs.example.com/cobalt-cloud/22",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-14T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0023",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Senior Data Engineer",
+   "url": "https://jobs.example.com/tessellate-labs/23",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-15T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0024",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Forward Deployed Engineer",
+   "url": "https://jobs.example.com/northwind-ai/24",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [
+    "forward-deployed"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-16T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0025",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Forward Deployed Engineer",
+   "url": "https://jobs.example.com/fjordline-systems/25",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [
+    "forward-deployed"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-17T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0026",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Senior Security Engineer",
+   "url": "https://jobs.example.com/lumen-data/26",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-18T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0027",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Senior Security Engineer",
+   "url": "https://jobs.example.com/kestrel-robotics/27",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0028",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Principal Software Engineer",
+   "url": "https://jobs.example.com/polar-payments/28",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [],
+   "seniority": "principal",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0029",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Principal Software Engineer",
+   "url": "https://jobs.example.com/brightpath-health-tech/29",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [],
+   "seniority": "principal",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0030",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Software Engineer",
+   "url": "https://jobs.example.com/cobalt-cloud/30",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-13T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0031",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Software Engineer",
+   "url": "https://jobs.example.com/tessellate-labs/31",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [],
+   "seniority": null,
+   "posted_at": null,
+   "status": "unknown",
+   "status_checked_at": "2026-11-14T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0032",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Senior Product Engineer",
+   "url": "https://jobs.example.com/northwind-ai/32",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [
+    "product-engineer"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-15T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0033",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Senior Product Engineer",
+   "url": "https://jobs.example.com/fjordline-systems/33",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [
+    "product-engineer"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-16T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0034",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Senior Backend Engineer, Agentic Workflows",
+   "url": "https://jobs.example.com/lumen-data/34",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [
+    "agentic"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-17T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0035",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Senior Backend Engineer, Agentic Workflows",
+   "url": "https://jobs.example.com/kestrel-robotics/35",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [
+    "agentic"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-18T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0036",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Embedded Software Engineer, Robotics",
+   "url": "https://jobs.example.com/polar-payments/36",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [
+    "physical"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0037",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Embedded Software Engineer, Robotics",
+   "url": "https://jobs.example.com/brightpath-health-tech/37",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [
+    "physical"
+   ],
+   "seniority": null,
+   "posted_at": null,
+   "status": "closed",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0038",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Engineering Manager, Platform",
+   "url": "https://jobs.example.com/cobalt-cloud/38",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0039",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Engineering Manager, Platform",
+   "url": "https://jobs.example.com/tessellate-labs/39",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [],
+   "seniority": null,
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-13T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0040",
+   "source": "synthetic",
+   "company": "Northwind AI",
+   "title": "Senior Full-Stack Engineer, AI Products",
+   "url": "https://jobs.example.com/northwind-ai/40",
+   "location": "Stockholm",
+   "remote": "hybrid",
+   "region": "SE",
+   "role_tags": [
+    "fullstack",
+    "si-llm"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-14T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0041",
+   "source": "synthetic",
+   "company": "Fjordline Systems",
+   "title": "Senior Full-Stack Engineer, AI Products",
+   "url": "https://jobs.example.com/fjordline-systems/41",
+   "location": "Berlin",
+   "remote": "onsite",
+   "region": "EU",
+   "role_tags": [
+    "fullstack",
+    "si-llm"
+   ],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-15T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0042",
+   "source": "synthetic",
+   "company": "Lumen Data",
+   "title": "Staff Backend Engineer, AI Platform",
+   "url": "https://jobs.example.com/lumen-data/42",
+   "location": "London",
+   "remote": "hybrid",
+   "region": "UK",
+   "role_tags": [
+    "platform",
+    "si-llm"
+   ],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-16T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0043",
+   "source": "synthetic",
+   "company": "Kestrel Robotics",
+   "title": "Staff Backend Engineer, AI Platform",
+   "url": "https://jobs.example.com/kestrel-robotics/43",
+   "location": "New York",
+   "remote": "onsite",
+   "region": "US",
+   "role_tags": [
+    "platform",
+    "si-llm"
+   ],
+   "seniority": "staff",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-17T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0044",
+   "source": "synthetic",
+   "company": "Polar Payments",
+   "title": "Senior Backend Engineer, Infrastructure",
+   "url": "https://jobs.example.com/polar-payments/44",
+   "location": "Remote (Europe)",
+   "remote": "remote",
+   "region": "EU",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "unknown",
+   "status_checked_at": "2026-11-18T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0045",
+   "source": "synthetic",
+   "company": "Brightpath Health Tech",
+   "title": "Senior Backend Engineer, Infrastructure",
+   "url": "https://jobs.example.com/brightpath-health-tech/45",
+   "location": "Remote",
+   "remote": "remote",
+   "region": "remote-anywhere",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-10T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0046",
+   "source": "synthetic",
+   "company": "Cobalt Cloud",
+   "title": "Senior Software Engineer",
+   "url": "https://jobs.example.com/cobalt-cloud/46",
+   "location": "Gothenburg",
+   "remote": "onsite",
+   "region": "SE",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-11T08:00:00Z"
+  },
+  {
+   "id": "synthetic:0047",
+   "source": "synthetic",
+   "company": "Tessellate Labs",
+   "title": "Senior Software Engineer",
+   "url": "https://jobs.example.com/tessellate-labs/47",
+   "location": "Unspecified",
+   "remote": "unknown",
+   "region": "other",
+   "role_tags": [],
+   "seniority": "senior",
+   "posted_at": null,
+   "status": "open",
+   "status_checked_at": "2026-11-12T08:00:00Z"
+  }
+ ]
+}

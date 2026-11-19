@@ -1,0 +1,99 @@
+{
+ "staffBackendEuAi": {
+  "fitsNow": [
+   "synthetic:0001",
+   "synthetic:0000"
+  ],
+  "stepTowardGoal": [
+   "synthetic:0045"
+  ],
+  "stretch": [
+   "synthetic:0021",
+   "synthetic:0044",
+   "synthetic:0014",
+   "synthetic:0041",
+   "synthetic:0040",
+   "synthetic:0015"
+  ]
+ },
+ "seniorFullstackSe": {
+  "fitsNow": [
+   "synthetic:0006",
+   "synthetic:0008"
+  ],
+  "stepTowardGoal": [
+   "synthetic:0040"
+  ],
+  "stretch": [
+   "synthetic:0007",
+   "synthetic:0021"
+  ]
+ },
+ "platformRemote": {
+  "fitsNow": [
+   "synthetic:0045",
+   "synthetic:0013",
+   "synthetic:0012"
+  ],
+  "stepTowardGoal": [],
+  "stretch": [
+   "synthetic:0015",
+   "synthetic:0021",
+   "synthetic:0044"
+  ]
+ },
+ "mlUk": {
+  "fitsNow": [
+   "synthetic:0034",
+   "synthetic:0042",
+   "synthetic:0021"
+  ],
+  "stepTowardGoal": [],
+  "stretch": [
+   "synthetic:0018"
+  ]
+ },
+ "genericSwe": {
+  "fitsNow": [
+   "synthetic:0046",
+   "synthetic:0008",
+   "synthetic:0030",
+   "synthetic:0009",
+   "synthetic:0036"
+  ],
+  "stepTowardGoal": [],
+  "stretch": [
+   "synthetic:0047",
+   "synthetic:0031"
+  ]
+ },
+ "fdeAny": {
+  "fitsNow": [
+   "synthetic:0025",
+   "synthetic:0024"
+  ],
+  "stepTowardGoal": [],
+  "stretch": [
+   "synthetic:0035",
+   "synthetic:0034",
+   "synthetic:0043",
+   "synthetic:0042",
+   "synthetic:0041",
+   "synthetic:0040",
+   "synthetic:0021",
+   "synthetic:0019",
+   "synthetic:0006",
+   "synthetic:0007",
+   "synthetic:0018"
+  ]
+ },
+ "nurse": {
+  "error": "OutOfScope"
+ },
+ "iosJunior": {
+  "error": "OutOfScope"
+ },
+ "sales": {
+  "error": "OutOfScope"
+ }
+}
