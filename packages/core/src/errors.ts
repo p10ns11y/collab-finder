@@ -11,7 +11,7 @@ export type VisitorError =
   | { kind: 'OutOfScope'; reason: 'no-engineering-terms' | 'junior' | 'outside-pool-roles' }
   | { kind: 'PiiDetected'; from: Actor; spans: ReadonlyArray<{ start: number; end: number; pii: PiiKind }> }
   | { kind: 'RateLimited'; retryAfterS: number }
-  | { kind: 'ZeroResults'; widen: ReadonlyArray<'region' | 'seniority' | 'remote' | 'goal'> }
+  | { kind: 'ZeroResults'; widen: ReadonlyArray<'region' | 'seniority' | 'remote' | 'goal' | 'productOnly'> }
   | { kind: 'StreamDropped'; receivedEvents: number; partial: true }
   | { kind: 'PostingClosed'; postingId: string };
 

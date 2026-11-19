@@ -81,3 +81,8 @@ export const PLACES: ReadonlyArray<[string, RegExp]> = [
   ['US', /(?:^|[^a-z])(?:usa|united states|new york|nyc|san francisco|bay area|seattle|austin|boston)(?=$|[^a-z])/i],
   ['EU', /(?:^|[^a-z])(?:berlin|munich|amsterdam|paris|madrid|barcelona|lisbon|dublin|copenhagen|helsinki|oslo|warsaw|vienna|zurich|europe)(?=$|[^a-z])/i],
 ];
+
+export const AGENCY_TITLE = /(?:^|[^a-z])(?:freelanc(?:e|er|ing)|contractor|(?:fixed[- ]term )?contract (?:role|position|basis|assignment)|\(contract\)|consultants?|consulting|konsult(?:er)?|underkonsult|it-konsult|uppdrag|interim|for (?:our|a) client|on behalf of|för (?:vår|en) kund|hos (?:vår|en) kund|bli rekryterad|staff augmentation|nearshore|offshore)(?=$|[^a-z])/i;
+export const CLIENT_PLACEMENT = /(?:[Dd]eveloper|[Ee]ngineer|[Uu]tvecklare|[Aa]rchitect|[Aa]rkitekt|[Ss]pecialist|[Kk]onsult|[Tt]ester|[Dd]esigner)s?\s+(?:to|till)\s+(?!(?:Join|Work|Help|Build|Lead|Shape|Scale|Grow|Our|The|A)\b)[A-ZÅÄÖ][\w&.-]*(?:\s+[A-ZÅÄÖ][\w&.-]*){0,3}\s*!?\s*$/;
+export const AGENCY_COMPANY = /(?:^|[^a-z])(?:consult(?:ing|ancy|ants?)?|konsult(?:er|bolag)?|recruit(?:ment|ing|ers)?|rekryter(?:ing)?|staffing|bemanning|talent|agency|byr[åa]|outsourc(?:e|ing)|freelanc(?:e|ers?)|it[- ]services|tech[- ]services|nearshore|offshore|headhunt(?:ing|ers)?)(?=$|[^a-z])/i;
+export const isAgencyRow = (row: { title: string; company: string }): boolean => AGENCY_TITLE.test(row.title) || CLIENT_PLACEMENT.test(row.title) || AGENCY_COMPANY.test(row.company);

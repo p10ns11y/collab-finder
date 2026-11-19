@@ -283,6 +283,36 @@
    "greenhouse:2063677"
   ]
  },
+ "productOnlyFullstack": {
+  "fitsNow": [
+   "ashby:4270a773-3007-cff8-71e1-d4e924bf09b4",
+   "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
+   "greenhouse:1285115",
+   "greenhouse:8531401",
+   "ashby:ade0c52c-026e-1397-ca55-acd1b735dd29",
+   "greenhouse:1270434",
+   "greenhouse:9292502"
+  ],
+  "stepTowardGoal": [],
+  "stretch": [
+   "ashby:bb846c72-1a73-3799-d1c8-f1c76c28a1f5",
+   "greenhouse:5808744",
+   "greenhouse:1093620",
+   "greenhouse:7306040",
+   "ashby:0df47a1d-df0c-e09b-7ec8-4ab08114e7e4",
+   "greenhouse:7426894",
+   "greenhouse:9099833",
+   "greenhouse:4384864",
+   "lever:db1fa4e9-f959-c530-d110-baa2703ddc46",
+   "greenhouse:7651996",
+   "greenhouse:9546610",
+   "greenhouse:9566900",
+   "greenhouse:3342379",
+   "ashby:20025ddd-3894-3e30-e928-72497c444f6f",
+   "greenhouse:2063677",
+   "greenhouse:2844862"
+  ]
+ },
  "nurse": {
   "error": "OutOfScope"
  },

@@ -114,6 +114,7 @@ test('any form change clears shown results, as the spec Edit step does', async (
     () => page.getByLabel('United Kingdom', { exact: true }).check(),
     () => page.getByLabel('EU (includes Sweden)', { exact: true }).check(),
     () => page.getByLabel('Work mode').selectOption('hybrid'),
+    () => page.getByLabel(/Product companies only/).check(),
   ]) {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
@@ -122,4 +123,13 @@ test('any form change clears shown results, as the spec Edit step does', async (
     await change();
     await expect(page.getByTestId('results')).toHaveCount(0);
   }
+});
+
+test('product companies only is off by default and can be turned on', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect(page.getByLabel(/Product companies only/)).not.toBeChecked();
+  await page.getByLabel(/Product companies only/).check();
+  await fill(page, DESCRIPTION);
+  await expect(page.getByTestId('results').or(page.getByTestId('zero-results'))).toBeVisible();
 });

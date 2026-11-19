@@ -21,6 +21,7 @@ const PERSONAS: Record<string, MatchProfile> = {
   fdeAny: { description: 'Forward deployed engineer, Python and TypeScript, customer facing', goal: 'AI agents' },
   mismatchGeneralist: { description: 'Senior software engineer, TypeScript and React, 8 years of web applications', region: 'any' },
   mismatchSkillsOnly: { description: 'Senior engineer who writes TypeScript and Python every day' },
+  productOnlyFullstack: { description: 'Senior full-stack engineer, TypeScript and React, 8 years', region: ['SE', 'EU', 'UK'], productOnly: true },
   nurse: { description: 'Registered nurse with 8 years in intensive care' },
   iosJunior: { description: 'Junior iOS developer looking for my first job' },
   sales: { description: 'Account executive in B2B SaaS sales, quota carrier' },

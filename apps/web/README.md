@@ -30,6 +30,6 @@ flowchart LR
   S -.ShownMatchesForm.- F
 ```
 
-- `spec/tla/WebTraps.tla` models every form field as one `Edit` step that clears the shown verdict, and widening as an immediate rerun. TLC checks `ShownMatchesForm`: a shown verdict always belongs to the current form. `check/contract.test.ts` fails if the `View` kinds in `App.tsx` drift from the spec's `Ready` set or if a field stops resetting the view.
+- `spec/tla/WebTraps.tla` models every form field (description, goal, regions, work mode, product companies only) as one `Edit` step that clears the shown verdict, and widening (any region, any work mode, include agencies) as an immediate rerun. The product filter adds no new state, so the statechart is unchanged. TLC checks `ShownMatchesForm`: a shown verdict always belongs to the current form. `check/contract.test.ts` fails if the `View` kinds in `App.tsx` drift from the spec's `Ready` set or if a field stops resetting the view.
 - `NoDescriptionInRequests` in the spec only restates that the model has no request carrying text. The privacy claim rests on the Playwright test that records every request and finds 0 carrying the description or goal.
 - `check/contract.test.ts` also pins the CSP and security headers in `vercel.json` and checks the built page has no inline script, style or handler the CSP would block.

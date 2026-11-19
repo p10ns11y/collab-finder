@@ -7,3 +7,4 @@ export { recover, OUT_OF_SCOPE_MSG, type Recovery } from './pipeline.ts';
 export { PublicRowSchema, privacyScan, exportRow, PERSONAL_KEYS, type PublicRow, type PublicPool } from './schema.ts';
 export type { GroupKey } from './decisions.ts';
 export type { VisitorError, Warning, AppError } from './errors.ts';
+export { isAgencyRow } from './vocab.ts';

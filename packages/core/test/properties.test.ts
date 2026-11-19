@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import type { MatchRow } from '../src/match.ts';
 
@@ -21,9 +21,10 @@ const inScopeList = fc.array(fc.constantFrom(...IN_SCOPE), { minLength: 1, maxLe
 const rowArb = (n: number): fc.Arbitrary<PublicRow> => fc.record({
   level: fc.constantFrom(...LEVEL_WORDS), words: fc.oneof({ weight: 3, arbitrary: inScopeList }, { weight: 1, arbitrary: phraseList }), region: fc.constantFrom(...REGIONS), remote: fc.constantFrom(...REMOTES, 'remote'),
   status: fc.constantFrom(...STATUSES, 'open', 'open'), seniority: fc.constantFrom(...POOL_SENIORITY), day: fc.integer({ min: 1, max: 28 }),
+  co: fc.constantFrom('', '', '', '', 'Nordic Consulting', 'Talent Partners', 'Bemanning Group'), tail: fc.constantFrom('', '', '', '', ' (Contract)', ' - Freelance', ' to Acme Robotics'),
   tags: fc.subarray(['typescript', 'react', 'platform', 'frontend', 'fullstack', 'forward-deployed', 'product-engineer', 'si-llm', 'agentic', 'physical']),
 }).map(r => ({
-  id: `prop:${n}`, source: 'synthetic', company: `Company ${n % 7}`, title: `${r.level} ${r.words.join(', ')} Engineer`.trim(),
+  id: `prop:${n}`, source: 'synthetic', company: r.co || `Company ${n % 7}`, title: `${`${r.level} ${r.words.join(', ')} Engineer`.trim()}${r.tail}`,
   url: `https://jobs.example.com/${n}`, location: null, remote: r.remote, region: r.region, role_tags: r.tags, seniority: r.seniority,
   posted_at: null, status: r.status, status_checked_at: `2026-11-${String(r.day).padStart(2, '0')}T08:00:00Z`,
 }));
@@ -414,4 +415,35 @@ test('region multi-select keeps every fits-now row inside one of the chosen regi
     const r = ok({ ...p, region: regions }, pool, BIG);
     return r.isErr() || r.value.groups.fitsNow.every(x => compat(regions, x.region));
   }), RUNS);
+});
+
+test('product-only off: results are identical to leaving the filter out', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) =>
+    JSON.stringify(ok(p, pool)) === JSON.stringify(ok({ ...p, productOnly: false }, pool))), RUNS);
+});
+
+test('product-only on: no agency, consultancy or freelance row appears, collapsed ids included', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const byId = rowById(pool);
+    return allRows(ok({ ...p, productOnly: true }, pool, BIG)).every(x => [x.id, ...x.alsoIds].every(id => !isAgencyRow(byId.get(id)!)));
+  }), RUNS);
+});
+
+test('product-only on only removes flagged rows: every other row is still shown', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const ids = (r: ReturnType<typeof match>) => new Set(allRows(r).flatMap(x => [x.id, ...x.alsoIds]));
+    const off = ids(ok(p, pool, BIG));
+    const on = ids(ok({ ...p, productOnly: true }, pool, BIG));
+    const byId = rowById(pool);
+    return [...on].every(id => off.has(id)) && [...off].every(id => on.has(id) || isAgencyRow(byId.get(id)!));
+  }), RUNS);
+});
+
+test('product-only filter is live: generated pools do contain flagged rows that it removes', () => {
+  const removed = fc.sample(fc.tuple(profileArb, poolArb), { numRuns: 200, seed: RUNS.seed }).filter(([p, pool]) => {
+    const off = allRows(ok(p, pool, BIG)).length;
+    const on = allRows(ok({ ...p, productOnly: true }, pool, BIG)).length;
+    return on < off;
+  }).length;
+  if (removed < 20) throw new Error(`filter removed rows in only ${removed} of 200 runs`);
 });

@@ -15,7 +15,7 @@ test('the View kinds in App.tsx equal the Ready set in WebTraps.tla', () => {
 });
 
 test('every form field resets the view, as Edit does in the spec', () => {
-  for (const setter of ['setDescription', 'setGoal', 'setRegions', 'setRemote']) {
+  for (const setter of ['setDescription', 'setGoal', 'setRegions', 'setRemote', 'setProductOnly']) {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }

@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -13,7 +13,7 @@ export const DEFAULT_LIMIT = 30;
 export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type RegionChoice = RegionPref | ReadonlyArray<RegionPref>;
-export type MatchProfile = { description: string; goal?: string; region?: RegionChoice; remote?: RemotePref };
+export type MatchProfile = { description: string; goal?: string; region?: RegionChoice; remote?: RemotePref; productOnly?: boolean };
 export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<RegionPref, 'any'>> => {
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
@@ -108,11 +108,12 @@ export const inScope = (row: PublicRow): boolean =>
   row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
 
 type Scored = { group: GroupKey; row: MatchRow };
-type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean };
+type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean };
 function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
   if (!inScope(row)) return null;
   if (!p.mobile && MOBILE_TITLE.test(row.title)) return null;
+  if (p.productOnly && isAgencyRow(row)) return null;
   const rt = rowTerms(row);
   const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));
   const tagRoleHits = u.roles.filter(k => kindOf(k) === 'role' && !rt.title.has(k) && rt.tags.has(k));
@@ -203,16 +204,17 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
-    const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`) };
+    const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const excluded = new Set(opts.excludeIds ?? []);
     for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) all[s.group].push(s.row); }
     const ranked = { fitsNow: collapse(all.fitsNow.sort(byRank)), stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank)), stretch: collapse(all.stretch.sort(byRank)) };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
-      const widen: Array<'region' | 'remote' | 'goal'> = [];
+      const widen: Array<'region' | 'remote' | 'goal' | 'productOnly'> = [];
       if (prefs.regions.length) widen.push('region');
       if (prefs.remote !== 'any') widen.push('remote');
+      if (prefs.productOnly) widen.push('productOnly');
       if (!u.goal.length) widen.push('goal');
       return err<MatchResult, MatchError>({ kind: 'ZeroResults', widen });
     }

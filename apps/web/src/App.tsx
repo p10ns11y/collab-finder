@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  findPii, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
@@ -31,7 +31,7 @@ const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'outside-pool-roles': 'The pool has no nursing, sales, mobile, Java or management roles.',
   'no-engineering-terms': 'We could not find a software or AI engineering skill or role in your description.',
 };
-const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', goal: 'Add a goal', seniority: 'Any level' };
+const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', productOnly: 'Include agencies and freelance', goal: 'Add a goal', seniority: 'Any level' };
 
 const toView = (e: VisitorError): View => {
   const r = recover(e);
@@ -51,6 +51,7 @@ export function App() {
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
   const [regions, setRegions] = useState<ReadonlyArray<Place>>([]);
+  const [productOnly, setProductOnly] = useState(false);
   const [remote, setRemote] = useState<RemotePref>('any');
   const [view, setView] = useState<View>({ kind: 'idle' });
   const goalRef = useRef<HTMLInputElement>(null);
@@ -74,20 +75,21 @@ export function App() {
 
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}`).map(s => s.pii))], [description, goal]);
 
-  const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref }) => {
+  const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean }) => {
     if (pool.kind !== 'ready') return;
     const t0 = performance.now();
-    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote }, pool.pool);
+    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());
-  }, [pool, description, goal, regions, remote]);
+  }, [pool, description, goal, regions, remote, productOnly]);
 
   const formChanged = () => setView({ kind: 'idle' });
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setView({ kind: 'idle' }); };
   const widen = (w: string) => {
     if (w === 'region') { setRegions([]); run({ regions: [] }); }
+    else if (w === 'productOnly') { setProductOnly(false); run({ productOnly: false }); }
     else if (w === 'remote') { setRemote('any'); run({ remote: 'any' }); }
     else goalRef.current?.focus();
   };
@@ -151,6 +153,14 @@ export function App() {
             </Select>
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" id="product-only" checked={productOnly} className="mt-0.5 size-4 accent-accent" aria-describedby="product-only-help"
+            onChange={() => { setProductOnly(!productOnly); formChanged(); }} />
+          <span>
+            Product companies only
+            <span id="product-only-help" className="block text-xs text-text-muted">Hides roles that look like agency, consultancy or freelance contracts, judged from the title and company name. Off by default.</span>
+          </span>
+        </label>
         {livePii.length > 0 && (
           <Alert tone="warn" role="alert" data-testid="pii-warning">
             This looks like personal details ({livePii.join(', ')}). It stays on your device, but matching does not need it.
@@ -240,6 +250,7 @@ function RoleCard({ row }: { row: MatchRow }) {
         <Badge tone={row.stale ? 'warn' : 'ok'}>Last checked {ageLabel(row.ageDays)}</Badge>
         {row.status !== 'open' && <Badge tone="trap">Status unknown</Badge>}
         {row.region && row.region !== 'other' ? <Badge>{row.region}</Badge> : <Badge tone="warn">Location not confirmed</Badge>}
+        {isAgencyRow(row) && <Badge>Agency or contract</Badge>}
         {row.remote !== 'unknown' && <Badge>{row.remote}</Badge>}
         {row.seniority && <Badge>{row.seniority}</Badge>}
       </div>
