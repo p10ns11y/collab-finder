@@ -44,3 +44,25 @@ jobs:
       - run: java -version
       - working-directory: spec/tla
         run: java -cp /tmp/tla2tools.jar tlc2.TLC -workers auto -cleanup WebTraps.tla | tee /tmp/tlc.log && grep -q 'No error has been found' /tmp/tlc.log
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+        working-directory: packages/core
+      - run: npm ci --ignore-scripts
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npx playwright test
+        working-directory: apps/web
+      - name: no code comments
+        working-directory: apps/web
+        run: "! grep -rnE '^\\s*//|/\\*' src tests scripts vite.config.ts playwright.config.ts sw.template.js --include='*.ts' --include='*.tsx' --include='*.js'"
