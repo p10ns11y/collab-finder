@@ -167,7 +167,7 @@ const fakeModelContext = () => {
   (window as unknown as { toolNames: () => string[] }).toolNames = () => [...tools.keys()].sort();
 };
 const call = (page: Page, name: string, input: Record<string, unknown> = {}) =>
-  page.evaluate(([n, i]) => (window as unknown as { callTool: Call }).callTool(n as string, i as Record<string, unknown>), [name, input] as const).then(r => ({ ...JSON.parse(r.text) as Record<string, unknown>, isError: r.isError }));
+  page.evaluate(([n, i]) => (window as unknown as { callTool: Call }).callTool(n as string, i as Record<string, unknown>), [name, input] as const).then((r): Record<string, unknown> & { isError: boolean } => Object.assign(JSON.parse(r.text) as Record<string, unknown>, { isError: r.isError }));
 
 test('WebMCP, feature-detected: an agent drives the same form; a write on an old state version is refused after a human edit', async ({ page }) => {
   await page.addInitScript(fakeModelContext);
