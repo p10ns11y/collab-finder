@@ -256,9 +256,12 @@ const PROGRAMME_LEVEL = /\b(?:junior|jr|senior|sr|staff|principal|lead|intern(?:
 const EARLY_TITLE = /\b(?:junior|jr|intern(?:ship)?|trainee|graduate|new grad|praktik(?:ant)?)\b/i;
 const programmeOf = (title: string): string => normalizedTitle(title).replace(PROGRAMME_LEVEL, ' ').replace(/\s+/g, ' ').trim();
 const FIELD_OK = new Set(['engineer', 'software', 'programmer', 'web', 'trainee', 'backend', 'frontend', 'fullstack', 'full', 'stack', 'platform', 'infrastructure', 'api', 'service', 'system', 'app', 'application', 'developer']);
+const OTHER_FIELD = new Set(['propulsion', 'turbine']);
 const entryFieldOk = (title: string, learned: ReadonlyArray<string>): boolean => {
+  const tokens = tokensOf(title);
+  if (tokens.some(t => OTHER_FIELD.has(t) && !learned.includes(t))) return false;
   const known = new Set([...FIELD_OK, ...learned]);
-  return tokensOf(title).every(t => known.has(t));
+  return tokens.some(t => known.has(t));
 };
 const DIVERSE_TOP = 10;
 const diversityKey = (r: MatchRow): string => `${r.company.toLowerCase().trim()}|${r.seniority === 'junior' || EARLY_TITLE.test(r.title) ? 'early' : programmeOf(r.title)}`;

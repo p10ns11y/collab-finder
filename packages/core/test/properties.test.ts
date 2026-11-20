@@ -202,7 +202,7 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
 });
 
 const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director', 'Business Development Manager, Cloud & AI', 'Director, Infrastructure Lease Accounting', 'Director, Strategic AI Partnerships', 'Head of People Tech & Data'];
-const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'CTO', 'Director of Product Engineering', 'Head of Data Engineering', 'Utvecklingschef', 'Head of Data Science', 'Head of Information Security', 'CISO'];
+const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Director of Infrastructure', 'Director of Product Engineering', 'Head of Data Engineering', 'Director of Application Security', 'Director of Product Security', 'Head of AI', 'Head of IT Platform & Infrastructure', 'Utvecklingschef', 'Head of Data Science', 'Head of Information Security', 'CISO'];
 const leadRows = (titles: ReadonlyArray<string>, tag: string): PublicRow[] => titles.map((title, i) => ({
   id: `${tag}:${i}`, source: 'synthetic', company: `${tag} Co ${i}`, title, url: `https://jobs.example.com/${tag}${i}`, location: null, remote: 'remote', region: 'SE',
   role_tags: [], seniority: null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z',
@@ -1208,4 +1208,25 @@ test('R5 a Sweden profile ranks a remote-global row below a Sweden row in the sa
       const global = allRows(r).find(x => x.id === 'r5:g');
       return !!se && !!global && se.score === global.score && posOf(r, 'r5:s') < posOf(r, 'r5:g');
     }), RUNS);
+});
+
+const RESTORED_LEAD = ['Head of Platform', 'Director of Infrastructure', 'Director of Application Security', 'VP Eng', 'Director of Product Security', 'Head of AI', 'Head of IT Platform & Infrastructure'];
+test('leadership phrases accept platform, infrastructure, application security and VP Eng, and reject partner, accounting and business development', () => {
+  for (const title of RESTORED_LEAD) if (!isLeadershipRow({ title })) throw new Error(title);
+  for (const title of ['Business Development Manager, Cloud & AI', 'Director, Infrastructure Lease Accounting', 'Director, Strategic AI Partnerships', 'Head of People Tech & Data', 'Head of HTML', 'html']) {
+    if (isLeadershipRow({ title }) || hasLeadershipPhrase(title)) throw new Error(title);
+  }
+  const pool: PublicPool = { version: 'lead-fix', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: leadRows(RESTORED_LEAD, 'restored') };
+  const r = ok({ description: 'Head of Engineering, backend and Python, 10 years building services', region: 'any', remote: 'any' }, pool, BIG);
+  if (r.isErr()) throw new Error(r.error.kind);
+  const shown = new Set(allRows(r).map(x => x.title));
+  for (const title of RESTORED_LEAD) if (!shown.has(title)) throw new Error(`missing ${title}`);
+});
+
+test('E5 an HTML learner keeps Tech Trainee Programme: Developer in fitsNow', () => {
+  const row: PublicRow = { ...OPEN_ROW, id: 'e5', company: 'Example Studio', title: 'Tech Trainee Programme: Developer', url: 'https://jobs.example.com/e5', seniority: null };
+  const pool: PublicPool = { version: 'e5', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row] };
+  const r = ok({ description: 'student learning HTML', region: 'any', remote: 'any' }, pool, BIG);
+  if (r.isErr()) throw new Error(r.error.kind);
+  if (r.value.groups.fitsNow.length === 0 || !r.value.groups.fitsNow.some(x => x.id === 'e5')) throw new Error('fitsNow empty');
 });

@@ -113,10 +113,12 @@ export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
 export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
-export const LEADERSHIP_PHRASES: ReadonlyArray<string> = ['platform engineering', 'infrastructure engineering', 'security engineering', 'information security', 'data engineering', 'data science', 'machine learning', 'ai engineering', 'vp engineering', 'head of engineering', 'engineering', 'software', 'devops', 'sre', 'ciso', 'ml', 'cto'];
+const LEADERSHIP_VETO = /(?:^|[^a-z0-9])(?:business development|partner(?:ship)?s?|accounting|sales|design|operations|counsel)(?=$|[^a-z0-9])/i;
+export const LEADERSHIP_PHRASES: ReadonlyArray<string> = ['application security', 'product security', 'information security', 'security engineering', 'data engineering', 'data science', 'machine learning', 'ai engineering', 'head of ai', 'it platform', 'vp engineering', 'vp eng', 'engineering', 'software', 'devops', 'sre', 'platform', 'infrastructure', 'ciso', 'ml', 'cto'];
 const phraseHit = (phrase: string, text: string): boolean => new RegExp(`(?:^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-z0-9])`, 'i').test(text);
 export const hasLeadershipPhrase = (text: string): boolean => {
   const t = inEnglish(text);
+  if (LEADERSHIP_VETO.test(t)) return false;
   return LEADERSHIP_PHRASES.some(p => phraseHit(p, t));
 };
 export const leadsEngineering = (text: string): boolean => termsIn(text).has('leadership') && hasLeadershipPhrase(text);
