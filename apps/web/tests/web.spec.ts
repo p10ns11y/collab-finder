@@ -1,5 +1,9 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { ABUSE_INPUTS } from '../../../packages/core/test/abuse.ts';
+import { GOLDEN_INPUTS } from '../../../packages/core/test/golden-inputs.ts';
+import { parsePool } from '../../../packages/core/src/index.ts';
+import { runMatch } from '../../../packages/core/src/surface.ts';
 
 const MARKER = 'quokkazebra';
 const DESCRIPTION = `Senior backend engineer, Go and Postgres, distributed systems ${MARKER}`;
@@ -127,6 +131,32 @@ test('any form change clears shown results, as the spec Edit step does', async (
     await change();
     await expect(page.getByTestId('results')).toHaveCount(0);
   }
+});
+
+test('identical output: the page shows the same ids per group as core, CLI and MCP on the golden inputs', async ({ page }) => {
+  const pool = parsePool(JSON.parse(readFileSync(new URL('../public/pool.json', import.meta.url), 'utf8')))._unsafeUnwrap();
+  const formable = GOLDEN_INPUTS.filter((x): x is { description: string; goal?: string; likes?: string; region?: string | string[]; remote?: string; productOnly?: boolean } =>
+    typeof x === 'object' && x !== null && !('limit' in x) && !('unknownKey' in x));
+  let compared = 0;
+  for (const input of formable) {
+    const want = runMatch(input, pool);
+    if (!want.ok) continue;
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    const regions = input.region === undefined || input.region === 'any' ? [] : typeof input.region === 'string' ? [input.region] : input.region;
+    for (const [v, l] of [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']] as const) if (regions.includes(v)) await page.getByLabel(l, { exact: true }).check();
+    if (input.remote) await page.getByLabel('Work mode').selectOption(input.remote);
+    if (input.productOnly) await page.getByLabel(/Product companies only/).check();
+    await fill(page, input.description, input.goal ?? '', input.likes ?? '');
+    await expect(page.getByTestId('results')).toBeVisible();
+    for (const g of ['fitsNow', 'stepTowardGoal', 'stretch'] as const) {
+      const shown = await page.getByTestId(`group-${g}`).locator('[data-posting-id]').evaluateAll(els => els.map(e => e.getAttribute('data-posting-id')));
+      expect(shown, `${input.description} ${g}`).toEqual(want.value.groups[g].map(r => r.id));
+    }
+    compared += 1;
+  }
+  console.log(`IDENTICAL web inputs=${compared}`);
+  expect(compared).toBeGreaterThanOrEqual(5);
 });
 
 test.describe('phone at 375x812', () => {
