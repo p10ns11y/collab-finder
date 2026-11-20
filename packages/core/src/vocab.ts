@@ -113,8 +113,12 @@ export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
 export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
-const ENGINEERING_CUE = /(?:^|[^a-z])(?:product engineering|artificial intelligence|machine learning|engineer(?:ing|s)?|software|developers?|development|technology|infrastructure|security|platform|cto|vp eng|tech|data|eng|ml|ai)(?=$|[^a-z])/i;
-export const leadsEngineering = (text: string): boolean => termsIn(text).has('leadership') && ENGINEERING_CUE.test(inEnglish(text));
+const ENG_STRONG = /(?:^|[^a-z])(?:engineer(?:ing|s)?|software|platform|infrastructure|technology|tech|cto|devops|sre|machine learning|artificial intelligence|eng|ml|ai)(?=$|[^a-z])/i;
+const ENG_PHRASE = /(?:^|[^a-z])(?:data engineering|data platform|security engineering|product security|application security|software development)(?=$|[^a-z])/i;
+export const leadsEngineering = (text: string): boolean => {
+  const t = inEnglish(text);
+  return termsIn(text).has('leadership') && (ENG_STRONG.test(t) || ENG_PHRASE.test(t));
+};
 export const hasSwedish = (text: string): boolean => new RegExp(SV_RE.source, 'iu').test(text) || new RegExp(SV_COMPOUND.source, 'iu').test(text);
 const ENGLISH_ROLE = /(?:^|[^a-z])(?:engineer|developer|programmer|manager|software|backend|frontend|fullstack|platform)(?=$|[^a-z])/i;
 export const swedishOnlyTitle = (title: string): boolean => hasSwedish(title) && !ENGLISH_ROLE.test(title);

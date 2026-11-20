@@ -242,9 +242,15 @@ export const normalizedTitle = (t: string): string => {
 };
 const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>, focusOf: ReadonlyMap<string, TitleFocus>, crowdOf: ReadonlyMap<string, Crowd>, english: boolean, leadership: boolean) => (a: MatchRow, b: MatchRow): number =>
   Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(focusOf, crowdOf, english, leadership)(a, b);
-const PROGRAMME_LEVEL = /\b(?:junior|jr|senior|sr|staff|principal|lead|intern|trainee|associate|entry|level|i{1,3}|iv|vi{0,3}|\d+)\b/g;
+const PROGRAMME_LEVEL = /\b(?:junior|jr|senior|sr|staff|principal|lead|intern(?:ship)?|trainee|graduate|associate|entry|level|i{1,3}|iv|vi{0,3}|\d+)\b/g;
+const EARLY_TITLE = /\b(?:junior|jr|intern(?:ship)?|trainee|graduate|new grad|praktik(?:ant)?)\b/i;
 const programmeOf = (title: string): string => normalizedTitle(title).replace(PROGRAMME_LEVEL, ' ').replace(/\s+/g, ' ').trim();
 const DIVERSE_TOP = 10;
+const diversityKey = (r: MatchRow): string => {
+  const company = r.company.toLowerCase().trim();
+  const programme = r.seniority === 'junior' || EARLY_TITLE.test(r.title) ? 'early' : programmeOf(r.title);
+  return `${company}|${programme}`;
+};
 const diversify = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
   const top: MatchRow[] = [];
   const later: MatchRow[] = [];
@@ -252,7 +258,7 @@ const diversify = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
   const seen = new Map<string, number>();
   for (const r of rows) {
     if (top.length >= DIVERSE_TOP) { rest.push(r); continue; }
-    const k = `${r.company.toLowerCase().trim()}|${programmeOf(r.title)}`;
+    const k = diversityKey(r);
     const n = seen.get(k) ?? 0;
     if (n >= 2) later.push(r);
     else { seen.set(k, n + 1); top.push(r); }

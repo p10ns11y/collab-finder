@@ -199,8 +199,8 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
   }), RUNS);
 });
 
-const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards'];
-const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Head of Data', 'Director of Infrastructure', 'Head of Security', 'Director of Product Engineering', 'Utvecklingschef'];
+const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director'];
+const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Director of Infrastructure', 'Director of Product Engineering', 'Head of Data Engineering', 'Director of Application Security', 'Utvecklingschef'];
 const leadRows = (titles: ReadonlyArray<string>, tag: string): PublicRow[] => titles.map((title, i) => ({
   id: `${tag}:${i}`, source: 'synthetic', company: `${tag} Co ${i}`, title, url: `https://jobs.example.com/${tag}${i}`, location: null, remote: 'remote', region: 'SE',
   role_tags: [], seniority: null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z',
@@ -1125,5 +1125,25 @@ test('D1 at most two rows from one employer and programme are in the top 10', ()
       const g = r.value.groups.fitsNow;
       const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
       return mine(g.slice(0, 10)).length <= 2 && mine(g).length === same.length;
+    }), RUNS);
+});
+
+test('D2 a learner profile keeps two early-career rows per employer in every group top 10', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('student learning HTML', 'Student learning HTML and CSS', 'a student learning HTML for a first job'),
+    fc.constantFrom('Repeat Studio', 'Northwind Labs'),
+    fc.integer({ min: 8, max: 12 }),
+    (desc, company, others) => {
+      const titles = ['Payments', 'Search', 'Growth', 'Billing', 'Video', 'Maps', 'Ads', 'Retail', 'Travel', 'Climate', 'Studio'].map(team => `Software Engineer Intern, ${team}`);
+      const row = (id: string, co: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: co, title, url: `https://jobs.example.com/${id}`, seniority: 'junior' });
+      const same = titles.map((title, i) => row(`d2:s${i}`, company, title));
+      const rest = Array.from({ length: others }, (_, i) => row(`d2:o${i}`, `Other Studio ${i}`, 'Software Engineer Intern'));
+      const pool: PublicPool = { version: 'd2', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [...same, ...rest] };
+      const text = desc.length < 20 ? `${desc} pages` : desc;
+      const r = ok({ description: text, region: 'any', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const groups = [r.value.groups.fitsNow, r.value.groups.stepTowardGoal, r.value.groups.stretch];
+      const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
+      return groups.every(g => mine(g.slice(0, 10)).length <= 2) && mine(groups.flat()).length === same.length;
     }), RUNS);
 });
