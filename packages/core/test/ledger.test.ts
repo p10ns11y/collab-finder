@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
-import { allowedSignersPath, applyRun, approvalPath, APPROVAL_NAMESPACE, fileLedger, fillResult, nextEntry, readApprovals, stateOf, type FormDriver, type Ledger, type LedgerEntry, type LedgerStore, type OwnerApproval } from '../src/ledger.ts';
+import { ALLOWED_SIGNERS, applyRun, approvalPath, APPROVAL_NAMESPACE, fileLedger, fillResult, nextEntry, readApprovals, signerStat, stateOf, type FormDriver, type Ledger, type LedgerEntry, type LedgerStore, type OwnerApproval, type PinnedStat } from '../src/ledger.ts';
 import * as ledgerApi from '../src/ledger.ts';
 
 const keyDir = mkdtempSync(path.join(tmpdir(), 'cf-owner-key-'));
@@ -14,7 +15,27 @@ const ownerKey = path.join(keyDir, 'owner');
 const signersFile = path.join(keyDir, 'allowed_signers');
 if (spawnSync('ssh-keygen', ['-t', 'ed25519', '-f', ownerKey, '-N', '', '-q']).status !== 0) throw new Error('keygen');
 writeFileSync(signersFile, `owner namespaces="${APPROVAL_NAMESPACE}" ${readFileSync(`${ownerKey}.pub`, 'utf8').trim()}\n`);
-process.env['KANITHANJ_ALLOWED_SIGNERS'] = signersFile;
+type PinKind = 'ok' | 'missing' | 'symlink' | 'group' | 'other' | 'user';
+const pinCase = new AsyncLocalStorage<PinKind>();
+const pinStat = (kind: PinKind): PinnedStat => {
+  const symlink = kind === 'symlink';
+  const mode = kind === 'group' ? 0o100664 : kind === 'other' ? 0o100646 : 0o100644;
+  return { uid: kind === 'user' ? 1000 : 0, mode, isSymbolicLink: () => symlink, isFile: () => !symlink };
+};
+signerStat.lstat = (file) => {
+  if (file !== ALLOWED_SIGNERS) throw new Error('signer path');
+  const kind = pinCase.getStore() ?? 'ok';
+  if (kind === 'missing') {
+    const error = new Error('ENOENT') as NodeJS.ErrnoException;
+    error.code = 'ENOENT';
+    throw error;
+  }
+  return pinStat(kind);
+};
+signerStat.read = (file) => {
+  if (file !== ALLOWED_SIGNERS) throw new Error('signer path');
+  return readFileSync(signersFile);
+};
 const signBatch = (file: string, key = ownerKey): void => {
   const signed = spawnSync('ssh-keygen', ['-Y', 'sign', '-f', key, '-n', APPROVAL_NAMESPACE, file]);
   if (signed.status !== 0) throw new Error(signed.stderr.toString() || 'sign');
@@ -224,7 +245,8 @@ test('an approved batch loads only from an owner record outside git', async () =
     assert.equal(Object.hasOwn(ledgerApi, 'approveBatch'), false);
     assert.equal(Object.hasOwn(ledgerApi, 'ownerApprovalHash'), false);
     assert.equal(APPROVAL_NAMESPACE, 'kanithanj-approve');
-    assert.equal(allowedSignersPath({}), '');
+    assert.equal(ALLOWED_SIGNERS, '/etc/kanithanj/allowed_signers');
+    assert.equal(Object.hasOwn(ledgerApi, 'allowedSignersPath'), false);
     const outside = path.join(dir, 'owner.json');
     assert.equal(approvalPath({ KANITHANJ_APPROVALS: outside }), outside);
     assert.equal(approvalPath({ KANITHANJ_APPROVALS: outside }, { approvalPath: path.join(dir, 'cfg.json') }), path.join(dir, 'cfg.json'));
@@ -275,21 +297,59 @@ test('an approved batch loads only from an owner record outside git', async () =
 
 test('a missing allowed-signers file refuses the batch before any submit', async () => {
   const dir = scratch();
-  const previous = process.env['KANITHANJ_ALLOWED_SIGNERS'];
   try {
     const file = batchFile(path.join(dir, 'batch.json'), ['ashby:a1']);
-    delete process.env['KANITHANJ_ALLOWED_SIGNERS'];
     const seen = world(new Set());
-    const pending = applyRun(['ashby:a1'], seen.store, seen.driver, clock, file);
-    process.env['KANITHANJ_ALLOWED_SIGNERS'] = previous;
-    const out = await pending;
+    const out = await pinCase.run('missing', () => applyRun(['ashby:a1'], seen.store, seen.driver, clock, file));
     assert.equal(out[0]?.error?.kind, 'ApprovalRejected');
     if (out[0]?.error?.kind === 'ApprovalRejected') assert.equal(out[0].error.reason, 'missing-key');
     assert.deepEqual(seen.submits, []);
     assert.equal(seen.ledger.some(entry => entry.state === 'submitting'), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('an environment variable cannot select an agent key', async () => {
+  const dir = scratch();
+  const saved = new Map<string, string | undefined>();
+  const names = ['KANITHANJ_ALLOWED_SIGNERS', 'KANITHANJ_APPROVALS', 'ALLOWED_SIGNERS', 'SSH_AUTH_SOCK'];
+  try {
+    const agent = path.join(dir, 'agent');
+    assert.equal(spawnSync('ssh-keygen', ['-t', 'ed25519', '-f', agent, '-N', '', '-q']).status, 0);
+    const agentSigners = path.join(dir, 'agent_signers');
+    writeFileSync(agentSigners, `owner namespaces="${APPROVAL_NAMESPACE}" ${readFileSync(`${agent}.pub`, 'utf8').trim()}\n`);
+    const file = path.join(dir, 'batch.json');
+    writeFileSync(file, JSON.stringify({ id: 'agent-batch', postingIds: ['ashby:a1'], approvedBy: 'owner', approvedAt: clock(), expiresAt: '2026-11-27T21:00:00Z', used: false }));
+    assert.equal(spawnSync('ssh-keygen', ['-Y', 'sign', '-f', agent, '-n', APPROVAL_NAMESPACE, file]).status, 0);
+    for (const name of names) {
+      saved.set(name, process.env[name]);
+      process.env[name] = agentSigners;
+    }
+    const seen = world(new Set());
+    const out = await applyRun(['ashby:a1'], seen.store, seen.driver, clock, file);
+    assert.deepEqual(seen.submits, []);
+    assert.equal(seen.ledger.some(entry => entry.state === 'submitting'), false);
+    assert.equal(out[0]?.error?.kind, 'ApprovalRejected');
   } finally {
-    process.env['KANITHANJ_ALLOWED_SIGNERS'] = previous;
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a group-writable, other-writable, non-root, or symlink pin never submits', async () => {
+  for (const kind of ['group', 'other', 'user', 'symlink'] as const) {
+    const dir = scratch();
+    try {
+      const file = batchFile(path.join(dir, 'batch.json'), ['ashby:a1']);
+      const seen = world(new Set());
+      const out = await pinCase.run(kind, () => applyRun(['ashby:a1'], seen.store, seen.driver, clock, file));
+      assert.deepEqual(seen.submits, [], kind);
+      assert.equal(seen.ledger.some(entry => entry.state === 'submitting'), false, kind);
+      assert.equal(out[0]?.error?.kind, 'ApprovalRejected', kind);
+      if (out[0]?.error?.kind === 'ApprovalRejected') assert.equal(out[0].error.reason, 'missing-key', kind);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   }
 });
 

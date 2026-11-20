@@ -23,8 +23,8 @@ stateDiagram-v2
 ```
 
 Sign a batch with `ssh-keygen -Y sign -f <his key> -n kanithanj-approve batch.json` (this writes `batch.json.sig`).
-Pin the public key outside the repo as `owner namespaces="kanithanj-approve" ssh-ed25519 AAAA...`.
-Set `KANITHANJ_ALLOWED_SIGNERS` to that allowed-signers file. The repo has no default and no private key.
+The owner installs the public key once with `sudo install -o root -m 644 key.pub /etc/kanithanj/allowed_signers`.
+That file is `owner namespaces="kanithanj-approve"` plus the key. Apply reads only this path.
 
 | command | does |
 |---|---|

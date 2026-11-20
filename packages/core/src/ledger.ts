@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { err, ok, type Result } from 'neverthrow';
 
@@ -28,6 +29,7 @@ const NEXT: Readonly<Record<LedgerState | 'none', ReadonlyArray<LedgerState>>> =
 };
 export const PAST_FILLED: ReadonlySet<LedgerState> = new Set(['filled', 'awaiting-submit', 'submitting', 'needs-check', 'submitted', 'rejected', 'interview']);
 export const APPROVAL_NAMESPACE = 'kanithanj-approve';
+export const ALLOWED_SIGNERS = '/etc/kanithanj/allowed_signers';
 const APPROVAL_PRINCIPAL = 'owner';
 
 const approved: unique symbol = Symbol('owner-approval');
@@ -61,7 +63,11 @@ export const approvalPath = (env: Readonly<Record<string, string | undefined>>, 
   return fromEnv ? fromEnv : undefined;
 };
 
-export const allowedSignersPath = (env: Readonly<Record<string, string | undefined>>): string => env['KANITHANJ_ALLOWED_SIGNERS']?.trim() ?? '';
+export type PinnedStat = { uid: number; mode: number; isSymbolicLink: () => boolean; isFile: () => boolean };
+export const signerStat = {
+  lstat(file: string): PinnedStat { return lstatSync(file); },
+  read(file: string): Buffer { return readFileSync(file); },
+};
 
 const inWorkTree = (start: string): boolean => {
   let dir = path.resolve(start);
@@ -110,22 +116,33 @@ const outside = (file: string): { resolved: string } | 'missing' | 'inside-git' 
   return { resolved };
 };
 
-const signatureOk = (batchFile: string, signers: string): boolean => {
-  const sig = `${batchFile}.sig`;
-  if (!signers || !existsSync(signers) || !existsSync(batchFile) || !existsSync(sig)) return false;
-  const verified = spawnSync('ssh-keygen', ['-Y', 'verify', '-f', signers, '-I', APPROVAL_PRINCIPAL, '-n', APPROVAL_NAMESPACE, '-s', sig], { input: readFileSync(batchFile) });
-  return verified.status === 0;
+const pinnedKey = (): Buffer | 'missing' => {
+  let st: PinnedStat;
+  try { st = signerStat.lstat(ALLOWED_SIGNERS); } catch { return 'missing'; }
+  if (st.isSymbolicLink() || !st.isFile() || st.uid !== 0 || (st.mode & 0o022) !== 0) return 'missing';
+  try { return signerStat.read(ALLOWED_SIGNERS); } catch { return 'missing'; }
 };
 
-export function readApprovals(file: string, now: string, ledger: Ledger, signers: string = allowedSignersPath(process.env)): Result<ApprovalRead, { reason: 'inside-git' | 'invalid' | 'signature' | 'missing-key' }> {
-  if (!signers) return err({ reason: 'missing-key' });
-  const pinned = outside(signers);
-  if (pinned === 'missing') return err({ reason: 'missing-key' });
-  if (pinned === 'inside-git') return err({ reason: 'inside-git' });
+const verifyBatch = (batchFile: string): 'ok' | 'missing-key' | 'signature' => {
+  const key = pinnedKey();
+  if (key === 'missing') return 'missing-key';
+  const sig = `${batchFile}.sig`;
+  if (!existsSync(batchFile) || !existsSync(sig)) return 'signature';
+  const dir = mkdtempSync(path.join(tmpdir(), 'cf-signers-'));
+  try {
+    const allowed = path.join(dir, 'allowed_signers');
+    writeFileSync(allowed, key, { mode: 0o600 });
+    const verified = spawnSync('ssh-keygen', ['-Y', 'verify', '-f', allowed, '-I', APPROVAL_PRINCIPAL, '-n', APPROVAL_NAMESPACE, '-s', sig], { input: readFileSync(batchFile) });
+    return verified.status === 0 ? 'ok' : 'signature';
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+};
+
+export function readApprovals(file: string, now: string, ledger: Ledger): Result<ApprovalRead, { reason: 'inside-git' | 'invalid' | 'signature' | 'missing-key' }> {
   const batch = outside(file);
   if (batch === 'missing') return err({ reason: 'invalid' });
   if (batch === 'inside-git') return err({ reason: 'inside-git' });
-  if (!signatureOk(batch.resolved, pinned.resolved)) return err({ reason: 'signature' });
+  const verdict = verifyBatch(batch.resolved);
+  if (verdict !== 'ok') return err({ reason: verdict });
   let parsed: unknown;
   try { parsed = JSON.parse(readFileSync(batch.resolved, 'utf8')); } catch { return err({ reason: 'invalid' }); }
   const body = approvalBody(parsed);
@@ -207,7 +224,6 @@ export const fileLedger = (dir: string): LedgerStore => ({
 });
 
 export async function applyRun(postingIds: ReadonlyArray<string>, store: LedgerStore, driver: FormDriver, now: () => string, approvals?: string): Promise<ReadonlyArray<ApplyOutcome>> {
-  const signers = allowedSignersPath(process.env);
   const out: ApplyOutcome[] = [];
   for (const id of [...new Set(postingIds)]) {
     let error: LedgerError | null = null;
@@ -238,7 +254,7 @@ export async function applyRun(postingIds: ReadonlyArray<string>, store: LedgerS
     if (!error && s === 'filled') { await advance('awaiting-submit'); s = stateOf(await store.read(), id); }
     if (!error && s === 'submitting') { await advance('needs-check'); s = stateOf(await store.read(), id); }
     if (!error && s === 'awaiting-submit' && approvals) {
-      const loaded = readApprovals(approvals, now(), await store.read(), signers);
+      const loaded = readApprovals(approvals, now(), await store.read());
       if (loaded.isErr()) error = { kind: 'ApprovalRejected', postingId: id, reason: loaded.error.reason };
       else {
         const reason = loaded.value.rejected.get(id);
@@ -247,9 +263,9 @@ export async function applyRun(postingIds: ReadonlyArray<string>, store: LedgerS
         else if (approval) {
           const won = await advance('submitting', approval);
           if (!error && won) {
-            let stillSigned = false;
-            try { stillSigned = signatureOk(realpathSync(approvals), signers ? realpathSync(signers) : ''); } catch { stillSigned = false; }
-            if (!stillSigned) error = { kind: 'ApprovalRejected', postingId: id, reason: signers ? 'signature' : 'missing-key' };
+            let verdict: 'ok' | 'missing-key' | 'signature' = 'missing-key';
+            try { verdict = verifyBatch(realpathSync(approvals)); } catch { verdict = 'missing-key'; }
+            if (verdict !== 'ok') error = { kind: 'ApprovalRejected', postingId: id, reason: verdict };
             else { await driver.submit(id, approval); await advance('submitted'); }
           }
         }
