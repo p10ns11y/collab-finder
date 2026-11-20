@@ -1,0 +1,3 @@
+# rule<TAB>path prefix. Hits in an allowed file are ignored.
+# This public CV PDF is an intentional exception; no other path is allowed.
+*	data/distillation/peramanathan-sathyamoorthy-cv.pdf

@@ -7,5 +7,7 @@ cd "$ROOT"
 node scripts/ci-host-alias.mjs
 node scripts/ci-action-pin.mjs
 node scripts/ci-secrets-scan.mjs
+python3 scripts/ci-privacy-scan-test.py
+python3 scripts/ci-privacy-scan.py --all
 
 echo "== OK: ci-fitness passed"

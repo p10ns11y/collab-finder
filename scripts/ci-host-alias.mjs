@@ -42,8 +42,8 @@ if (listed.status !== 0) {
 const files = listed.stdout.split('\0').filter(Boolean)
 const findings = []
 
-function consider(path, lineNo, rule, excerpt) {
-  findings.push(`${path}:${lineNo} ${rule}: ${excerpt.trim().slice(0, 160)}`)
+function consider(path, lineNo, rule) {
+  findings.push(`${path}:${lineNo}: ${rule}`)
 }
 
 for (const rel of files) {
@@ -63,18 +63,18 @@ for (const rel of files) {
     const line = lines[i]
     const lower = line.toLowerCase()
     for (const host of PRIVATE_HOSTS) {
-      if (lower.includes(host)) consider(rel, i + 1, 'private-host', line)
+      if (lower.includes(host)) consider(rel, i + 1, 'private-host')
     }
     for (const match of line.matchAll(/\/(?:home|Users)\/([A-Za-z0-9._-]+)/g)) {
       const name = match[1]
-      if (!HOME_ALLOW.has(name)) consider(rel, i + 1, 'home-dir', line)
+      if (!HOME_ALLOW.has(name)) consider(rel, i + 1, 'home-dir')
     }
     for (const match of line.matchAll(/\b100\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g)) {
       const second = Number(match[1])
-      if (second >= 64 && second <= 127) consider(rel, i + 1, 'tailscale-cgnat', line)
+      if (second >= 64 && second <= 127) consider(rel, i + 1, 'tailscale-cgnat')
     }
     if (/vnc:\/\/[^\s]*@/i.test(line) || /\bvnc(?:viewer|passwd)\b[^\n]{0,80}\b(?:pass|login|user)\b/i.test(line)) {
-      consider(rel, i + 1, 'vnc-login', line)
+      consider(rel, i + 1, 'vnc-login')
     }
   }
 }
