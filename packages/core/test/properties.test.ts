@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { inEnglish, inScope, isLeadershipRow, likesText, mostlyNonLatin, regionOf, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { inEnglish, inScope, likesText, mostlyNonLatin, regionOf, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import { matchUnder, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
@@ -181,11 +181,18 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
   }), RUNS);
 });
 
-test('P15 manager, director, head-of and VP titles appear only for a leadership profile, and only as engineering leadership', () => {
+const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards'];
+const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Head of Data', 'Director of Infrastructure', 'Head of Security', 'Director of Product Engineering', 'Utvecklingschef'];
+const leadRows = (titles: ReadonlyArray<string>, tag: string): PublicRow[] => titles.map((title, i) => ({
+  id: `${tag}:${i}`, source: 'synthetic', company: `${tag} Co ${i}`, title, url: `https://jobs.example.com/${tag}${i}`, location: null, remote: 'remote', region: 'SE',
+  role_tags: [], seniority: null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z',
+}));
+test('P15 non-engineering leadership titles never appear, and engineering leadership titles appear only for a leadership profile', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
-    const r = ok(p, pool);
+    const r = ok(p, { ...pool, rows: [...pool.rows, ...leadRows(NON_ENG_LEAD, 'p15bad'), ...leadRows(ENG_LEAD, 'p15good')] });
+    const shown = new Set(allRows(r).map(x => x.title));
     const leads = r.isOk() && r.value.understood.roles.includes('leadership');
-    return allRows(r).every(x => !/manager|director|head of|(?:^|[^a-z])vp(?=$|[^a-z])/i.test(x.title) || (leads && isLeadershipRow(x)));
+    return NON_ENG_LEAD.every(t => !shown.has(t)) && ENG_LEAD.every(t => !shown.has(t) || leads);
   }), RUNS);
 });
 
@@ -857,28 +864,25 @@ test('F2 go in any case, alone or at any place in a comma or slash list, reads a
   }), RUNS);
 });
 
-const LEAD_PROFILES = ['VP engineering', 'VP of Engineering', 'Head of', 'Head of Engineering', 'Head of Platform', 'Director', 'Director of Engineering', 'Engineering Manager', 'Senior Engineering Manager', 'Utvecklingschef'];
-const LEAD_TITLES = ['Engineering Manager', 'Engineering Manager, Backend', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Engineering Manager - Platform'];
+const LEAD_PROFILES = ['VP engineering', 'VP of Engineering', 'Head of Engineering', 'Head of Platform', 'Director of Engineering', 'Engineering Manager', 'Senior Engineering Manager', 'VP Eng', 'CTO', 'Utvecklingschef'];
 const leadArb = fc.record({
   who: fc.constantFrom(...LEAD_PROFILES), level: fc.constantFrom('', 'Senior ', 'Staff '), extra: fc.constantFrom('', ', 10 years', ', backend and Python', ' leading platform teams'),
   region: fc.oneof({ weight: 2, arbitrary: fc.constant('any') }, { weight: 1, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US') }) as fc.Arbitrary<RegionChoice>,
   remote: fc.oneof({ weight: 2, arbitrary: fc.constant('any') }, { weight: 1, arbitrary: fc.constantFrom('remote', 'hybrid', 'onsite') }) as fc.Arbitrary<MatchProfile['remote']>,
   base: poolArb,
-  leads: fc.array(fc.record({ title: fc.constantFrom(...LEAD_TITLES), seniority: fc.constantFrom(null, 'executive', 'unknown'), region: fc.constantFrom('SE', 'EU', 'UK', 'US'), remote: fc.constantFrom(...REMOTES) }), { minLength: 1, maxLength: 4 }),
 }).map(x => ({
   profile: { description: `${x.level}${x.who}${x.extra}, looking for a new role`, region: x.region, remote: x.remote } as MatchProfile,
-  pool: { ...x.base, rows: [...x.base.rows, ...x.leads.map((l, i): PublicRow => ({
-    id: `lead:${i}`, source: 'synthetic', company: `Lead Co ${i}`, title: l.title, url: `https://jobs.example.com/lead${i}`, location: null, remote: l.remote, region: l.region,
-    role_tags: [], seniority: l.seniority, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' }))] } as PublicPool,
+  pool: { ...x.base, rows: [...x.base.rows, ...leadRows(ENG_LEAD, 'lead'), ...leadRows(NON_ENG_LEAD, 'off')] } as PublicPool,
 }));
-test('P33 a leadership profile is never outside what we cover when the pool has leadership rows, and with no filters sees every one of them', () => {
+test('P33 a leadership profile is never outside what we cover when engineering leadership rows exist, sees every one of them with no filters, and never sees a non-engineering leadership title', () => {
   fc.assert(fc.property(leadArb, ({ profile, pool }) => {
     const r = ok(profile, pool, BIG);
     if (r.isErr()) return r.error.kind !== 'OutOfScope' && (profile.region !== 'any' || profile.remote !== 'any');
     const shown = new Set(allRows(r).flatMap(x => [x.id, ...x.alsoIds]));
-    const leads = pool.rows.filter(row => row.id.startsWith('lead:'));
-    return r.value.understood.roles.includes('leadership') && leads.every(row => isLeadershipRow(row) && !inScope(row))
-      && (profile.region !== 'any' || profile.remote !== 'any' || leads.every(row => shown.has(row.id)));
+    const eng = pool.rows.filter(row => row.id.startsWith('lead:'));
+    const off = pool.rows.filter(row => row.id.startsWith('off:'));
+    return r.value.understood.roles.includes('leadership') && off.every(row => !shown.has(row.id))
+      && (profile.region !== 'any' || profile.remote !== 'any' || eng.every(row => shown.has(row.id)));
   }), RUNS);
 });
 
