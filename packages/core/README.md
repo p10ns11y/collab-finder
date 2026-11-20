@@ -16,11 +16,15 @@ stateDiagram-v2
   awaiting_submit --> submitting: posting in ApprovedBatch
   submitting --> submitted: driver.submit then record
   submitting --> needs_check: crash before record (resume)
-  needs_check --> submitted: owner confirms sent
-  needs_check --> awaiting_submit: owner confirms not sent
+  needs_check --> submitted: owner confirms
+  needs_check --> rejected: owner reconciles
   submitted --> rejected
   submitted --> interview
 ```
+
+Sign a batch with `ssh-keygen -Y sign -f <his key> -n kanithanj-approve batch.json` (this writes `batch.json.sig`).
+The owner installs the public key once with `sudo install -o root -m 644 key.pub /etc/kanithanj/allowed_signers`.
+That file is `owner namespaces="kanithanj-approve"` plus the key. Apply reads only this path.
 
 | command | does |
 |---|---|

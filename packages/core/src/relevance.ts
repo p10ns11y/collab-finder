@@ -1,12 +1,12 @@
 import type { PublicRow } from './schema.ts';
-import { isPlaceWord, languageGo } from './vocab.ts';
+import { inEnglish, isPlaceWord, languageGo } from './vocab.ts';
 
 const STOP = new Set([
   'a', 'an', 'and', 'or', 'the', 'of', 'in', 'on', 'at', 'for', 'to', 'with', 'by', 'from', 'as', 'is', 'are', 'be', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
   'it', 'its', 'this', 'that', 'into', 'over', 'about', 'who', 'what', 'where', 'how', 'than', 'then', 'also', 'like', 'such', 'want', 'wants', 'looking', 'work',
   'working', 'worked', 'build', 'building', 'built', 'years', 'year', 'yrs', 'experience', 'based', 'mostly', 'some', 'very', 'more', 'most', 'new', 'own',
   'junior', 'mid', 'level', 'senior', 'sr', 'staff', 'lead', 'principal', 'distinguished', 'intern', 'graduate', 'ii', 'iii', 'iv', 'm', 'f', 'd', 'x', 'w',
-  'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett',
+  'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett', 'av', 'på', 'för', 'inom', 'jag', 'är', 'har', 'att', 'vill', 'arbetar', 'jobbar',
   'go', 'us', 'further', 'grow', 'help', 'get', 'make', 'do', 'can', 'will', 'would', 'love', 'happy', 'let', 'lets', 'really', 'just',
 ]);
 
@@ -32,7 +32,6 @@ const SYNONYMS: ReadonlyArray<[RegExp, string]> = [
   [/\bc\+\+/g, ' cpp '],
   [/\bc#/g, ' csharp '],
   [/\.net\b/g, ' dotnet '],
-  [/\bspring boot\b/g, ' java '],
   [/\bgo (?=engineer|developer)/g, ' golang '],
 ];
 const TOKEN_MAP: Readonly<Record<string, string>> = {
@@ -41,12 +40,12 @@ const TOKEN_MAP: Readonly<Record<string, string>> = {
   dev: 'engineer', programmer: 'engineer', utvecklare: 'engineer', mjukvaruutvecklare: 'engineer', ingenjör: 'engineer', systemutvecklare: 'engineer', fullstackutvecklare: 'fullstack',
   robots: 'robot', robotics: 'robot', vehicles: 'vehicle', devices: 'device', drones: 'drone', satellites: 'satellite', apis: 'api', services: 'service', systems: 'system',
   platforms: 'platform', products: 'product', models: 'model', pipelines: 'pipeline', infra: 'infrastructure', devops: 'infrastructure', cloud: 'infrastructure', sre: 'infrastructure',
-  ios: 'mobile', android: 'mobile', swift: 'mobile', kotlin: 'java', jvm: 'java', scala: 'java', django: 'python', fastapi: 'python', flask: 'python', rails: 'ruby',
+  ios: 'mobile', android: 'mobile', swift: 'mobile', jvm: 'java', scala: 'java', django: 'python', fastapi: 'python', flask: 'python', rails: 'ruby',
   appsec: 'security', infosec: 'security', firmware: 'embedded', ui: 'frontend', ux: 'frontend', compilers: 'compiler', inference: 'inference', rag: 'llm',
 };
 
 export const tokensOf = (text: string): string[] => {
-  let t = ` ${languageGo(text).toLowerCase()} `;
+  let t = ` ${languageGo(inEnglish(text)).toLowerCase()} `;
   for (const [re, to] of SYNONYMS) t = t.replace(re, to);
   return t.split(/[^a-z0-9+#åäöéü]+/).filter(Boolean).map(w => TOKEN_MAP[w] ?? w).filter(w => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w));
 };
@@ -68,7 +67,7 @@ export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_
   return { n, avgLen: n ? total / n : 1, df };
 };
 
-export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'golang', 'rust', 'java', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
+export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'golang', 'rust', 'java', 'kotlin', 'spring', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
   'php', 'vue', 'angular', 'svelte', 'aws', 'gcp', 'azure', 'docker', 'terraform', 'graphql', 'kafka', 'redis', 'elixir', 'haskell', 'swift', 'mobile', 'laravel', 'html', 'css']);
 export const FOCUS_ROLE_TOKENS: ReadonlySet<string> = new Set(['frontend', 'backend', 'fullstack', 'ml', 'llm', 'infrastructure', 'platform', 'security', 'dataengineer', 'embedded',
   'mobile', 'devtools', 'compiler', 'distributed', 'inference', 'robot', 'productengineer', 'fde', 'api', 'web', 'search', 'payments', 'growth']);

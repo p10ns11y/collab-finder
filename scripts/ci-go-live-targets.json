@@ -1,0 +1,7 @@
+{
+  "project": "kanithanj-ai",
+  "probe": ["https://kanithanj-ai.vercel.app/"],
+  "public_alias_probes": ["https://kanithanj.ai/", "https://www.kanithanj.ai/"],
+  "allowed_suffixes": [".vercel.app"],
+  "protection_redirect_hosts": ["vercel.com"]
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  poolStats, findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  poolStats, findPii, isAgencyRow, match, mostlyNonLatin, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
@@ -29,7 +29,7 @@ const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (i
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'junior': 'The pool has mid-level and senior roles only, no junior, intern or graduate roles yet.',
-  'outside-pool-roles': 'We do not match nursing, sales, mobile-only or management profiles yet.',
+  'outside-pool-roles': 'We do not match nursing, sales or mobile-only profiles yet.',
   'no-engineering-terms': 'We could not find a software or AI engineering skill or role in your description.',
 };
 const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', productOnly: 'Include agencies and freelance', goal: 'Add a goal', seniority: 'Any level' };
@@ -76,6 +76,7 @@ export function App() {
   useEffect(loadPool, [loadPool]);
 
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
+  const nonLatin = useMemo(() => mostlyNonLatin(`${description}\n${goal}\n${likes}`), [description, goal, likes]);
 
   const run = useCallback((over?: AgentSearch) => {
     if (pool.kind !== 'ready') return null;
@@ -162,7 +163,7 @@ export function App() {
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
           <Input id="likes" name="likes" value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
             placeholder="e.g. Spotify, Einride, robotics" aria-describedby="likes-help" autoComplete="off" />
-          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Roles at these companies move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies and titles move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -195,6 +196,7 @@ export function App() {
             <span id="product-only-help" className="block text-xs text-text-muted">Hides roles that look like agency, consultancy or freelance contracts, judged from the title and company name. Off by default.</span>
           </span>
         </label>
+        {nonLatin && <p className="text-sm text-text-muted" data-testid="language-hint">Works best in English or Swedish.</p>}
         {livePii.length > 0 && (
           <Alert tone="warn" role="alert" data-testid="pii-warning">
             This looks like personal details ({livePii.join(', ')}). It stays on your device, but matching does not need it.
@@ -249,6 +251,7 @@ function Results({ result, ms }: { result: MatchResult; ms: number }) {
   return (
     <section aria-labelledby="results-title" data-testid="results">
       <h2 id="results-title" className="text-2xl font-semibold">Your matches</h2>
+      {result.likesMiss && <p className="mt-2 text-sm text-text-muted" data-testid="likes-miss">None of those words matched.</p>}
       <p className="mt-1 text-sm text-text-muted">
         Matched in {ms} ms in your browser. Read as: {understood || 'general software engineering'}
         {u.seniority ? `, ${u.seniority} level` : ''}{u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}.

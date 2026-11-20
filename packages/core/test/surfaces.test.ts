@@ -36,7 +36,8 @@ const viaMcp = async (inputs: ReadonlyArray<unknown>): Promise<unknown[]> => {
   inputs.forEach((a, i) => send({ jsonrpc: '2.0', id: i, method: 'tools/call', params: { name: 'match_roles', arguments: a } }));
   await done;
   child.kill();
-  const byId = new Map(lines.map(l => JSON.parse(l) as { id: unknown; result: { structuredContent?: unknown; tools?: Array<{ name: string }> } }).map(m => [m.id, m]));
+  const byId = new Map(lines.map(l => JSON.parse(l) as { id: unknown; result: { serverInfo?: { name?: string }; structuredContent?: unknown; tools?: Array<{ name: string }> } }).map(m => [m.id, m]));
+  assert.equal(byId.get('init')?.result.serverInfo?.name, 'kanithanj-ai');
   assert.deepEqual(byId.get('list')?.result.tools?.map(t => t.name), ['match_roles']);
   return inputs.map((_, i) => byId.get(i)?.result.structuredContent);
 };
