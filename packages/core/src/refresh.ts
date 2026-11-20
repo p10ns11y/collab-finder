@@ -1,5 +1,5 @@
 import { err, ok, type Result } from 'neverthrow';
-import type { PoolError, Source } from './errors.ts';
+import { SOURCE_VARIANTS, type PoolError, type Source } from './errors.ts';
 import { parsePool } from './pool.ts';
 import type { PublicPool } from './schema.ts';
 
@@ -13,17 +13,27 @@ const countBySource = (p: PublicPool): Map<string, number> => {
   return m;
 };
 
+const requiredSources = (before: PublicPool, candidate: PublicPool): ReadonlyArray<string> => {
+  const required = new Set<string>(SOURCE_VARIANTS);
+  for (const row of before.rows) required.add(row.source);
+  for (const row of candidate.rows) required.add(row.source);
+  return [...required];
+};
+
 export function decideRefreshSwap(before: PublicPool, candidate: unknown, runs: ReadonlyArray<SourceRun>): Result<PublicPool, PoolError> {
-  const failed = runs.filter(r => !r.ok).map(r => r.source);
   const parsed = parsePool(candidate);
   if (parsed.isErr()) return err(parsed.error);
+  const okRun = new Map<string, boolean>();
+  for (const run of runs) okRun.set(run.source, (okRun.get(run.source) ?? true) && run.ok);
+  const required = requiredSources(before, parsed.value);
+  const failed = required.filter(source => okRun.get(source) !== true);
   const was = countBySource(before);
   const now = countBySource(parsed.value);
-  const countDrop: Partial<Record<Source, number>> = {};
-  for (const r of runs) {
-    const a = was.get(r.source) ?? 0;
-    const b = now.get(r.source) ?? 0;
-    if (a > 0 && (a - b) / a > MAX_SOURCE_DROP) countDrop[r.source] = a - b;
+  const countDrop: Partial<Record<string, number>> = {};
+  for (const source of required) {
+    const a = was.get(source) ?? 0;
+    const b = now.get(source) ?? 0;
+    if (a > 0 && (a - b) / a > MAX_SOURCE_DROP) countDrop[source] = a - b;
   }
   if (failed.length || Object.keys(countDrop).length) return err({ kind: 'PartialRefresh', failed, countDrop });
   return ok(parsed.value);

@@ -1,7 +1,7 @@
 ---------------------------- MODULE RefreshSwap ----------------------------
 EXTENDS Naturals
 
-Sources == {"ashby", "greenhouse", "lever"}
+Sources == {"ashby", "greenhouse", "lever", "platsbanken"}
 Days == 3
 
 VARIABLES liveDay, fetched, failed, regressed, staged, phase, day

@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import fc from 'fast-check';
 import { MAX_SOURCE_DROP, refreshOnce, type SourceRun, type SwapStore } from '../src/refresh.ts';
 import { fileSwapStore } from '../src/refresh-file.ts';
-import type { Source } from '../src/errors.ts';
+import { SOURCE_VARIANTS, type Source } from '../src/errors.ts';
 import type { PublicPool, PublicRow } from '../src/schema.ts';
 
-const SOURCES: ReadonlyArray<Source> = ['ashby', 'greenhouse', 'lever'];
+const SOURCES: ReadonlyArray<Source> = [...SOURCE_VARIANTS];
 const row = (source: Source, n: number, status: PublicRow['status'] = 'open'): PublicRow => ({ id: `${source}:${n}`, source, company: `co-${n % 5}`, title: 'Senior Backend Engineer',
   url: `https://jobs.example.com/${source}/${n}`, location: null, remote: 'remote', region: 'SE', role_tags: [], seniority: 'senior', posted_at: null, status, status_checked_at: '2026-11-20T06:00:00Z' });
 const poolOf = (version: string, counts: Readonly<Record<string, number>>): PublicPool => ({ version, checkedRange: { from: '2026-11-20', to: '2026-11-20' },
@@ -30,6 +30,29 @@ test('swap on pass: the live pool changes only when every source ran, no source 
   }), { numRuns: 400, seed: 20261120 });
 });
 
+const withSource = (pool: PublicPool, source: string): PublicPool => {
+  const row = pool.rows[0];
+  return row ? { ...pool, rows: [...pool.rows, { ...row, id: `${row.id}-${source}`, source }] } : pool;
+};
+
+test('incomplete or empty runs never swap', async () => {
+  const complete = SOURCE_VARIANTS.map(source => ({ source, ok: true }));
+  await fc.assert(fc.asyncProperty(fc.oneof(
+    fc.constant({ runs: [] as SourceRun[], live: false, candidate: false }),
+    fc.subarray([...SOURCE_VARIANTS], { maxLength: SOURCE_VARIANTS.length - 1 }).map(sources => ({ runs: sources.map(source => ({ source, ok: true })), live: false, candidate: false })),
+    fc.constantFrom(...SOURCE_VARIANTS).map(bad => ({ runs: SOURCE_VARIANTS.map(source => ({ source, ok: source !== bad })), live: false, candidate: false })),
+    fc.constantFrom('live', 'candidate', 'both').map(side => ({ runs: complete, live: side !== 'candidate', candidate: side !== 'live' })),
+  ), async ({ runs, live, candidate }) => {
+    let before = poolOf('v-before', { ashby: 4, greenhouse: 4, lever: 4, platsbanken: 4 });
+    let after = poolOf('v-after', { ashby: 4, greenhouse: 4, lever: 4, platsbanken: 4 });
+    if (live) before = withSource(before, 'workable');
+    if (candidate) after = withSource(after, 'workable');
+    const store = memStore(before);
+    const out = await refreshOnce(store.s, { pool: after, runs }, async () => 10);
+    return out.swapped === false && store.get() === before && out.error.kind === 'PartialRefresh';
+  }), { numRuns: 400, seed: 20261120 });
+});
+
 test('a candidate with a personal key never swaps in, whatever the runs say', async () => {
   const before = poolOf('v1', { ashby: 3 });
   const leaky = { ...poolOf('v2', { ashby: 3 }), rows: poolOf('v2', { ashby: 3 }).rows.map(r => ({ ...r, prior_application: true })) };
@@ -45,10 +68,11 @@ test('file store: a crash after writing the candidate but before the rename leav
   const before = poolOf('v-old', { ashby: 4, greenhouse: 4 });
   writeFileSync(path, JSON.stringify(before));
   const crashing = fileSwapStore(path, async () => { throw new Error('killed'); });
-  await assert.rejects(refreshOnce(crashing, { pool: poolOf('v-new', { ashby: 4, greenhouse: 4 }), runs: [{ source: 'ashby', ok: true }, { source: 'greenhouse', ok: true }] }, async () => 1));
+  const runs = SOURCE_VARIANTS.map(source => ({ source, ok: true }));
+  await assert.rejects(refreshOnce(crashing, { pool: poolOf('v-new', { ashby: 4, greenhouse: 4 }), runs }, async () => 1));
   assert.equal((JSON.parse(readFileSync(path, 'utf8')) as PublicPool).version, 'v-old');
   const ok = fileSwapStore(path);
-  const out = await refreshOnce(ok, { pool: poolOf('v-new', { ashby: 4, greenhouse: 4 }), runs: [{ source: 'ashby', ok: true }, { source: 'greenhouse', ok: true }] }, async () => 1);
+  const out = await refreshOnce(ok, { pool: poolOf('v-new', { ashby: 4, greenhouse: 4 }), runs }, async () => 1);
   assert.deepEqual(out, { swapped: true, version: 'v-new' });
   assert.equal((await ok.read()).version, 'v-new');
 });
