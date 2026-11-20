@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   poolStats, findPii, isAgencyRow, match, mostlyNonLatin, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
@@ -8,7 +8,11 @@ import { Badge } from './components/ui/badge.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
-import { registerWebMcp, type AgentSearch } from './webmcp.ts';
+import { modelContext, registerWebMcp, type AgentSearch } from './webmcp.ts';
+import { uiSdkFlag } from './ui-sdk-flag.ts';
+
+const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
+const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
 
 type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
 type View =
@@ -113,6 +117,7 @@ export function App() {
   }, []);
 
   const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
+  const sdkPath = uiSdkFlag() && !modelContext() && recover({ kind: 'WebMcpUnavailable' }).ui === 'switch-to-ui-sdk-path';
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
@@ -167,19 +172,25 @@ export function App() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <fieldset className="grid gap-2" aria-describedby="region-help">
-              <legend className="text-sm font-medium">Regions</legend>
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                {REGIONS.map(([v, l]) => (
-                  <label key={v} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-accent"
-                      onChange={() => { setRegions(regions.includes(v) ? regions.filter(x => x !== v) : [...regions, v]); formChanged(); }} />
-                    {l}
-                  </label>
-                ))}
-              </div>
-              <p id="region-help" className="text-xs text-text-muted">Pick any. None picked means anywhere.</p>
-            </fieldset>
+            {sdkPath ? (
+              <Suspense fallback={<p role="status">Loading regions…</p>}>
+                <SdkRegion value={regions} onValueChange={next => { setRegions(next); formChanged(); }} />
+              </Suspense>
+            ) : (
+              <fieldset className="grid gap-2" aria-describedby="region-help">
+                <legend className="text-sm font-medium">Regions</legend>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {REGIONS.map(([v, l]) => (
+                    <label key={v} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-accent"
+                        onChange={() => { setRegions(regions.includes(v) ? regions.filter(x => x !== v) : [...regions, v]); formChanged(); }} />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+                <p id="region-help" className="text-xs text-text-muted">Pick any. None picked means anywhere.</p>
+              </fieldset>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="remote">Work mode</Label>
@@ -207,7 +218,7 @@ export function App() {
       </form>
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
-        <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} />
+        <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
       </div>
 
       <footer className="mt-12 border-t border-border pt-4 text-xs text-text-muted">
@@ -217,7 +228,7 @@ export function App() {
   );
 }
 
-function ViewPanel({ view, onWiden, onRemovePii }: { view: View; onWiden: (w: string) => void; onRemovePii: () => void }) {
+function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View; onWiden: (w: string) => void; onRemovePii: () => void; sdkPath: boolean }) {
   switch (view.kind) {
     case 'idle': return null;
     case 'inputError': return <Alert tone="trap" data-testid="input-error">{view.msg}</Alert>;
@@ -240,7 +251,9 @@ function ViewPanel({ view, onWiden, onRemovePii }: { view: View; onWiden: (w: st
         </span>
       </Alert>
     );
-    case 'results': return <Results result={view.result} ms={view.ms} />;
+    case 'results': return sdkPath
+      ? <Suspense fallback={<p role="status">Loading matches…</p>}><SdkResults result={view.result} ms={view.ms} /></Suspense>
+      : <Results result={view.result} ms={view.ms} />;
   }
 }
 

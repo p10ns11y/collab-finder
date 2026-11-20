@@ -261,6 +261,59 @@ test('mostly non-Latin input shows one hint line, English or Swedish input none'
   await expect(page.getByTestId('language-hint')).toHaveCount(0);
 });
 
+test('ui-sdk path: keyboard only, axe clean, an agent drives region and results by role', async ({ page }) => {
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const scan = async () => (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(' | ')}`);
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  const tabTo = async (target: ReturnType<Page['getByRole']>) => {
+    for (let i = 0; i < 15; i += 1) {
+      if (await target.evaluate(el => el === document.activeElement).catch(() => false)) return;
+      await page.keyboard.press('Tab');
+    }
+    await expect(target).toBeFocused();
+  };
+  await page.goto('/?ui-sdk=1');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect(page.getByRole('checkbox', { name: 'Sweden', exact: true })).toHaveCount(0);
+  const found: string[] = [...await scan()];
+  await tabTo(page.getByRole('textbox', { name: 'About you' }));
+  await page.keyboard.type(DESCRIPTION);
+  await tabTo(page.getByRole('button', { name: 'Regions', exact: true }));
+  await page.keyboard.press('Enter');
+  const filter = page.getByRole('textbox', { name: 'Filter regions' });
+  await expect(filter).toBeFocused();
+  await page.keyboard.type('united s');
+  const states = page.getByRole('option', { name: 'United States', exact: true });
+  await expect(states).toBeVisible();
+  await expect(page.getByRole('listbox', { name: 'Regions' }).getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(states).toHaveAttribute('aria-selected', 'true');
+  found.push(...await scan());
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Regions', exact: true })).toBeFocused();
+  await expect(page.getByText('United States', { exact: true })).toBeVisible();
+  await tabTo(page.getByRole('button', { name: 'Find roles' }));
+  await page.keyboard.press('Enter');
+  const matches = page.getByRole('listbox', { name: 'Your matches' });
+  await expect(matches).toBeVisible();
+  await tabTo(matches);
+  await page.keyboard.press('ArrowDown');
+  const picked = matches.getByRole('option', { selected: true });
+  await expect(picked).toHaveCount(1);
+  const firstPick = (await picked.innerText()).trim();
+  await page.keyboard.press('ArrowDown');
+  await expect(picked).toHaveCount(1);
+  expect((await picked.innerText()).trim()).not.toBe(firstPick);
+  const link = page.getByRole('link', { name: /View posting for/ });
+  await expect(link).toHaveAttribute('href', /^https:\/\//);
+  await expect(link).toHaveAttribute('target', '_blank');
+  found.push(...await scan());
+  expect(errors).toEqual([]);
+  expect(found).toEqual([]);
+});
+
 test('product companies only is off by default and can be turned on', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();

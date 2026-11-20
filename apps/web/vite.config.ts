@@ -17,7 +17,7 @@ const offlineServiceWorker = (): Plugin => ({
     const hash = createHash('sha256');
     for (const f of files) hash.update(readFileSync(join(dist, f)));
     const version = hash.digest('hex').slice(0, 16);
-    const precache = ['/', ...files.filter(f => f !== '/index.html')];
+    const precache = ['/', ...files.filter(f => f !== '/index.html' && !f.includes('/ui-sdk'))];
     const template = readFileSync(new URL('./sw.template.js', import.meta.url), 'utf8');
     writeFileSync(join(dist, 'sw.js'), template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache)));
   },
@@ -25,6 +25,17 @@ const offlineServiceWorker = (): Plugin => ({
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), offlineServiceWorker()],
-  build: { sourcemap: false, target: 'es2022' },
+  build: {
+    sourcemap: false,
+    target: 'es2022',
+    modulePreload: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@ui-sdk') || id.includes('/sdk-path')) return 'ui-sdk';
+        },
+      },
+    },
+  },
   server: { fs: { allow: ['../..'] } },
 });
