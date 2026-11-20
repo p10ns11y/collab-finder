@@ -53,6 +53,20 @@ jobs:
       - name: Data check
         run: node scripts/ci-area-data.mjs
 
+
+  go-live:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Go-live gate
+        run: |
+          python3 scripts/ci-go-live-test.py
+          python3 scripts/ci-go-live.py --live
+
+
   web-preview:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
