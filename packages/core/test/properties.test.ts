@@ -931,6 +931,17 @@ const leadArb = fc.record({
   profile: { description: `${x.level}${x.who}${x.extra}, looking for a new role`, region: x.region, remote: x.remote } as MatchProfile,
   pool: { ...x.base, rows: [...x.base.rows, ...leadRows(ENG_LEAD, 'lead'), ...leadRows(NON_ENG_LEAD, 'off')] } as PublicPool,
 }));
+test('an engineering leader whose description contains a title-veto word stays in scope and still matches', () => {
+  const pool: PublicPool = { version: 'lead-scope', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: leadRows(ENG_LEAD, 'scope') };
+  fc.assert(fc.property(fc.constantFrom(
+    'Engineering director reporting to the CTO, leading 5 teams',
+    'Engineering manager, previously an assistant professor, leading 8 engineers',
+  ), (description) => {
+    const r = ok({ description, region: 'any', remote: 'any' }, pool, BIG);
+    return r.isOk() && allRows(r).length > 0;
+  }), RUNS);
+});
+
 test('P33 a leadership profile is never outside what we cover when engineering leadership rows exist, sees every one of them with no filters, and never sees a non-engineering leadership title', () => {
   fc.assert(fc.property(leadArb, ({ profile, pool }) => {
     const r = ok(profile, pool, BIG);

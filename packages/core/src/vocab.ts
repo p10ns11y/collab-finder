@@ -117,12 +117,14 @@ const LEADERSHIP_VETO = /(?:^|[^a-z0-9])(?:business development|executive assist
 export const LEADERSHIP_PHRASES: ReadonlyArray<string> = ['application security', 'product security', 'information security', 'security engineering', 'data engineering', 'data science', 'machine learning', 'ai engineering', 'head of ai', 'it platform', 'vp engineering', 'vp eng', 'engineering', 'software', 'devops', 'sre', 'platform', 'infrastructure', 'ciso', 'ml', 'cto'];
 const LEADERSHIP_PHRASE_RE = new RegExp(`(?:^|[^a-z0-9])(?:${[...LEADERSHIP_PHRASES].sort((a, b) => b.length - a.length).map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=$|[^a-z0-9])`, 'i');
 const LEADERSHIP_TERM = TERMS.find(x => x.key === 'leadership')!.re;
-const leadershipOk = (english: string): boolean => LEADERSHIP_TERM.test(languageGo(english)) && !LEADERSHIP_VETO.test(english) && LEADERSHIP_PHRASE_RE.test(english);
 export const hasLeadershipPhrase = (text: string): boolean => {
   const t = inEnglish(text);
   return !LEADERSHIP_VETO.test(t) && LEADERSHIP_PHRASE_RE.test(t);
 };
-export const leadsEngineering = (text: string): boolean => leadershipOk(inEnglish(text));
+export const leadsEngineering = (text: string): boolean => {
+  const t = inEnglish(text);
+  return LEADERSHIP_TERM.test(languageGo(t)) && LEADERSHIP_PHRASE_RE.test(t);
+};
 const SV_TEST = new RegExp(SV_RE.source, 'iu');
 const SV_COMPOUND_TEST = new RegExp(SV_COMPOUND.source, 'iu');
 export const hasSwedish = (text: string): boolean => SV_TEST.test(text) || SV_COMPOUND_TEST.test(text);
@@ -131,7 +133,7 @@ export const swedishOnlyTitle = (title: string): boolean => hasSwedish(title) &&
 export const isLearner = (text: string): boolean => /^\s*(?:an?\s+)?student learning\b/i.test(text) || /^\s*learning html\b/i.test(text);
 export const isLeadershipRow = (row: { title: string }): boolean => {
   const t = inEnglish(row.title);
-  return leadershipOk(t) && !NON_ENGINEERING_TITLE.test(t);
+  return leadsEngineering(t) && !LEADERSHIP_VETO.test(t) && !NON_ENGINEERING_TITLE.test(t);
 };
 export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
 export const NARROWING_ROLES: ReadonlySet<string> = new Set(['frontend', 'backend', 'embedded', 'security', 'data', 'ml', 'fde']);
