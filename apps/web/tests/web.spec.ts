@@ -129,6 +129,60 @@ test('any form change clears shown results, as the spec Edit step does', async (
   }
 });
 
+test.describe('phone at 375x812', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+  test('no sideways scroll on results, every form control fits and works, axe passes', async ({ page }) => {
+    const { default: AxeBuilder } = await import('@axe-core/playwright');
+    const scan = async () => (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations.map(v => v.id);
+    const sideways = () => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
+    const fits = async (boxes: ReadonlyArray<{ x: number; width: number } | null>) => boxes.every(b => b !== null && b.x >= 0 && b.x + b.width <= 375);
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    const controls = [page.getByLabel('About you'), page.getByLabel(/Where do you want to grow/), page.getByLabel(/Companies or interests you like/),
+      page.getByLabel('Sweden', { exact: true }), page.getByLabel('Work mode'), page.getByLabel(/Product companies only/), page.getByRole('button', { name: 'Find roles' })];
+    for (const c of controls) await expect(c).toBeVisible();
+    expect(await fits(await Promise.all(controls.map(c => c.boundingBox())))).toBe(true);
+    const found: string[] = [...await scan()];
+    await page.getByLabel('Sweden', { exact: true }).check();
+    await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
+    await page.getByLabel('Sweden', { exact: true }).uncheck();
+    await page.getByLabel('Work mode').selectOption('hybrid');
+    await page.getByLabel('Work mode').selectOption('any');
+    await fill(page, DESCRIPTION, 'AI infrastructure', 'robotics');
+    await expect(page.getByTestId('results')).toBeVisible();
+    expect(await sideways()).toBeLessThanOrEqual(0);
+    const cardBoxes = await page.getByTestId('results').locator('ul > li').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.x, width: r.width }; }));
+    expect(cardBoxes.length).toBeGreaterThan(0);
+    expect(await fits(cardBoxes)).toBe(true);
+    found.push(...await scan());
+    console.log(`PHONE sideways=${await sideways()} cards=${cardBoxes.length} axe=${found.length}`);
+    expect(found).toEqual([]);
+  });
+});
+
+test('an interest word that matches nothing shows one line', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await fill(page, DESCRIPTION, '', 'xylophonequartz');
+  await expect(page.getByTestId('likes-miss')).toHaveCount(1);
+  await expect(page.getByTestId('likes-miss')).toHaveText('None of those words matched.');
+  await fill(page, DESCRIPTION, '', 'backend');
+  await expect(page.getByTestId('likes-miss')).toHaveCount(0);
+});
+
+test('mostly non-Latin input shows one hint line, English or Swedish input none', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await page.getByLabel('About you').fill('高级后端工程师，八年经验，分布式系统和 Go');
+  await expect(page.getByTestId('language-hint')).toHaveCount(1);
+  await expect(page.getByTestId('language-hint')).toHaveText('Works best in English or Swedish.');
+  await page.getByLabel('About you').fill('Senior systemutvecklare med 8 års erfarenhet av Go och Postgres');
+  await expect(page.getByTestId('language-hint')).toHaveCount(0);
+  await page.getByLabel('About you').fill(DESCRIPTION);
+  await expect(page.getByTestId('language-hint')).toHaveCount(0);
+});
+
 test('product companies only is off by default and can be turned on', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
