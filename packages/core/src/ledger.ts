@@ -23,7 +23,7 @@ export const PAST_FILLED: ReadonlySet<LedgerState> = new Set(['filled', 'awaitin
 declare const approved: unique symbol;
 export type ApprovedBatch = { readonly id: string; readonly postingIds: ReadonlySet<string>; readonly approvedBy: 'owner'; readonly approvedAt: string; readonly [approved]: true };
 export const approveBatch = (id: string, postingIds: Iterable<string>, approvedAt: string): ApprovedBatch =>
-  ({ id, postingIds: new Set(postingIds), approvedBy: 'owner', approvedAt }) as ApprovedBatch;
+  ({ id, postingIds: new Set(postingIds), approvedBy: 'owner', approvedAt }) as unknown as ApprovedBatch;
 
 export const entryKey = (postingId: string, state: LedgerState): string => `${postingId}#${state}`;
 export const stateOf = (ledger: Ledger, postingId: string): LedgerState | null => {
