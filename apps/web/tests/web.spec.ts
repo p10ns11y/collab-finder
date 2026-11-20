@@ -22,7 +22,7 @@ const fill = async (page: Page, description: string, goal = '', likes = '') => {
   await page.getByRole('button', { name: 'Find roles' }).click();
 };
 
-test('0 network requests carry the description, goal or likes; nothing is stored; 3 groups render', async ({ page }) => {
+test('0 network requests carry the description, goal or likes; nothing is stored; 3 groups render @firefox', async ({ page }) => {
   const requests: Request[] = [];
   page.on('request', r => requests.push(r));
   await page.goto('/');
@@ -40,7 +40,7 @@ test('0 network requests carry the description, goal or likes; nothing is stored
   await expect(page.getByTestId('results')).not.toContainText(MARKER);
 });
 
-test('trap states: out of scope, zero results, PII warning, input error', async ({ page }) => {
+test('trap states: out of scope, zero results, PII warning, input error @firefox', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
   await fill(page, 'Registered nurse with 8 years in intensive care');
@@ -157,6 +157,54 @@ test('identical output: the page shows the same ids per group as core, CLI and M
   }
   console.log(`IDENTICAL web inputs=${compared}`);
   expect(compared).toBeGreaterThanOrEqual(5);
+});
+
+type Call = (name: string, input: Record<string, unknown>) => Promise<{ text: string; isError: boolean }>;
+const fakeModelContext = () => {
+  const tools = new Map<string, { execute(i: Record<string, unknown>): Promise<{ content: Array<{ text: string }>; isError?: boolean }> }>();
+  Object.defineProperty(navigator, 'modelContext', { value: { registerTool: (t: { name: string; execute: never }) => { tools.set(t.name, t); } } });
+  (window as unknown as { callTool: Call }).callTool = async (name, input) => { const r = await tools.get(name)!.execute(input); return { text: r.content[0]!.text, isError: r.isError === true }; };
+  (window as unknown as { toolNames: () => string[] }).toolNames = () => [...tools.keys()].sort();
+};
+const call = (page: Page, name: string, input: Record<string, unknown> = {}) =>
+  page.evaluate(([n, i]) => (window as unknown as { callTool: Call }).callTool(n as string, i as Record<string, unknown>), [name, input] as const).then((r): Record<string, unknown> & { isError: boolean } => Object.assign(JSON.parse(r.text) as Record<string, unknown>, { isError: r.isError }));
+
+test('WebMCP, feature-detected: an agent drives the same form; a write on an old state version is refused after a human edit', async ({ page }) => {
+  await page.addInitScript(fakeModelContext);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as { toolNames: () => string[] }).toolNames())).toEqual(['get_state', 'match_roles', 'open_posting', 'refine_search']);
+  const v0 = (await call(page, 'get_state')).stateVersion as number;
+  const first = await call(page, 'match_roles', { stateVersion: v0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.isError).toBe(false);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await expect(page.getByLabel('About you')).toHaveValue(/Go and Postgres/);
+  const v1 = first.stateVersion as number;
+  expect(v1).toBe(v0 + 1);
+  await page.getByLabel('Work mode').selectOption('hybrid');
+  const stale = await call(page, 'refine_search', { stateVersion: v1, remote: 'remote' });
+  expect(stale.isError).toBe(true);
+  expect(String(stale.error)).toMatch(/^StaleWrite/);
+  await expect(page.getByLabel('Work mode')).toHaveValue('hybrid');
+  const fresh = await call(page, 'refine_search', { stateVersion: (await call(page, 'get_state')).stateVersion, regions: ['SE', 'EU'] });
+  expect(fresh.isError).toBe(false);
+  expect(['results', 'ZeroResults']).toContain(fresh.verdict);
+  await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
+  const groups = fresh.groups as Record<string, Array<{ id: string }>> | null;
+  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+  if (anyId) expect(String((await call(page, 'open_posting', { id: anyId })).url)).toMatch(/^https:\/\//);
+  expect((await call(page, 'open_posting', { id: 'not-shown' })).isError).toBe(true);
+});
+
+test('WebMCP absent: the page registers nothing and works as before @firefox', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'modelContext', { value: undefined }); });
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await fill(page, DESCRIPTION);
+  expect(errors).toEqual([]);
+  await expect(page.getByTestId('results')).toBeVisible();
 });
 
 test.describe('phone at 375x812', () => {
