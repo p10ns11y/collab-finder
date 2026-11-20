@@ -3,7 +3,7 @@ import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, type CorpusStats, type TitleFocus } from './relevance.ts';
-import { inEnglish, isLeadershipRow, isLocationPart, leadsEngineering, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -29,6 +29,10 @@ export const likesCompany = (liked: Liked, company: string): boolean => {
   const c = nameWords(company);
   return liked.some(e => e.length <= c.length && e.every((w, i) => c[i] === w));
 };
+export const likesText = (liked: Liked, text: string): boolean => {
+  const tokens = nameWords(text);
+  return liked.some(e => e.length > 0 && e.every(w => tokens.includes(w)));
+};
 export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<RegionPref, 'any'>> => {
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
@@ -50,11 +54,11 @@ export type MatchRow = {
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
   lastChecked: string; ageDays: number; stale: boolean; tier: Tier; relevance: number; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
 };
-export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string> };
+export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string>; entry: boolean; nordic: boolean };
 export type MatchResult = {
   coreVersion: string; poolVersion: string;
   groups: Record<GroupKey, ReadonlyArray<MatchRow>>; totals: Record<GroupKey, number>;
-  warnings: ReadonlyArray<Warning>; understood: Understood;
+  warnings: ReadonlyArray<Warning>; understood: Understood; likesMiss: boolean;
 };
 export type MatchError = VisitorError;
 
@@ -97,16 +101,19 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   const seniority = currentLevel(p.description);
   const roles = [...d].filter(k => kindOf(k) === 'role' || kindOf(k) === 'generic');
   const skills = [...d].filter(k => kindOf(k) === 'skill');
-  if (seniority === 'junior') return err({ kind: 'OutOfScope', reason: 'junior' });
-  if (roles.length === 0 && skills.length === 0)
+  const entry = isLearner(p.description);
+  if (seniority === 'junior' && !entry) return err({ kind: 'OutOfScope', reason: 'junior' });
+  if (!entry && roles.length === 0 && skills.length === 0)
     return err({ kind: 'OutOfScope', reason: OUTSIDE_POOL.test(p.description) ? 'outside-pool-roles' : 'no-engineering-terms' });
-  if (skills.length === 0 && roles.every(k => k === 'leadership') && !leadsEngineering(p.description))
+  if (!entry && skills.length === 0 && roles.every(k => k === 'leadership') && !leadsEngineering(p.description))
     return err({ kind: 'OutOfScope', reason: OUTSIDE_POOL.test(p.description) ? 'outside-pool-roles' : 'no-engineering-terms' });
   const specific = roles.filter(k => kindOf(k) === 'role');
-  if (specific.length === 0 && skills.length === 0 && OUTSIDE_POOL.test(p.description)) return err({ kind: 'OutOfScope', reason: 'outside-pool-roles' });
+  if (!entry && specific.length === 0 && skills.length === 0 && OUTSIDE_POOL.test(p.description)) return err({ kind: 'OutOfScope', reason: 'outside-pool-roles' });
   const places = PLACES.filter(([, re]) => re.test(p.description)).map(([r]) => r);
-  return ok({ roles: roles.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority, places });
+  const rolesOut = entry && roles.length === 0 ? ['software'] : roles;
+  return ok({ roles: rolesOut.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority: entry ? 'junior' : seniority, places, entry, nordic: hasSwedish(p.description) });
 }
+const NORDIC_LOC = /(?:^|[^a-z])(?:sweden|sverige|stockholm|gothenburg|goteborg|malmo|malmö|uppsala|oslo|bergen|norway|norge|copenhagen|københavn|denmark|danmark|helsinki|espoo|finland|reykjavik|iceland|nordics?)(?=$|[^a-z])/i;
 
 const regionOk = (prefs: ReadonlyArray<Exclude<RegionPref, 'any'>>, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
@@ -129,7 +136,7 @@ const dayMs = 864e5;
 const ageOf = (iso: string, now: Date): number => { const t = Date.parse(iso); return Number.isFinite(t) ? Math.max(0, Math.floor((now.getTime() - t) / dayMs)) : 9999; };
 
 export const inScope = (row: PublicRow): boolean =>
-  row.seniority !== 'executive' && (ENGINEERING_TITLE.test(inEnglish(row.title)) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
+  row.seniority !== 'executive' && (ENGINEERING_TITLE.test(inEnglish(row.title)) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(inEnglish(row.title)) && !MANAGER_TITLE.test(inEnglish(row.title));
 export const inLeadershipTrack = (u: Pick<Understood, 'roles'>, row: PublicRow): boolean => u.roles.includes('leadership') && isLeadershipRow(row);
 
 type Scored = { group: GroupKey; row: MatchRow; mobile: 'none' | 'covered' | 'bottom' };
@@ -149,16 +156,18 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const titleHits = [...roleHits, ...generalistHit];
   const genericHit = !titleHits.length && u.roles.includes('software') && rt.title.has('software');
   const goalHits = u.goal.filter(k => rt.title.has(k));
-  if (!titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
+  if (!u.entry && !titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
-  const reg = regionOk(p.regions, row.region); if (reg === 'no') return null;
+  const region = row.region === 'EU' && regionOf(row.location ?? '') === 'other' ? 'other' : row.region;
+  const reg = regionOk(p.regions, region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   MTS.lastIndex = 0;
   const isMts = MTS.test(row.title); MTS.lastIndex = 0;
   const rowLevel = isMts ? levelOf(row.title) : (levelOfPool(row.seniority) ?? levelOf(row.title));
   let levelGap = 0;
   if (u.seniority && rowLevel) levelGap = LEVELS.indexOf(rowLevel) - LEVELS.indexOf(u.seniority);
-  if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
+  if (u.entry) { if (rowLevel !== 'junior') return null; }
+  else if (levelGap >= 2 || levelGap <= -2 || rowLevel === 'junior') return null;
 
   const mine = new Set([...u.roles, ...u.goal, ...[...u.roles, ...u.goal].flatMap(k => COVERS[k] ?? [])]);
   const mobileMismatch = !p.mobile && MOBILE_TITLE.test(row.title);
@@ -173,9 +182,11 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   else if (!u.seniority) reasons.push(`Posting level: ${rowLevel}`);
   else if (levelGap === 1) reasons.push(`One level above yours (${rowLevel})`);
   else reasons.push(`Level fits: ${rowLevel}`);
-  reasons.push(reg === 'unknown' ? 'Location not confirmed, check the posting' : `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`);
+  reasons.push(reg === 'unknown' ? 'Location not confirmed, check the posting' : `Region: ${region}${row.location ? ` (${row.location})` : ''}`);
   const liked = p.liked.length > 0 && likesCompany(p.liked, row.company);
+  const interest = p.liked.length > 0 && !liked && likesText(p.liked, row.title);
   if (liked) reasons.push('At a company on your list');
+  if (interest) reasons.push('Matches an interest you named');
   if (narrowedAway) reasons.push('Title points to a different specialty than yours');
   if (rem === 'unknown') reasons.push('Remote policy not stated');
   else if (p.remote !== 'any') reasons.push(`Work mode: ${row.remote}`);
@@ -183,26 +194,27 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const stale = ageDays > STALE_DAYS;
   reasons.push(row.status === 'open' ? `Open when last checked (${row.status_checked_at.slice(0, 10)})` : 'Status unknown, verify before applying');
 
-  const placeBonus = row.region !== null && u.places.includes(row.region) ? 6 : 0;
+  const nordicHit = u.nordic && p.regions.length === 0 && (region === 'SE' || NORDIC_LOC.test(row.location ?? ''));
+  const placeBonus = (region !== null && u.places.includes(region)) || nordicHit ? 6 : 0;
   const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
   const rawScore = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * 25
-    + placeBonus + tagDepth + (liked ? LIKED_POINTS : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
+    + placeBonus + tagDepth + ((liked || interest) ? LIKED_POINTS : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
     - (levelGap === 1 ? LEVEL_STEP : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
     - (narrowedAway ? 8 : 0) - (isSkillList(row) ? SKILL_LIST_PENALTY : 0);
   const shown = Math.floor(rawScore / SCORE_BUCKET) * SCORE_BUCKET;
 
   const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0 && !narrowedAway;
-  const strongCore = titleHits.length > 0 || coveredHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit));
+  const strongCore = titleHits.length > 0 || coveredHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit)) || u.entry;
   let group: GroupKey;
   if (goalHits.length && certain && (strongCore || skillHits.length || genericHit)) group = 'stepTowardGoal';
   else if (strongCore && certain && !goalHits.length) group = 'fitsNow';
   else group = 'stretch';
 
-  const rel = Math.round((relevance(p.query, row, p.stats) + (row.region !== null && u.places.includes(row.region) ? PLACE_RELEVANCE : 0)
+  const rel = Math.round((relevance(p.query, row, p.stats) + ((region !== null && u.places.includes(region)) || nordicHit ? PLACE_RELEVANCE : 0)
     - (levelGap === 1 ? LEVEL_RELEVANCE_STEP : 0)) * 1e4) / 1e4;
   const tier: Tier = reg !== 'yes' ? 2 : row.status === 'open' && rem === 'yes' && levelGap <= 0 ? 0 : 1;
   return { group, row: {
-    id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region: row.region, remote: row.remote,
+    id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region, remote: row.remote,
     seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, relevance: rel, score: shown, reasons, alsoIds: [],
   }, mobile: !mobileMismatch ? 'none' : roleHits.length || skillHits.length || coveredHits.length ? 'covered' : 'bottom' };
 }
@@ -288,7 +300,9 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
       stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf, focusOf)), x.keep('stretch'), x.carried), mobileOf),
     };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
+    const likesMiss = prefs.liked.length > 0 && !pool.rows.some(row => likesCompany(prefs.liked, row.company) || likesText(prefs.liked, row.title));
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
+      if (u.entry) return err<MatchResult, MatchError>({ kind: 'OutOfScope', reason: 'junior' });
       const widen: Array<'region' | 'remote' | 'goal' | 'productOnly'> = [];
       if (prefs.regions.length) widen.push('region');
       if (prefs.remote !== 'any') widen.push('remote');
@@ -306,6 +320,6 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
     if (poolAge > STALE_DAYS) warnings.push({ kind: 'PoolStale', checkedAt: `${pool.checkedRange.from} to ${pool.checkedRange.to}`, ageDays: poolAge });
     const staleOpen = [...groups.fitsNow, ...groups.stepTowardGoal].filter(r => r.stale).map(r => r.id);
     if (staleOpen.length) warnings.push({ kind: 'StaleOpenStatus', ids: staleOpen });
-    return ok({ coreVersion: CORE_VERSION, poolVersion: pool.version, groups, totals, warnings, understood: u });
+    return ok({ coreVersion: CORE_VERSION, poolVersion: pool.version, groups, totals, warnings, understood: u, likesMiss });
   }));
 }

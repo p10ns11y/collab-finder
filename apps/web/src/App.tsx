@@ -136,7 +136,7 @@ export function App() {
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
           <Input id="likes" name="likes" value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
             placeholder="e.g. Spotify, Einride, robotics" aria-describedby="likes-help" autoComplete="off" />
-          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Roles at these companies move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies and titles move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -224,6 +224,7 @@ function Results({ result, ms }: { result: MatchResult; ms: number }) {
   return (
     <section aria-labelledby="results-title" data-testid="results">
       <h2 id="results-title" className="text-2xl font-semibold">Your matches</h2>
+      {result.likesMiss && <p className="mt-2 text-sm text-text-muted" data-testid="likes-miss">None of those words matched.</p>}
       <p className="mt-1 text-sm text-text-muted">
         Matched in {ms} ms in your browser. Read as: {understood || 'general software engineering'}
         {u.seniority ? `, ${u.seniority} level` : ''}{u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}.

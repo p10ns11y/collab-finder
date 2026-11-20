@@ -161,6 +161,16 @@ test.describe('phone at 375x812', () => {
   });
 });
 
+test('an interest word that matches nothing shows one line', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await fill(page, DESCRIPTION, '', 'xylophonequartz');
+  await expect(page.getByTestId('likes-miss')).toHaveCount(1);
+  await expect(page.getByTestId('likes-miss')).toHaveText('None of those words matched.');
+  await fill(page, DESCRIPTION, '', 'backend');
+  await expect(page.getByTestId('likes-miss')).toHaveCount(0);
+});
+
 test('mostly non-Latin input shows one hint line, English or Swedish input none', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();

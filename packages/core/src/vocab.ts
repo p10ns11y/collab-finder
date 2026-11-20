@@ -81,7 +81,8 @@ export const SWEDISH: ReadonlyArray<readonly [string, string]> = [
   ['mjukvaruingenjör', 'software engineer'], ['programvaruingenjör', 'software engineer'], ['webbutvecklare', 'web developer'], ['apputvecklare', 'mobile developer'],
   ['systemutveckling', 'software development'], ['mjukvaruutveckling', 'software development'], ['webbutveckling', 'web development'],
   ['utvecklingschef', 'engineering manager'], ['teknikchef', 'head of engineering'], ['it-chef', 'head of engineering'], ['teamledare', 'team lead'],
-  ['utvecklare', 'developer'], ['ingenjör', 'engineer'], ['erfarenhet', 'experience'], ['års', 'years'], ['år', 'years'],
+  ['backendutvecklare', 'backend developer'], ['frontendutvecklare', 'frontend developer'], ['fullstackutvecklare', 'fullstack developer'],
+  ['dataingenjör', 'data engineer'], ['utvecklare', 'developer'], ['ingenjör', 'engineer'], ['erfarenhet', 'experience'], ['års', 'years'], ['år', 'years'],
   ['maskininlärning', 'machine learning'], ['artificiell intelligens', 'artificial intelligence'], ['molntjänster', 'cloud'], ['moln', 'cloud'],
   ['infrastruktur', 'infrastructure'], ['plattform', 'platform'], ['informationssäkerhet', 'security'], ['säkerhet', 'security'],
   ['distribuerade system', 'distributed systems'], ['inbyggda system', 'embedded systems'], ['robotik', 'robotics'], ['hårdvara', 'hardware'],
@@ -111,9 +112,12 @@ export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|acc
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
 const ENGINEERING_CUE = /(?:^|[^a-z])(?:engineer(?:ing|s)?|software|developers?|development|technology|tech)(?=$|[^a-z])/i;
 export const leadsEngineering = (text: string): boolean => {
-  const terms = termsIn(text);
-  return terms.has('leadership') && (ENGINEERING_CUE.test(inEnglish(text)) || [...terms].some(k => k !== 'leadership' && kindOf(k) !== 'domain'));
+  const english = inEnglish(text);
+  if (!termsIn(text).has('leadership')) return false;
+  return ENGINEERING_CUE.test(english) || !OUTSIDE_POOL.test(english);
 };
+export const hasSwedish = (text: string): boolean => new RegExp(SV_RE.source, 'iu').test(text) || new RegExp(SV_COMPOUND.source, 'iu').test(text);
+export const isLearner = (text: string): boolean => /^\s*(?:an?\s+)?student learning\b/i.test(text) || /^\s*learning html\b/i.test(text);
 export const isLeadershipRow = (row: { title: string }): boolean => leadsEngineering(row.title) && !NON_ENGINEERING_TITLE.test(inEnglish(row.title));
 export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
 export const NARROWING_ROLES: ReadonlySet<string> = new Set(['frontend', 'backend', 'embedded', 'security', 'data', 'ml', 'fde']);
@@ -144,6 +148,48 @@ const PLACE_WORDS = new Set(('remote hybrid onsite on-site site anywhere worldwi
   + 'budapest hungary bucharest romania sofia bulgaria athens greece tallinn estonia riga latvia vilnius lithuania belgrade serbia zagreb croatia '
   + 'kyiv ukraine istanbul turkey tel aviv israel dubai uae india bangalore bengaluru hyderabad pune singapore tokyo japan seoul korea sydney melbourne australia canberra auckland').split(' '));
 const PLACE_FILLER = new Set('and or in based only office first time zone zones timezone friendly the of within across from area region country countries city cities x f m d w h genders all gender'.split(' '));
+export type PlaceRegion = 'SE' | 'EU' | 'UK' | 'US' | 'other' | 'remote-anywhere';
+const foldPlace = (s: string): string => s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '');
+const placeWords = (s: string): string[] => foldPlace(s).split(/[^a-z0-9]+/).filter(Boolean);
+const placeHas = (words: ReadonlyArray<string>, w: string): boolean => words.includes(w);
+const placePhrase = (words: ReadonlyArray<string>, p: string): boolean => ` ${words.join(' ')} `.includes(` ${p} `);
+const LATAM = new Set('brazil brasil argentina mexico chile colombia peru uruguay paraguay bolivia ecuador venezuela panama guatemala cuba honduras nicaragua latam'.split(' '));
+const LATAM_PHRASE = ['porto alegre', 'sao paulo', 'rio de janeiro', 'buenos aires', 'mexico city', 'costa rica', 'puerto rico', 'latin america'];
+const OTHER_COUNTRY = new Set('canada india singapore australia japan china israel uae korea brazil'.split(' '));
+const SE_WORD = new Set('sweden sverige stockholm gothenburg goteborg malmo uppsala'.split(' '));
+const UK_WORD = new Set('uk england scotland wales london manchester edinburgh cambridge bristol oxford belfast glasgow'.split(' '));
+const US_STATE = new Set('al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok or pa ri sc sd tn tx ut vt va wa wv wi wy dc'.split(' '));
+const US_NAME = new Set('alabama alaska arizona arkansas california colorado connecticut delaware florida georgia hawaii idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota mississippi missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont virginia washington wisconsin wyoming'.split(' '));
+const CA_PROVINCE = new Set('on bc qc ab mb sk ns nb'.split(' '));
+const EU_COUNTRY = new Set('germany deutschland france netherlands holland spain portugal italy ireland austria belgium poland denmark norway finland switzerland iceland estonia latvia lithuania czech czechia hungary romania greece croatia bulgaria slovakia slovenia luxembourg europe eu emea'.split(' '));
+const EU_CITY = new Set('berlin munich munchen amsterdam paris madrid barcelona lisbon lisboa dublin copenhagen kobenhavn helsinki oslo warsaw vienna zurich porto hamburg frankfurt cologne brussels prague tallinn rome milan lyon toulouse rotterdam eindhoven'.split(' '));
+const STATE_COLLIDE = new Set('de in me la id md co pa'.split(' '));
+export const regionOf = (location: string): PlaceRegion | null => {
+  const words = placeWords(location);
+  if (!words.length) return null;
+  const has = (w: string) => placeHas(words, w);
+  const phrase = (p: string) => placePhrase(words, p);
+  if (phrase('multiple locations') || (words.length === 1 && has('hybrid'))) return null;
+  const remote = has('remote');
+  if (remote && (has('us') || has('usa') || phrase('united states'))) return 'US';
+  if (remote && (has('europe') || has('eu') || has('emea'))) return 'EU';
+  if (remote && (has('uk') || phrase('united kingdom'))) return 'UK';
+  if (remote && (has('sweden') || has('sverige'))) return 'SE';
+  if (remote && (has('global') || has('worldwide') || has('anywhere'))) return 'remote-anywhere';
+  if (words.length === 1 && (has('remote') || has('anywhere') || has('worldwide'))) return 'remote-anywhere';
+  if (phrase('new mexico') || phrase('united states') || has('usa')) return 'US';
+  if (LATAM_PHRASE.some(phrase) || words.some(w => LATAM.has(w))) return 'other';
+  if (phrase('united kingdom')) return 'UK';
+  if (words.some(w => SE_WORD.has(w))) return 'SE';
+  const last = words[words.length - 1]!;
+  if (CA_PROVINCE.has(last) || words.some(w => OTHER_COUNTRY.has(w))) return 'other';
+  if (words.some(w => UK_WORD.has(w))) return 'UK';
+  const euCity = words.some(w => EU_CITY.has(w));
+  if ((US_STATE.has(last) || US_NAME.has(last)) && !(STATE_COLLIDE.has(last) && euCity)) return 'US';
+  if (words.some(w => EU_COUNTRY.has(w)) || euCity) return 'EU';
+  if (words.some(w => US_NAME.has(w))) return 'US';
+  return null;
+};
 export const isPlaceWord = (word: string): boolean => PLACE_WORDS.has(word.toLowerCase());
 export const isLocationPart = (text: string): boolean => {
   const words = text.toLowerCase().split(/[^a-zà-öø-ÿ]+/).filter(Boolean);
