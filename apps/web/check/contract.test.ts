@@ -19,7 +19,8 @@ test('every form field resets the view, as Edit does in the spec', () => {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
-  assert.match(app, /const formChanged = \(\) => setView\(\{ kind: 'idle' \}\);/);
+  assert.match(app, /const formChanged = \(\) => \{ version\.current \+= 1; setView\(\{ kind: 'idle' \}\); \};/);
+  assert.match(app, /if \(base !== version\.current\) return \{ stateVersion: version\.current, result: null, error: `StaleWrite/);
   assert.match(spec, /WidenFilters ==[\s\S]*?state' = "matching"/);
 });
 

@@ -65,7 +65,7 @@ jobs:
         working-directory: apps/web
       - run: node --test check/*.test.ts
         working-directory: apps/web
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox
         working-directory: apps/web
       - run: npx playwright test
         working-directory: apps/web

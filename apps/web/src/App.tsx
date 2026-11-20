@@ -8,6 +8,7 @@ import { Badge } from './components/ui/badge.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
+import { registerWebMcp, type AgentSearch } from './webmcp.ts';
 
 type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
 type View =
@@ -76,19 +77,45 @@ export function App() {
 
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
 
-  const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean }) => {
-    if (pool.kind !== 'ready') return;
+  const run = useCallback((over?: AgentSearch) => {
+    if (pool.kind !== 'ready') return null;
     const t0 = performance.now();
-    const r = match({ description, goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
+    const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());
+    return r;
   }, [pool, description, goal, likes, regions, remote, productOnly]);
 
-  const formChanged = () => setView({ kind: 'idle' });
+  const version = useRef(0);
+  const latest = useRef({ run, view });
+  latest.current = { run, view };
+  useEffect(() => {
+    registerWebMcp({
+      version: () => version.current,
+      search: (base, change) => {
+        if (base !== version.current) return { stateVersion: version.current, result: null, error: `StaleWrite: base ${base}, current ${version.current}` };
+        if (change.description !== undefined) setDescription(change.description);
+        if (change.goal !== undefined) setGoal(change.goal);
+        if (change.regions) setRegions(change.regions);
+        if (change.remote) setRemote(change.remote);
+        if (change.productOnly !== undefined) setProductOnly(change.productOnly);
+        version.current += 1;
+        const r = latest.current.run(change);
+        return { stateVersion: version.current, result: r?.isOk() ? r.value : null, error: r === null ? 'pool not loaded' : r.isErr() ? r.error.kind : null };
+      },
+      urlOf: id => {
+        const v = latest.current.view;
+        return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id)?.url ?? null) : null;
+      },
+    });
+  }, []);
+
+  const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
-  const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); setView({ kind: 'idle' }); };
+  const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
+    version.current += 1;
     if (w === 'region') { setRegions([]); run({ regions: [] }); }
     else if (w === 'productOnly') { setProductOnly(false); run({ productOnly: false }); }
     else if (w === 'remote') { setRemote('any'); run({ remote: 'any' }); }
