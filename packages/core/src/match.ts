@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, type CorpusStats, type TitleFocus } from './relevance.ts';
+import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, tokensOf, type CorpusStats, type TitleFocus } from './relevance.ts';
 import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
@@ -54,7 +54,7 @@ export type MatchRow = {
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
   lastChecked: string; ageDays: number; stale: boolean; tier: Tier; relevance: number; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
 };
-export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string>; entry: boolean; nordic: boolean };
+export type Understood = { roles: ReadonlyArray<string>; skills: ReadonlyArray<string>; goal: ReadonlyArray<string>; seniority: Level | null; places: ReadonlyArray<string>; entry: boolean; nordic: boolean; learned: ReadonlyArray<string> };
 export type MatchResult = {
   coreVersion: string; poolVersion: string;
   groups: Record<GroupKey, ReadonlyArray<MatchRow>>; totals: Record<GroupKey, number>;
@@ -111,7 +111,9 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   if (!entry && specific.length === 0 && skills.length === 0 && OUTSIDE_POOL.test(p.description)) return err({ kind: 'OutOfScope', reason: 'outside-pool-roles' });
   const places = PLACES.filter(([, re]) => re.test(p.description)).map(([r]) => r);
   const rolesOut = entry && roles.length === 0 ? ['software'] : roles;
-  return ok({ roles: rolesOut.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority: entry ? 'junior' : seniority, places, entry, nordic: hasSwedish(p.description) });
+  const LEARNED = ['html', 'css', 'javascript', 'typescript', 'python', 'react', 'sql', 'rust', 'java', 'kotlin', 'go'];
+  const learned = entry ? LEARNED.filter(s => new RegExp(`(?:^|[^a-z0-9])${s}(?=$|[^a-z0-9])`, 'i').test(p.description)) : [];
+  return ok({ roles: rolesOut.sort(), skills: skills.sort(), goal: [...g].filter(k => !d.has(k) && kindOf(k) !== 'generic').sort(), seniority: entry ? 'junior' : seniority, places, entry, nordic: hasSwedish(p.description), learned });
 }
 const NORDIC_LOC = /(?:^|[^a-z])(?:sweden|sverige|stockholm|gothenburg|goteborg|malmo|malmö|uppsala|oslo|bergen|norway|norge|copenhagen|københavn|denmark|danmark|helsinki|espoo|finland|reykjavik|iceland|nordics?)(?=$|[^a-z])/i;
 
@@ -156,6 +158,7 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const titleHits = [...roleHits, ...generalistHit];
   const genericHit = !titleHits.length && u.roles.includes('software') && rt.title.has('software');
   const goalHits = u.goal.filter(k => rt.title.has(k));
+  if (u.entry && !entryFieldOk(row.title, u.learned)) return null;
   if (!u.entry && !titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
   const region = row.region === 'EU' && regionOf(row.location ?? '') === 'other' ? 'other' : row.region;
@@ -220,14 +223,21 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
 }
 
 const NO_FOCUS: TitleFocus = { skill: false, roles: 0 };
-type Crowd = { sv: boolean; agency: boolean; lead: boolean };
-const NO_CROWD: Crowd = { sv: false, agency: false, lead: false };
+type Crowd = { sv: boolean; agency: boolean; lead: boolean; lang: boolean; far: boolean };
+const NO_CROWD: Crowd = { sv: false, agency: false, lead: false, lang: false, far: false };
+const TITLE_LANG = new Set(['pascal', 'cobol', 'fortran', 'ada', 'haskell', 'elixir', 'erlang', 'ruby', 'php', 'perl', 'lua', 'kotlin', 'scala', 'java', 'python', 'golang', 'go', 'rust', 'typescript', 'javascript', 'cpp', 'csharp', 'swift', 'dart', 'clojure', 'matlab']);
+export const unlistedLanguage = (query: ReadonlySet<string>, title: string, skills: ReadonlyArray<string> = []): boolean => {
+  const have = new Set([...query, ...skills]);
+  if (have.has('go') || have.has('golang')) { have.add('go'); have.add('golang'); }
+  const langs = tokensOf(title).filter(t => TITLE_LANG.has(t));
+  return langs.length > 0 && langs.every(t => !have.has(t));
+};
 const byRank = (focusOf: ReadonlyMap<string, TitleFocus>, crowdOf: ReadonlyMap<string, Crowd>, english: boolean, leadership: boolean) => (a: MatchRow, b: MatchRow): number => {
   const fa = focusOf.get(a.id) ?? NO_FOCUS;
   const fb = focusOf.get(b.id) ?? NO_FOCUS;
   const ca = crowdOf.get(a.id) ?? NO_CROWD;
   const cb = crowdOf.get(b.id) ?? NO_CROWD;
-  return a.tier - b.tier || (leadership ? Number(cb.lead) - Number(ca.lead) : 0) || b.score - a.score || (english ? Number(ca.sv) - Number(cb.sv) : 0) || Number(ca.agency) - Number(cb.agency) || Number(fb.skill) - Number(fa.skill) || fb.roles - fa.roles || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return a.tier - b.tier || (leadership ? Number(cb.lead) - Number(ca.lead) : 0) || b.score - a.score || Number(ca.lang) - Number(cb.lang) || Number(ca.far) - Number(cb.far) || (english ? Number(ca.sv) - Number(cb.sv) : 0) || Number(ca.agency) - Number(cb.agency) || Number(fb.skill) - Number(fa.skill) || fb.roles - fa.roles || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 };
 
 export const normalizedTitle = (t: string): string => {
@@ -245,11 +255,24 @@ const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>, focusOf: R
 const PROGRAMME_LEVEL = /\b(?:junior|jr|senior|sr|staff|principal|lead|intern(?:ship)?|trainee|graduate|associate|entry|level|i{1,3}|iv|vi{0,3}|\d+)\b/g;
 const EARLY_TITLE = /\b(?:junior|jr|intern(?:ship)?|trainee|graduate|new grad|praktik(?:ant)?)\b/i;
 const programmeOf = (title: string): string => normalizedTitle(title).replace(PROGRAMME_LEVEL, ' ').replace(/\s+/g, ' ').trim();
+const FIELD_OK = new Set(['engineer', 'software', 'programmer', 'web', 'trainee', 'backend', 'frontend', 'fullstack', 'full', 'stack', 'platform', 'infrastructure', 'api', 'service', 'system', 'app', 'application', 'developer']);
+const entryFieldOk = (title: string, learned: ReadonlyArray<string>): boolean => {
+  const known = new Set([...FIELD_OK, ...learned]);
+  return tokensOf(title).every(t => known.has(t));
+};
 const DIVERSE_TOP = 10;
-const diversityKey = (r: MatchRow): string => {
-  const company = r.company.toLowerCase().trim();
-  const programme = r.seniority === 'junior' || EARLY_TITLE.test(r.title) ? 'early' : programmeOf(r.title);
-  return `${company}|${programme}`;
+const diversityKey = (r: MatchRow): string => `${r.company.toLowerCase().trim()}|${r.seniority === 'junior' || EARLY_TITLE.test(r.title) ? 'early' : programmeOf(r.title)}`;
+const capByEmployer = (rows: ReadonlyArray<MatchRow>, n = 2): { kept: MatchRow[]; rest: MatchRow[] } => {
+  const seen = new Map<string, number>();
+  const kept: MatchRow[] = [];
+  const rest: MatchRow[] = [];
+  for (const r of rows) {
+    const k = r.company.toLowerCase().trim();
+    const c = seen.get(k) ?? 0;
+    if (c >= n) rest.push(r);
+    else { seen.set(k, c + 1); kept.push(r); }
+  }
+  return { kept, rest };
 };
 const diversify = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
   const top: MatchRow[] = [];
@@ -322,14 +345,16 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
     const english = !hasSwedish(p.description) && !hasSwedish(p.goal ?? '');
     const leadership = u.roles.includes('leadership');
     const excluded = new Set(opts.excludeIds ?? []);
-    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); crowdOf.set(s.row.id, { sv: swedishOnlyTitle(row.title), agency: isAgencyRow(row), lead: isLeadershipRow(row) }); } }
+    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); crowdOf.set(s.row.id, { sv: swedishOnlyTitle(row.title), agency: isAgencyRow(row), lead: isLeadershipRow(row), lang: unlistedLanguage(prefs.query, row.title, u.skills), far: prefs.regions.includes('SE') && s.row.region === 'remote-anywhere' }); } }
     const x = acrossGroups(all);
     const rank = byRank(focusOf, crowdOf, english, leadership);
+    const fitted = capByEmployer(collapse(all.fitsNow.sort(rank), x.keep('fitsNow'), x.carried));
     const stretchRows = collapse(all.stretch.sort(stretchRank(mobileOf, focusOf, crowdOf, english, leadership)), x.keep('stretch'), x.carried);
+    const stretchNon = [...fitted.rest, ...stretchRows.filter(r => mobileOf.get(r.id) === 'none')].sort(rank);
     const ranked = {
-      fitsNow: diversify(collapse(all.fitsNow.sort(rank), x.keep('fitsNow'), x.carried)),
+      fitsNow: fitted.kept,
       stepTowardGoal: diversify(collapse(all.stepTowardGoal.sort(rank), x.keep('stepTowardGoal'), x.carried)),
-      stretch: mobileLast([...diversify(stretchRows.filter(r => mobileOf.get(r.id) === 'none')), ...stretchRows.filter(r => mobileOf.get(r.id) !== 'none')], mobileOf),
+      stretch: mobileLast([...diversify(stretchNon), ...stretchRows.filter(r => mobileOf.get(r.id) !== 'none')], mobileOf),
     };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     const likesMiss = prefs.liked.length > 0 && !pool.rows.some(row => likesCompany(prefs.liked, row.company) || likesText(prefs.liked, row.title));

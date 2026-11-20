@@ -16,7 +16,7 @@ export const TERMS: ReadonlyArray<Term> = [
   t('product', 'product engineering', 'role', 'product engineer(?:ing)?'),
   t('fde', 'forward-deployed', 'role', 'forward[- ]deployed|fde|solutions? engineer(?:ing)?|customer engineer(?:ing)?|deployment engineer'),
   t('distributed', 'distributed systems', 'role', 'distributed systems?|systems engineer(?:ing)?'),
-  t('leadership', 'engineering leadership', 'role', 'engineering manager|(?:engineering|software|development) (?:manager|director|leadership)|manager,? (?:software )?engineering|vp|vice president|head of|director|cto|chief technology officer'),
+  t('leadership', 'engineering leadership', 'role', 'engineering manager|(?:engineering|software|development) (?:manager|director|leadership)|manager,? (?:software )?engineering|vp|vice president|head of|director|cto|ciso|chief technology officer|chief information security officer'),
   t('agents', 'AI agents', 'domain', 'agentic|agents?|multi-agent|agent (?:platform|systems?|frameworks?|sdk|infrastructure|runtime)'),
   t('physical', 'physical products', 'domain', 'physical (?:products?|ai|world)|devices?|robots?|robotics|vehicles?|hardware|drones?|satellites?|embedded|embodied|autonomous (?:vehicles?|driving|robots?|drones?)'),
   t('frontier', 'frontier AI labs', 'domain', 'frontier (?:ai )?(?:labs?|models?|research)|ai labs?|research labs?|foundation models?'),
@@ -113,12 +113,13 @@ export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
 export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
-const ENG_STRONG = /(?:^|[^a-z])(?:engineer(?:ing|s)?|software|platform|infrastructure|technology|tech|cto|devops|sre|machine learning|artificial intelligence|eng|ml|ai)(?=$|[^a-z])/i;
-const ENG_PHRASE = /(?:^|[^a-z])(?:data engineering|data platform|security engineering|product security|application security|software development)(?=$|[^a-z])/i;
-export const leadsEngineering = (text: string): boolean => {
+export const LEADERSHIP_PHRASES: ReadonlyArray<string> = ['platform engineering', 'infrastructure engineering', 'security engineering', 'information security', 'data engineering', 'data science', 'machine learning', 'ai engineering', 'vp engineering', 'head of engineering', 'engineering', 'software', 'devops', 'sre', 'ciso', 'ml', 'cto'];
+const phraseHit = (phrase: string, text: string): boolean => new RegExp(`(?:^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-z0-9])`, 'i').test(text);
+export const hasLeadershipPhrase = (text: string): boolean => {
   const t = inEnglish(text);
-  return termsIn(text).has('leadership') && (ENG_STRONG.test(t) || ENG_PHRASE.test(t));
+  return LEADERSHIP_PHRASES.some(p => phraseHit(p, t));
 };
+export const leadsEngineering = (text: string): boolean => termsIn(text).has('leadership') && hasLeadershipPhrase(text);
 export const hasSwedish = (text: string): boolean => new RegExp(SV_RE.source, 'iu').test(text) || new RegExp(SV_COMPOUND.source, 'iu').test(text);
 const ENGLISH_ROLE = /(?:^|[^a-z])(?:engineer|developer|programmer|manager|software|backend|frontend|fullstack|platform)(?=$|[^a-z])/i;
 export const swedishOnlyTitle = (title: string): boolean => hasSwedish(title) && !ENGLISH_ROLE.test(title);

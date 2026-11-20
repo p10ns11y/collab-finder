@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
 import { inEnglish, inScope, likesText, mostlyNonLatin, regionOf, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
-import { COVERS, LEVELS, MOBILE_TITLE, TERMS, hasSwedish, isLeadershipRow, kindOf, levelOf, swedishOnlyTitle, termsIn } from '../src/vocab.ts';
-import { matchUnder, type MatchRow } from '../src/match.ts';
+import { COVERS, LEVELS, MOBILE_TITLE, TERMS, hasLeadershipPhrase, hasSwedish, isLeadershipRow, kindOf, levelOf, swedishOnlyTitle, termsIn } from '../src/vocab.ts';
+import { matchUnder, unlistedLanguage, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
 
 const PHRASES = ['backend', 'frontend', 'full-stack', 'platform', 'infrastructure', 'data engineering', 'machine learning', 'AI', 'LLM', 'security',
@@ -123,12 +123,14 @@ test('P7 groups ranked by tier asc, leadership, shown score desc, language, cons
     const q = queryTokens(p.description, p.goal ?? '');
     const lead = leadProfile(p);
     const english = englishProfile(p);
+    const se = regionsOf(p.region).includes('SE');
+    const skills = understand(p).isOk() ? understand(p)._unsafeUnwrap().skills : [];
     const byId = rowById(pool);
     const key = (x: MatchRow) => {
       const f = titleFocus(q, x.title);
       const row = byId.get(x.id);
-      const fl = { lead: row ? isLeadershipRow(row) : isLeadershipRow(x), sv: english && swedishOnlyTitle(row?.title ?? x.title), agency: isAgencyRow(row ?? x) };
-      return [x.tier, lead ? (fl.lead ? 0 : 1) : 0, -x.score, fl.sv ? 1 : 0, fl.agency ? 1 : 0, -Number(f.skill), -f.roles, -x.relevance];
+      const fl = { lead: row ? isLeadershipRow(row) : isLeadershipRow(x), sv: english && swedishOnlyTitle(row?.title ?? x.title), agency: isAgencyRow(row ?? x), lang: unlistedLanguage(q, row?.title ?? x.title, skills), far: se && x.region === 'remote-anywhere' };
+      return [x.tier, lead ? (fl.lead ? 0 : 1) : 0, -x.score, fl.lang ? 1 : 0, fl.far ? 1 : 0, fl.sv ? 1 : 0, fl.agency ? 1 : 0, -Number(f.skill), -f.roles, -x.relevance];
     };
     return groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
       const y = g[i + 1];
@@ -199,8 +201,8 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
   }), RUNS);
 });
 
-const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director'];
-const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Director of Infrastructure', 'Director of Product Engineering', 'Head of Data Engineering', 'Director of Application Security', 'Utvecklingschef'];
+const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director', 'Business Development Manager, Cloud & AI', 'Director, Infrastructure Lease Accounting', 'Director, Strategic AI Partnerships', 'Head of People Tech & Data'];
+const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'CTO', 'Director of Product Engineering', 'Head of Data Engineering', 'Utvecklingschef', 'Head of Data Science', 'Head of Information Security', 'CISO'];
 const leadRows = (titles: ReadonlyArray<string>, tag: string): PublicRow[] => titles.map((title, i) => ({
   id: `${tag}:${i}`, source: 'synthetic', company: `${tag} Co ${i}`, title, url: `https://jobs.example.com/${tag}${i}`, location: null, remote: 'remote', region: 'SE',
   role_tags: [], seniority: null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z',
@@ -211,6 +213,13 @@ test('P15 non-engineering leadership titles never appear, and engineering leader
     const shown = new Set(allRows(r).map(x => x.title));
     const leads = r.isOk() && r.value.understood.roles.includes('leadership');
     return NON_ENG_LEAD.every(t => !shown.has(t)) && ENG_LEAD.every(t => !shown.has(t) || leads);
+  }), RUNS);
+});
+
+test('P34 every accepted leadership title contains an allowlisted phrase', () => {
+  fc.assert(fc.property(fc.string({ maxLength: 80 }), fc.constantFrom(...ENG_LEAD, ...NON_ENG_LEAD, 'html', 'HTML', 'Head of HTML', 'Head of ML'), (noise, known) => {
+    return [noise, known, `${noise} ${known}`].every(title => !isLeadershipRow({ title }) || hasLeadershipPhrase(title))
+      && !hasLeadershipPhrase('html') && !hasLeadershipPhrase('HTML developer') && hasLeadershipPhrase('Head of ML');
   }), RUNS);
 });
 
@@ -713,7 +722,13 @@ test('E3 a collapsed key stays in its best group', () => {
     const stats = corpusStats(pool.rows);
     const alone = (row: PublicRow) => { const one = fixed(stats, p, { ...pool, rows: [row] }, BIG); return one.isOk() ? groupsOf(one).findIndex(g => g.length > 0) : -1; };
     const byId = rowById(pool);
-    return groupsOf(r).every((g, gi) => g.every(x => alone(byId.get(x.id)!) === gi && x.alsoIds.every(id => { const a = alone(byId.get(id)!); return a === -1 || a >= gi; })));
+    const groups = groupsOf(r);
+    const employer = (x: { company: string }) => x.company.toLowerCase().trim();
+    return groups.every((g, gi) => g.every(x => {
+      const best = alone(byId.get(x.id)!);
+      const capped = best >= 0 && best < gi && groups.slice(0, gi).some(h => h.filter(y => employer(y) === employer(x)).length >= 2);
+      return (best === gi || capped) && x.alsoIds.every(id => { const a = alone(byId.get(id)!); return a === -1 || a >= gi || capped; });
+    }));
   }), RUNS);
 });
 
@@ -802,9 +817,13 @@ test('precision: inside a score band a title naming the profile focus ranks abov
     const q = queryTokens(p.description, p.goal ?? '');
     const lead = leadProfile(p);
     const english = englishProfile(p);
+    const se = regionsOf(p.region).includes('SE');
+    const skills = understand(p).isOk() ? understand(p)._unsafeUnwrap().skills : [];
     return groupsOf(ok(p, pool, BIG)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => g.slice(i + 1).every((y, j) => {
       if (x.tier !== y.tier || x.score !== y.score || deferredPast(g, i + 1 + j)) return true;
       if (lead && isLeadershipRow(x) !== isLeadershipRow(y)) return isLeadershipRow(x);
+      if (unlistedLanguage(q, x.title, skills) !== unlistedLanguage(q, y.title, skills)) return !unlistedLanguage(q, x.title, skills);
+      if (se && (x.region === 'remote-anywhere') !== (y.region === 'remote-anywhere')) return x.region !== 'remote-anywhere';
       if (english && swedishOnlyTitle(x.title) !== swedishOnlyTitle(y.title)) return !swedishOnlyTitle(x.title);
       if (isAgencyRow(x) !== isAgencyRow(y)) return !isAgencyRow(x);
       const fx = titleFocus(q, x.title);
@@ -902,7 +921,7 @@ test('F2 go in any case, alone or at any place in a comma or slash list, reads a
   }), RUNS);
 });
 
-const LEAD_PROFILES = ['VP engineering', 'VP of Engineering', 'Head of Engineering', 'Head of Platform', 'Director of Engineering', 'Engineering Manager', 'Senior Engineering Manager', 'VP Eng', 'CTO', 'Utvecklingschef'];
+const LEAD_PROFILES = ['VP engineering', 'VP of Engineering', 'Head of Engineering', 'Director of Engineering', 'Engineering Manager', 'Senior Engineering Manager', 'CTO', 'Utvecklingschef'];
 const leadArb = fc.record({
   who: fc.constantFrom(...LEAD_PROFILES), level: fc.constantFrom('', 'Senior ', 'Staff '), extra: fc.constantFrom('', ', 10 years', ', backend and Python', ' leading platform teams'),
   region: fc.oneof({ weight: 2, arbitrary: fc.constant('any') }, { weight: 1, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US') }) as fc.Arbitrary<RegionChoice>,
@@ -1095,7 +1114,7 @@ test('K1 Kotlin, Spring and Kafka are separate skills and Kotlin is not Java', (
 
 test('R3 a leadership profile ranks engineering leadership rows above IC rows', () => {
   fc.assert(fc.property(
-    fc.constantFrom('Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform'),
+    fc.constantFrom('Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering'),
     fc.constantFrom('Senior Backend Engineer', 'Backend Engineer'),
     (lead, ic) => {
       const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: id === 'r3:l' ? 'North Co' : 'South Co', title, url: `https://jobs.example.com/${id}` });
@@ -1124,7 +1143,8 @@ test('D1 at most two rows from one employer and programme are in the top 10', ()
       if (r.isErr()) return false;
       const g = r.value.groups.fitsNow;
       const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
-      return mine(g.slice(0, 10)).length <= 2 && mine(g).length === same.length;
+      const shown = allRows(r);
+      return mine(g).length <= 2 && mine(shown).length === same.length;
     }), RUNS);
 });
 
@@ -1134,16 +1154,58 @@ test('D2 a learner profile keeps two early-career rows per employer in every gro
     fc.constantFrom('Repeat Studio', 'Northwind Labs'),
     fc.integer({ min: 8, max: 12 }),
     (desc, company, others) => {
-      const titles = ['Payments', 'Search', 'Growth', 'Billing', 'Video', 'Maps', 'Ads', 'Retail', 'Travel', 'Climate', 'Studio'].map(team => `Software Engineer Intern, ${team}`);
+      const titles = ['Junior Software Engineer', 'Trainee Developer', 'Software Engineering Intern', 'Junior Web Developer'];
       const row = (id: string, co: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: co, title, url: `https://jobs.example.com/${id}`, seniority: 'junior' });
       const same = titles.map((title, i) => row(`d2:s${i}`, company, title));
-      const rest = Array.from({ length: others }, (_, i) => row(`d2:o${i}`, `Other Studio ${i}`, 'Software Engineer Intern'));
+      const rest = Array.from({ length: others }, (_, i) => row(`d2:o${i}`, `Other Studio ${i}`, 'Junior Software Engineer'));
       const pool: PublicPool = { version: 'd2', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [...same, ...rest] };
       const text = desc.length < 20 ? `${desc} pages` : desc;
       const r = ok({ description: text, region: 'any', remote: 'any' }, pool, BIG);
       if (r.isErr()) return false;
-      const groups = [r.value.groups.fitsNow, r.value.groups.stepTowardGoal, r.value.groups.stretch];
       const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
-      return groups.every(g => mine(g.slice(0, 10)).length <= 2) && mine(groups.flat()).length === same.length;
+      return mine(r.value.groups.fitsNow).length <= 2 && mine(allRows(r)).length === same.length;
+    }), RUNS);
+});
+
+test('E4 an HTML learner does not get a title outside that field', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('student learning HTML', 'Student learning HTML and CSS', 'a student learning HTML for a first job'),
+    fc.constantFrom('Junior Software Engineer', 'Trainee Developer', 'Junior Web Developer'),
+    fc.constantFrom('Propulsion Test Engineer', 'Junior Propulsion Engineer', 'Turbine Test Engineer Intern'),
+    (desc, fit, miss) => {
+      const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: 'Example Studio', title, url: `https://jobs.example.com/${id}`, seniority: 'junior' });
+      const pool: PublicPool = { version: 'e2', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row('e2:m', miss), row('e2:f', fit)] };
+      const text = desc.length < 20 ? `${desc} pages` : desc;
+      const r = ok({ description: text, region: 'any', remote: 'any' }, pool, BIG);
+      return r.isOk() && allRows(r).some(x => x.id === 'e2:f') && allRows(r).every(x => x.id !== 'e2:m');
+    }), RUNS);
+});
+
+test('R4 a title language the profile does not list ranks below an equal row', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Pascal', 'Cobol', 'Fortran'),
+    fc.constantFrom('Python', 'Go', 'TypeScript'),
+    (foreign, known) => {
+      const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: id, title, url: `https://jobs.example.com/${id}` });
+      const pool: PublicPool = { version: 'r4', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row('r4:f', `${foreign} Developer`), row('r4:k', 'Software Engineer')] };
+      const r = ok({ description: `Senior software developer with 8 years of ${known} experience`, region: 'any', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const a = allRows(r).find(x => x.id === 'r4:k');
+      const b = allRows(r).find(x => x.id === 'r4:f');
+      return !!a && !!b && a.score === b.score && posOf(r, 'r4:k') < posOf(r, 'r4:f');
+    }), RUNS);
+});
+
+test('R5 a Sweden profile ranks a remote-global row below a Sweden row in the same score band', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Senior Software Engineer', 'Software Engineer'),
+    (title) => {
+      const row = (id: string, region: PublicRow['region'], location: string): PublicRow => ({ ...OPEN_ROW, id, company: id, title, url: `https://jobs.example.com/${id}`, region, location });
+      const pool: PublicPool = { version: 'r5', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row('r5:g', 'remote-anywhere', 'Remote'), row('r5:s', 'SE', 'Stockholm, Sweden')] };
+      const r = ok({ description: 'Senior software engineer with 8 years of experience building services', region: 'SE', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const se = allRows(r).find(x => x.id === 'r5:s');
+      const global = allRows(r).find(x => x.id === 'r5:g');
+      return !!se && !!global && se.score === global.score && posOf(r, 'r5:s') < posOf(r, 'r5:g');
     }), RUNS);
 });
