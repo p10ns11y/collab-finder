@@ -4,6 +4,7 @@ import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { err, ok, type Result } from 'neverthrow';
+import { isTrustedSignerFile } from './signer-file.ts';
 
 export type LedgerState = 'drafted' | 'filled' | 'awaiting-submit' | 'submitting' | 'needs-check' | 'submitted' | 'rejected' | 'interview';
 export type LedgerEntry = { readonly key: string; readonly postingId: string; readonly state: LedgerState; readonly at: string; readonly batchId?: string };
@@ -63,12 +64,6 @@ export const approvalPath = (env: Readonly<Record<string, string | undefined>>, 
   return fromEnv ? fromEnv : undefined;
 };
 
-export type PinnedStat = { uid: number; mode: number; isSymbolicLink: () => boolean; isFile: () => boolean };
-export const signerStat = {
-  lstat(file: string): PinnedStat { return lstatSync(file); },
-  read(file: string): Buffer { return readFileSync(file); },
-};
-
 const inWorkTree = (start: string): boolean => {
   let dir = path.resolve(start);
   for (;;) {
@@ -117,10 +112,11 @@ const outside = (file: string): { resolved: string } | 'missing' | 'inside-git' 
 };
 
 const pinnedKey = (): Buffer | 'missing' => {
-  let st: PinnedStat;
-  try { st = signerStat.lstat(ALLOWED_SIGNERS); } catch { return 'missing'; }
-  if (st.isSymbolicLink() || !st.isFile() || st.uid !== 0 || (st.mode & 0o022) !== 0) return 'missing';
-  try { return signerStat.read(ALLOWED_SIGNERS); } catch { return 'missing'; }
+  try {
+    const st = lstatSync(ALLOWED_SIGNERS);
+    if (!isTrustedSignerFile(st)) return 'missing';
+    return readFileSync(ALLOWED_SIGNERS);
+  } catch { return 'missing'; }
 };
 
 const verifyBatch = (batchFile: string): 'ok' | 'missing-key' | 'signature' => {

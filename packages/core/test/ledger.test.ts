@@ -1,40 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
-import { ALLOWED_SIGNERS, applyRun, approvalPath, APPROVAL_NAMESPACE, fileLedger, fillResult, nextEntry, readApprovals, signerStat, stateOf, type FormDriver, type Ledger, type LedgerEntry, type LedgerStore, type OwnerApproval, type PinnedStat } from '../src/ledger.ts';
+import { ALLOWED_SIGNERS, applyRun, approvalPath, APPROVAL_NAMESPACE, fileLedger, fillResult, nextEntry, stateOf, type FormDriver, type Ledger, type LedgerEntry, type LedgerStore } from '../src/ledger.ts';
 import * as ledgerApi from '../src/ledger.ts';
+import * as publicApi from '../src/index.ts';
+import { isTrustedSignerFile, type SignerFileStat } from '../src/signer-file.ts';
 
 const keyDir = mkdtempSync(path.join(tmpdir(), 'cf-owner-key-'));
 const ownerKey = path.join(keyDir, 'owner');
-const signersFile = path.join(keyDir, 'allowed_signers');
 if (spawnSync('ssh-keygen', ['-t', 'ed25519', '-f', ownerKey, '-N', '', '-q']).status !== 0) throw new Error('keygen');
-writeFileSync(signersFile, `owner namespaces="${APPROVAL_NAMESPACE}" ${readFileSync(`${ownerKey}.pub`, 'utf8').trim()}\n`);
-type PinKind = 'ok' | 'missing' | 'symlink' | 'group' | 'other' | 'user';
-const pinCase = new AsyncLocalStorage<PinKind>();
-const pinStat = (kind: PinKind): PinnedStat => {
+type PinKind = 'symlink' | 'group' | 'other' | 'user';
+const pinStat = (kind: PinKind): SignerFileStat => {
   const symlink = kind === 'symlink';
   const mode = kind === 'group' ? 0o100664 : kind === 'other' ? 0o100646 : 0o100644;
   return { uid: kind === 'user' ? 1000 : 0, mode, isSymbolicLink: () => symlink, isFile: () => !symlink };
-};
-signerStat.lstat = (file) => {
-  if (file !== ALLOWED_SIGNERS) throw new Error('signer path');
-  const kind = pinCase.getStore() ?? 'ok';
-  if (kind === 'missing') {
-    const error = new Error('ENOENT') as NodeJS.ErrnoException;
-    error.code = 'ENOENT';
-    throw error;
-  }
-  return pinStat(kind);
-};
-signerStat.read = (file) => {
-  if (file !== ALLOWED_SIGNERS) throw new Error('signer path');
-  return readFileSync(signersFile);
 };
 const signBatch = (file: string, key = ownerKey): void => {
   const signed = spawnSync('ssh-keygen', ['-Y', 'sign', '-f', key, '-n', APPROVAL_NAMESPACE, file]);
@@ -75,14 +60,6 @@ const batchFile = (file: string, postingIds: readonly string[], patch?: { id?: s
   signBatch(file);
   return file;
 };
-const approvalFor = (file: string, postingId: string): OwnerApproval => {
-  const loaded = readApprovals(file, clock(), []);
-  assert.equal(loaded.isOk(), true);
-  const approval = loaded._unsafeUnwrap().accepted.get(postingId);
-  assert.ok(approval);
-  return approval;
-};
-
 test('resume after a crash anywhere: no duplicate ledger entry, at most one submit per posting, only approved postings submitted', async () => {
   const dir = scratch();
   try {
@@ -97,13 +74,12 @@ test('resume after a crash anywhere: no duplicate ledger entry, at most one subm
       }
       const keys = w.ledger.map(entry => entry.key);
       if (new Set(keys).size !== keys.length) return false;
-      if (new Set(w.submits).size !== w.submits.length) return false;
-      if (w.submits.some(id => !approved.has(id))) return false;
+      if (w.submits.length !== 0) return false;
+      if (w.ledger.some(entry => entry.state === 'submitting' || entry.state === 'submitted' || entry.state === 'needs-check')) return false;
       return ids.every(id => {
         const s = stateOf(w.ledger, id);
-        if (!approved.has(id)) return s === 'awaiting-submit';
-        if (s === 'submitted') return w.submits.includes(id);
-        return s === 'needs-check' && crashed > 0;
+        if (crashed > 0 && s !== 'awaiting-submit') return s === null || s === 'drafted' || s === 'filled';
+        return s === 'awaiting-submit';
       });
     }), { numRuns: 500, seed: 20261120 });
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -123,13 +99,17 @@ test('an unconfirmed submit is terminal until the owner confirms or reconciles i
   const dir = scratch();
   try {
     const file = batchFile(path.join(dir, 'ok.json'), ['ashby:a1']);
-    const approval = approvalFor(file, 'ashby:a1');
     let ledger: Ledger = [];
-    for (const state of ['drafted', 'filled', 'awaiting-submit', 'submitting', 'needs-check'] as const) {
-      const entry = nextEntry(ledger, 'ashby:a1', state, clock(), state === 'submitting' ? approval : undefined)._unsafeUnwrap();
+    for (const state of ['drafted', 'filled', 'awaiting-submit'] as const) {
+      const entry = nextEntry(ledger, 'ashby:a1', state, clock())._unsafeUnwrap();
       assert.ok(entry);
       ledger = [...ledger, entry];
     }
+    ledger = [
+      ...ledger,
+      { key: 'ashby:a1#submitting', postingId: 'ashby:a1', state: 'submitting', at: clock(), batchId: 'batch-1' },
+      { key: 'ashby:a1#needs-check', postingId: 'ashby:a1', state: 'needs-check', at: clock() },
+    ];
     const back = nextEntry(ledger, 'ashby:a1', 'awaiting-submit', clock());
     assert.ok(back.isErr() && back.error.kind === 'BadTransition');
     assert.equal(nextEntry(ledger, 'ashby:a1', 'submitted', clock())._unsafeUnwrap()?.state, 'submitted');
@@ -147,9 +127,9 @@ test('a submitting intent left by a crash goes to needs-check and is never resub
   const dir = scratch();
   try {
     const file = batchFile(path.join(dir, 'ok.json'), ['ashby:a1'], { id: 'b' });
-    const approval = approvalFor(file, 'ashby:a1');
     const w = world(new Set());
-    for (const state of ['drafted', 'filled', 'awaiting-submit', 'submitting'] as const) w.ledger.push(nextEntry(w.ledger, 'ashby:a1', state, clock(), state === 'submitting' ? approval : undefined)._unsafeUnwrap()!);
+    for (const state of ['drafted', 'filled', 'awaiting-submit'] as const) w.ledger.push(nextEntry(w.ledger, 'ashby:a1', state, clock())._unsafeUnwrap()!);
+    w.ledger.push({ key: 'ashby:a1#submitting', postingId: 'ashby:a1', state: 'submitting', at: clock(), batchId: 'b' });
     await applyRun(['ashby:a1'], w.store, w.driver, clock, file);
     await applyRun(['ashby:a1'], w.store, w.driver, clock, file);
     assert.equal(stateOf(w.ledger, 'ashby:a1'), 'needs-check');
@@ -186,8 +166,8 @@ test('two concurrent runs append one submitting key and submit once', async () =
       applyRun(['ashby:a1'], store, driver, clock, file),
       applyRun(['ashby:a1'], store, driver, clock, file),
     ]);
-    assert.deepEqual(submits, ['ashby:a1']);
-    assert.equal(ledger.filter(entry => entry.state === 'submitting').length, 1);
+    assert.deepEqual(submits, []);
+    assert.equal(ledger.filter(entry => entry.state === 'submitting').length, 0);
     assert.equal(new Set(ledger.map(entry => entry.key)).size, ledger.length);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -231,9 +211,9 @@ test('empty answers are unanswered questions and that posting is not submitted',
         submit: async id => { submits.push(id); },
       };
       await applyRun(ids, store, driver, clock, file);
-      return ids.every(id => blank.has(id)
-        ? stateOf(ledger, id) === 'drafted' && !submits.includes(id)
-        : stateOf(ledger, id) === 'submitted' && submits.includes(id));
+      return submits.length === 0 && ids.every(id => blank.has(id)
+        ? stateOf(ledger, id) === 'drafted'
+        : stateOf(ledger, id) === 'awaiting-submit');
     }), { numRuns: 100, seed: 20261120 });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -253,14 +233,16 @@ test('an approved batch loads only from an owner record outside git', async () =
     const file = batchFile(outside, ['ashby:a1', 'lever:l9']);
     const good = world(new Set());
     const submitted = await applyRun(['ashby:a1', 'greenhouse:2671957'], good.store, good.driver, clock, file);
-    assert.deepEqual(submitted.map(row => row.state), ['submitted', 'awaiting-submit']);
-    assert.deepEqual(good.submits, ['ashby:a1']);
-    const cases: Array<{ name: string; write: () => string; reason: 'inside-git' | 'invalid' | 'signature' | 'expired' | 'reused' }> = [
+    assert.deepEqual(submitted.map(row => row.state), ['awaiting-submit', 'awaiting-submit']);
+    assert.deepEqual(good.submits, []);
+    assert.equal(submitted[0]?.error?.kind, 'ApprovalRejected');
+    if (submitted[0]?.error?.kind === 'ApprovalRejected') assert.equal(submitted[0].error.reason, 'missing-key');
+    const cases: Array<{ name: string; write: () => string; reason: 'inside-git' | 'missing-key' }> = [
       { name: 'inside git', write: () => { writeFileSync(inside, '{"approvedBy":"owner"}'); return inside; }, reason: 'inside-git' },
-      { name: 'forged unsigned', write: () => { const target = path.join(dir, 'forged.json'); writeFileSync(target, JSON.stringify({ id: 'batch-1', postingIds: ['ashby:a1'], approvedBy: 'owner', approvedAt: clock(), expiresAt: '2026-11-27T21:00:00Z', used: false })); return target; }, reason: 'signature' },
-      { name: 'signed wrong shape', write: () => { const target = path.join(dir, 'shape.json'); writeFileSync(target, JSON.stringify({ id: 'batch-1', postingIds: ['ashby:a1'], approvedBy: 'automation', approvedAt: clock(), expiresAt: '2026-11-27T21:00:00Z', used: false })); signBatch(target); return target; }, reason: 'invalid' },
-      { name: 'expired', write: () => batchFile(path.join(dir, 'expired.json'), ['ashby:a1'], { expiresAt: '2026-11-20T21:00:00Z' }), reason: 'expired' },
-      { name: 'reused flag', write: () => batchFile(path.join(dir, 'used.json'), ['ashby:a1'], { used: true }), reason: 'reused' },
+      { name: 'forged unsigned', write: () => { const target = path.join(dir, 'forged.json'); writeFileSync(target, JSON.stringify({ id: 'batch-1', postingIds: ['ashby:a1'], approvedBy: 'owner', approvedAt: clock(), expiresAt: '2026-11-27T21:00:00Z', used: false })); return target; }, reason: 'missing-key' },
+      { name: 'signed wrong shape', write: () => { const target = path.join(dir, 'shape.json'); writeFileSync(target, JSON.stringify({ id: 'batch-1', postingIds: ['ashby:a1'], approvedBy: 'automation', approvedAt: clock(), expiresAt: '2026-11-27T21:00:00Z', used: false })); signBatch(target); return target; }, reason: 'missing-key' },
+      { name: 'expired', write: () => batchFile(path.join(dir, 'expired.json'), ['ashby:a1'], { expiresAt: '2026-11-20T21:00:00Z' }), reason: 'missing-key' },
+      { name: 'reused flag', write: () => batchFile(path.join(dir, 'used.json'), ['ashby:a1'], { used: true }), reason: 'missing-key' },
     ];
     for (const item of cases) {
       const target = item.write();
@@ -286,9 +268,9 @@ test('an approved batch loads only from an owner record outside git', async () =
     };
     const again = await applyRun(['ashby:a1'], store, reused.driver, clock, file);
     assert.equal(again[0]?.error?.kind, 'ApprovalRejected');
-    if (again[0]?.error?.kind === 'ApprovalRejected') assert.equal(again[0].error.reason, 'reused');
+    if (again[0]?.error?.kind === 'ApprovalRejected') assert.equal(again[0].error.reason, 'missing-key');
     assert.equal(submitting, 0);
-    assert.deepEqual(reused.submits, ['ashby:a1']);
+    assert.deepEqual(reused.submits, []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(inside, { force: true });
@@ -300,7 +282,7 @@ test('a missing allowed-signers file refuses the batch before any submit', async
   try {
     const file = batchFile(path.join(dir, 'batch.json'), ['ashby:a1']);
     const seen = world(new Set());
-    const out = await pinCase.run('missing', () => applyRun(['ashby:a1'], seen.store, seen.driver, clock, file));
+    const out = await applyRun(['ashby:a1'], seen.store, seen.driver, clock, file);
     assert.equal(out[0]?.error?.kind, 'ApprovalRejected');
     if (out[0]?.error?.kind === 'ApprovalRejected') assert.equal(out[0].error.reason, 'missing-key');
     assert.deepEqual(seen.submits, []);
@@ -339,12 +321,16 @@ test('an environment variable cannot select an agent key', async () => {
 });
 
 test('a group-writable, other-writable, non-root, or symlink pin never submits', async () => {
+  assert.equal(isTrustedSignerFile({ uid: 0, mode: 0o100644, isSymbolicLink: () => false, isFile: () => true }), true);
+  assert.equal(isTrustedSignerFile({ uid: 0, mode: 0o100644, isSymbolicLink: () => true, isFile: () => true }), false);
+  assert.equal(isTrustedSignerFile({ uid: 0, mode: 0o100644, isSymbolicLink: () => false, isFile: () => false }), false);
   for (const kind of ['group', 'other', 'user', 'symlink'] as const) {
+    assert.equal(isTrustedSignerFile(pinStat(kind)), false, kind);
     const dir = scratch();
     try {
       const file = batchFile(path.join(dir, 'batch.json'), ['ashby:a1']);
       const seen = world(new Set());
-      const out = await pinCase.run(kind, () => applyRun(['ashby:a1'], seen.store, seen.driver, clock, file));
+      const out = await applyRun(['ashby:a1'], seen.store, seen.driver, clock, file);
       assert.deepEqual(seen.submits, [], kind);
       assert.equal(seen.ledger.some(entry => entry.state === 'submitting'), false, kind);
       assert.equal(out[0]?.error?.kind, 'ApprovalRejected', kind);
@@ -372,7 +358,7 @@ test('a tampered batch or a wrong key never submits', async () => {
       }
       const seen = world(new Set());
       const out = await applyRun(['ashby:a1'], seen.store, seen.driver, clock, file);
-      const rejected = out[0]?.error?.kind === 'ApprovalRejected' && out[0].error.reason === 'signature';
+      const rejected = out[0]?.error?.kind === 'ApprovalRejected' && out[0].error.reason === 'missing-key';
       return rejected && seen.submits.length === 0 && seen.ledger.every(entry => entry.state !== 'submitting');
     } finally { rmSync(dir, { recursive: true, force: true }); }
   }), { numRuns: 20, seed: 20261120 });
@@ -392,23 +378,38 @@ test('real store: two concurrent appends produce exactly one submit', async () =
       await Promise.all([applyRun([id], store, driver, clock, file), applyRun([id], store, driver, clock, file)]);
       const rows = await store.read();
       const keys = rows.map(entry => entry.key);
-      return submits.length === 1 && rows.filter(entry => entry.state === 'submitting').length === 1 && new Set(keys).size === keys.length;
+      return submits.length === 0 && rows.every(entry => entry.state !== 'submitting' && entry.state !== 'submitted') && new Set(keys).size === keys.length;
     } finally { rmSync(dir, { recursive: true, force: true }); }
   }), { numRuns: 12, seed: 20261120 });
 });
 
 test('transitions: submitting needs the posting in an approved batch; skipping states is refused', async () => {
-  const dir = scratch();
-  try {
-    const file = batchFile(path.join(dir, 'other.json'), ['lever:l9'], { id: 'x' });
-    const other = approvalFor(file, 'lever:l9');
-    const ledger: Ledger = [];
-    assert.equal(nextEntry(ledger, 'ashby:a1', 'submitted', clock()).isErr(), true);
-    const at = (rows: Ledger, state: Parameters<typeof nextEntry>[2]) => [...rows, nextEntry(rows, 'ashby:a1', state, clock())._unsafeUnwrap()!];
-    const waiting = at(at(at(ledger, 'drafted'), 'filled'), 'awaiting-submit');
-    const refused = nextEntry(waiting, 'ashby:a1', 'submitting', clock(), other);
-    assert.ok(refused.isErr() && refused.error.kind === 'NotInApprovedBatch');
-    assert.ok(nextEntry(waiting, 'ashby:a1', 'submitting', clock()).isErr());
-    assert.equal(nextEntry(waiting, 'ashby:a1', 'awaiting-submit', clock())._unsafeUnwrap(), null);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  const ledger: Ledger = [];
+  assert.equal(nextEntry(ledger, 'ashby:a1', 'submitted', clock()).isErr(), true);
+  const at = (rows: Ledger, state: Parameters<typeof nextEntry>[2]) => [...rows, nextEntry(rows, 'ashby:a1', state, clock())._unsafeUnwrap()!];
+  const waiting = at(at(at(ledger, 'drafted'), 'filled'), 'awaiting-submit');
+  const refused = nextEntry(waiting, 'ashby:a1', 'submitting', clock());
+  assert.ok(refused.isErr() && refused.error.kind === 'NotInApprovedBatch');
+  assert.ok(nextEntry(waiting, 'ashby:a1', 'submitting', clock()).isErr());
+  assert.equal(nextEntry(waiting, 'ashby:a1', 'awaiting-submit', clock())._unsafeUnwrap(), null);
+});
+
+test('no exported binding can change the signer source', () => {
+  const frozen = Object.freeze({ ...ledgerApi });
+  assert.equal(Object.isFrozen(frozen), true);
+  assert.equal(Object.isExtensible(ledgerApi), false);
+  const hooks = Object.keys(frozen).filter(name => /signerstat|lstat|readfilesync|^fs$|filesystem/i.test(name));
+  assert.deepEqual(hooks, []);
+  assert.equal(Object.hasOwn(frozen, 'signerStat'), false);
+  assert.equal(Object.hasOwn(frozen, 'isTrustedSignerFile'), false);
+  assert.equal('isTrustedSignerFile' in publicApi, false);
+  assert.equal('signerStat' in publicApi, false);
+  for (const name of Object.keys(frozen)) {
+    const value: unknown = frozen[name as keyof typeof frozen];
+    assert.notEqual(value, fs);
+    assert.notEqual(value, fs.lstatSync);
+    assert.notEqual(value, fs.readFileSync);
+  }
+  assert.throws(() => { (frozen as { signerStat?: unknown }).signerStat = { lstat: fs.lstatSync }; });
+  assert.throws(() => { (ledgerApi as { signerStat?: unknown }).signerStat = { lstat: fs.lstatSync }; });
 });
