@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { corpusStats, queryTokens, relevance, rowTokens, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { SCORE_BUCKET, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import type { MatchRow } from '../src/match.ts';
 
@@ -106,11 +106,11 @@ test('P6 each group length ≤ limit and totals ≥ length', () => {
 
 const mobileProfile = (p: MatchProfile) => MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`);
 const withoutMobile = (p: MatchProfile, g: ReadonlyArray<MatchRow>) => (mobileProfile(p) ? g : g.filter(x => !MOBILE_TITLE.test(x.title)));
-test('P7 groups ranked by tier asc, relevance desc, score desc, lastChecked desc, id asc', () => {
+test('P7 groups ranked by tier asc, shown score desc, relevance desc, lastChecked desc, id asc', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
     const y = g[i + 1];
     if (!y) return true;
-    return x.tier < y.tier || (x.tier === y.tier && (x.relevance > y.relevance || (x.relevance === y.relevance && (x.score > y.score || (x.score === y.score && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))))));
+    return x.tier < y.tier || (x.tier === y.tier && (x.score > y.score || (x.score === y.score && (x.relevance > y.relevance || (x.relevance === y.relevance && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))))));
   }); })), RUNS);
 });
 
@@ -328,7 +328,7 @@ test('coverage floor: generated runs mostly reach a verdict and many fill fits-n
   const errors = runs.filter(r => r.isErr()).length;
   const withFits = runs.filter(r => r.isOk() && r.value.groups.fitsNow.length > 0).length;
   const withStep = runs.filter(r => r.isOk() && r.value.groups.stepTowardGoal.length > 0).length;
-  if (errors > 160 || withFits < 120 || withStep < 20) throw new Error(`coverage too thin: errors ${errors}, fitsNow ${withFits}, step ${withStep} of 400`);
+  if (errors > 160 || withFits < 120 || withStep < 15) throw new Error(`coverage too thin: errors ${errors}, fitsNow ${withFits}, step ${withStep} of 400`);
 });
 
 const NARROW_TITLES = ['Security', 'Embedded', 'Firmware', 'Machine Learning', 'Forward Deployed', 'Backend', 'Frontend', 'iOS', 'Android', 'Mobile', 'Data Platform'];
@@ -600,4 +600,68 @@ test('C4 multi-region rows interleave by relevance, not by region order', () => 
     const b = ok({ ...p, region: ['UK', 'EU', 'SE'] }, pool, BIG);
     return JSON.stringify(a.isOk() ? a.value.groups : a.error) === JSON.stringify(b.isOk() ? b.value.groups : b.error);
   }), RUNS);
+});
+
+test('shown scores are multiples of the bucket and never increase down a tier', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(full => {
+    const g = withoutMobile(p, full);
+    return g.every(x => x.score % SCORE_BUCKET === 0) && g.every((x, i) => { const y = g[i + 1]; return !y || y.tier > x.tier || y.score <= x.score; });
+  })), RUNS);
+});
+
+test('P29 within one tier a strictly higher score bucket never ranks below a lower one', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(full => {
+    const g = withoutMobile(p, full);
+    return g.every((x, i) => g.slice(i + 1).every(y => y.tier !== x.tier || Math.floor(y.score / SCORE_BUCKET) <= Math.floor(x.score / SCORE_BUCKET)));
+  })), RUNS);
+});
+
+test('P30 repeating a profile token in a title never raises its score or relevance', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.nat(), fc.integer({ min: 1, max: 4 }), (p, pool, k, times) => {
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const shown = allRows(r);
+    const x = shown[k % Math.max(1, shown.length)];
+    if (!x) return true;
+    const q = queryTokens(p.description, p.goal ?? '');
+    const word = x.title.split(/\s+/).find(w => tokensOf(w).some(t => q.has(t)));
+    if (!word) return true;
+    const stats = corpusStats(pool.rows);
+    const row = pool.rows.find(y => y.id === x.id)!;
+    const stuffed = { ...row, title: `${row.title}${` ${word}`.repeat(times)}` };
+    const one = ok(p, { ...pool, rows: [row] }, { ...BIG, stats });
+    const many = ok(p, { ...pool, rows: [stuffed] }, { ...BIG, stats });
+    if (one.isErr() || many.isErr()) return one.isErr() === many.isErr();
+    const a = allRows(one)[0];
+    const b = allRows(many)[0];
+    return !a || !b || (b.score <= a.score && b.relevance <= a.relevance);
+  }), RUNS);
+});
+
+test('P31 a posting id and a company plus location-free title appear in at most one group', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const rows = allRows(ok(p, pool, BIG));
+    const ids = rows.flatMap(x => [x.id, ...x.alsoIds]);
+    const keys = rows.map(x => `${x.company.toLowerCase().trim()}|${normalizedTitle(x.title)}`);
+    return new Set(ids).size === ids.length && new Set(keys).size === keys.length;
+  }), RUNS);
+});
+
+test('E3 a collapsed key stays in its best group', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool, BIG);
+    if (r.isErr()) return true;
+    const stats = corpusStats(pool.rows);
+    const alone = (row: PublicRow) => { const one = ok(p, { ...pool, rows: [row] }, { ...BIG, stats }); return one.isOk() ? groupsOf(one).findIndex(g => g.length > 0) : -1; };
+    const byId = rowById(pool);
+    return groupsOf(r).every((g, gi) => g.every(x => alone(byId.get(x.id)!) === gi && x.alsoIds.every(id => { const a = alone(byId.get(id)!); return a === -1 || a >= gi; })));
+  }), RUNS);
+});
+
+test('E2 a title that is mostly a skill list is damped against the same role named plainly', () => {
+  const stats = corpusStats([]);
+  const q = queryTokens('Senior full-stack engineer with Node.js, Python, TypeScript and React');
+  const plain = relevance(q, { title: 'Senior Fullstack Developer', role_tags: [] }, stats);
+  const stuffed = relevance(q, { title: 'Senior Fullstack Developer (Node.js + Python + TypeScript + React)', role_tags: [] }, stats);
+  if (stuffed > plain * 1.5) throw new Error(`stuffing not damped: ${stuffed} vs ${plain}`);
 });

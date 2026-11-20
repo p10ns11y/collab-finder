@@ -64,21 +64,27 @@ export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_
   return { n, avgLen: n ? total / n : 1, df };
 };
 
+export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'go', 'rust', 'java', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
+  'php', 'vue', 'angular', 'svelte', 'aws', 'gcp', 'azure', 'docker', 'terraform', 'graphql', 'kafka', 'redis', 'elixir', 'haskell', 'swift', 'mobile', 'laravel', 'html', 'css']);
+export const SKILL_LIST_FACTOR = 0.5;
+export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
+  const distinct = new Set(tokensOf(row.title));
+  const skills = [...distinct].filter(t => SKILL_TOKENS.has(t)).length;
+  return skills >= 3 && skills / distinct.size >= 0.4;
+};
 const K1 = 1.2;
 const B = 0.75;
 export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => new Set([...tokensOf(description), ...tokensOf(goal)]);
 export const relevance = (query: ReadonlySet<string>, row: Pick<PublicRow, 'title' | 'role_tags'>, stats: CorpusStats): number => {
   const toks = rowTokens(row);
   if (!toks.length) return 0;
-  const tf = new Map<string, number>();
-  for (const t of toks) tf.set(t, (tf.get(t) ?? 0) + 1);
   const norm = 1 - B + B * (toks.length / (stats.avgLen || 1));
   let s = 0;
-  for (const [t, f] of [...tf].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+  for (const t of [...new Set(toks)].sort()) {
     if (!query.has(t)) continue;
     const df = stats.df.get(t) ?? 0;
     const idf = Math.log(1 + (stats.n - df + 0.5) / (df + 0.5));
-    s += idf * (f * (K1 + 1)) / (f + K1 * norm);
+    s += idf * (K1 + 1) / (1 + K1 * norm);
   }
-  return Math.round(s * 1e4) / 1e4;
+  return Math.round(s * (isSkillList(row) ? SKILL_LIST_FACTOR : 1) * 1e4) / 1e4;
 };

@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { corpusStats, queryTokens, relevance, type CorpusStats } from './relevance.ts';
+import { corpusStats, isSkillList, queryTokens, relevance, type CorpusStats } from './relevance.ts';
 import { isLocationPart, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
@@ -23,6 +23,10 @@ export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySe
 export const LEVEL_RELEVANCE_STEP = 1;
 export const PLACE_RELEVANCE = 0.5;
 export const MOBILE_FREE_TOP = 10;
+export const SCORE_BUCKET = 5;
+export const SKILL_POINTS: ReadonlyArray<number> = [0, 15, 23, 27, 29, 30];
+export const SKILL_LIST_PENALTY = 10;
+const skillPoints = (n: number): number => SKILL_POINTS[Math.min(n, SKILL_POINTS.length - 1)]!;
 
 export type Tier = 0 | 1 | 2;
 export const LEVEL_STEP = 10;
@@ -162,10 +166,11 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
 
   const placeBonus = row.region !== null && u.places.includes(row.region) ? 6 : 0;
   const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
-  const score = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillHits.length * 15 + (genericHit ? 10 : 0) + goalHits.length * 25
+  const rawScore = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * 25
     + placeBonus + tagDepth + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
     - (levelGap === 1 ? LEVEL_STEP : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
-    - (narrowedAway ? 8 : 0);
+    - (narrowedAway ? 8 : 0) - (isSkillList(row) ? SKILL_LIST_PENALTY : 0);
+  const shown = Math.floor(rawScore / SCORE_BUCKET) * SCORE_BUCKET;
 
   const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0 && !narrowedAway;
   const strongCore = titleHits.length > 0 || coveredHits.length > 0 || (u.roles.every(k => kindOf(k) !== 'role') && (skillHits.length > 0 || genericHit));
@@ -179,12 +184,12 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const tier: Tier = reg !== 'yes' ? 2 : row.status === 'open' && rem === 'yes' && levelGap <= 0 ? 0 : 1;
   return { group, row: {
     id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region: row.region, remote: row.remote,
-    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, relevance: rel, score, reasons, alsoIds: [],
+    seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, relevance: rel, score: shown, reasons, alsoIds: [],
   }, mobile: !mobileMismatch ? 'none' : roleHits.length || skillHits.length || coveredHits.length ? 'covered' : 'bottom' };
 }
 
 const byRank = (a: MatchRow, b: MatchRow): number =>
-  a.tier - b.tier || b.relevance - a.relevance || b.score - a.score || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  a.tier - b.tier || b.score - a.score || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 export const normalizedTitle = (t: string): string => {
   const segments = t.split('|').map(x => x.trim());
@@ -206,20 +211,31 @@ const mobileLast = (rows: ReadonlyArray<MatchRow>, mobileOf: ReadonlyMap<string,
   const rest = rows.filter(r => !top.includes(r));
   return [...top, ...rest];
 };
-const collapse = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
+const keyOf = (r: MatchRow): string => `${r.company.toLowerCase().trim()}|${normalizedTitle(r.title)}`;
+const withAlso = (r: MatchRow, extra: ReadonlyArray<string>): MatchRow => {
+  const alsoIds = [...r.alsoIds, ...extra];
+  const n = alsoIds.length;
+  return n ? { ...r, alsoIds, reasons: [...r.reasons.filter(x => !x.startsWith('Also listed in ')), `Also listed in ${n} more ${n === 1 ? 'location' : 'locations'}`] } : r;
+};
+const collapse = (rows: ReadonlyArray<MatchRow>, keep: (key: string) => boolean, carried: ReadonlyMap<string, ReadonlyArray<string>>): MatchRow[] => {
   const byKey = new Map<string, MatchRow>();
   const order: string[] = [];
   for (const r of rows) {
-    const key = `${r.company.toLowerCase().trim()}|${normalizedTitle(r.title)}`;
+    const key = keyOf(r);
+    if (!keep(key)) continue;
     const head = byKey.get(key);
     if (head) byKey.set(key, { ...head, alsoIds: [...head.alsoIds, r.id] });
     else { byKey.set(key, r); order.push(key); }
   }
-  return order.map(k => {
-    const r = byKey.get(k)!;
-    const n = r.alsoIds.length;
-    return n ? { ...r, reasons: [...r.reasons, `Also listed in ${n} more ${n === 1 ? 'location' : 'locations'}`] } : r;
-  });
+  return order.map(k => withAlso({ ...byKey.get(k)!, alsoIds: [] }, [...byKey.get(k)!.alsoIds, ...(carried.get(k) ?? [])]));
+};
+const GROUP_ORDER: ReadonlyArray<GroupKey> = ['fitsNow', 'stepTowardGoal', 'stretch'];
+const acrossGroups = (all: Record<GroupKey, MatchRow[]>) => {
+  const best = new Map<string, GroupKey>();
+  for (const g of GROUP_ORDER) for (const r of all[g]) { const k = keyOf(r); if (!best.has(k)) best.set(k, g); }
+  const carried = new Map<string, string[]>();
+  for (const g of GROUP_ORDER) for (const r of all[g]) { const k = keyOf(r); if (best.get(k) !== g) carried.set(k, [...(carried.get(k) ?? []), r.id]); }
+  return { keep: (g: GroupKey) => (k: string) => best.get(k) === g, carried };
 };
 
 export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOptions = {}): Result<MatchResult, MatchError> {
@@ -232,7 +248,12 @@ export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOption
     const mobileOf = new Map<string, Scored['mobile']>();
     const excluded = new Set(opts.excludeIds ?? []);
     for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); } }
-    const ranked = { fitsNow: collapse(all.fitsNow.sort(byRank)), stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank)), stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf))), mobileOf) };
+    const x = acrossGroups(all);
+    const ranked = {
+      fitsNow: collapse(all.fitsNow.sort(byRank), x.keep('fitsNow'), x.carried),
+      stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank), x.keep('stepTowardGoal'), x.carried),
+      stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf)), x.keep('stretch'), x.carried), mobileOf),
+    };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {
       const widen: Array<'region' | 'remote' | 'goal' | 'productOnly'> = [];

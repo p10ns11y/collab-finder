@@ -36,8 +36,8 @@ flowchart LR
 
 ## How results are ordered
 
-- Each group is ordered by certainty tier first (place confirmed and level fits, then one level up or unknown status, then place not confirmed), then by lexical relevance: BM25 between the description plus goal tokens and each row's title plus role tags, after a small stop-word and synonym table. Corpus statistics are computed once per pool load, so a match on the real pool takes under 150 ms in the browser.
+- Each group is ordered by certainty tier first (place confirmed and level fits, then one level up or unknown status, then place not confirmed), then by the shown score, which is rounded down to a 5-point bucket so it explains the order. Ties inside a bucket break on lexical relevance: BM25 between the description plus goal tokens and each row's title plus role tags, after a small stop-word and synonym table. Each distinct profile token counts once per row, and titles that are mostly a skill list are damped. Corpus statistics are computed once per pool load, so a match on the real pool takes under 150 ms in the browser.
 - A role one level above yours loses a fixed step of relevance. A city or country you name adds a small boost.
-- Rows collapse into one only when the title differs by location parts alone, such as `, Rome`, ` - Berlin`, `(London)` or `| Sweden | Remote`.
+- Rows collapse into one, across all groups and kept in the best group, only when the title differs by location parts alone, such as `, Rome`, ` - Berlin`, `(London)` or `| Sweden | Remote`.
 - Mobile-titled rows for a profile without mobile terms stay in stretch, never in its top 10 while other stretch rows remain. Rows with no other overlap sit at the bottom.
 - The goal signals `frontier AI labs` and `product teams` are understood but match titles only, and few titles name them (9 and 1 in the v0 pool). They become company-level signals in v1.
