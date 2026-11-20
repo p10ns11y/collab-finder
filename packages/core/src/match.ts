@@ -3,7 +3,7 @@ import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, type CorpusStats, type TitleFocus } from './relevance.ts';
-import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -220,10 +220,14 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
 }
 
 const NO_FOCUS: TitleFocus = { skill: false, roles: 0 };
-const byRank = (focusOf: ReadonlyMap<string, TitleFocus>) => (a: MatchRow, b: MatchRow): number => {
+type Crowd = { sv: boolean; agency: boolean; lead: boolean };
+const NO_CROWD: Crowd = { sv: false, agency: false, lead: false };
+const byRank = (focusOf: ReadonlyMap<string, TitleFocus>, crowdOf: ReadonlyMap<string, Crowd>, english: boolean, leadership: boolean) => (a: MatchRow, b: MatchRow): number => {
   const fa = focusOf.get(a.id) ?? NO_FOCUS;
   const fb = focusOf.get(b.id) ?? NO_FOCUS;
-  return a.tier - b.tier || b.score - a.score || Number(fb.skill) - Number(fa.skill) || fb.roles - fa.roles || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const ca = crowdOf.get(a.id) ?? NO_CROWD;
+  const cb = crowdOf.get(b.id) ?? NO_CROWD;
+  return a.tier - b.tier || (leadership ? Number(cb.lead) - Number(ca.lead) : 0) || b.score - a.score || (english ? Number(ca.sv) - Number(cb.sv) : 0) || Number(ca.agency) - Number(cb.agency) || Number(fb.skill) - Number(fa.skill) || fb.roles - fa.roles || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 };
 
 export const normalizedTitle = (t: string): string => {
@@ -236,8 +240,25 @@ export const normalizedTitle = (t: string): string => {
   head = parts.slice(0, end).join('');
   return head.toLowerCase().replace(/[^a-z0-9+#åäö]+/g, ' ').trim();
 };
-const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>, focusOf: ReadonlyMap<string, TitleFocus>) => (a: MatchRow, b: MatchRow): number =>
-  Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(focusOf)(a, b);
+const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>, focusOf: ReadonlyMap<string, TitleFocus>, crowdOf: ReadonlyMap<string, Crowd>, english: boolean, leadership: boolean) => (a: MatchRow, b: MatchRow): number =>
+  Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(focusOf, crowdOf, english, leadership)(a, b);
+const PROGRAMME_LEVEL = /\b(?:junior|jr|senior|sr|staff|principal|lead|intern|trainee|associate|entry|level|i{1,3}|iv|vi{0,3}|\d+)\b/g;
+const programmeOf = (title: string): string => normalizedTitle(title).replace(PROGRAMME_LEVEL, ' ').replace(/\s+/g, ' ').trim();
+const DIVERSE_TOP = 10;
+const diversify = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
+  const top: MatchRow[] = [];
+  const later: MatchRow[] = [];
+  const rest: MatchRow[] = [];
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    if (top.length >= DIVERSE_TOP) { rest.push(r); continue; }
+    const k = `${r.company.toLowerCase().trim()}|${programmeOf(r.title)}`;
+    const n = seen.get(k) ?? 0;
+    if (n >= 2) later.push(r);
+    else { seen.set(k, n + 1); top.push(r); }
+  }
+  return [...top, ...later, ...rest];
+};
 const mobileLast = (rows: ReadonlyArray<MatchRow>, mobileOf: ReadonlyMap<string, Scored['mobile']>): MatchRow[] => {
   const isMobile = (r: MatchRow) => mobileOf.get(r.id) !== 'none';
   const others = rows.filter(r => !isMobile(r));
@@ -291,13 +312,18 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const mobileOf = new Map<string, Scored['mobile']>();
     const focusOf = new Map<string, TitleFocus>();
+    const crowdOf = new Map<string, Crowd>();
+    const english = !hasSwedish(p.description) && !hasSwedish(p.goal ?? '');
+    const leadership = u.roles.includes('leadership');
     const excluded = new Set(opts.excludeIds ?? []);
-    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); } }
+    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); crowdOf.set(s.row.id, { sv: swedishOnlyTitle(row.title), agency: isAgencyRow(row), lead: isLeadershipRow(row) }); } }
     const x = acrossGroups(all);
+    const rank = byRank(focusOf, crowdOf, english, leadership);
+    const stretchRows = collapse(all.stretch.sort(stretchRank(mobileOf, focusOf, crowdOf, english, leadership)), x.keep('stretch'), x.carried);
     const ranked = {
-      fitsNow: collapse(all.fitsNow.sort(byRank(focusOf)), x.keep('fitsNow'), x.carried),
-      stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank(focusOf)), x.keep('stepTowardGoal'), x.carried),
-      stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf, focusOf)), x.keep('stretch'), x.carried), mobileOf),
+      fitsNow: diversify(collapse(all.fitsNow.sort(rank), x.keep('fitsNow'), x.carried)),
+      stepTowardGoal: diversify(collapse(all.stepTowardGoal.sort(rank), x.keep('stepTowardGoal'), x.carried)),
+      stretch: mobileLast([...diversify(stretchRows.filter(r => mobileOf.get(r.id) === 'none')), ...stretchRows.filter(r => mobileOf.get(r.id) !== 'none')], mobileOf),
     };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     const likesMiss = prefs.liked.length > 0 && !pool.rows.some(row => likesCompany(prefs.liked, row.company) || likesText(prefs.liked, row.title));

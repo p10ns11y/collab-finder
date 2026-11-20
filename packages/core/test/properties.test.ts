@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
 import { inEnglish, inScope, likesText, mostlyNonLatin, regionOf, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
-import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
+import { COVERS, LEVELS, MOBILE_TITLE, TERMS, hasSwedish, isLeadershipRow, kindOf, levelOf, swedishOnlyTitle, termsIn } from '../src/vocab.ts';
 import { matchUnder, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
 
@@ -108,13 +108,31 @@ test('P6 each group length ≤ limit and totals ≥ length', () => {
 
 const mobileProfile = (p: MatchProfile) => MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`);
 const withoutMobile = (p: MatchProfile, g: ReadonlyArray<MatchRow>) => (mobileProfile(p) ? g : g.filter(x => !MOBILE_TITLE.test(x.title)));
-test('P7 groups ranked by tier asc, shown score desc, title names a skill, title role focus, relevance desc, lastChecked desc, id asc', () => {
+const leadProfile = (p: MatchProfile) => { const u = understand(p); return u.isOk() && u.value.roles.includes('leadership'); };
+const englishProfile = (p: MatchProfile) => !hasSwedish(p.description) && !hasSwedish(p.goal ?? '');
+const programmeKey = (r: MatchRow) => `${r.company.toLowerCase().trim()}|${normalizedTitle(r.title).replace(/\b(?:junior|jr|senior|sr|staff|principal|lead|intern|trainee|associate|entry|level|i{1,3}|iv|vi{0,3}|\d+)\b/g, ' ').replace(/\s+/g, ' ').trim()}`;
+const deferredPast = (g: ReadonlyArray<MatchRow>, index: number) => {
+  if (index < 10) return false;
+  const k = programmeKey(g[index]!);
+  let n = 0;
+  for (let i = 0; i < 10 && i < g.length; i++) if (programmeKey(g[i]!) === k) n += 1;
+  return n >= 2;
+};
+test('P7 groups ranked by tier asc, leadership, shown score desc, language, consultancy, title skill, title role focus, relevance desc, lastChecked desc, id asc', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
     const q = queryTokens(p.description, p.goal ?? '');
-    const key = (x: MatchRow) => { const f = titleFocus(q, x.title); return [x.tier, -x.score, -Number(f.skill), -f.roles, -x.relevance]; };
+    const lead = leadProfile(p);
+    const english = englishProfile(p);
+    const byId = rowById(pool);
+    const key = (x: MatchRow) => {
+      const f = titleFocus(q, x.title);
+      const row = byId.get(x.id);
+      const fl = { lead: row ? isLeadershipRow(row) : isLeadershipRow(x), sv: english && swedishOnlyTitle(row?.title ?? x.title), agency: isAgencyRow(row ?? x) };
+      return [x.tier, lead ? (fl.lead ? 0 : 1) : 0, -x.score, fl.sv ? 1 : 0, fl.agency ? 1 : 0, -Number(f.skill), -f.roles, -x.relevance];
+    };
     return groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
       const y = g[i + 1];
-      if (!y) return true;
+      if (!y || deferredPast(g, i + 1)) return true;
       const a = key(x);
       const b = key(y);
       const k = a.findIndex((v, j) => v !== b[j]);
@@ -629,17 +647,32 @@ test('C4 multi-region rows interleave by relevance, not by region order', () => 
 });
 
 test('shown scores are multiples of the bucket and never increase down a tier', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(full => {
-    const g = withoutMobile(p, full);
-    return g.every(x => x.score % SCORE_BUCKET === 0) && g.every((x, i) => { const y = g[i + 1]; return !y || y.tier > x.tier || y.score <= x.score; });
-  })), RUNS);
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const lead = leadProfile(p);
+    return groupsOf(ok(p, pool, BIG)).every(full => {
+      const g = withoutMobile(p, full);
+      return g.every(x => x.score % SCORE_BUCKET === 0) && g.every((x, i) => {
+        const y = g[i + 1];
+        if (!y || y.tier > x.tier || y.score <= x.score) return true;
+        if (lead && isLeadershipRow(x) && !isLeadershipRow(y)) return true;
+        return deferredPast(g, i + 1);
+      });
+    });
+  }), RUNS);
 });
 
 test('P29 within one tier a strictly higher score bucket never ranks below a lower one', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool, BIG)).every(full => {
-    const g = withoutMobile(p, full);
-    return g.every((x, i) => g.slice(i + 1).every(y => y.tier !== x.tier || Math.floor(y.score / SCORE_BUCKET) <= Math.floor(x.score / SCORE_BUCKET)));
-  })), RUNS);
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const lead = leadProfile(p);
+    return groupsOf(ok(p, pool, BIG)).every(full => {
+      const g = withoutMobile(p, full);
+      return g.every((x, i) => g.slice(i + 1).every((y, j) => {
+        if (y.tier !== x.tier || Math.floor(y.score / SCORE_BUCKET) <= Math.floor(x.score / SCORE_BUCKET)) return true;
+        if (lead && isLeadershipRow(x) && !isLeadershipRow(y)) return true;
+        return deferredPast(g, i + 1 + j);
+      }));
+    });
+  }), RUNS);
 });
 
 test('P30 repeating a profile token in a title never raises its score or relevance', () => {
@@ -767,8 +800,13 @@ test('F1 us and uk count only through the place boost, in any case', () => {
 test('precision: inside a score band a title naming the profile focus ranks above a generic title', () => {
   fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
     const q = queryTokens(p.description, p.goal ?? '');
-    return groupsOf(ok(p, pool, BIG)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => g.slice(i + 1).every(y => {
-      if (x.tier !== y.tier || x.score !== y.score) return true;
+    const lead = leadProfile(p);
+    const english = englishProfile(p);
+    return groupsOf(ok(p, pool, BIG)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => g.slice(i + 1).every((y, j) => {
+      if (x.tier !== y.tier || x.score !== y.score || deferredPast(g, i + 1 + j)) return true;
+      if (lead && isLeadershipRow(x) !== isLeadershipRow(y)) return isLeadershipRow(x);
+      if (english && swedishOnlyTitle(x.title) !== swedishOnlyTitle(y.title)) return !swedishOnlyTitle(x.title);
+      if (isAgencyRow(x) !== isAgencyRow(y)) return !isAgencyRow(x);
       const fx = titleFocus(q, x.title);
       const fy = titleFocus(q, y.title);
       return Number(fx.skill) >= Number(fy.skill) && (fx.skill !== fy.skill || fx.roles >= fy.roles);
@@ -1005,5 +1043,87 @@ test('E1 a student learning HTML gets junior or trainee rows when the pool has t
       if (r.isErr()) return false;
       const shown = allRows(r);
       return shown.some(x => x.id === 'e:j') && shown.every(x => x.id !== 'e:s') && shown.every(x => /junior|trainee|intern/i.test(x.title));
+    }), RUNS);
+});
+
+test('R1 an English profile ranks a Swedish-only title below an equal English title, and a consultancy row gets no boost', () => {
+  fc.assert(fc.property(
+    fc.constantFrom(['Senior Software Developer', 'Senior systemutvecklare'], ['Software Engineer', 'Mjukvaruingenjör'], ['Backend Developer', 'backendutvecklare']),
+    fc.constantFrom('North Consulting', 'People Agency', 'Staffing House'),
+    ([enTitle, svTitle], agency) => {
+      const row = (id: string, company: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company, title, url: `https://jobs.example.com/${id}` });
+      const pool: PublicPool = { version: 'r1', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [
+        row('r1:sv', 'South Co', svTitle), row('r1:en', 'North Co', enTitle), row('r1:ag', agency, enTitle), row('r1:pr', 'Plain Product', enTitle),
+      ] };
+      const r = ok({ description: 'Senior software developer with 8 years of experience building web applications', region: 'any', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const shown = allRows(r);
+      const en = shown.find(x => x.id === 'r1:en');
+      const sv = shown.find(x => x.id === 'r1:sv');
+      const ag = shown.find(x => x.id === 'r1:ag');
+      const pr = shown.find(x => x.id === 'r1:pr');
+      return !!en && !!sv && !!ag && !!pr && en.score === sv.score && en.tier === sv.tier && pr.score === ag.score && pr.tier === ag.tier
+        && posOf(r, 'r1:en') < posOf(r, 'r1:sv') && posOf(r, 'r1:pr') < posOf(r, 'r1:ag');
+    }), RUNS);
+});
+
+test('K1 Kotlin, Spring and Kafka are separate skills and Kotlin is not Java', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Kotlin', 'kotlin', 'Kotlin services'),
+    fc.constantFrom('Java', 'java', 'JVM'),
+    fc.constantFrom('Spring', 'Spring Boot', 'spring boot'),
+    fc.constantFrom('Kafka', 'kafka'),
+    (kt, java, spring, kafka) => {
+      const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: 'Example Studio', title, url: `https://jobs.example.com/${id}` });
+      const pool: PublicPool = { version: 'k1', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [
+        row('k:kt', `Senior ${kt} Engineer`), row('k:jv', `Senior ${java} Engineer`), row('k:sp', `Senior ${spring} Engineer`), row('k:kf', `Senior ${kafka} Engineer`),
+      ] };
+      const hit = (description: string, id: string) => { const r = ok({ description, region: 'any', remote: 'any' }, pool, BIG); return r.isOk() && allRows(r).some(x => x.id === id); };
+      const ktTerms = termsIn(`${kt} engineer`);
+      const javaTerms = termsIn(`${java} engineer`);
+      return ktTerms.has('kotlin') && !ktTerms.has('java') && javaTerms.has('java') && !javaTerms.has('kotlin')
+        && termsIn(`${spring} developer`).has('spring') && !termsIn(`${spring} developer`).has('java')
+        && termsIn(`${kafka} engineer`).has('kafka') && !termsIn(`${kafka} engineer`).has('java')
+        && tokensOf(kt).includes('kotlin') && !tokensOf(kt).includes('java')
+        && tokensOf(spring).includes('spring') && !tokensOf(spring).includes('java')
+        && tokensOf(kafka).includes('kafka')
+        && hit('Senior Kotlin engineer with 8 years of experience', 'k:kt') && !hit('Senior Java engineer with 8 years of JVM experience', 'k:kt')
+        && hit('Senior Spring engineer with 8 years of experience', 'k:sp') && !hit('Senior Java engineer with 8 years of JVM experience', 'k:sp')
+        && hit('Senior engineer with 8 years of Kafka experience', 'k:kf') && !hit('Senior Java engineer with 8 years of JVM experience', 'k:kf');
+    }), RUNS);
+});
+
+test('R3 a leadership profile ranks engineering leadership rows above IC rows', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform'),
+    fc.constantFrom('Senior Backend Engineer', 'Backend Engineer'),
+    (lead, ic) => {
+      const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: id === 'r3:l' ? 'North Co' : 'South Co', title, url: `https://jobs.example.com/${id}` });
+      const pool: PublicPool = { version: 'r3', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row('r3:i', ic), row('r3:l', lead)] };
+      const r = ok({ description: 'Head of Engineering, backend and Python, 10 years building services', region: 'any', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const shown = allRows(r);
+      const a = shown.find(x => x.id === 'r3:l');
+      const b = shown.find(x => x.id === 'r3:i');
+      return !!a && !!b && b.score >= a.score && posOf(r, 'r3:l') < posOf(r, 'r3:i');
+    }), RUNS);
+});
+
+test('D1 at most two rows from one employer and programme are in the top 10', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Backend Engineer', 'Software Engineer'),
+    fc.constantFrom('Repeat Studio', 'Northwind Labs'),
+    fc.integer({ min: 8, max: 12 }),
+    (title, company, others) => {
+      const variants = ['', 'Senior ', 'Principal ', ''].map((lv, i) => `${lv}${title}${['', '', ' II', ' 2'][i]}`.replace(/\s+/g, ' ').trim());
+      const row = (id: string, co: string, name: string): PublicRow => ({ ...OPEN_ROW, id, company: co, title: name, url: `https://jobs.example.com/${id}` });
+      const same = variants.map((name, i) => row(`d:s${i}`, company, name));
+      const rest = Array.from({ length: others }, (_, i) => row(`d:o${i}`, `Other Studio ${i}`, title));
+      const pool: PublicPool = { version: 'd1', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [...same, ...rest] };
+      const r = ok({ description: `${title.toLowerCase()} with 8 years of experience building services`, region: 'any', remote: 'any' }, pool, BIG);
+      if (r.isErr()) return false;
+      const g = r.value.groups.fitsNow;
+      const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
+      return mine(g.slice(0, 10)).length <= 2 && mine(g).length === same.length;
     }), RUNS);
 });

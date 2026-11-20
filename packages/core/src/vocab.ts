@@ -29,7 +29,10 @@ export const TERMS: ReadonlyArray<Term> = [
   t('go', 'Go', 'skill', 'golang|go (?:engineer|developer)'),
   t('rust', 'Rust', 'skill', 'rust'),
   t('cpp', 'C++', 'skill', 'c\\+\\+|cpp'),
-  t('java', 'Java / Kotlin', 'skill', 'java|kotlin|jvm|spring boot|scala'),
+  t('java', 'Java', 'skill', 'java|jvm|scala'),
+  t('kotlin', 'Kotlin', 'skill', 'kotlin'),
+  t('spring', 'Spring', 'skill', 'spring(?: boot)?'),
+  t('kafka', 'Kafka', 'skill', 'kafka'),
   t('sql', 'SQL / Postgres', 'skill', 'sql|postgres(?:ql)?'),
   t('software', 'software engineering', 'generic', 'software (?:engineer(?:ing)?|developer|development)|swe|programmer|developer|coder|member of technical staff|mts'),
 ];
@@ -113,6 +116,8 @@ export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice pr
 const ENGINEERING_CUE = /(?:^|[^a-z])(?:product engineering|artificial intelligence|machine learning|engineer(?:ing|s)?|software|developers?|development|technology|infrastructure|security|platform|cto|vp eng|tech|data|eng|ml|ai)(?=$|[^a-z])/i;
 export const leadsEngineering = (text: string): boolean => termsIn(text).has('leadership') && ENGINEERING_CUE.test(inEnglish(text));
 export const hasSwedish = (text: string): boolean => new RegExp(SV_RE.source, 'iu').test(text) || new RegExp(SV_COMPOUND.source, 'iu').test(text);
+const ENGLISH_ROLE = /(?:^|[^a-z])(?:engineer|developer|programmer|manager|software|backend|frontend|fullstack|platform)(?=$|[^a-z])/i;
+export const swedishOnlyTitle = (title: string): boolean => hasSwedish(title) && !ENGLISH_ROLE.test(title);
 export const isLearner = (text: string): boolean => /^\s*(?:an?\s+)?student learning\b/i.test(text) || /^\s*learning html\b/i.test(text);
 export const isLeadershipRow = (row: { title: string }): boolean => leadsEngineering(row.title) && !NON_ENGINEERING_TITLE.test(inEnglish(row.title));
 export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
