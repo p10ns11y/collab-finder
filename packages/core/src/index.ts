@@ -8,5 +8,6 @@ export { PublicRowSchema, privacyScan, exportRow, PERSONAL_KEYS, type PublicRow,
 export type { GroupKey } from './decisions.ts';
 export type { VisitorError, Warning, AppError } from './errors.ts';
 export { isAgencyRow } from './vocab.ts';
-export { isSkillList, SKILL_TOKENS, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
+export { languageGo } from './vocab.ts';
+export { isSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROLE_CAP, titleFocus, type TitleFocus, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
 export { isLocationPart } from './vocab.ts';

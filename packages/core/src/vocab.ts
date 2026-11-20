@@ -64,7 +64,21 @@ export const levelOf = (raw: string): Level | null => {
 export const levelOfPool = (s: string | null): Level | null =>
   s === 'mid' ? 'mid' : s === 'senior' ? 'senior' : s === 'staff' || s === 'lead' ? 'staff' : s === 'principal' ? 'principal' : s === 'junior' || s === 'intern' ? 'junior' : null;
 
-export const termsIn = (text: string): Set<string> => new Set(TERMS.filter(x => x.re.test(text)).map(x => x.key));
+const LANG = 'python|rust|java|kotlin|scala|typescript|javascript|ts|js|node(?:\\.?js)?|c\\+\\+|c#|ruby|elixir|php|swift|react|postgres(?:ql)?|sql|kubernetes|k8s|docker|aws|gcp|grpc|kafka|terraform';
+const GO_CAPITAL = /(^|[^A-Za-z-])Go(?![A-Za-z-])(?!\s+to\b)/g;
+const GO_NOUN_NEXT = /^\s+(?!(?:engineer|developer|programming|backend|services|microservices|and|or|code|is|was|has|are)\b)[a-z]/;
+const GO_LOWER = new RegExp(`(^|[,/(&+]\\s*|\\b(?:in|with|of|using)\\s+|\\b(?:${LANG})\\s+(?:and|or|&)\\s+)go(?=\\s*[/)&+]|\\s*,\\s*(?:${LANG})\\b|\\s+(?:and|or|&)\\s+(?:${LANG})\\b|\\s+(?:developer|engineer|programming|backend|services|microservices)\\b|\\s*[.;]?\\s*$)`, 'gi');
+const sentenceStart = (before: string): boolean => /(?:^|[.!?])\s*$/.test(before);
+export const languageGo = (text: string): string => text
+  .replace(GO_CAPITAL, (m: string, pre: string, at: number) => {
+    const after = text.slice(at + m.length, at + m.length + 40);
+    return sentenceStart(text.slice(0, at + pre.length)) && GO_NOUN_NEXT.test(after) ? m : `${pre} golang `;
+  })
+  .replace(GO_LOWER, (_m: string, pre: string) => `${pre} golang `);
+export const termsIn = (text: string): Set<string> => {
+  const t = languageGo(text);
+  return new Set(TERMS.filter(x => x.re.test(t)).map(x => x.key));
+};
 export const label = (key: string): string => TERMS.find(x => x.key === key)?.label ?? key;
 export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?.kind ?? 'skill';
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;

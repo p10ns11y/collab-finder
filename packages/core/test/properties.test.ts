@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { SCORE_BUCKET, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import { matchUnder, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
@@ -108,12 +108,20 @@ test('P6 each group length ≤ limit and totals ≥ length', () => {
 
 const mobileProfile = (p: MatchProfile) => MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`);
 const withoutMobile = (p: MatchProfile, g: ReadonlyArray<MatchRow>) => (mobileProfile(p) ? g : g.filter(x => !MOBILE_TITLE.test(x.title)));
-test('P7 groups ranked by tier asc, shown score desc, relevance desc, lastChecked desc, id asc', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
-    const y = g[i + 1];
-    if (!y) return true;
-    return x.tier < y.tier || (x.tier === y.tier && (x.score > y.score || (x.score === y.score && (x.relevance > y.relevance || (x.relevance === y.relevance && (x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id)))))));
-  }); })), RUNS);
+test('P7 groups ranked by tier asc, shown score desc, title names a skill, title role focus, relevance desc, lastChecked desc, id asc', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const q = queryTokens(p.description, p.goal ?? '');
+    const key = (x: MatchRow) => { const f = titleFocus(q, x.title); return [x.tier, -x.score, -Number(f.skill), -f.roles, -x.relevance]; };
+    return groupsOf(ok(p, pool)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => {
+      const y = g[i + 1];
+      if (!y) return true;
+      const a = key(x);
+      const b = key(y);
+      const k = a.findIndex((v, j) => v !== b[j]);
+      if (k >= 0) return a[k]! < b[k]!;
+      return x.lastChecked > y.lastChecked || (x.lastChecked === y.lastChecked && x.id < y.id);
+    }); });
+  }), RUNS);
 });
 
 test('P8 descriptions without engineering vocabulary are OutOfScope', () => {
@@ -703,4 +711,56 @@ test('the relevance query keeps go only as the language and drops place words', 
   for (const t of ['go', 'us', 'uk', 'stockholm', 'new', 'york', 'further']) if (q.has(t)) throw new Error(`query kept ${t}`);
   if (!q.has('golang')) throw new Error('query lost the language');
   if (!tokensOf('Senior Go Engineer').includes('golang')) throw new Error('title lost the language');
+});
+
+const LANGS: ReadonlyArray<[string, string]> = [['Go', 'golang'], ['Rust', 'rust'], ['Python', 'python'], ['TypeScript', 'typescript']];
+test('P32 for a profile naming language L, "X Engineer (L)" ranks above "X Engineer" of equal score', () => {
+  fc.assert(fc.property(fc.constantFrom(...LANGS), fc.constantFrom('Backend', 'Platform', 'Software', 'Senior Backend', 'Infrastructure', 'Fullstack'), fc.constantFrom('SE', 'EU', 'UK'),
+    fc.constantFrom('', ' and distributed systems', ', APIs and Postgres'), (lang, x, region, extra) => {
+    const base = { source: 'synthetic', company: 'Example', url: 'https://jobs.example.com/x', location: null, remote: 'remote' as const, region, role_tags: [],
+      seniority: 'senior' as const, posted_at: null, status: 'open' as const, status_checked_at: '2026-11-18T08:00:00Z' };
+    const named = { ...base, id: 'p32:named', company: 'Named Co', title: `${x} Engineer (${lang[0]})` };
+    const plain = { ...base, id: 'p32:plain', company: 'Plain Co', title: `${x} Engineer` };
+    const pool: PublicPool = { version: 'p32', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [plain, named] };
+    const r = ok({ description: `Senior backend engineer, 8 years of ${lang[0]}${extra}`, region: [region] }, pool, BIG);
+    if (r.isErr()) return false;
+    const g = groupsOf(r).find(gr => gr.some(y => y.id === named.id));
+    const a = g?.findIndex(y => y.id === named.id) ?? -1;
+    const b = g?.findIndex(y => y.id === plain.id) ?? -1;
+    if (a < 0) return false;
+    if (b < 0) return true;
+    return g![a]!.score !== g![b]!.score || g![a]!.tier !== g![b]!.tier || a < b;
+  }), RUNS);
+});
+
+test('F1 Go counts as a language in language contexts on both sides and never as a lowercase verb', () => {
+  const VERB = ['I want to go further.', "Let's go!", 'Go further with us.', 'Ready to go and grow.', 'We can go faster.', 'Happy to go the extra mile.'];
+  const LANG = ['I write Go every day.', '7 years of Go and Postgres.', 'Backend: Go, Python.', 'Experience in go.', 'python and go', 'Go is my main language.', 'Senior Go developer'];
+  const TITLE = ['Backend Engineer (Go)', 'Software Engineer - Go', 'Senior Backend Engineer(Go), Storage', 'Go Engineer', 'Product Engineer - Python and/or Go'];
+  fc.assert(fc.property(fc.constantFrom(...VERB), fc.constantFrom(...LANG), fc.constantFrom(...TITLE), fc.constantFrom('', 'Senior backend engineer with Rust. '), (verb, lang, title, lead) => {
+    const vq = queryTokens(`${lead}${verb}`);
+    const lq = queryTokens(`${lead}${lang}`);
+    return !vq.has('golang') && !vq.has('go') && lq.has('golang') && rowTokens({ title, role_tags: [] }).includes('golang') && relevance(lq, { title, role_tags: [] }, corpusStats([])) > 0
+      && termsIn(languageGo(lang)).has('go') && !termsIn(verb).has('go');
+  }), RUNS);
+});
+
+test('F1 us and uk count only through the place boost, in any case', () => {
+  fc.assert(fc.property(fc.constantFrom('help us', 'Help US grow', 'based in the UK', 'to the uk', 'remote from the US', 'US or UK'), fc.constantFrom('Senior backend engineer with Python', 'Frontend engineer, React'), (place, d) => {
+    const a = [...queryTokens(d)].sort().join(' ');
+    const b = [...queryTokens(`${d}, ${place}`)].sort().join(' ');
+    return a === b;
+  }), RUNS);
+});
+
+test('precision: inside a score band a title naming the profile focus ranks above a generic title', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const q = queryTokens(p.description, p.goal ?? '');
+    return groupsOf(ok(p, pool, BIG)).every(full => { const g = withoutMobile(p, full); return g.every((x, i) => g.slice(i + 1).every(y => {
+      if (x.tier !== y.tier || x.score !== y.score) return true;
+      const fx = titleFocus(q, x.title);
+      const fy = titleFocus(q, y.title);
+      return Number(fx.skill) >= Number(fy.skill) && (fx.skill !== fy.skill || fx.roles >= fy.roles);
+    })); });
+  }), RUNS);
 });

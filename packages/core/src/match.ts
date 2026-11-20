@@ -2,7 +2,7 @@ import { err, ok, type Result } from 'neverthrow';
 import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { corpusStats, isSkillList, queryTokens, relevance, type CorpusStats } from './relevance.ts';
+import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, type CorpusStats, type TitleFocus } from './relevance.ts';
 import { isLocationPart, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
@@ -188,8 +188,12 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   }, mobile: !mobileMismatch ? 'none' : roleHits.length || skillHits.length || coveredHits.length ? 'covered' : 'bottom' };
 }
 
-const byRank = (a: MatchRow, b: MatchRow): number =>
-  a.tier - b.tier || b.score - a.score || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const NO_FOCUS: TitleFocus = { skill: false, roles: 0 };
+const byRank = (focusOf: ReadonlyMap<string, TitleFocus>) => (a: MatchRow, b: MatchRow): number => {
+  const fa = focusOf.get(a.id) ?? NO_FOCUS;
+  const fb = focusOf.get(b.id) ?? NO_FOCUS;
+  return a.tier - b.tier || b.score - a.score || Number(fb.skill) - Number(fa.skill) || fb.roles - fa.roles || b.relevance - a.relevance || (a.lastChecked < b.lastChecked ? 1 : a.lastChecked > b.lastChecked ? -1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+};
 
 export const normalizedTitle = (t: string): string => {
   const segments = t.split('|').map(x => x.trim());
@@ -201,8 +205,8 @@ export const normalizedTitle = (t: string): string => {
   head = parts.slice(0, end).join('');
   return head.toLowerCase().replace(/[^a-z0-9+#åäö]+/g, ' ').trim();
 };
-const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>) => (a: MatchRow, b: MatchRow): number =>
-  Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(a, b);
+const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>, focusOf: ReadonlyMap<string, TitleFocus>) => (a: MatchRow, b: MatchRow): number =>
+  Number(mobileOf.get(a.id) === 'bottom') - Number(mobileOf.get(b.id) === 'bottom') || byRank(focusOf)(a, b);
 const mobileLast = (rows: ReadonlyArray<MatchRow>, mobileOf: ReadonlyMap<string, Scored['mobile']>): MatchRow[] => {
   const isMobile = (r: MatchRow) => mobileOf.get(r.id) !== 'none';
   const others = rows.filter(r => !isMobile(r));
@@ -255,13 +259,14 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
       query: queryTokens(p.description, p.goal ?? ''), stats };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const mobileOf = new Map<string, Scored['mobile']>();
+    const focusOf = new Map<string, TitleFocus>();
     const excluded = new Set(opts.excludeIds ?? []);
-    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); } }
+    for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); } }
     const x = acrossGroups(all);
     const ranked = {
-      fitsNow: collapse(all.fitsNow.sort(byRank), x.keep('fitsNow'), x.carried),
-      stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank), x.keep('stepTowardGoal'), x.carried),
-      stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf)), x.keep('stretch'), x.carried), mobileOf),
+      fitsNow: collapse(all.fitsNow.sort(byRank(focusOf)), x.keep('fitsNow'), x.carried),
+      stepTowardGoal: collapse(all.stepTowardGoal.sort(byRank(focusOf)), x.keep('stepTowardGoal'), x.carried),
+      stretch: mobileLast(collapse(all.stretch.sort(stretchRank(mobileOf, focusOf)), x.keep('stretch'), x.carried), mobileOf),
     };
     const totals = { fitsNow: ranked.fitsNow.length, stepTowardGoal: ranked.stepTowardGoal.length, stretch: ranked.stretch.length };
     if (totals.fitsNow + totals.stepTowardGoal + totals.stretch === 0) {

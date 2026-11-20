@@ -1,5 +1,5 @@
 import type { PublicRow } from './schema.ts';
-import { isPlaceWord } from './vocab.ts';
+import { isPlaceWord, languageGo } from './vocab.ts';
 
 const STOP = new Set([
   'a', 'an', 'and', 'or', 'the', 'of', 'in', 'on', 'at', 'for', 'to', 'with', 'by', 'from', 'as', 'is', 'are', 'be', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
@@ -46,7 +46,7 @@ const TOKEN_MAP: Readonly<Record<string, string>> = {
 };
 
 export const tokensOf = (text: string): string[] => {
-  let t = ` ${text.toLowerCase()} `;
+  let t = ` ${languageGo(text).toLowerCase()} `;
   for (const [re, to] of SYNONYMS) t = t.replace(re, to);
   return t.split(/[^a-z0-9+#åäöéü]+/).filter(Boolean).map(w => TOKEN_MAP[w] ?? w).filter(w => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w));
 };
@@ -70,6 +70,15 @@ export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_
 
 export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'golang', 'rust', 'java', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
   'php', 'vue', 'angular', 'svelte', 'aws', 'gcp', 'azure', 'docker', 'terraform', 'graphql', 'kafka', 'redis', 'elixir', 'haskell', 'swift', 'mobile', 'laravel', 'html', 'css']);
+export const FOCUS_ROLE_TOKENS: ReadonlySet<string> = new Set(['frontend', 'backend', 'fullstack', 'ml', 'llm', 'infrastructure', 'platform', 'security', 'dataengineer', 'embedded',
+  'mobile', 'devtools', 'compiler', 'distributed', 'inference', 'robot', 'productengineer', 'fde', 'api', 'web', 'search', 'payments', 'growth']);
+export const FOCUS_ROLE_CAP = 2;
+export type TitleFocus = { readonly skill: boolean; readonly roles: number };
+export const titleFocus = (query: ReadonlySet<string>, title: string): TitleFocus => {
+  const own = new Set(tokensOf(title));
+  const hits = [...own].filter(t => query.has(t));
+  return { skill: hits.some(t => SKILL_TOKENS.has(t)), roles: Math.min(FOCUS_ROLE_CAP, hits.filter(t => FOCUS_ROLE_TOKENS.has(t)).length) };
+};
 export const SKILL_LIST_FACTOR = 0.5;
 export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
   const distinct = new Set(tokensOf(row.title));
