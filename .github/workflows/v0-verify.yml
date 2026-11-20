@@ -65,6 +65,14 @@ jobs:
         working-directory: apps/web
       - run: npx playwright test
         working-directory: apps/web
+      - name: lighthouse accessibility >= 95
+        working-directory: apps/web
+        run: |
+          npx vite preview --port 4173 --strictPort --host 127.0.0.1 &
+          npx --yes wait-on@8.0.3 -t 60000 http://127.0.0.1:4173
+          export CHROME_PATH="$(node -e "console.log(require('@playwright/test').chromium.executablePath())")"
+          npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ --only-categories=accessibility --chrome-flags="--headless=new --no-sandbox" --output=json --output-path=lighthouse.json --quiet
+          node -e "const s=require('./lighthouse.json').categories.accessibility.score*100; console.log('LIGHTHOUSE a11y='+s); process.exit(s>=95?0:1)"
       - name: no code comments
         working-directory: apps/web
         run: "! grep -rnE '^\\s*//|/\\*' src tests check scripts vite.config.ts playwright.config.ts sw.template.js --include='*.ts' --include='*.tsx' --include='*.js'"

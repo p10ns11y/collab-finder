@@ -767,7 +767,7 @@ test('precision: inside a score band a title naming the profile focus ranks abov
 
 const COMPANY_LIKES = ['Company 0', 'company 3', 'COMPANY 5 AB', 'Nordic Consulting', 'Talent Partners Inc', 'Bemanning'];
 const INTEREST_LIKES = ['robotics', 'payments', 'AI agents', 'developer tools', 'climate'];
-const likesArb = (pool: ReadonlyArray<string>) => fc.tuple(fc.subarray(pool, { minLength: 1 }), fc.constantFrom(', ', '; ', '\n', ',')).map(([xs, sep]) => xs.join(sep));
+const likesArb = (pool: string[]) => fc.tuple(fc.subarray(pool, { minLength: 1 }), fc.constantFrom(', ', '; ', '\n', ',')).map(([xs, sep]) => xs.join(sep));
 const members = (r: ReturnType<typeof match>) => groupsOf(r).map(g => g.flatMap(x => [x.id, ...x.alsoIds]).sort());
 const likedCo = (likes: string) => { const l = likedEntries(likes); return (c: string) => likesCompany(l, c); };
 
