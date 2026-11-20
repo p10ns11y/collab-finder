@@ -16,11 +16,13 @@ stateDiagram-v2
   awaiting_submit --> submitting: posting in ApprovedBatch
   submitting --> submitted: driver.submit then record
   submitting --> needs_check: crash before record (resume)
-  needs_check --> submitted: owner confirms sent
-  needs_check --> awaiting_submit: owner confirms not sent
+  needs_check --> submitted: owner confirms
+  needs_check --> rejected: owner reconciles
   submitted --> rejected
   submitted --> interview
 ```
+
+Owner approvals are a JSON file outside the git work tree (`KANITHANJ_APPROVALS` or config `approvalPath`). The file lists posting ids; a posting that is not in that record is not approved.
 
 | command | does |
 |---|---|

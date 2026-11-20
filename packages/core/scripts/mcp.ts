@@ -24,7 +24,7 @@ const fail = (id: Req['id'], code: number, message: string): void => send({ json
 const handle = (req: Req): void => {
   if (req.id === undefined) return;
   switch (req.method) {
-    case 'initialize': return reply(req.id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'kanithanj', version: CORE_VERSION } });
+    case 'initialize': return reply(req.id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'kanithanj-ai', version: CORE_VERSION } });
     case 'ping': return reply(req.id, {});
     case 'tools/list': return reply(req.id, { tools: TOOLS });
     case 'tools/call': {
