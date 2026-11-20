@@ -2,7 +2,7 @@ import type { MatchResult, RegionPref, RemotePref } from '../../../packages/core
 
 type Place = Exclude<RegionPref, 'any'>;
 export type AgentSearch = { description?: string; goal?: string; regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean };
-export type HostAnswer = { stateVersion: number; result: MatchResult | null; error: string | null };
+export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null };
 export type WebMcpHost = {
   version(): number;
   search(baseVersion: number, change: AgentSearch): HostAnswer;
@@ -22,7 +22,7 @@ const REMOTES: ReadonlyArray<RemotePref> = ['any', 'remote', 'hybrid', 'onsite']
 const text = (v: unknown, isError = false): ToolText => ({ content: [{ type: 'text', text: JSON.stringify(v) }], ...(isError ? { isError } : {}) });
 const summary = (a: HostAnswer) => a.error
   ? { stateVersion: a.stateVersion, error: a.error }
-  : { stateVersion: a.stateVersion, groups: a.result ? Object.fromEntries(Object.entries(a.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))])) : null };
+  : { stateVersion: a.stateVersion, verdict: a.verdict, groups: a.result ? Object.fromEntries(Object.entries(a.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))])) : null };
 
 export const parseSearch = (input: Record<string, unknown>): { baseVersion: number; change: AgentSearch } | string => {
   const v = input['stateVersion'];

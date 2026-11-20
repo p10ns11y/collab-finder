@@ -188,6 +188,7 @@ test('WebMCP, feature-detected: an agent drives the same form; a write on an old
   await expect(page.getByLabel('Work mode')).toHaveValue('hybrid');
   const fresh = await call(page, 'refine_search', { stateVersion: (await call(page, 'get_state')).stateVersion, regions: ['SE', 'EU'] });
   expect(fresh.isError).toBe(false);
+  expect(['results', 'ZeroResults']).toContain(fresh.verdict);
   await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
   const groups = fresh.groups as Record<string, Array<{ id: string }>> | null;
   const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;

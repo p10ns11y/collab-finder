@@ -94,7 +94,7 @@ export function App() {
     registerWebMcp({
       version: () => version.current,
       search: (base, change) => {
-        if (base !== version.current) return { stateVersion: version.current, result: null, error: `StaleWrite: base ${base}, current ${version.current}` };
+        if (base !== version.current) return { stateVersion: version.current, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${version.current}` };
         if (change.description !== undefined) setDescription(change.description);
         if (change.goal !== undefined) setGoal(change.goal);
         if (change.regions) setRegions(change.regions);
@@ -102,7 +102,7 @@ export function App() {
         if (change.productOnly !== undefined) setProductOnly(change.productOnly);
         version.current += 1;
         const r = latest.current.run(change);
-        return { stateVersion: version.current, result: r?.isOk() ? r.value : null, error: r === null ? 'pool not loaded' : r.isErr() ? r.error.kind : null };
+        return { stateVersion: version.current, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
       },
       urlOf: id => {
         const v = latest.current.view;
