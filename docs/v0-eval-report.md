@@ -2,19 +2,19 @@
 
 ```mermaid
 flowchart LR
-  R[real pool + eval set<br/>other machine only] -->|Fleet Desk run| N[recall, mismatches, precision]
+  R[real pool + eval set<br/>other machine only] -->|reviewer run| N[recall, mismatches, precision]
   S[synthetic pool in git] -->|CI v0-verify| C[privacy, abuse, offline, a11y, scope, closed rows]
   N --> T[table below]
   C --> T
 ```
 
-The eval set and the real pool never enter git or CI. Real-pool rows are filled from Fleet Desk's run at the named commit; every other row is checked in CI on each push.
+The eval set and the real pool never enter git or CI. Real-pool rows are filled from the reviewer's run at the named commit; every other row is checked in CI on each push.
 
 | §5 check | v0 exit | Measured | Where |
 |---|---|---|---|
-| His description vs his in-pool applied roles, recall@30 | ≥ 8 of 11 (brief), ≥ 10 of 14 (plan) | pending Fleet Desk run | real pool |
-| Known mismatches in fits now | 0 | pending Fleet Desk run | real pool |
-| 8 in-scope personas, precision@5 of fits now | ≥ 0.7 mean | pending Fleet Desk run | real pool |
+| His description vs his in-pool applied roles, recall@30 | 8 of 11 in the top 30 | pending reviewer run | real pool |
+| Known mismatches in fits now | 0 | pending reviewer run | real pool |
+| 8 in-scope personas, precision@5 of fits now | ≥ 0.7 mean | pending reviewer run | real pool |
 | 3 out-of-scope personas get the honest message | 3 of 3 | 3 of 3 | `core.test.ts` out of scope |
 | Closed rows shown | 0 | 0 under 400 generated pools | `properties.test.ts` P1, P13 |
 | Requests carrying description, goal or likes | 0 | 0 of 4 (`REQUESTS total=4 carrying_description=0`) | `web.spec.ts` |

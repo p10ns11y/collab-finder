@@ -1649,7 +1649,7 @@ Mel,Learn,https://profiles.example/in/mel-learn,,PriorLabs,Machine Learning Engi
         let mut people = parse_connections_csv(SAMPLE).unwrap();
         let contacts = parse_contacts_csv(
             "Source,FirstName,LastName,Companies,Title,Emails,PhoneNumbers,FullName\n\
-             ADDRESS_BOOK,Sam,Orbit,,eng,sam@example.test,+46701234567,Sam Orbit\n",
+             ADDRESS_BOOK,Sam,Orbit,,eng,sam@example.test,+1 555 0100,Sam Orbit\n",
         )
         .unwrap();
         people.extend(contacts);
@@ -1659,7 +1659,7 @@ Mel,Learn,https://profiles.example/in/mel-learn,,PriorLabs,Machine Learning Engi
             .find(|p| p.first_name == "Sam" && p.source == "linkedin_connection")
             .unwrap();
         assert_eq!(sam.emails.as_deref(), Some("sam@example.test"));
-        assert_eq!(sam.phones.as_deref(), Some("+46701234567"));
+        assert_eq!(sam.phones.as_deref(), Some("+1 555 0100"));
     }
 
     #[test]
