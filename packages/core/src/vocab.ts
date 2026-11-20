@@ -113,20 +113,26 @@ export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
 export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
-const LEADERSHIP_VETO = /(?:^|[^a-z0-9])(?:business development|partner(?:ship)?s?|accounting|sales|design|operations|counsel)(?=$|[^a-z0-9])/i;
+const LEADERSHIP_VETO = /(?:^|[^a-z0-9])(?:business development|assistant|chief of staff|to the|sox|startups?|partner(?:ship)?s?|accounting|sales|design|operations|counsel)(?=$|[^a-z0-9])/i;
 export const LEADERSHIP_PHRASES: ReadonlyArray<string> = ['application security', 'product security', 'information security', 'security engineering', 'data engineering', 'data science', 'machine learning', 'ai engineering', 'head of ai', 'it platform', 'vp engineering', 'vp eng', 'engineering', 'software', 'devops', 'sre', 'platform', 'infrastructure', 'ciso', 'ml', 'cto'];
-const phraseHit = (phrase: string, text: string): boolean => new RegExp(`(?:^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-z0-9])`, 'i').test(text);
+const LEADERSHIP_PHRASE_RE = new RegExp(`(?:^|[^a-z0-9])(?:${[...LEADERSHIP_PHRASES].sort((a, b) => b.length - a.length).map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=$|[^a-z0-9])`, 'i');
+const LEADERSHIP_TERM = TERMS.find(x => x.key === 'leadership')!.re;
+const leadershipOk = (english: string): boolean => LEADERSHIP_TERM.test(languageGo(english)) && !LEADERSHIP_VETO.test(english) && LEADERSHIP_PHRASE_RE.test(english);
 export const hasLeadershipPhrase = (text: string): boolean => {
   const t = inEnglish(text);
-  if (LEADERSHIP_VETO.test(t)) return false;
-  return LEADERSHIP_PHRASES.some(p => phraseHit(p, t));
+  return !LEADERSHIP_VETO.test(t) && LEADERSHIP_PHRASE_RE.test(t);
 };
-export const leadsEngineering = (text: string): boolean => termsIn(text).has('leadership') && hasLeadershipPhrase(text);
-export const hasSwedish = (text: string): boolean => new RegExp(SV_RE.source, 'iu').test(text) || new RegExp(SV_COMPOUND.source, 'iu').test(text);
+export const leadsEngineering = (text: string): boolean => leadershipOk(inEnglish(text));
+const SV_TEST = new RegExp(SV_RE.source, 'iu');
+const SV_COMPOUND_TEST = new RegExp(SV_COMPOUND.source, 'iu');
+export const hasSwedish = (text: string): boolean => SV_TEST.test(text) || SV_COMPOUND_TEST.test(text);
 const ENGLISH_ROLE = /(?:^|[^a-z])(?:engineer|developer|programmer|manager|software|backend|frontend|fullstack|platform)(?=$|[^a-z])/i;
 export const swedishOnlyTitle = (title: string): boolean => hasSwedish(title) && !ENGLISH_ROLE.test(title);
 export const isLearner = (text: string): boolean => /^\s*(?:an?\s+)?student learning\b/i.test(text) || /^\s*learning html\b/i.test(text);
-export const isLeadershipRow = (row: { title: string }): boolean => leadsEngineering(row.title) && !NON_ENGINEERING_TITLE.test(inEnglish(row.title));
+export const isLeadershipRow = (row: { title: string }): boolean => {
+  const t = inEnglish(row.title);
+  return leadershipOk(t) && !NON_ENGINEERING_TITLE.test(t);
+};
 export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
 export const NARROWING_ROLES: ReadonlySet<string> = new Set(['frontend', 'backend', 'embedded', 'security', 'data', 'ml', 'fde']);
 export const COVERS: Readonly<Record<string, ReadonlyArray<string>>> = {

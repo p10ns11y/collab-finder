@@ -201,7 +201,7 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
   }), RUNS);
 });
 
-const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director', 'Business Development Manager, Cloud & AI', 'Director, Infrastructure Lease Accounting', 'Director, Strategic AI Partnerships', 'Head of People Tech & Data'];
+const NON_ENG_LEAD = ['Director of Finance', 'Head of People', 'Head of Growth', 'Director of Operations', 'Product Director', 'Head of Design', 'Senior Director, Corporate Counsel', 'Vice President Finance - Corporate Controller', 'Senior Director, Global Total Rewards', 'Director of Business Development', 'Partner Development Manager', 'Director, Physical Security', 'Head of Data Protection', 'Revenue Development Director', 'Business Development Manager, Cloud & AI', 'Director, Infrastructure Lease Accounting', 'Director, Strategic AI Partnerships', 'Head of People Tech & Data', 'Senior Executive Assistant to the CTO', 'Chief of Staff to the CTO', 'Director, SOX Infrastructure', 'Head of AI Startups, EMEA'];
 const ENG_LEAD = ['Engineering Manager', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Head of Platform', 'VP Eng', 'CTO', 'Director of Infrastructure', 'Director of Product Engineering', 'Head of Data Engineering', 'Director of Application Security', 'Director of Product Security', 'Head of AI', 'Head of IT Platform & Infrastructure', 'Utvecklingschef', 'Head of Data Science', 'Head of Information Security', 'CISO'];
 const leadRows = (titles: ReadonlyArray<string>, tag: string): PublicRow[] => titles.map((title, i) => ({
   id: `${tag}:${i}`, source: 'synthetic', company: `${tag} Co ${i}`, title, url: `https://jobs.example.com/${tag}${i}`, location: null, remote: 'remote', region: 'SE',
@@ -1128,6 +1128,27 @@ test('R3 a leadership profile ranks engineering leadership rows above IC rows', 
     }), RUNS);
 });
 
+test('the employer cap never changes any row\'s group', () => {
+  fc.assert(fc.property(
+    fc.constantFrom('Repeat Studio', 'Northwind Labs', 'Example Studio'),
+    fc.constantFrom('Backend Engineer', 'Software Engineer'),
+    (company, title) => {
+      const names = [title, `Senior ${title}`, `${title} Platform`, `Senior ${title.replace('Engineer', 'Developer')}`, title.replace('Engineer', 'Developer')];
+      const row = (id: string, co: string, name: string): PublicRow => ({ ...OPEN_ROW, id, company: co, title: name, url: `https://jobs.example.com/${id}` });
+      const rows = [...names.map((name, i) => row(`cap:${i}`, company, name)), ...Array.from({ length: 8 }, (_, i) => row(`cap:o${i}`, `Other Studio ${i}`, title))];
+      const pool: PublicPool = { version: 'cap', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows };
+      const profile = { description: `Senior ${title.toLowerCase()} with 8 years of experience building services`, region: 'any' as const, remote: 'any' as const };
+      const stats = corpusStats(rows);
+      const together = fixed(stats, profile, pool, BIG);
+      if (together.isErr() || together.value.groups.fitsNow.length < 5) return false;
+      const groupOf = (r: ReturnType<typeof match>, id: string) => groupsOf(r).findIndex(g => g.some(x => x.id === id || x.alsoIds.includes(id)));
+      return rows.every(one => {
+        const alone = fixed(stats, profile, { ...pool, rows: [one] }, BIG);
+        return alone.isOk() && groupOf(alone, one.id) === 0 && groupOf(together, one.id) === 0;
+      });
+    }), RUNS);
+});
+
 test('D1 at most two rows from one employer and programme are in the top 10', () => {
   fc.assert(fc.property(
     fc.constantFrom('Backend Engineer', 'Software Engineer'),
@@ -1144,7 +1165,7 @@ test('D1 at most two rows from one employer and programme are in the top 10', ()
       const g = r.value.groups.fitsNow;
       const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
       const shown = allRows(r);
-      return mine(g).length <= 2 && mine(shown).length === same.length;
+      return mine(g.slice(0, 10)).length <= 2 && mine(shown).length === same.length;
     }), RUNS);
 });
 
@@ -1163,7 +1184,7 @@ test('D2 a learner profile keeps two early-career rows per employer in every gro
       const r = ok({ description: text, region: 'any', remote: 'any' }, pool, BIG);
       if (r.isErr()) return false;
       const mine = (rows: ReadonlyArray<MatchRow>) => rows.filter(x => x.company.toLowerCase() === company.toLowerCase());
-      return mine(r.value.groups.fitsNow).length <= 2 && mine(allRows(r)).length === same.length;
+      return mine(r.value.groups.fitsNow.slice(0, 10)).length <= 2 && mine(allRows(r)).length === same.length;
     }), RUNS);
 });
 

@@ -265,17 +265,19 @@ const entryFieldOk = (title: string, learned: ReadonlyArray<string>): boolean =>
 };
 const DIVERSE_TOP = 10;
 const diversityKey = (r: MatchRow): string => `${r.company.toLowerCase().trim()}|${r.seniority === 'junior' || EARLY_TITLE.test(r.title) ? 'early' : programmeOf(r.title)}`;
-const capByEmployer = (rows: ReadonlyArray<MatchRow>, n = 2): { kept: MatchRow[]; rest: MatchRow[] } => {
-  const seen = new Map<string, number>();
-  const kept: MatchRow[] = [];
+const capByEmployer = (rows: ReadonlyArray<MatchRow>, n = 2): MatchRow[] => {
+  const top: MatchRow[] = [];
+  const later: MatchRow[] = [];
   const rest: MatchRow[] = [];
+  const seen = new Map<string, number>();
   for (const r of rows) {
-    const k = r.company.toLowerCase().trim();
+    if (top.length >= DIVERSE_TOP) { rest.push(r); continue; }
+    const k = `${r.company.toLowerCase().trim()}|${programmeOf(r.title)}`;
     const c = seen.get(k) ?? 0;
-    if (c >= n) rest.push(r);
-    else { seen.set(k, c + 1); kept.push(r); }
+    if (c >= n) later.push(r);
+    else { seen.set(k, c + 1); top.push(r); }
   }
-  return { kept, rest };
+  return top.length < DIVERSE_TOP ? [...rows] : [...top, ...later, ...rest];
 };
 const diversify = (rows: ReadonlyArray<MatchRow>): MatchRow[] => {
   const top: MatchRow[] = [];
@@ -351,11 +353,11 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
     for (const row of pool.rows) { if (excluded.has(row.id)) continue; const s = judge(u, prefs, row, now); if (s) { all[s.group].push(s.row); mobileOf.set(s.row.id, s.mobile); focusOf.set(s.row.id, titleFocus(prefs.query, row.title)); crowdOf.set(s.row.id, { sv: swedishOnlyTitle(row.title), agency: isAgencyRow(row), lead: isLeadershipRow(row), lang: unlistedLanguage(prefs.query, row.title, u.skills), far: prefs.regions.includes('SE') && s.row.region === 'remote-anywhere' }); } }
     const x = acrossGroups(all);
     const rank = byRank(focusOf, crowdOf, english, leadership);
-    const fitted = capByEmployer(collapse(all.fitsNow.sort(rank), x.keep('fitsNow'), x.carried));
+    const fitsNow = capByEmployer(collapse(all.fitsNow.sort(rank), x.keep('fitsNow'), x.carried));
     const stretchRows = collapse(all.stretch.sort(stretchRank(mobileOf, focusOf, crowdOf, english, leadership)), x.keep('stretch'), x.carried);
-    const stretchNon = [...fitted.rest, ...stretchRows.filter(r => mobileOf.get(r.id) === 'none')].sort(rank);
+    const stretchNon = stretchRows.filter(r => mobileOf.get(r.id) === 'none').sort(rank);
     const ranked = {
-      fitsNow: fitted.kept,
+      fitsNow,
       stepTowardGoal: diversify(collapse(all.stepTowardGoal.sort(rank), x.keep('stepTowardGoal'), x.carried)),
       stretch: mobileLast([...diversify(stretchNon), ...stretchRows.filter(r => mobileOf.get(r.id) !== 'none')], mobileOf),
     };
