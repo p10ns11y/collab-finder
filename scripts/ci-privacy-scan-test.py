@@ -55,7 +55,7 @@ class PrivacyScan(unittest.TestCase):
         self.d = tempfile.mkdtemp()
 
     def test_flags_phone_and_home_path(self):
-        body = "see " + "/home/" + "someone and call +" + "46 70 123 45 67\n"
+        body = "see " + "/home/" + "someone and call +" + "46 " + "70 " + "123 " + "45 " + "67\n"
         r = run(self.d, "note.md", body)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("home-path", r.stdout)
@@ -78,7 +78,7 @@ class PrivacyScan(unittest.TestCase):
         with open(allow, "w", encoding="utf-8") as f:
             f.write("*\tdata/distillation/peramanathan-sathyamoorthy-cv.pdf\n")
         r = run(
-            self.d, rel, "call +" + "46 70 123 45 67 and a@" + "secret.org",
+            self.d, rel, "call +" + "46 " + "70 " + "123 " + "45 " + "67 and a@" + "secret.org",
             allow=allow, pdf=True,
         )
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -88,7 +88,7 @@ class PrivacyScan(unittest.TestCase):
 
     @unittest.skipUnless(HAS_PDFTOTEXT, 'pdftotext not installed')
     def test_non_allowlisted_pdf_flags_phone_without_printing_it(self):
-        r = run(self.d, "secret.pdf", "call +" + "46 70 123 45 67", pdf=True)
+        r = run(self.d, "secret.pdf", "call +" + "46 " + "70 " + "123 " + "45 " + "67", pdf=True)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("secret.pdf:", r.stdout)
         self.assertIn("phone", r.stdout)
@@ -99,6 +99,20 @@ class PrivacyScan(unittest.TestCase):
         r = run(self.d, "h.md", "host " + "mza" + "pan" + " is private\n")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("private-host", r.stdout)
+
+    def test_unreadable_pdf_is_a_hit_without_printing_contents(self):
+        rel = "broken.pdf"
+        path = os.path.join(self.d, rel)
+        with open(path, "wb") as f:
+            f.write(b"%PDF-1.4\n% fictional stub, not a real PDF\n")
+        r = subprocess.run(
+            [sys.executable, SCAN, "--root", self.d, "--allow", os.devnull, rel],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("unreadable-pdf", r.stdout)
+        self.assertIn(rel + ":", r.stdout)
+        self.assertNotIn("fictional stub", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

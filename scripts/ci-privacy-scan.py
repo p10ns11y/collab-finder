@@ -80,7 +80,10 @@ def allowed(rel: str, rule: str, allows: list[tuple[str, str]]) -> bool:
     )
 
 
-def extract_text(path: str) -> str | None:
+UNREADABLE_PDF = object()
+
+
+def extract_text(path: str):
     if path.lower().endswith(".pdf"):
         try:
             r = subprocess.run(
@@ -88,9 +91,9 @@ def extract_text(path: str) -> str | None:
                 capture_output=True, check=False,
             )
         except FileNotFoundError:
-            return ""
+            return UNREADABLE_PDF
         if r.returncode != 0:
-            return ""
+            return UNREADABLE_PDF
         return r.stdout.decode("utf-8", "replace")
     try:
         data = open(path, "rb").read()
@@ -132,6 +135,8 @@ def scan_file(root: str, rel: str, allows: list[tuple[str, str]]) -> list[str]:
     if allowed(rel, "*", allows):
         return []
     text = extract_text(full)
+    if text is UNREADABLE_PDF:
+        return [f"{rel}: unreadable-pdf"]
     if text is None:
         return []
     return scan_text(rel, text, allows)
