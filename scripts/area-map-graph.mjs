@@ -29,7 +29,7 @@ const GROUPS = [
     ['discover', 'hunt', 'xplore', 'pipeline', 'quest', 'credentials', 'packs', 'network', 'hire-board'],
   ],
   ['rustdata', 'Rust and data only: no hub imports', ['store', 'ingest', 'profile-data', 'cv-renderer']],
-  ['alone', 'Isolated: no import edges', ['ops', 'docs']],
+  ['alone', 'Isolated: no import edges', ['ops', 'docs', 'kanithanj-v0']],
 ]
 const DATABASE_FILES = ['src-tauri/src/db.rs']
 const SYNC_FILES = [

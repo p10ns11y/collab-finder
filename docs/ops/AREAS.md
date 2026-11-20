@@ -30,6 +30,7 @@ flowchart LR
   subgraph alone["Isolated: no import edges"]
     ops
     docs
+    kanithanj_v0["kanithanj-v0"]
   end
 
   hubs <-->|"UI kit, messages, IPC"| screens
@@ -61,9 +62,9 @@ flowchart LR
   ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `2977f3b`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `34613b5`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
-15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, and `docs` have none. `ops` still chooses which checks run.
+15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, `kanithanj-v0`, and `docs` have none. `ops` still chooses which checks run.
 <!-- /area-map-graph:mermaid -->
 
 `*` stays inside one path segment. `**` walks directories. `docs/ops/areas.json` is the config the check reads.
@@ -89,6 +90,7 @@ An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC 
 | hire-board | data | `src-tauri/src/hire_board.rs`, `src/core/domain/hire-board.ts`, `src/components/finder/hire-board-panel.tsx`, `data/hire-board/**` |
 | profile-data | data | `data/distillation/**` except `data/distillation/x-search/**`, `scripts/prune-public-projects.mjs`, `src/web/fixtures/**` |
 | ops | ops | `.github/**`, `scripts/ci-*`, `scripts/run-verify.mjs`, `scripts/cut-release.sh`, `scripts/ensure-lizard.sh`, `scripts/test-ensure-lizard.sh`, `scripts/sync-agent-skills.sh`, `scripts/gate.sh`, `scripts/area-map*`, `scripts/scan-web-privacy.mjs`, `scripts/operator-personal-names.mjs`, `scripts/web-preview*`, `dx/**`, `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.*`, `src-tauri/icons/**`, `tsconfig.json`, `tsconfig.node.json`, `vite.config.ts`, `postcss.config.js`, `stryker.config.json`, `.gitignore`, `src-tauri/.gitignore`, `session-sot.example`, `skills-lock.json` |
+| kanithanj-v0 | functional | `packages/**`, `apps/**`, `spec/**`, except `**/*.md` |
 | docs | docs | `**/*.md`, `docs/**`, `.agents/**`, `.grok/**`, `archive/**`, except `docs/qa/**`, `data/**`, `vendor/**`, `.github/**`, `src-tauri/tests/**`, `src/web/fixtures/**` |
 
 ## Cadence
@@ -104,26 +106,27 @@ Lines are added plus deleted on main from 2026-10-20 (30 days) and 2026-08-21 (9
 
 | Area | Kind | 30 days: commits / lines | 90 days: commits / lines | Edges in / out (neighbours) | Cadence | Reason |
 |---|---|---|---|---|---|---|
-| bridge | functional | 3 / 4 | 18 / 1,449 | 7 / 12 (12) | Nightly | 10+ neighbours |
-| shell | functional | 0 / 0 | 16 / 4,424 | 11 / 10 (11) | Nightly | 10+ neighbours |
-| discover | functional | 0 / 0 | 17 / 2,433 | 9 / 10 (10) | Nightly | 10+ neighbours |
+| bridge | functional | 4 / 195 | 19 / 1,640 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| shell | functional | 1 / 50 | 17 / 4,474 | 11 / 10 (11) | Nightly | 10+ neighbours |
+| discover | functional | 1 / 17 | 18 / 2,450 | 9 / 10 (10) | Nightly | 10+ neighbours |
 | runtime | functional | 0 / 0 | 13 / 1,107 | 11 / 11 (11) | Nightly | 10+ neighbours |
 | store | data | 0 / 0 | 6 / 1,053 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
 | pipeline | functional | 1 / 1,128 | 8 / 4,027 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
-| packs | data | 2 / 483 | 15 / 2,042 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
-| ops | ops | 2 / 70 | 20 / 2,999 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| ops | ops | 3 / 761 | 21 / 3,690 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| packs | data | 3 / 485 | 16 / 2,044 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
 | hunt | functional | 0 / 0 | 17 / 5,264 | 4 / 8 (8) | Weekly | 1,000+ lines in 90 days |
 | credentials | functional | 0 / 0 | 2 / 1,054 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
 | xplore | functional | 0 / 0 | 5 / 396 | 8 / 5 (9) | Weekly | 9 neighbours |
-| docs | docs | 6 / 246 | 53 / 6,143 | 0 / 0 (0) | Monthly | no import edges |
+| docs | docs | 7 / 310 | 54 / 6,207 | 0 / 0 (0) | Monthly | no import edges |
+| profile-data | data | 1 / 108 | 2 / 109 | 2 / 0 (2) | Monthly | quiet leaf |
 | ingest | data | 1 / 43 | 2 / 822 | 1 / 2 (3) | Monthly | quiet leaf |
 | cv-renderer | functional | 0 / 0 | 11 / 2,944 | 0 / 0 (0) | Monthly | no import edges |
 | network | data | 0 / 0 | 3 / 54 | 4 / 4 (5) | Monthly | quiet leaf |
 | hire-board | data | 0 / 0 | 2 / 36 | 3 / 4 (5) | Monthly | quiet leaf |
 | quest | functional | 0 / 0 | 1 / 25 | 3 / 4 (5) | Monthly | quiet leaf |
-| profile-data | data | 0 / 0 | 1 / 1 | 2 / 0 (2) | Monthly | quiet leaf |
+| kanithanj-v0 | functional | 0 / 0 | 0 / 0 | 0 / 0 (0) | Monthly | no import edges |
 
-5 nightly, 6 weekly, 7 monthly.
+5 nightly, 6 weekly, 8 monthly.
 
 Apart from area rows: 30 days 0 commits / 0 lines; 90 days 9 commits / 7,340 lines.
 <!-- /area-map-graph:cadence -->

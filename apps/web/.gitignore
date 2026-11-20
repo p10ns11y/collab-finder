@@ -1,0 +1,8 @@
+node_modules/
+dist/
+public/pool*.json
+pool-scan.json
+test-results/
+playwright-report/
+.vercel/
+lighthouse*.json
