@@ -77,14 +77,18 @@ export type TitleFocus = { readonly skill: boolean; readonly roles: number };
 export const titleFocus = (query: ReadonlySet<string>, title: string): TitleFocus => {
   const own = new Set(tokensOf(title));
   const hits = [...own].filter(t => query.has(t));
-  return { skill: hits.some(t => SKILL_TOKENS.has(t)), roles: Math.min(FOCUS_ROLE_CAP, hits.filter(t => FOCUS_ROLE_TOKENS.has(t)).length) };
+  return { skill: !namesSkillList({ title }) && hits.some(t => SKILL_TOKENS.has(t)), roles: Math.min(FOCUS_ROLE_CAP, hits.filter(t => FOCUS_ROLE_TOKENS.has(t)).length) };
 };
 export const SKILL_LIST_FACTOR = 0.5;
-export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
-  const distinct = new Set(tokensOf(row.title));
-  const skills = [...distinct].filter(t => SKILL_TOKENS.has(t)).length;
-  return skills >= 3 && skills / distinct.size >= 0.4;
+const titleSkills = (title: string): { skills: number; distinct: number } => {
+  const distinct = new Set(tokensOf(title));
+  return { skills: [...distinct].filter(t => SKILL_TOKENS.has(t)).length, distinct: distinct.size };
 };
+export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
+  const { skills, distinct } = titleSkills(row.title);
+  return skills >= 3 && skills / distinct >= 0.4;
+};
+export const namesSkillList = (row: Pick<PublicRow, 'title'>): boolean => titleSkills(row.title).skills >= 2;
 const K1 = 1.2;
 const B = 0.75;
 const withoutPlaces = (text: string): string => text.split(/([^a-zà-öø-ÿ]+)/i).map(w => (isPlaceWord(w) ? ' ' : w)).join('');

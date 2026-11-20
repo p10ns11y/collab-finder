@@ -764,3 +764,35 @@ test('precision: inside a score band a title naming the profile focus ranks abov
     })); });
   }), RUNS);
 });
+
+const LIST_SKILLS = ['Go', 'Rust', 'Python', 'TypeScript', 'React', 'Kubernetes', 'Java', 'Node.js'];
+test('S1 the skill tie-break counts once and never for a title listing two or more skills', () => {
+  fc.assert(fc.property(fc.constantFrom('Frontend', 'Backend', 'Platform', 'Software', 'Fullstack'), fc.shuffledSubarray(LIST_SKILLS, { minLength: 2, maxLength: 4 }),
+    fc.constantFrom(', ', ' + ', '/', ' and '), (x, skills, sep) => {
+    const d = `Senior ${x.toLowerCase()} engineer, 8 years of ${skills.join(', ')}`;
+    const q = queryTokens(d);
+    const listed = `${x} Engineer (${skills.join(sep)})`;
+    const single = `${x} Engineer (${skills[0]})`;
+    if (titleFocus(q, listed).skill || !titleFocus(q, single).skill) return false;
+    const base = { source: 'synthetic', url: 'https://jobs.example.com/x', location: null, remote: 'remote' as const, region: 'SE', role_tags: [],
+      seniority: 'senior' as const, posted_at: null, status: 'open' as const, status_checked_at: '2026-11-18T08:00:00Z' };
+    const rows = [{ ...base, id: 's1:list', company: 'List Co', title: listed }, { ...base, id: 's1:single', company: 'Single Co', title: single }];
+    const r = ok({ description: d }, { version: 's1', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows }, BIG);
+    if (r.isErr()) return false;
+    return groupsOf(r).every(g => {
+      const a = g.findIndex(y => y.id === 's1:single');
+      const b = g.findIndex(y => y.id === 's1:list');
+      return a < 0 || b < 0 || g[a]!.tier !== g[b]!.tier || g[a]!.score !== g[b]!.score || a < b;
+    });
+  }), RUNS);
+});
+
+test('F2 go in any case, alone or at any place in a comma or slash list, reads as the language on both paths', () => {
+  fc.assert(fc.property(fc.constantFrom('go', 'Go'), fc.array(fc.constantFrom('Rust', 'Postgres', 'distributed systems', 'Kubernetes', 'backend', 'python'), { maxLength: 3 }),
+    fc.nat(), fc.constantFrom(', ', ',', '/'), fc.constantFrom('', ',', '.'), (go, others, at, sep, end) => {
+    const items = [...others];
+    items.splice(at % (items.length + 1), 0, go);
+    const d = `${items.join(sep)}${end}`;
+    return termsIn(d).has('go') && queryTokens(d).has('golang');
+  }), RUNS);
+});

@@ -67,7 +67,7 @@ export const levelOfPool = (s: string | null): Level | null =>
 const LANG = 'python|rust|java|kotlin|scala|typescript|javascript|ts|js|node(?:\\.?js)?|c\\+\\+|c#|ruby|elixir|php|swift|react|postgres(?:ql)?|sql|kubernetes|k8s|docker|aws|gcp|grpc|kafka|terraform';
 const GO_CAPITAL = /(^|[^A-Za-z-])Go(?![A-Za-z-])(?!\s+to\b)/g;
 const GO_NOUN_NEXT = /^\s+(?!(?:engineer|developer|programming|backend|services|microservices|and|or|code|is|was|has|are)\b)[a-z]/;
-const GO_LOWER = new RegExp(`(^|[,/(&+]\\s*|\\b(?:in|with|of|using)\\s+|\\b(?:${LANG})\\s+(?:and|or|&)\\s+)go(?=\\s*[/)&+]|\\s*,\\s*(?:${LANG})\\b|\\s+(?:and|or|&)\\s+(?:${LANG})\\b|\\s+(?:developer|engineer|programming|backend|services|microservices)\\b|\\s*[.;]?\\s*$)`, 'gi');
+const GO_LOWER = new RegExp(`(^\\s*|[,/(&+]\\s*|\\b(?:in|with|of|using)\\s+|\\b(?:${LANG})\\s+(?:and|or|&)\\s+)go(?=\\s*[/)&+]|(?<=(?:^\\s*|[,/(&+]\\s*)go)\\s*,|\\s*,\\s*(?:${LANG})\\b|\\s+(?:and|or|&)\\s+(?:${LANG})\\b|\\s+(?:developer|engineer|programming|backend|services|microservices)\\b|\\s*[.;]?\\s*$)`, 'gi');
 const sentenceStart = (before: string): boolean => /(?:^|[.!?])\s*$/.test(before);
 export const languageGo = (text: string): string => text
   .replace(GO_CAPITAL, (m: string, pre: string, at: number) => {

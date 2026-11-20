@@ -9,5 +9,5 @@ export type { GroupKey } from './decisions.ts';
 export type { VisitorError, Warning, AppError } from './errors.ts';
 export { isAgencyRow } from './vocab.ts';
 export { languageGo } from './vocab.ts';
-export { isSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROLE_CAP, titleFocus, type TitleFocus, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
+export { isSkillList, namesSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROLE_CAP, titleFocus, type TitleFocus, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
 export { isLocationPart } from './vocab.ts';
