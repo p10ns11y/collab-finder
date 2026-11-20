@@ -19,12 +19,13 @@ test('every form field resets the view, as Edit does in the spec', () => {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
-  assert.match(app, /const formChanged = \(\) => setView\(\{ kind: 'idle' \}\);/);
+  assert.match(app, /const formChanged = \(\) => \{ version\.current \+= 1; setView\(\{ kind: 'idle' \}\); \};/);
+  assert.match(app, /if \(base !== version\.current\) return \{ stateVersion: version\.current, result: null, verdict: 'refused', error: `StaleWrite/);
   assert.match(spec, /WidenFilters ==[\s\S]*?state' = "matching"/);
 });
 
 test('the likes box is form state in the spec: shown results match it and personal details in it stop the match', () => {
-  assert.match(app, /match\(\{ description, goal, likes,/);
+  assert.match(app, /match\(\{ description: over\?\.description \?\? description, goal: over\?\.goal \?\? goal, likes,/);
   assert.match(app, /findPii\(`\$\{description\}\\n\$\{goal\}\\n\$\{likes\}`\)/);
   assert.match(spec, /ShownMatchesForm == state \\in Shown => shownFor = input \/\\ shownLikes = likes/);
   assert.match(spec, /Edit ==[\s\S]*?likes' = l/);

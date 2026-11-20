@@ -2,7 +2,7 @@ name: v0-verify
 
 on:
   push:
-    branches: [v0/rebuild]
+    branches: [v0/rebuild, v1/rebuild, v2/rebuild]
   pull_request:
     paths:
       - 'packages/core/**'
@@ -43,7 +43,11 @@ jobs:
       - run: echo "$TLA_JAR_SHA256  /tmp/tla2tools.jar" | sha256sum -c -
       - run: java -version
       - working-directory: spec/tla
-        run: java -cp /tmp/tla2tools.jar tlc2.TLC -workers auto -cleanup WebTraps.tla | tee /tmp/tlc.log && grep -q 'No error has been found' /tmp/tlc.log
+        run: |
+          for spec in WebTraps ApplyLedger RefreshSwap; do
+            java -cp /tmp/tla2tools.jar tlc2.TLC -workers auto -cleanup "$spec.tla" | tee "/tmp/tlc-$spec.log"
+            grep -q 'No error has been found' "/tmp/tlc-$spec.log"
+          done
 
   web:
     runs-on: ubuntu-24.04
@@ -61,7 +65,7 @@ jobs:
         working-directory: apps/web
       - run: node --test check/*.test.ts
         working-directory: apps/web
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox
         working-directory: apps/web
       - run: npx playwright test
         working-directory: apps/web

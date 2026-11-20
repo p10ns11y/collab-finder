@@ -1,4 +1,5 @@
-export type Source = 'ashby' | 'greenhouse' | 'lever' | 'platsbanken';
+export const SOURCE_VARIANTS = ['ashby', 'greenhouse', 'lever', 'platsbanken'] as const;
+export type Source = (typeof SOURCE_VARIANTS)[number];
 export type Surface = 'web' | 'cli' | 'mcp' | 'skill' | 'webmcp';
 export type Actor = 'human' | 'agent';
 export type PiiKind = 'email' | 'phone' | 'name' | 'address' | 'id-number';
@@ -23,7 +24,8 @@ export type AgentError =
 export type PoolError =
   | { kind: 'PersonalFieldLeak'; keys: ReadonlyArray<string> }
   | { kind: 'UnknownField'; keys: ReadonlyArray<string> }
-  | { kind: 'PartialRefresh'; failed: ReadonlyArray<Source>; countDrop: Partial<Record<Source, number>> }
+  | { kind: 'PartialRefresh'; failed: ReadonlyArray<string>; countDrop: Partial<Record<string, number>> }
+  | { kind: 'EvalRegressed'; before: number; after: number }
   | { kind: 'SchemaInvalid'; issues: ReadonlyArray<string> };
 
 export type SurfaceError =

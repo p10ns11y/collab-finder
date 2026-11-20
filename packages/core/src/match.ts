@@ -37,7 +37,8 @@ export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<Re
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
 };
-export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
+export type Weights = { readonly title: number; readonly covered: number; readonly tagRole: number; readonly goal: number; readonly liked: number; readonly skillListPenalty: number; readonly narrowed: number };
+export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string>; weights?: Weights };
 export const LEVEL_RELEVANCE_STEP = 1;
 export const PLACE_RELEVANCE = 0.5;
 export const MOBILE_FREE_TOP = 10;
@@ -45,6 +46,7 @@ export const SCORE_BUCKET = 5;
 export const SKILL_POINTS: ReadonlyArray<number> = [0, 15, 23, 27, 29, 30];
 export const SKILL_LIST_PENALTY = 10;
 const skillPoints = (n: number): number => SKILL_POINTS[Math.min(n, SKILL_POINTS.length - 1)]!;
+export const WEIGHTS: Weights = Object.freeze({ title: 30, covered: 20, tagRole: 10, goal: 25, liked: LIKED_POINTS, skillListPenalty: SKILL_LIST_PENALTY, narrowed: 8 });
 
 export type Tier = 0 | 1 | 2;
 export const LEVEL_STEP = 10;
@@ -142,7 +144,7 @@ export const inScope = (row: PublicRow): boolean =>
 export const inLeadershipTrack = (u: Pick<Understood, 'roles'>, row: PublicRow): boolean => u.roles.includes('leadership') && isLeadershipRow(row);
 
 type Scored = { group: GroupKey; row: MatchRow; mobile: 'none' | 'covered' | 'bottom' };
-type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; liked: Liked; query: ReadonlySet<string>; stats: CorpusStats };
+type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; liked: Liked; weights: Weights; query: ReadonlySet<string>; stats: CorpusStats };
 function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
   if (!inScope(row) && !inLeadershipTrack(u, row)) return null;
@@ -200,10 +202,11 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const nordicHit = u.nordic && p.regions.length === 0 && (region === 'SE' || NORDIC_LOC.test(row.location ?? ''));
   const placeBonus = (region !== null && u.places.includes(region)) || nordicHit ? 6 : 0;
   const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
-  const rawScore = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * 25
-    + placeBonus + tagDepth + ((liked || interest) ? LIKED_POINTS : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
+  const w = p.weights;
+  const rawScore = titleHits.length * w.title + coveredHits.length * w.covered + tagRoleHits.length * w.tagRole + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * w.goal
+    + placeBonus + tagDepth + ((liked || interest) ? w.liked : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
     - (levelGap === 1 ? LEVEL_STEP : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
-    - (narrowedAway ? 8 : 0) - (isSkillList(row) ? SKILL_LIST_PENALTY : 0);
+    - (narrowedAway ? w.narrowed : 0) - (isSkillList(row) ? w.skillListPenalty : 0);
   const shown = Math.floor(rawScore / SCORE_BUCKET) * SCORE_BUCKET;
 
   const certain = row.status === 'open' && reg === 'yes' && rem === 'yes' && levelGap <= 0 && !narrowedAway;
@@ -342,7 +345,7 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
     const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true,
-      liked: likedEntries(p.likes), query: new Set([...queryTokens(p.description, p.goal ?? ''), ...queryTokens(p.likes?.slice(0, MAX_CHARS) ?? '')]), stats };
+      liked: likedEntries(p.likes), weights: opts.weights ?? WEIGHTS, query: new Set([...queryTokens(p.description, p.goal ?? ''), ...queryTokens(p.likes?.slice(0, MAX_CHARS) ?? '')]), stats };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const mobileOf = new Map<string, Scored['mobile']>();
     const focusOf = new Map<string, TitleFocus>();

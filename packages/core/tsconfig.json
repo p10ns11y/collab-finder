@@ -1,4 +1,4 @@
 { "compilerOptions": { "strict": true, "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "lib": ["ES2022", "DOM"],
   "noEmit": true, "allowImportingTsExtensions": true, "verbatimModuleSyntax": true, "exactOptionalPropertyTypes": true,
   "noUncheckedIndexedAccess": true, "noImplicitOverride": true, "skipLibCheck": true, "types": ["node"] },
-  "include": ["src/**/*.ts", "test/**/*.ts"] }
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"] }
