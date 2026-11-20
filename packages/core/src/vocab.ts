@@ -16,6 +16,7 @@ export const TERMS: ReadonlyArray<Term> = [
   t('product', 'product engineering', 'role', 'product engineer(?:ing)?'),
   t('fde', 'forward-deployed', 'role', 'forward[- ]deployed|fde|solutions? engineer(?:ing)?|customer engineer(?:ing)?|deployment engineer'),
   t('distributed', 'distributed systems', 'role', 'distributed systems?|systems engineer(?:ing)?'),
+  t('leadership', 'engineering leadership', 'role', 'engineering manager|(?:engineering|software|development) (?:manager|director|leadership)|manager,? (?:software )?engineering|vp|vice president|head of|director'),
   t('agents', 'AI agents', 'domain', 'agentic|agents?|multi-agent|agent (?:platform|systems?|frameworks?|sdk|infrastructure|runtime)'),
   t('physical', 'physical products', 'domain', 'physical (?:products?|ai|world)|devices?|robots?|robotics|vehicles?|hardware|drones?|satellites?|embedded|embodied|autonomous (?:vehicles?|driving|robots?|drones?)'),
   t('frontier', 'frontier AI labs', 'domain', 'frontier (?:ai )?(?:labs?|models?|research)|ai labs?|research labs?|foundation models?'),
@@ -54,7 +55,7 @@ const LEVEL_RE: ReadonlyArray<[Level, RegExp]> = [
 ];
 export const MTS = /member of technical staff|(?:^|[^a-z])mts(?=$|[^a-z])/gi;
 export const levelOf = (raw: string): Level | null => {
-  const text = raw.replace(MTS, ' ').replace(NOT_MY_LEVEL, ' ');
+  const text = inEnglish(raw).replace(MTS, ' ').replace(NOT_MY_LEVEL, ' ');
   for (const [lvl, re] of LEVEL_RE) if (re.test(text)) return lvl;
   const y = /(\d{1,2})\+?\s*(?:years|yrs|yoe)/i.exec(text);
   if (y?.[1]) { const n = Number(y[1]); return n < 2 ? 'junior' : n < 5 ? 'mid' : 'senior'; }
@@ -75,8 +76,32 @@ export const languageGo = (text: string): string => text
     return sentenceStart(text.slice(0, at + pre.length)) && GO_NOUN_NEXT.test(after) ? m : `${pre} golang `;
   })
   .replace(GO_LOWER, (_m: string, pre: string) => `${pre} golang `);
+export const SWEDISH: ReadonlyArray<readonly [string, string]> = [
+  ['systemutvecklare', 'software developer'], ['mjukvaruutvecklare', 'software developer'], ['programutvecklare', 'software developer'],
+  ['mjukvaruingenjör', 'software engineer'], ['programvaruingenjör', 'software engineer'], ['webbutvecklare', 'web developer'], ['apputvecklare', 'mobile developer'],
+  ['systemutveckling', 'software development'], ['mjukvaruutveckling', 'software development'], ['webbutveckling', 'web development'],
+  ['utvecklingschef', 'engineering manager'], ['teknikchef', 'head of engineering'], ['it-chef', 'head of engineering'], ['teamledare', 'team lead'],
+  ['utvecklare', 'developer'], ['ingenjör', 'engineer'], ['erfarenhet', 'experience'], ['års', 'years'], ['år', 'years'],
+  ['maskininlärning', 'machine learning'], ['artificiell intelligens', 'artificial intelligence'], ['molntjänster', 'cloud'], ['moln', 'cloud'],
+  ['infrastruktur', 'infrastructure'], ['plattform', 'platform'], ['informationssäkerhet', 'security'], ['säkerhet', 'security'],
+  ['distribuerade system', 'distributed systems'], ['inbyggda system', 'embedded systems'], ['robotik', 'robotics'], ['hårdvara', 'hardware'],
+  ['fordon', 'vehicles'], ['drönare', 'drones'], ['webbapplikationer', 'web applications'], ['utvecklarverktyg', 'developer tools'],
+  ['praktikant', 'intern'], ['nyexaminerad', 'new grad'],
+];
+const SV_SUFFIX = '(?:n|en|er|na|erna|et)?(?![\\p{L}\\p{N}])';
+const SV_WORDS = new Map(SWEDISH);
+const SV_RE = new RegExp(`(?<![\\p{L}\\p{N}])(${[...SV_WORDS.keys()].sort((a, b) => b.length - a.length).join('|')})${SV_SUFFIX}`, 'giu');
+const SV_COMPOUND = new RegExp(`(utvecklare|ingenjör)(?=${SV_SUFFIX})`, 'giu');
+export const inEnglish = (text: string): string => text
+  .replace(SV_RE, (_m: string, w: string) => ` ${SV_WORDS.get(w.toLowerCase()) ?? w} `)
+  .replace(SV_COMPOUND, (_m: string, w: string) => (w.toLowerCase() === 'utvecklare' ? ' developer' : ' engineer'));
+export const mostlyNonLatin = (text: string): boolean => {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  const latin = text.match(/\p{Script=Latin}/gu)?.length ?? 0;
+  return letters > 0 && latin * 2 < letters;
+};
 export const termsIn = (text: string): Set<string> => {
-  const t = languageGo(text);
+  const t = languageGo(inEnglish(text));
   return new Set(TERMS.filter(x => x.re.test(t)).map(x => x.key));
 };
 export const label = (key: string): string => TERMS.find(x => x.key === key)?.label ?? key;
@@ -84,6 +109,12 @@ export const kindOf = (key: string): TermKind => TERMS.find(x => x.key === key)?
 export const ENGINEERING_TITLE = /(?:^|[^a-z])(?:engineer(?:ing)?|developer|scientist|architect|programmer|sre|devops|swe|utvecklare|ingenj[öo]r|member of technical staff|mts)(?=$|[^a-z])/i;
 export const NON_ENGINEERING_TITLE = /(?:^|[^a-z])(?:sales|account executive|account manager|marketing|recruit(?:er|ing)|talent|customer success|customer service|support|workplace|it (?:engineer|support)|help ?desk|field service|facilities|mechanical|electrical|civil|manufacturing|technician|quality assurance technician)(?=$|[^a-z])/i;
 export const MANAGER_TITLE = /(?:^|[^a-z])(?:manager|director|head of|vp|vice president|chief)(?=$|[^a-z])/i;
+const ENGINEERING_CUE = /(?:^|[^a-z])(?:engineer(?:ing|s)?|software|developers?|development|technology|tech)(?=$|[^a-z])/i;
+export const leadsEngineering = (text: string): boolean => {
+  const terms = termsIn(text);
+  return terms.has('leadership') && (ENGINEERING_CUE.test(inEnglish(text)) || [...terms].some(k => k !== 'leadership' && kindOf(k) !== 'domain'));
+};
+export const isLeadershipRow = (row: { title: string }): boolean => leadsEngineering(row.title) && !NON_ENGINEERING_TITLE.test(inEnglish(row.title));
 export const MOBILE_TITLE = /(?:^|[^a-z])(?:mobile|ios|android|swift|kotlin multiplatform|react native|flutter)(?=$|[^a-z])/i;
 export const NARROWING_ROLES: ReadonlySet<string> = new Set(['frontend', 'backend', 'embedded', 'security', 'data', 'ml', 'fde']);
 export const COVERS: Readonly<Record<string, ReadonlyArray<string>>> = {

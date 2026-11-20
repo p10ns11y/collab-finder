@@ -1,12 +1,12 @@
 import type { PublicRow } from './schema.ts';
-import { isPlaceWord, languageGo } from './vocab.ts';
+import { inEnglish, isPlaceWord, languageGo } from './vocab.ts';
 
 const STOP = new Set([
   'a', 'an', 'and', 'or', 'the', 'of', 'in', 'on', 'at', 'for', 'to', 'with', 'by', 'from', 'as', 'is', 'are', 'be', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
   'it', 'its', 'this', 'that', 'into', 'over', 'about', 'who', 'what', 'where', 'how', 'than', 'then', 'also', 'like', 'such', 'want', 'wants', 'looking', 'work',
   'working', 'worked', 'build', 'building', 'built', 'years', 'year', 'yrs', 'experience', 'based', 'mostly', 'some', 'very', 'more', 'most', 'new', 'own',
   'junior', 'mid', 'level', 'senior', 'sr', 'staff', 'lead', 'principal', 'distinguished', 'intern', 'graduate', 'ii', 'iii', 'iv', 'm', 'f', 'd', 'x', 'w',
-  'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett',
+  'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett', 'av', 'på', 'för', 'inom', 'jag', 'är', 'har', 'att', 'vill', 'arbetar', 'jobbar',
   'go', 'us', 'further', 'grow', 'help', 'get', 'make', 'do', 'can', 'will', 'would', 'love', 'happy', 'let', 'lets', 'really', 'just',
 ]);
 
@@ -46,7 +46,7 @@ const TOKEN_MAP: Readonly<Record<string, string>> = {
 };
 
 export const tokensOf = (text: string): string[] => {
-  let t = ` ${languageGo(text).toLowerCase()} `;
+  let t = ` ${languageGo(inEnglish(text)).toLowerCase()} `;
   for (const [re, to] of SYNONYMS) t = t.replace(re, to);
   return t.split(/[^a-z0-9+#åäöéü]+/).filter(Boolean).map(w => TOKEN_MAP[w] ?? w).filter(w => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w));
 };

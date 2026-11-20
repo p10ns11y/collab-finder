@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { inEnglish, inScope, isLeadershipRow, mostlyNonLatin, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import { matchUnder, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
@@ -181,8 +181,12 @@ test('P14 under fixed corpus stats, removing a row not in the output leaves ever
   }), RUNS);
 });
 
-test('P15 manager, director, head-of and VP titles never appear', () => {
-  fc.assert(fc.property(profileArb, poolArb, (p, pool) => allRows(ok(p, pool)).every(x => !/manager|director|head of|(?:^|[^a-z])vp(?=$|[^a-z])/i.test(x.title))), RUNS);
+test('P15 manager, director, head-of and VP titles appear only for a leadership profile, and only as engineering leadership', () => {
+  fc.assert(fc.property(profileArb, poolArb, (p, pool) => {
+    const r = ok(p, pool);
+    const leads = r.isOk() && r.value.understood.roles.includes('leadership');
+    return allRows(r).every(x => !/manager|director|head of|(?:^|[^a-z])vp(?=$|[^a-z])/i.test(x.title) || (leads && isLeadershipRow(x)));
+  }), RUNS);
 });
 
 test('P16 output ids come from the pool and are never URLs', () => {
@@ -851,4 +855,58 @@ test('F2 go in any case, alone or at any place in a comma or slash list, reads a
     const d = `${items.join(sep)}${end}`;
     return termsIn(d).has('go') && queryTokens(d).has('golang');
   }), RUNS);
+});
+
+const LEAD_PROFILES = ['VP engineering', 'VP of Engineering', 'Head of Engineering', 'Head of Platform', 'Director of Engineering', 'Engineering Manager', 'Senior Engineering Manager', 'Utvecklingschef'];
+const LEAD_TITLES = ['Engineering Manager', 'Engineering Manager, Backend', 'Head of Engineering', 'VP Engineering', 'Director of Engineering', 'Engineering Manager - Platform'];
+const leadArb = fc.record({
+  who: fc.constantFrom(...LEAD_PROFILES), level: fc.constantFrom('', 'Senior ', 'Staff '), extra: fc.constantFrom('', ', 10 years', ', backend and Python', ' leading platform teams'),
+  region: fc.oneof({ weight: 2, arbitrary: fc.constant('any') }, { weight: 1, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US') }) as fc.Arbitrary<RegionChoice>,
+  remote: fc.oneof({ weight: 2, arbitrary: fc.constant('any') }, { weight: 1, arbitrary: fc.constantFrom('remote', 'hybrid', 'onsite') }) as fc.Arbitrary<MatchProfile['remote']>,
+  base: poolArb,
+  leads: fc.array(fc.record({ title: fc.constantFrom(...LEAD_TITLES), seniority: fc.constantFrom(null, 'executive', 'unknown'), region: fc.constantFrom('SE', 'EU', 'UK', 'US'), remote: fc.constantFrom(...REMOTES) }), { minLength: 1, maxLength: 4 }),
+}).map(x => ({
+  profile: { description: `${x.level}${x.who}${x.extra}, looking for a new role`, region: x.region, remote: x.remote } as MatchProfile,
+  pool: { ...x.base, rows: [...x.base.rows, ...x.leads.map((l, i): PublicRow => ({
+    id: `lead:${i}`, source: 'synthetic', company: `Lead Co ${i}`, title: l.title, url: `https://jobs.example.com/lead${i}`, location: null, remote: l.remote, region: l.region,
+    role_tags: [], seniority: l.seniority, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' }))] } as PublicPool,
+}));
+test('P33 a leadership profile is never outside what we cover when the pool has leadership rows, and with no filters sees every one of them', () => {
+  fc.assert(fc.property(leadArb, ({ profile, pool }) => {
+    const r = ok(profile, pool, BIG);
+    if (r.isErr()) return r.error.kind !== 'OutOfScope' && (profile.region !== 'any' || profile.remote !== 'any');
+    const shown = new Set(allRows(r).flatMap(x => [x.id, ...x.alsoIds]));
+    const leads = pool.rows.filter(row => row.id.startsWith('lead:'));
+    return r.value.understood.roles.includes('leadership') && leads.every(row => isLeadershipRow(row) && !inScope(row))
+      && (profile.region !== 'any' || profile.remote !== 'any' || leads.every(row => shown.has(row.id)));
+  }), RUNS);
+});
+
+const SV_ROLES: ReadonlyArray<[string, string]> = [['Systemutvecklare', 'software developer'], ['backendutvecklare', 'backend developer'], ['Frontendutvecklare', 'frontend developer'],
+  ['fullstackutvecklare', 'fullstack developer'], ['Mjukvaruingenjör', 'software engineer'], ['utvecklare', 'developer'], ['webbutvecklare', 'web developer'],
+  ['dataingenjör', 'data engineer'], ['Utvecklingschef', 'engineering manager']];
+const SV_TOPICS: ReadonlyArray<[string, string]> = [['maskininlärning', 'machine learning'], ['molntjänster', 'cloud'], ['infrastruktur', 'infrastructure'], ['plattformen', 'platform'],
+  ['säkerhet', 'security'], ['distribuerade system', 'distributed systems'], ['inbyggda system', 'embedded systems'], ['robotik', 'robotics'], ['hårdvara', 'hardware'],
+  ['Python', 'Python'], ['TypeScript', 'TypeScript'], ['React', 'React']];
+const SV_ROW: PublicRow = { id: 'v1', source: 'synthetic', company: 'Acme', title: '', url: 'https://jobs.example.com/v1', location: null, remote: 'remote',
+  region: 'SE', role_tags: [], seniority: null, posted_at: null, status: 'open', status_checked_at: '2026-11-18T08:00:00Z' };
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+test('V1 a Swedish profile or title reads exactly like its English twin', () => {
+  fc.assert(fc.property(fc.constantFrom('', 'Senior ', 'Staff '), fc.constantFrom(...SV_ROLES), fc.subarray([...SV_TOPICS], { minLength: 1, maxLength: 3 }), fc.integer({ min: 2, max: 15 }), poolArb,
+    (level, [svRole, enRole], topics, years, pool) => {
+    const sv = `${level}${svRole} med ${years} års erfarenhet av ${topics.map(x => x[0]).join(' och ')}`;
+    const en = `${level}${enRole} with ${years} years experience of ${topics.map(x => x[1]).join(' and ')}`;
+    const svTitle = `${level}${svRole}`;
+    const enTitle = `${level}${enRole}`;
+    return understand({ description: sv }).isOk() && same(ok({ description: sv }, pool), ok({ description: en }, pool))
+      && same([...termsIn(sv)].sort(), [...termsIn(en)].sort()) && levelOf(sv) === levelOf(en) && same(tokensOf(sv), tokensOf(en))
+      && same([...termsIn(svTitle)].sort(), [...termsIn(enTitle)].sort()) && inScope({ ...SV_ROW, title: svTitle }) === inScope({ ...SV_ROW, title: enTitle })
+      && same(tokensOf(svTitle), tokensOf(enTitle)) && inEnglish(en) === en;
+  }), RUNS);
+});
+
+const NON_LATIN = ['Старший инженер-программист', '高级后端工程师', 'مهندس برمجيات أول', 'シニアソフトウェアエンジニア', 'Ανώτερος μηχανικός λογισμικού'];
+test('V2 input that is mostly not Latin script is flagged; English and Swedish never are', () => {
+  fc.assert(fc.property(fc.constantFrom(...NON_LATIN), fc.constantFrom('', 'Go', 'AWS', 'React'), profileArb, fc.constantFrom(...SV_ROLES), (other, latin, p, [sv]) =>
+    mostlyNonLatin(`${other} ${latin}`) && !mostlyNonLatin(p.description) && !mostlyNonLatin(`${sv} med 8 års erfarenhet av maskininlärning och säkerhet`) && !mostlyNonLatin('8 + 2 = 10')), RUNS);
 });

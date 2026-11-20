@@ -3,7 +3,7 @@ import type { GroupKey } from './decisions.ts';
 import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, type CorpusStats, type TitleFocus } from './relevance.ts';
-import { isLocationPart, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { inEnglish, isLeadershipRow, isLocationPart, leadsEngineering, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -100,6 +100,8 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
   if (seniority === 'junior') return err({ kind: 'OutOfScope', reason: 'junior' });
   if (roles.length === 0 && skills.length === 0)
     return err({ kind: 'OutOfScope', reason: OUTSIDE_POOL.test(p.description) ? 'outside-pool-roles' : 'no-engineering-terms' });
+  if (skills.length === 0 && roles.every(k => k === 'leadership') && !leadsEngineering(p.description))
+    return err({ kind: 'OutOfScope', reason: OUTSIDE_POOL.test(p.description) ? 'outside-pool-roles' : 'no-engineering-terms' });
   const specific = roles.filter(k => kindOf(k) === 'role');
   if (specific.length === 0 && skills.length === 0 && OUTSIDE_POOL.test(p.description)) return err({ kind: 'OutOfScope', reason: 'outside-pool-roles' });
   const places = PLACES.filter(([, re]) => re.test(p.description)).map(([r]) => r);
@@ -127,13 +129,14 @@ const dayMs = 864e5;
 const ageOf = (iso: string, now: Date): number => { const t = Date.parse(iso); return Number.isFinite(t) ? Math.max(0, Math.floor((now.getTime() - t) / dayMs)) : 9999; };
 
 export const inScope = (row: PublicRow): boolean =>
-  row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
+  row.seniority !== 'executive' && (ENGINEERING_TITLE.test(inEnglish(row.title)) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
+export const inLeadershipTrack = (u: Pick<Understood, 'roles'>, row: PublicRow): boolean => u.roles.includes('leadership') && isLeadershipRow(row);
 
 type Scored = { group: GroupKey; row: MatchRow; mobile: 'none' | 'covered' | 'bottom' };
 type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; liked: Liked; query: ReadonlySet<string>; stats: CorpusStats };
 function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
-  if (!inScope(row)) return null;
+  if (!inScope(row) && !inLeadershipTrack(u, row)) return null;
   if (p.productOnly && isAgencyRow(row)) return null;
   const rt = rowTerms(row);
   const roleHits = u.roles.filter(k => kindOf(k) === 'role' && rt.title.has(k));

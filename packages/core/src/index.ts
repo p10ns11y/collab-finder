@@ -2,7 +2,8 @@ export { match, poolStats, likedEntries, likesCompany, LIKED_POINTS, MAX_LIKES,S
 export type { Tier, RegionChoice, MatchProfile, MatchOptions, MatchRow, MatchResult, MatchError, Understood, Liked,RegionPref, RemotePref, PiiSpan } from './match.ts';
 export { parsePool } from './pool.ts';
 export { toPublicPool, type ExportFailure } from './export.ts';
-export { inScope } from './match.ts';
+export { inScope, inLeadershipTrack } from './match.ts';
+export { inEnglish, mostlyNonLatin, isLeadershipRow, SWEDISH } from './vocab.ts';
 export { recover, OUT_OF_SCOPE_MSG, type Recovery } from './pipeline.ts';
 export { PublicRowSchema, privacyScan, exportRow, PERSONAL_KEYS, type PublicRow, type PublicPool } from './schema.ts';
 export type { GroupKey } from './decisions.ts';
