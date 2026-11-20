@@ -50,6 +50,7 @@ export function App() {
   const [pool, setPool] = useState<PoolState>({ kind: 'loading' });
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
+  const [likes, setLikes] = useState('');
   const [regions, setRegions] = useState<ReadonlyArray<Place>>([]);
   const [productOnly, setProductOnly] = useState(false);
   const [remote, setRemote] = useState<RemotePref>('any');
@@ -73,20 +74,20 @@ export function App() {
   }, []);
   useEffect(loadPool, [loadPool]);
 
-  const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}`).map(s => s.pii))], [description, goal]);
+  const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
 
   const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean }) => {
     if (pool.kind !== 'ready') return;
     const t0 = performance.now();
-    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
+    const r = match({ description, goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());
-  }, [pool, description, goal, regions, remote, productOnly]);
+  }, [pool, description, goal, likes, regions, remote, productOnly]);
 
   const formChanged = () => setView({ kind: 'idle' });
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
-  const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setView({ kind: 'idle' }); };
+  const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); setView({ kind: 'idle' }); };
   const widen = (w: string) => {
     if (w === 'region') { setRegions([]); run({ regions: [] }); }
     else if (w === 'productOnly') { setProductOnly(false); run({ productOnly: false }); }
@@ -129,6 +130,12 @@ export function App() {
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
           <Input id="goal" ref={goalRef} name="goal" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. AI infrastructure" autoComplete="off" />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
+          <Input id="likes" name="likes" value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
+            placeholder="e.g. Spotify, Einride, robotics" aria-describedby="likes-help" autoComplete="off" />
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Roles at these companies move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">

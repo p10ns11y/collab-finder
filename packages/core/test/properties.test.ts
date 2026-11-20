@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
+import { LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
 import { matchUnder, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
@@ -55,7 +55,7 @@ const reasonOk = (r: string, row: MatchRow) =>
   || (/^Tagged with: /.test(r) && labelsOk(r.slice(13)))
   || (/^Toward your goal: /.test(r) && labelsOk(r.slice(18)))
   || ['General software engineering title', 'Seniority not stated in the posting', 'Location not confirmed, check the posting', 'Remote policy not stated',
-    'Title points to a different specialty than yours', 'Status unknown, verify before applying'].includes(r)
+    'Title points to a different specialty than yours', 'Status unknown, verify before applying', 'At a company on your list'].includes(r)
   || /^(Posting level: |Level fits: )(mid|senior|staff|principal)$/.test(r) || /^One level above yours \((mid|senior|staff|principal)\)$/.test(r)
   || r === `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`
   || /^Also listed in (1 more location|([2-9]|\d\d+) more locations)$/.test(r)
@@ -765,7 +765,63 @@ test('precision: inside a score band a title naming the profile focus ranks abov
   }), RUNS);
 });
 
-const LIST_SKILLS = ['Go', 'Rust', 'Python', 'TypeScript', 'React', 'Kubernetes', 'Java', 'Node.js'];
+const COMPANY_LIKES = ['Company 0', 'company 3', 'COMPANY 5 AB', 'Nordic Consulting', 'Talent Partners Inc', 'Bemanning'];
+const INTEREST_LIKES = ['robotics', 'payments', 'AI agents', 'developer tools', 'climate'];
+const likesArb = (pool: ReadonlyArray<string>) => fc.tuple(fc.subarray(pool, { minLength: 1 }), fc.constantFrom(', ', '; ', '\n', ',')).map(([xs, sep]) => xs.join(sep));
+const members = (r: ReturnType<typeof match>) => groupsOf(r).map(g => g.flatMap(x => [x.id, ...x.alsoIds]).sort());
+const likedCo = (likes: string) => { const l = likedEntries(likes); return (c: string) => likesCompany(l, c); };
+
+test('L1 an empty or blank likes box leaves the output byte-identical', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.constantFrom('', ' ', ',,;', '\n\n', 'a', ' , x ;'), (p, pool, likes) =>
+    JSON.stringify(ok(p, pool, BIG)) === JSON.stringify(ok({ ...p, likes }, pool, BIG))), RUNS);
+});
+
+test('L2 likes never add, drop or regroup a row, only reorder', () => {
+  fc.assert(fc.property(profileArb, poolArb, likesArb([...COMPANY_LIKES, ...INTEREST_LIKES]), (p, pool, likes) => {
+    const a = ok(p, pool, BIG);
+    const b = ok({ ...p, likes }, pool, BIG);
+    if (a.isErr() || b.isErr()) return a.isErr() === b.isErr();
+    return JSON.stringify(members(a)) === JSON.stringify(members(b)) && JSON.stringify(a.value.totals) === JSON.stringify(b.value.totals);
+  }), RUNS);
+});
+
+test('L3 a liked company counts once: its score rises by exactly the fixed points and no other row passes it', () => {
+  fc.assert(fc.property(profileArb, poolArb, likesArb(COMPANY_LIKES), (p, pool, likes) => {
+    const a = ok(p, pool, BIG);
+    const b = ok({ ...p, likes }, pool, BIG);
+    if (a.isErr() || b.isErr()) return a.isErr() === b.isErr();
+    const isLiked = likedCo(likes);
+    const before = groupsOf(a);
+    return groupsOf(b).every((g, gi) => g.every((x, i) => {
+      const old = before[gi]!.find(y => y.id === x.id);
+      if (!old) return true;
+      const liked = isLiked(x.company);
+      if (x.score !== old.score + (liked ? LIKED_POINTS : 0)) return false;
+      if (liked !== x.reasons.includes('At a company on your list')) return false;
+      if (!liked) return true;
+      const above = (rows: ReadonlyArray<MatchRow>, at: number) => rows.slice(0, at).filter(y => !isLiked(y.company)).length;
+      return above(g, i) <= above(before[gi]!, before[gi]!.indexOf(old));
+    }));
+  }), RUNS);
+});
+
+test('L4 likes are never echoed and personal details in them stop the match', () => {
+  fc.assert(fc.property(profileArb, poolArb, likesArb([...COMPANY_LIKES, ...INTEREST_LIKES]), (p, pool, likes) => {
+    const marked = `${likes}, quokkazebra`;
+    const r = ok({ ...p, likes: marked }, pool, BIG);
+    const pii = ok({ ...p, likes: `${likes}, ${['someone', 'example.com'].join('@')}` }, pool, BIG);
+    return pii.isErr() && pii.error.kind === 'PiiDetected' && !JSON.stringify(r).includes('quokkazebra') && allRows(r).every(x => x.reasons.every(y => reasonOk(y, x)));
+  }), RUNS);
+});
+
+test('L5 a liked name matches the company by whole leading words, in any case, with or without a legal suffix', () => {
+  fc.assert(fc.property(fc.constantFrom('spotify', 'klarna', 'einride', 'acme-robotics', 'Polestar'), fc.constantFrom('', ' AB', ' Inc', ' ltd'), fc.constantFrom((s: string) => s, (s: string) => s.toUpperCase(), (s: string) => s.replace(/-/g, ' ')), (co, suffix, shape) => {
+    const liked = likedEntries(`${shape(co)}${suffix}`);
+    return likesCompany(liked, co) && !likesCompany(liked, `x${co}`) && !likesCompany(likedEntries(`${co}x`), co);
+  }), RUNS);
+});
+
+const LIST_SKILLS =['Go', 'Rust', 'Python', 'TypeScript', 'React', 'Kubernetes', 'Java', 'Node.js'];
 test('S1 the skill tie-break counts once and never for a title listing two or more skills', () => {
   fc.assert(fc.property(fc.constantFrom('Frontend', 'Backend', 'Platform', 'Software', 'Fullstack'), fc.shuffledSubarray(LIST_SKILLS, { minLength: 2, maxLength: 4 }),
     fc.constantFrom(', ', ' + ', '/', ' and '), (x, skills, sep) => {
@@ -790,7 +846,7 @@ test('S1 the skill tie-break counts once and never for a title listing two or mo
 test('F2 go in any case, alone or at any place in a comma or slash list, reads as the language on both paths', () => {
   fc.assert(fc.property(fc.constantFrom('go', 'Go'), fc.array(fc.constantFrom('Rust', 'Postgres', 'distributed systems', 'Kubernetes', 'backend', 'python'), { maxLength: 3 }),
     fc.nat(), fc.constantFrom(', ', ',', '/'), fc.constantFrom('', ',', '.'), (go, others, at, sep, end) => {
-    const items = [...others];
+    const items: string[] = [...others];
     items.splice(at % (items.length + 1), 0, go);
     const d = `${items.join(sep)}${end}`;
     return termsIn(d).has('go') && queryTokens(d).has('golang');

@@ -14,7 +14,21 @@ export const DEFAULT_LIMIT = 30;
 export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type RegionChoice = RegionPref | ReadonlyArray<RegionPref>;
-export type MatchProfile = { description: string; goal?: string; region?: RegionChoice; remote?: RemotePref; productOnly?: boolean };
+export type MatchProfile = { description: string; goal?: string; likes?: string; region?: RegionChoice; remote?: RemotePref; productOnly?: boolean };
+export const LIKED_POINTS = 15;
+export const MAX_LIKES = 50;
+const LEGAL_SUFFIX = new Set(['ab', 'inc', 'ltd', 'llc', 'gmbh', 'plc', 'corp', 'oy', 'bv', 'as', 'aps', 'sa', 'co']);
+const nameWords = (s: string): string[] => s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').split(/[^a-z0-9]+/).filter(Boolean);
+export type Liked = ReadonlyArray<ReadonlyArray<string>>;
+export const likedEntries = (likes = ''): Liked => likes.slice(0, MAX_CHARS).split(/[,;\n]/).map(e => {
+  const w = nameWords(e);
+  while (w.length > 1 && LEGAL_SUFFIX.has(w[w.length - 1]!)) w.pop();
+  return w;
+}).filter(w => w.join('').length >= 2).slice(0, MAX_LIKES);
+export const likesCompany = (liked: Liked, company: string): boolean => {
+  const c = nameWords(company);
+  return liked.some(e => e.length <= c.length && e.every((w, i) => c[i] === w));
+};
 export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<RegionPref, 'any'>> => {
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
@@ -72,7 +86,7 @@ export function validateProfile(p: MatchProfile): Result<MatchProfile, VisitorEr
   if (!d) return err({ kind: 'InputEmpty' });
   if (d.length < MIN_CHARS) return err({ kind: 'InputTooShort', minChars: MIN_CHARS, got: d.length });
   if (d.length > MAX_CHARS) return err({ kind: 'InputTooLong', maxChars: MAX_CHARS, got: d.length });
-  const spans = findPii(`${d}\n${p.goal ?? ''}`);
+  const spans = findPii(`${d}\n${p.goal ?? ''}\n${p.likes ?? ''}`);
   if (spans.length) return err({ kind: 'PiiDetected', from: 'human', spans });
   return ok({ ...p, description: d });
 }
@@ -116,7 +130,7 @@ export const inScope = (row: PublicRow): boolean =>
   row.seniority !== 'executive' && (ENGINEERING_TITLE.test(row.title) || row.role_tags.some(t => t in TAG_TERMS)) && !NON_ENGINEERING_TITLE.test(row.title) && !MANAGER_TITLE.test(row.title);
 
 type Scored = { group: GroupKey; row: MatchRow; mobile: 'none' | 'covered' | 'bottom' };
-type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; query: ReadonlySet<string>; stats: CorpusStats };
+type Prefs = { regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref; mobile: boolean; productOnly: boolean; liked: Liked; query: ReadonlySet<string>; stats: CorpusStats };
 function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | null {
   if (row.status === 'closed') return null;
   if (!inScope(row)) return null;
@@ -157,6 +171,8 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   else if (levelGap === 1) reasons.push(`One level above yours (${rowLevel})`);
   else reasons.push(`Level fits: ${rowLevel}`);
   reasons.push(reg === 'unknown' ? 'Location not confirmed, check the posting' : `Region: ${row.region}${row.location ? ` (${row.location})` : ''}`);
+  const liked = p.liked.length > 0 && likesCompany(p.liked, row.company);
+  if (liked) reasons.push('At a company on your list');
   if (narrowedAway) reasons.push('Title points to a different specialty than yours');
   if (rem === 'unknown') reasons.push('Remote policy not stated');
   else if (p.remote !== 'any') reasons.push(`Work mode: ${row.remote}`);
@@ -167,7 +183,7 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const placeBonus = row.region !== null && u.places.includes(row.region) ? 6 : 0;
   const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
   const rawScore = titleHits.length * 30 + coveredHits.length * 20 + tagRoleHits.length * 10 + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * 25
-    + placeBonus + tagDepth + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
+    + placeBonus + tagDepth + (liked ? LIKED_POINTS : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)
     - (levelGap === 1 ? LEVEL_STEP : 0) - (rowLevel ? 0 : 3) - (reg === 'unknown' ? 5 : 0) - (rem === 'unknown' ? 3 : 0) - (row.status === 'open' ? 0 : 20)
     - (narrowedAway ? 8 : 0) - (isSkillList(row) ? SKILL_LIST_PENALTY : 0);
   const shown = Math.floor(rawScore / SCORE_BUCKET) * SCORE_BUCKET;
@@ -256,7 +272,7 @@ export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: Publ
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
     const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true,
-      query: queryTokens(p.description, p.goal ?? ''), stats };
+      liked: likedEntries(p.likes), query: new Set([...queryTokens(p.description, p.goal ?? ''), ...queryTokens(p.likes?.slice(0, MAX_CHARS) ?? '')]), stats };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const mobileOf = new Map<string, Scored['mobile']>();
     const focusOf = new Map<string, TitleFocus>();

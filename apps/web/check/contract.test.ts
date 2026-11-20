@@ -15,12 +15,26 @@ test('the View kinds in App.tsx equal the Ready set in WebTraps.tla', () => {
 });
 
 test('every form field resets the view, as Edit does in the spec', () => {
-  for (const setter of ['setDescription', 'setGoal', 'setRegions', 'setRemote', 'setProductOnly']) {
+  for (const setter of ['setDescription', 'setGoal', 'setLikes', 'setRegions', 'setRemote', 'setProductOnly']) {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
   assert.match(app, /const formChanged = \(\) => setView\(\{ kind: 'idle' \}\);/);
   assert.match(spec, /WidenFilters ==[\s\S]*?state' = "matching"/);
+});
+
+test('the likes box is form state in the spec: shown results match it and personal details in it stop the match', () => {
+  assert.match(app, /match\(\{ description, goal, likes,/);
+  assert.match(app, /findPii\(`\$\{description\}\\n\$\{goal\}\\n\$\{likes\}`\)/);
+  assert.match(spec, /ShownMatchesForm == state \\in Shown => shownFor = input \/\\ shownLikes = likes/);
+  assert.match(spec, /Edit ==[\s\S]*?likes' = l/);
+  assert.match(spec, /\[\] i = "pii" \\\/ l = "pii" -> "piiWarning"/);
+});
+
+test('form text stays in the tab: no storage API and the pool load is the only fetch', () => {
+  assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB|document\.cookie|sendBeacon|XMLHttpRequest|WebSocket/);
+  assert.equal([...app.matchAll(/\bfetch\(/g)].length, 1);
+  assert.match(app, /fetch\(path, \{ credentials: 'same-origin'/);
 });
 
 const headers = JSON.parse(readFileSync(here('../vercel.json'), 'utf8')) as { headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }> };

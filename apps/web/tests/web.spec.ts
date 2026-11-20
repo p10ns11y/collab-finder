@@ -11,22 +11,25 @@ const carries = (r: Request, needle: string) => {
   return [r.url(), body, headers].some(s => s.includes(needle) || s.includes(enc));
 };
 
-const fill = async (page: Page, description: string, goal = '') => {
+const fill = async (page: Page, description: string, goal = '', likes = '') => {
   await page.getByLabel('About you').fill(description);
   await page.getByLabel(/Where do you want to grow/).fill(goal);
+  await page.getByLabel(/Companies or interests you like/).fill(likes);
   await page.getByRole('button', { name: 'Find roles' }).click();
 };
 
-test('0 network requests carry the description or goal; 3 groups render', async ({ page }) => {
+test('0 network requests carry the description, goal or likes; nothing is stored; 3 groups render', async ({ page }) => {
   const requests: Request[] = [];
   page.on('request', r => requests.push(r));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
-  await fill(page, DESCRIPTION, `AI infrastructure ${MARKER}`);
+  await fill(page, DESCRIPTION, `AI infrastructure ${MARKER}`, `Wombatlike Labs, ${MARKER}`);
   await expect(page.getByTestId('results')).toBeVisible();
   for (const g of ['fitsNow', 'stepTowardGoal', 'stretch']) await expect(page.getByTestId(`group-${g}`)).toBeVisible();
   await page.waitForTimeout(500);
-  const leaking = requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres, distributed'));
+  const stored = await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage), document.cookie]));
+  expect(stored).not.toContain(MARKER);
+  const leaking = requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres, distributed') || carries(r, 'Wombatlike'));
   console.log(`REQUESTS total=${requests.length} carrying_description=${leaking.length}`);
   expect(leaking).toHaveLength(0);
   expect(requests.every(r => new URL(r.url()).origin === 'http://127.0.0.1:4173')).toBe(true);
@@ -77,7 +80,7 @@ test('30 abuse inputs: no page errors, no console errors, page stays usable', as
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
   expect(ABUSE_INPUTS).toHaveLength(30);
   for (const input of ABUSE_INPUTS) {
-    await fill(page, input, input.slice(0, 200));
+    await fill(page, input, input.slice(0, 200), input.slice(0, 300));
     await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
   }
   const dialogs: string[] = [];
@@ -111,6 +114,7 @@ test('any form change clears shown results, as the spec Edit step does', async (
   for (const change of [
     () => page.getByLabel('About you').fill(`${DESCRIPTION} and Rust`),
     () => page.getByLabel(/Where do you want to grow/).fill('developer tools'),
+    () => page.getByLabel(/Companies or interests you like/).fill('robotics'),
     () => page.getByLabel('United Kingdom', { exact: true }).check(),
     () => page.getByLabel('EU (includes Sweden)', { exact: true }).check(),
     () => page.getByLabel('Work mode').selectOption('hybrid'),
