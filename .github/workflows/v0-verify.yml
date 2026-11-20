@@ -44,7 +44,7 @@ jobs:
       - run: java -version
       - working-directory: spec/tla
         run: |
-          for spec in WebTraps ApplyLedger; do
+          for spec in WebTraps ApplyLedger RefreshSwap; do
             java -cp /tmp/tla2tools.jar tlc2.TLC -workers auto -cleanup "$spec.tla" | tee "/tmp/tlc-$spec.log"
             grep -q 'No error has been found' "/tmp/tlc-$spec.log"
           done

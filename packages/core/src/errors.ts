@@ -24,6 +24,7 @@ export type PoolError =
   | { kind: 'PersonalFieldLeak'; keys: ReadonlyArray<string> }
   | { kind: 'UnknownField'; keys: ReadonlyArray<string> }
   | { kind: 'PartialRefresh'; failed: ReadonlyArray<Source>; countDrop: Partial<Record<Source, number>> }
+  | { kind: 'EvalRegressed'; before: number; after: number }
   | { kind: 'SchemaInvalid'; issues: ReadonlyArray<string> };
 
 export type SurfaceError =
