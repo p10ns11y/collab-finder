@@ -33,7 +33,7 @@ jobs:
 
   fitness:
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,7 +44,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Host alias, action pin, secret shapes
+      - name: poppler (PDF text for the privacy scan)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
+      - name: Host alias, action pin, secret shapes, privacy scan
         run: bash scripts/ci-fitness.sh
 
       - name: Area map
