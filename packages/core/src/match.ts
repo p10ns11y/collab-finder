@@ -19,7 +19,7 @@ export const regionsOf = (r: RegionChoice | undefined): ReadonlyArray<Exclude<Re
   const list = r === undefined ? [] : typeof r === 'string' ? [r] : [...r];
   return list.includes('any') ? [] : [...new Set(list.filter((x): x is Exclude<RegionPref, 'any'> => x !== 'any'))].sort();
 };
-export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string>; stats?: CorpusStats };
+export type MatchOptions = { now?: Date; limit?: number; excludeIds?: ReadonlySet<string> | ReadonlyArray<string> };
 export const LEVEL_RELEVANCE_STEP = 1;
 export const PLACE_RELEVANCE = 0.5;
 export const MOBILE_FREE_TOP = 10;
@@ -195,11 +195,10 @@ export const normalizedTitle = (t: string): string => {
   const segments = t.split('|').map(x => x.trim());
   let head = [segments[0] ?? '', ...segments.slice(1).filter(x => !isLocationPart(x))].join(' ');
   head = head.replace(/\(([^)]*)\)|\[([^\]]*)\]/g, (m, a: string | undefined, b: string | undefined) => (isLocationPart(a ?? b ?? '') ? ' ' : m));
-  for (;;) {
-    const m = /\s*(?:\s[-–—]\s|,\s*)([^,\-–—]+)$/.exec(head);
-    if (!m || !isLocationPart(m[1]!)) break;
-    head = head.slice(0, m.index);
-  }
+  const parts = head.split(/(\s[-–—]\s|,)/);
+  let end = parts.length;
+  while (end >= 3 && !/[-–—]/.test(parts[end - 1]!) && isLocationPart(parts[end - 1]!)) end -= 2;
+  head = parts.slice(0, end).join('');
   return head.toLowerCase().replace(/[^a-z0-9+#åäö]+/g, ' ').trim();
 };
 const stretchRank = (mobileOf: ReadonlyMap<string, Scored['mobile']>) => (a: MatchRow, b: MatchRow): number =>
@@ -238,12 +237,22 @@ const acrossGroups = (all: Record<GroupKey, MatchRow[]>) => {
   return { keep: (g: GroupKey) => (k: string) => best.get(k) === g, carried };
 };
 
-export function match(profile: MatchProfile, pool: PublicPool, opts: MatchOptions = {}): Result<MatchResult, MatchError> {
+const STATS = new WeakMap<PublicPool, CorpusStats>();
+export const poolStats = (pool: PublicPool): CorpusStats => {
+  const known = STATS.get(pool);
+  if (known) return known;
+  const fresh = corpusStats(pool.rows);
+  STATS.set(pool, fresh);
+  return fresh;
+};
+export const match = (profile: MatchProfile, pool: PublicPool, opts: MatchOptions = {}): Result<MatchResult, MatchError> => matchUnder(poolStats(pool), profile, pool, opts);
+
+export function matchUnder(stats: CorpusStats, profile: MatchProfile, pool: PublicPool, opts: MatchOptions = {}): Result<MatchResult, MatchError> {
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? DEFAULT_LIMIT;
   return validateProfile(profile).andThen(p => understand(p).andThen(u => {
     const prefs: Prefs = { regions: regionsOf(p.region), remote: p.remote ?? 'any', mobile: MOBILE_TITLE.test(`${p.description}\n${p.goal ?? ''}`), productOnly: p.productOnly === true,
-      query: queryTokens(p.description, p.goal ?? ''), stats: opts.stats ?? corpusStats(pool.rows) };
+      query: queryTokens(p.description, p.goal ?? ''), stats };
     const all: Record<GroupKey, MatchRow[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
     const mobileOf = new Map<string, Scored['mobile']>();
     const excluded = new Set(opts.excludeIds ?? []);

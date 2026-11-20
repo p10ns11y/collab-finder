@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { corpusStats, isAgencyRow, match, parsePool, redactPii, findPii, type MatchProfile, type PublicPool } from '../src/index.ts';
+import { PLACE_RELEVANCE, normalizedTitle, isAgencyRow, match, parsePool, redactPii, findPii, type MatchProfile, type PublicPool } from '../src/index.ts';
 import { ABUSE_INPUTS, SYNTHETIC_EMAIL, SYNTHETIC_ID, SYNTHETIC_PHONE } from './abuse.ts';
 
 const raw = JSON.parse(readFileSync(new URL('../fixtures/pool.sample.json', import.meta.url), 'utf8'));
@@ -153,10 +153,34 @@ test('a bare Consulting suffix at a product company is not an agency signal', ()
 test('speed: a 30,000-row pool matches within budget once corpus stats are cached', () => {
   const rows = Array.from({ length: 100 }, (_, k) => pool.rows.map(r => ({ ...r, id: `${r.id}#${k}` }))).flat();
   const big = { ...pool, rows };
-  const stats = corpusStats(big.rows);
-  match(PERSONAS['seniorFullstackSe']!, big, { now, stats });
+  match(PERSONAS['seniorFullstackSe']!, big, { now });
   const t0 = performance.now();
-  for (let i = 0; i < 3; i++) match(PERSONAS['seniorFullstackSe']!, big, { now, stats });
+  for (let i = 0; i < 3; i++) match(PERSONAS['seniorFullstackSe']!, big, { now });
   const ms = (performance.now() - t0) / 3;
   assert.ok(ms < 400, `${Math.round(ms)} ms`);
+});
+
+test('a row in a place named in the description gets exactly the place boost over the same row elsewhere', () => {
+  const base = { ...pool.rows[0]!, title: 'Senior Backend Engineer', role_tags: [], status: 'open' as const, remote: 'remote' as const, seniority: 'senior' as const };
+  const rows = [{ ...base, id: 'place:se', company: 'North Co', region: 'SE' as const }, { ...base, id: 'place:eu', company: 'South Co', region: 'EU' as const }];
+  const r = match({ description: 'Senior backend engineer with Python and Postgres, based in Stockholm', region: ['SE', 'EU'] }, { ...pool, rows }, { now })._unsafeUnwrap();
+  const all = [...r.groups.fitsNow, ...r.groups.stepTowardGoal, ...r.groups.stretch];
+  const se = all.find(x => x.id === 'place:se')!;
+  const eu = all.find(x => x.id === 'place:eu')!;
+  assert.equal(se.tier, eu.tier);
+  assert.equal(Math.round((se.relevance - eu.relevance) * 1e4) / 1e4, PLACE_RELEVANCE);
+  assert.ok(PLACE_RELEVANCE > 0);
+});
+
+test('a hostile 20,000-character title normalizes in linear time and the schema rejects long titles', () => {
+  for (const title of [`Engineer${', Stockholm'.repeat(2000)}`, `Engineer${' (Remote)'.repeat(2300)}`, `Engineer${' - London'.repeat(2300)}`]) {
+    const t0 = performance.now();
+    const out = normalizedTitle(title);
+    const ms = performance.now() - t0;
+    assert.ok(title.length >= 18_000, String(title.length));
+    assert.ok(ms < 50, `${Math.round(ms)} ms`);
+    assert.equal(out, 'engineer');
+  }
+  assert.ok(parsePool({ ...pool, rows: [{ ...pool.rows[0]!, title: 'x'.repeat(301) }] }).isErr());
+  assert.ok(parsePool({ ...pool, rows: [{ ...pool.rows[0]!, title: 'x'.repeat(300) }] }).isOk());
 });

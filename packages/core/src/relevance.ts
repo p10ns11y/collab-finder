@@ -1,4 +1,5 @@
 import type { PublicRow } from './schema.ts';
+import { isPlaceWord } from './vocab.ts';
 
 const STOP = new Set([
   'a', 'an', 'and', 'or', 'the', 'of', 'in', 'on', 'at', 'for', 'to', 'with', 'by', 'from', 'as', 'is', 'are', 'be', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
@@ -6,6 +7,7 @@ const STOP = new Set([
   'working', 'worked', 'build', 'building', 'built', 'years', 'year', 'yrs', 'experience', 'based', 'mostly', 'some', 'very', 'more', 'most', 'new', 'own',
   'junior', 'mid', 'level', 'senior', 'sr', 'staff', 'lead', 'principal', 'distinguished', 'intern', 'graduate', 'ii', 'iii', 'iv', 'm', 'f', 'd', 'x', 'w',
   'all', 'genders', 'remote', 'hybrid', 'onsite', 'site', 'team', 'teams', 'role', 'position', 'job', 'jobs', 'm/f/d', 'was', 'former', 'ex', 'previously', 'med', 'och', 'till', 'som', 'en', 'ett',
+  'go', 'us', 'further', 'grow', 'help', 'get', 'make', 'do', 'can', 'will', 'would', 'love', 'happy', 'let', 'lets', 'really', 'just',
 ]);
 
 const SYNONYMS: ReadonlyArray<[RegExp, string]> = [
@@ -31,9 +33,10 @@ const SYNONYMS: ReadonlyArray<[RegExp, string]> = [
   [/\bc#/g, ' csharp '],
   [/\.net\b/g, ' dotnet '],
   [/\bspring boot\b/g, ' java '],
+  [/\bgo (?=engineer|developer)/g, ' golang '],
 ];
 const TOKEN_MAP: Readonly<Record<string, string>> = {
-  ia: 'ai', llms: 'llm', agentic: 'agent', agents: 'agent', ml: 'ml', mlops: 'ml', k8s: 'kubernetes', golang: 'go', javascript: 'typescript', js: 'typescript',
+  ia: 'ai', llms: 'llm', agentic: 'agent', agents: 'agent', ml: 'ml', mlops: 'ml', k8s: 'kubernetes', javascript: 'typescript', js: 'typescript',
   ts: 'typescript', postgresql: 'postgres', sql: 'postgres', swe: 'engineer', engineers: 'engineer', engineering: 'engineer', developer: 'engineer', developers: 'engineer',
   dev: 'engineer', programmer: 'engineer', utvecklare: 'engineer', mjukvaruutvecklare: 'engineer', ingenjör: 'engineer', systemutvecklare: 'engineer', fullstackutvecklare: 'fullstack',
   robots: 'robot', robotics: 'robot', vehicles: 'vehicle', devices: 'device', drones: 'drone', satellites: 'satellite', apis: 'api', services: 'service', systems: 'system',
@@ -47,7 +50,8 @@ export const tokensOf = (text: string): string[] => {
   for (const [re, to] of SYNONYMS) t = t.replace(re, to);
   return t.split(/[^a-z0-9+#åäöéü]+/).filter(Boolean).map(w => TOKEN_MAP[w] ?? w).filter(w => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w));
 };
-export const rowTokens = (row: Pick<PublicRow, 'title' | 'role_tags'>): string[] => [...tokensOf(row.title), ...row.role_tags.flatMap(t => tokensOf(t.replace(/[-_]/g, ' ')))];
+const tagTokens = (tag: string): string[] => (tag.toLowerCase() === 'go' ? ['golang'] : tokensOf(tag.replace(/[-_]/g, ' ')));
+export const rowTokens = (row: Pick<PublicRow, 'title' | 'role_tags'>): string[] => [...tokensOf(row.title), ...row.role_tags.flatMap(tagTokens)];
 
 export type CorpusStats = { readonly n: number; readonly avgLen: number; readonly df: ReadonlyMap<string, number> };
 export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_tags' | 'status'>>): CorpusStats => {
@@ -64,7 +68,7 @@ export const corpusStats = (rows: ReadonlyArray<Pick<PublicRow, 'title' | 'role_
   return { n, avgLen: n ? total / n : 1, df };
 };
 
-export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'go', 'rust', 'java', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
+export const SKILL_TOKENS: ReadonlySet<string> = new Set(['typescript', 'react', 'python', 'golang', 'rust', 'java', 'node', 'postgres', 'kubernetes', 'cpp', 'csharp', 'dotnet', 'ruby',
   'php', 'vue', 'angular', 'svelte', 'aws', 'gcp', 'azure', 'docker', 'terraform', 'graphql', 'kafka', 'redis', 'elixir', 'haskell', 'swift', 'mobile', 'laravel', 'html', 'css']);
 export const SKILL_LIST_FACTOR = 0.5;
 export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
@@ -74,7 +78,8 @@ export const isSkillList = (row: Pick<PublicRow, 'title'>): boolean => {
 };
 const K1 = 1.2;
 const B = 0.75;
-export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => new Set([...tokensOf(description), ...tokensOf(goal)]);
+const withoutPlaces = (text: string): string => text.split(/([^a-zà-öø-ÿ]+)/i).map(w => (isPlaceWord(w) ? ' ' : w)).join('');
+export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => new Set([...tokensOf(withoutPlaces(description)), ...tokensOf(withoutPlaces(goal))]);
 export const relevance = (query: ReadonlySet<string>, row: Pick<PublicRow, 'title' | 'role_tags'>, stats: CorpusStats): number => {
   const toks = rowTokens(row);
   if (!toks.length) return 0;

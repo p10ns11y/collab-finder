@@ -99,6 +99,7 @@ const PLACE_WORDS = new Set(('remote hybrid onsite on-site site anywhere worldwi
   + 'budapest hungary bucharest romania sofia bulgaria athens greece tallinn estonia riga latvia vilnius lithuania belgrade serbia zagreb croatia '
   + 'kyiv ukraine istanbul turkey tel aviv israel dubai uae india bangalore bengaluru hyderabad pune singapore tokyo japan seoul korea sydney melbourne australia canberra auckland').split(' '));
 const PLACE_FILLER = new Set('and or in based only office first time zone zones timezone friendly the of within across from area region country countries city cities x f m d w h genders all gender'.split(' '));
+export const isPlaceWord = (word: string): boolean => PLACE_WORDS.has(word.toLowerCase());
 export const isLocationPart = (text: string): boolean => {
   const words = text.toLowerCase().split(/[^a-zà-öø-ÿ]+/).filter(Boolean);
   if (!words.length) return false;

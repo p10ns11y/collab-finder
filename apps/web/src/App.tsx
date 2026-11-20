@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  corpusStats, findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
-  type CorpusStats, type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
+  poolStats, findPii, isAgencyRow, match, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Badge } from './components/ui/badge.tsx';
@@ -9,7 +9,7 @@ import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
 
-type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool; stats: CorpusStats };
+type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
 type View =
   | { kind: 'idle' }
   | { kind: 'inputError'; msg: string }
@@ -68,7 +68,7 @@ export function App() {
         const parts = await Promise.all(head.shards.filter((f): f is string => typeof f === 'string' && /^pool-\d+\.json$/.test(f)).map(f => getJson(`/${f}`)));
         return { version: head.version, checkedRange: head.checkedRange, rows: parts.flatMap(p => ((p as { rows?: unknown }).rows as unknown[] | undefined) ?? []) };
       })
-      .then((raw: unknown) => { const p = parsePool(raw); setPool(p.isOk() ? { kind: 'ready', pool: p.value, stats: corpusStats(p.value.rows) } : { kind: 'failed' }); })
+      .then((raw: unknown) => { const p = parsePool(raw); if (p.isOk()) poolStats(p.value); setPool(p.isOk() ? { kind: 'ready', pool: p.value } : { kind: 'failed' }); })
       .catch(() => setPool({ kind: 'failed' }));
   }, []);
   useEffect(loadPool, [loadPool]);
@@ -78,7 +78,7 @@ export function App() {
   const run = useCallback((over?: { regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean }) => {
     if (pool.kind !== 'ready') return;
     const t0 = performance.now();
-    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool, { stats: pool.stats });
+    const r = match({ description, goal, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());

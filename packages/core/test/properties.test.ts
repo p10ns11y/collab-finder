@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import fc from 'fast-check';
 import { SCORE_BUCKET, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
 import { COVERS, LEVELS, MOBILE_TITLE, TERMS, kindOf, levelOf, termsIn } from '../src/vocab.ts';
-import type { MatchRow } from '../src/match.ts';
+import { matchUnder, type MatchRow } from '../src/match.ts';
+import type { CorpusStats } from '../src/relevance.ts';
 
 const PHRASES = ['backend', 'frontend', 'full-stack', 'platform', 'infrastructure', 'data engineering', 'machine learning', 'AI', 'LLM', 'security',
   'product engineer', 'forward deployed', 'distributed systems', 'embedded', 'developer tools', 'TypeScript', 'React', 'Python', 'golang', 'Rust',
@@ -43,6 +44,7 @@ const OUTPUT_KEYS = new Set(['id', 'title', 'company', 'url', 'location', 'regio
 
 
 const ok = (p: MatchProfile, pool: PublicPool, extra: Record<string, unknown> = {}) => match(p, pool, { now: NOW, ...extra });
+const fixed = (stats: CorpusStats, p: MatchProfile, pool: PublicPool, extra: Record<string, unknown> = {}) => matchUnder(stats, p, pool, { now: NOW, ...extra });
 const groupsOf = (r: ReturnType<typeof match>) => (r.isOk() ? [r.value.groups.fitsNow, r.value.groups.stepTowardGoal, r.value.groups.stretch] : []);
 const rowById = (pool: PublicPool) => new Map(pool.rows.map(r => [r.id, r]));
 const NON_VOCAB = ['gardening', 'teaching', 'patients', 'cooking', 'kitchen', 'retail', 'cashier', 'driving', 'nursing', 'sales', 'marketing', 'hotel', 'cleaning', 'warehouse', 'farming', 'accounting', 'legal', 'singing'];
@@ -155,16 +157,16 @@ test('P13 adding a closed row never changes the output', () => {
   }), RUNS);
 });
 
-test('P14 removing a row not in the output leaves every shown group unchanged', () => {
+test('P14 under fixed corpus stats, removing a row not in the output leaves every shown group unchanged', () => {
   fc.assert(fc.property(profileArb, poolArb, fc.nat(), (p, pool, k) => {
     const stats = corpusStats(pool.rows);
-    const before = ok(p, pool, { limit: 5, stats });
+    const before = fixed(stats, p, pool, { limit: 5 });
     if (before.isErr() || pool.rows.length === 0) return true;
     const shown = new Set(allRows(before).map(x => x.id));
     const candidates = pool.rows.filter(r => !shown.has(r.id));
     const drop = candidates[k % Math.max(1, candidates.length)];
     if (!drop) return true;
-    const after = ok(p, { ...pool, rows: pool.rows.filter(r => r.id !== drop.id) }, { limit: 5, stats });
+    const after = fixed(stats, p, { ...pool, rows: pool.rows.filter(r => r.id !== drop.id) }, { limit: 5 });
     if (after.isErr()) return false;
     const ids = (r: typeof before) => r.isOk() ? groupsOf(r).map(g => g.map(x => x.id)) : [];
     return JSON.stringify(ids(before)) === JSON.stringify(ids(after));
@@ -502,9 +504,10 @@ test('relevance is shuffle-invariant and identical on rerun', () => {
 });
 
 test('relevance through match: adding a title token of a shown row to the description never lowers its relevance', () => {
+  let tried = 0;
+  let vanished = 0;
   fc.assert(fc.property(profileArb, poolArb, fc.nat(), (p, pool, k) => {
-    const stats = corpusStats(pool.rows);
-    const before = ok(p, pool, { ...BIG, stats });
+    const before = ok(p, pool, BIG);
     if (before.isErr()) return true;
     const shown = allRows(before);
     const row = shown[k % Math.max(1, shown.length)];
@@ -512,11 +515,15 @@ test('relevance through match: adding a title token of a shown row to the descri
     const toks = rowTokens({ title: row.title, role_tags: [] });
     const tok = toks[k % Math.max(1, toks.length)];
     if (!tok || /^(?:mobile|junior|intern|manager)$/.test(tok)) return true;
-    const after = ok({ ...p, description: `${p.description} ${tok}` }, pool, { ...BIG, stats });
+    const after = ok({ ...p, description: `${p.description} ${tok}` }, pool, BIG);
     if (after.isErr()) return true;
-    const again = allRows(after).find(x => x.id === row.id);
-    return !again || again.relevance >= row.relevance;
+    tried += 1;
+    const rows = allRows(after);
+    const again = rows.find(x => x.id === row.id);
+    if (!again) { if (!rows.some(x => x.alsoIds.includes(row.id))) vanished += 1; return true; }
+    return again.relevance >= row.relevance;
   }), RUNS);
+  if (tried < 20 || vanished > tried * 0.1) throw new Error(`row left the output in ${vanished} of ${tried} runs`);
 });
 
 const LOCATIONS = ['', ', Rome', ', Paris', ' - Berlin', ' - EMEA Remote', ' (London)', ' | Sweden | Remote', ' (Remote, EU)', ', Stockholm', ' - US Remote'];
@@ -629,8 +636,8 @@ test('P30 repeating a profile token in a title never raises its score or relevan
     const stats = corpusStats(pool.rows);
     const row = pool.rows.find(y => y.id === x.id)!;
     const stuffed = { ...row, title: `${row.title}${` ${word}`.repeat(times)}` };
-    const one = ok(p, { ...pool, rows: [row] }, { ...BIG, stats });
-    const many = ok(p, { ...pool, rows: [stuffed] }, { ...BIG, stats });
+    const one = fixed(stats, p, { ...pool, rows: [row] }, BIG);
+    const many = fixed(stats, p, { ...pool, rows: [stuffed] }, BIG);
     if (one.isErr() || many.isErr()) return one.isErr() === many.isErr();
     const a = allRows(one)[0];
     const b = allRows(many)[0];
@@ -652,7 +659,7 @@ test('E3 a collapsed key stays in its best group', () => {
     const r = ok(p, pool, BIG);
     if (r.isErr()) return true;
     const stats = corpusStats(pool.rows);
-    const alone = (row: PublicRow) => { const one = ok(p, { ...pool, rows: [row] }, { ...BIG, stats }); return one.isOk() ? groupsOf(one).findIndex(g => g.length > 0) : -1; };
+    const alone = (row: PublicRow) => { const one = fixed(stats, p, { ...pool, rows: [row] }, BIG); return one.isOk() ? groupsOf(one).findIndex(g => g.length > 0) : -1; };
     const byId = rowById(pool);
     return groupsOf(r).every((g, gi) => g.every(x => alone(byId.get(x.id)!) === gi && x.alsoIds.every(id => { const a = alone(byId.get(id)!); return a === -1 || a >= gi; })));
   }), RUNS);
@@ -664,4 +671,36 @@ test('E2 a title that is mostly a skill list is damped against the same role nam
   const plain = relevance(q, { title: 'Senior Fullstack Developer', role_tags: [] }, stats);
   const stuffed = relevance(q, { title: 'Senior Fullstack Developer (Node.js + Python + TypeScript + React)', role_tags: [] }, stats);
   if (stuffed > plain * 1.5) throw new Error(`stuffing not damped: ${stuffed} vs ${plain}`);
+});
+
+test('removing a row not in the output never changes which group any remaining row lands in', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.nat(), (p, pool, k) => {
+    const before = ok(p, pool, BIG);
+    if (before.isErr()) return true;
+    const members = (r: typeof before) => groupsOf(r).map(g => g.flatMap(x => [x.id, ...x.alsoIds]).sort());
+    const shown = new Set(members(before).flat());
+    const candidates = pool.rows.filter(r => !shown.has(r.id));
+    const drop = candidates[k % Math.max(1, candidates.length)];
+    if (!drop) return true;
+    const after = ok(p, { ...pool, rows: pool.rows.filter(r => r.id !== drop.id) }, BIG);
+    return after.isOk() && JSON.stringify(members(before)) === JSON.stringify(members(after));
+  }), RUNS);
+});
+
+const FILLER = ['I want to go further.', 'Help us grow.', 'Happy to help us scale.', "Let's go!", 'I would really love to grow with you.', 'We can get it done.'];
+test('filler sentences never change any group or the top 10', () => {
+  fc.assert(fc.property(profileArb, poolArb, fc.subarray(FILLER, { minLength: 1 }), (p, pool, fill) => {
+    const before = ok(p, pool, BIG);
+    const after = ok({ ...p, description: `${p.description} ${fill.join(' ')}` }, pool, BIG);
+    if (before.isErr() || after.isErr()) return before.isErr() === after.isErr();
+    const ids = (r: typeof before, n: number) => groupsOf(r).map(g => g.slice(0, n).map(x => x.id));
+    return JSON.stringify(ids(before, 10_000)) === JSON.stringify(ids(after, 10_000)) && JSON.stringify(ids(before, 10)) === JSON.stringify(ids(after, 10));
+  }), RUNS);
+});
+
+test('the relevance query keeps go only as the language and drops place words', () => {
+  const q = queryTokens('I want to go further and help us scale from the UK, Stockholm or New York', 'Go developer, golang');
+  for (const t of ['go', 'us', 'uk', 'stockholm', 'new', 'york', 'further']) if (q.has(t)) throw new Error(`query kept ${t}`);
+  if (!q.has('golang')) throw new Error('query lost the language');
+  if (!tokensOf('Senior Go Engineer').includes('golang')) throw new Error('title lost the language');
 });
