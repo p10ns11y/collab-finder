@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ci-privacy-scan.py on synthetic snippets only. Reports file:line:rule, never values."""
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,9 @@ def run(root, rel, body, allow=None, pdf=False):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+HAS_PDFTOTEXT = shutil.which('pdftotext') is not None
+
+
 class PrivacyScan(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp()
@@ -67,6 +71,7 @@ class PrivacyScan(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertIn("hits 0", r.stdout)
 
+    @unittest.skipUnless(HAS_PDFTOTEXT, 'pdftotext not installed')
     def test_allowlisted_public_cv_pdf_is_ignored(self):
         rel = "data/distillation/peramanathan-sathyamoorthy-cv.pdf"
         allow = os.path.join(self.d, "allow")
@@ -81,6 +86,7 @@ class PrivacyScan(unittest.TestCase):
         self.assertNotIn("123", r.stdout + r.stderr)
         self.assertNotIn("@", r.stdout.split("hits")[0] if "@" in r.stdout else "")
 
+    @unittest.skipUnless(HAS_PDFTOTEXT, 'pdftotext not installed')
     def test_non_allowlisted_pdf_flags_phone_without_printing_it(self):
         r = run(self.d, "secret.pdf", "call +" + "46 70 123 45 67", pdf=True)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)

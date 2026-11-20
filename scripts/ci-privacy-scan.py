@@ -82,10 +82,13 @@ def allowed(rel: str, rule: str, allows: list[tuple[str, str]]) -> bool:
 
 def extract_text(path: str) -> str | None:
     if path.lower().endswith(".pdf"):
-        r = subprocess.run(
-            ["pdftotext", "-q", "-layout", path, "-"],
-            capture_output=True, check=False,
-        )
+        try:
+            r = subprocess.run(
+                ["pdftotext", "-q", "-layout", path, "-"],
+                capture_output=True, check=False,
+            )
+        except FileNotFoundError:
+            return ""
         if r.returncode != 0:
             return ""
         return r.stdout.decode("utf-8", "replace")
