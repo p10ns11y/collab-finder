@@ -1,5 +1,8 @@
-import { err, ok, type Result } from 'neverthrow';
-import { SOURCE_VARIANTS, type PoolError, type Source } from './errors.ts';
+import { Cause, Effect, Exit, Option } from 'effect';
+import type { Result, ResultAsync } from 'neverthrow';
+import { SOURCE_VARIANTS, type AppError, type PoolError, type Source } from './errors.ts';
+import type { Clock, Fetch, PoolStore } from './effects.ts';
+import type { DecideRefreshSwap } from './decisions.ts';
 import { parsePool } from './pool.ts';
 import type { PublicPool } from './schema.ts';
 
@@ -20,9 +23,9 @@ const requiredSources = (before: PublicPool, candidate: PublicPool): ReadonlyArr
   return [...required];
 };
 
-export function decideRefreshSwap(before: PublicPool, candidate: unknown, runs: ReadonlyArray<SourceRun>): Result<PublicPool, PoolError> {
+export function decideRefreshSwap(before: PublicPool, candidate: unknown, runs: ReadonlyArray<SourceRun>): Effect.Effect<PublicPool, PoolError> {
   const parsed = parsePool(candidate);
-  if (parsed.isErr()) return err(parsed.error);
+  if (parsed.isErr()) return Effect.fail(parsed.error);
   const okRun = new Map<string, boolean>();
   for (const run of runs) okRun.set(run.source, (okRun.get(run.source) ?? true) && run.ok);
   const required = requiredSources(before, parsed.value);
@@ -35,19 +38,51 @@ export function decideRefreshSwap(before: PublicPool, candidate: unknown, runs: 
     const b = now.get(source) ?? 0;
     if (a > 0 && (a - b) / a > MAX_SOURCE_DROP) countDrop[source] = a - b;
   }
-  if (failed.length || Object.keys(countDrop).length) return err({ kind: 'PartialRefresh', failed, countDrop });
-  return ok(parsed.value);
+  if (failed.length || Object.keys(countDrop).length) return Effect.fail({ kind: 'PartialRefresh', failed, countDrop });
+  return Effect.succeed(parsed.value);
 }
+
+const lift = <A, E>(p: ResultAsync<A, E>): Effect.Effect<A, E> =>
+  Effect.gen(function* () {
+    const r: Result<A, E> = yield* Effect.promise(() => p);
+    if (r.isErr()) return yield* Effect.fail(r.error);
+    return r.value;
+  });
 
 export interface SwapStore { read(): Promise<PublicPool>; swap(next: PublicPool): Promise<void> }
 export type RefreshOutcome = { swapped: true; version: string } | { swapped: false; error: PoolError };
 
+const settled = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
+  const exit = await Effect.runPromiseExit(effect);
+  if (Exit.isSuccess(exit)) return exit.value;
+  const error = Cause.findErrorOption(exit.cause);
+  if (Option.isSome(error)) return Promise.reject(error.value);
+  return Promise.reject(Cause.squash(exit.cause));
+};
+
 export async function refreshOnce(store: SwapStore, fetched: { pool: unknown; runs: ReadonlyArray<SourceRun> }, score: EvalScore): Promise<RefreshOutcome> {
-  const before = await store.read();
-  const decided = decideRefreshSwap(before, fetched.pool, fetched.runs);
-  if (decided.isErr()) return { swapped: false, error: decided.error };
-  const [was, now] = [await score(before), await score(decided.value)];
-  if (now < was) return { swapped: false, error: { kind: 'EvalRegressed', before: was, after: now } };
-  await store.swap(decided.value);
-  return { swapped: true, version: decided.value.version };
+  const effect = Effect.gen(function* () {
+    const before = yield* Effect.promise(() => store.read());
+    const next = yield* decideRefreshSwap(before, fetched.pool, fetched.runs);
+    const was = yield* Effect.promise(() => score(before));
+    const now = yield* Effect.promise(() => score(next));
+    if (now < was) return { swapped: false as const, error: { kind: 'EvalRegressed' as const, before: was, after: now } };
+    yield* Effect.promise(() => store.swap(next));
+    return { swapped: true as const, version: next.version };
+  });
+  try {
+    return await settled(effect);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'kind' in error) return { swapped: false, error: error as PoolError };
+    throw error;
+  }
 }
+
+export const refresh = (fx: { fetch: Fetch; pool: PoolStore; clock: Clock }, swap: DecideRefreshSwap, fetchAll: (f: Fetch) => ResultAsync<{ next: PublicPool; perSource: Record<Source, { before: number; after: number; ok: boolean }> }, AppError>) =>
+  Effect.gen(function* () {
+    const fetched = yield* lift(fetchAll(fx.fetch));
+    const decision = yield* swap.decide({ perSource: fetched.perSource });
+    if (decision === 'keep') return 'kept' as const;
+    yield* lift(fx.pool.swap(fetched.next));
+    return 'swapped' as const;
+  });
