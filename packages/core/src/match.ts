@@ -156,7 +156,9 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   const generalist = u.roles.some(k => GENERALIST_ROLES.has(k));
   const generalistTitle = rt.title.has('software') || rt.title.has('product') || rt.tags.has('product');
   const coveredHits = [...rt.title].filter(k => kindOf(k) === 'role' && !roleHits.includes(k) && u.roles.some(m => (COVERS[m] ?? []).includes(k)));
-  const generalistHit = generalist && !roleHits.length && !coveredHits.length && generalistTitle ? [rt.title.has('product') || rt.tags.has('product') ? 'product' : 'software'] : [];
+  const generalistHit = generalist && !roleHits.length && !coveredHits.length && generalistTitle
+    ? [...(rt.title.has('product') || rt.tags.has('product') ? ['product'] : []), ...(rt.title.has('software') && (u.roles.includes('fullstack') || !(rt.title.has('product') || rt.tags.has('product'))) ? ['software'] : [])]
+    : [];
   const titleHits = [...roleHits, ...generalistHit];
   const genericHit = !titleHits.length && u.roles.includes('software') && rt.title.has('software');
   const goalHits = u.goal.filter(k => rt.title.has(k));
@@ -201,7 +203,7 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
 
   const nordicHit = u.nordic && p.regions.length === 0 && (region === 'SE' || NORDIC_LOC.test(row.location ?? ''));
   const placeBonus = (region !== null && u.places.includes(region)) || nordicHit ? 6 : 0;
-  const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k)).length * 3;
+  const tagDepth = [...rt.tags].filter(k => u.roles.includes(k) || u.skills.includes(k) || u.goal.includes(k) || (k === 'product' && u.roles.includes('fullstack'))).length * 3;
   const w = p.weights;
   const rawScore = titleHits.length * w.title + coveredHits.length * w.covered + tagRoleHits.length * w.tagRole + skillPoints(skillHits.length) + (genericHit ? 10 : 0) + goalHits.length * w.goal
     + placeBonus + tagDepth + ((liked || interest) ? w.liked : 0) + (rem === 'yes' && row.remote !== 'unknown' ? 1 : 0)

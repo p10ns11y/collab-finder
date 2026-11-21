@@ -21,9 +21,9 @@ const SYNONYMS: ReadonlyArray<[RegExp, string]> = [
   [/\bsite reliability\b/g, ' sre '],
   [/\bdistributed systems?\b/g, ' distributed '],
   [/\bdeveloper (?:tools|experience)\b/g, ' devtools '],
-  [/\bmember of technical staff\b/g, ' mts '],
+  [/\bmember of technical staff\b/g, ' mts software engineer '],
   [/\bweb (?:applications?|apps?)\b/g, ' web fullstack '],
-  [/\bproduct engineer(?:ing)?\b/g, ' productengineer '],
+  [/\bproduct engineer(?:ing)?\b/g, ' productengineer engineer '],
   [/\bdata engineer(?:ing)?\b/g, ' dataengineer '],
   [/\bnode\.?js\b/g, ' node '],
   [/\bnext\.?js\b/g, ' react '],
@@ -91,7 +91,11 @@ export const namesSkillList = (row: Pick<PublicRow, 'title'>): boolean => titleS
 const K1 = 1.2;
 const B = 0.75;
 const withoutPlaces = (text: string): string => text.split(/([^a-zà-öø-ÿ]+)/i).map(w => (isPlaceWord(w) ? ' ' : w)).join('');
-export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => new Set([...tokensOf(withoutPlaces(description)), ...tokensOf(withoutPlaces(goal))]);
+export const queryTokens = (description: string, goal = ''): ReadonlySet<string> => {
+  const q = new Set([...tokensOf(withoutPlaces(description)), ...tokensOf(withoutPlaces(goal))]);
+  if (q.has('fullstack') || q.has('web')) q.add('productengineer');
+  return q;
+};
 export const relevance = (query: ReadonlySet<string>, row: Pick<PublicRow, 'title' | 'role_tags'>, stats: CorpusStats): number => {
   const toks = rowTokens(row);
   if (!toks.length) return 0;
