@@ -19,6 +19,8 @@ const resolveUrl = (fromUrl: string, spec: string): string => {
   return `/${out.join('/')}`;
 };
 
+const isRefreshable = (url: string): boolean => url === '/pool.json' || /^\/pool-\d+\.json$/.test(url);
+
 const staticAssets = (dist: string): Set<string> => {
   const html = readFileSync(join(dist, 'index.html'), 'utf8');
   const seen = new Set<string>();
@@ -49,7 +51,7 @@ const offlineServiceWorker = (): Plugin => ({
     for (const f of files) hash.update(readFileSync(join(dist, f)));
     const version = hash.digest('hex').slice(0, 16);
     const linked = staticAssets(dist);
-    const precache = ['/', ...files.filter(f => f !== '/index.html' && (linked.has(f) || !f.startsWith('/assets/')))];
+    const precache = ['/', ...files.filter(f => f !== '/index.html' && !isRefreshable(f) && (linked.has(f) || !f.startsWith('/assets/')))];
     const template = readFileSync(new URL('./sw.template.js', import.meta.url), 'utf8');
     writeFileSync(join(dist, 'sw.js'), template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache)));
   },

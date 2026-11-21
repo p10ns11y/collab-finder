@@ -14,6 +14,7 @@ stateDiagram-v2
   drafted --> filled: driver.fill
   filled --> awaiting_submit
   awaiting_submit --> submitting: posting in ApprovedBatch
+  awaiting_submit --> rejected
   submitting --> submitted: driver.submit then record
   submitting --> needs_check: crash before record (resume)
   needs_check --> submitted: owner confirms
