@@ -30,7 +30,7 @@ test('0 network requests carry the description, goal or likes; nothing is stored
   await fill(page, DESCRIPTION, `AI infrastructure ${MARKER}`, `Wombatlike Labs, ${MARKER}`);
   await expect(page.getByTestId('results')).toBeVisible();
   for (const g of ['fitsNow', 'stepTowardGoal', 'stretch']) await expect(page.getByTestId(`group-${g}`)).toBeVisible();
-  await page.waitForTimeout(500);
+  await page.waitForLoadState('networkidle');
   const stored = await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage), document.cookie]));
   expect(stored).not.toContain(MARKER);
   const leaking = requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres, distributed') || carries(r, 'Wombatlike'));
@@ -47,11 +47,16 @@ test('trap states: out of scope, zero results, PII warning, input error @firefox
   await expect(page.getByTestId('out-of-scope')).toContainText('software & AI engineering roles');
   await fill(page, 'hi');
   await expect(page.getByTestId('input-error')).toBeVisible();
-  await page.getByLabel('About you').fill(`Senior backend engineer, write to ${['someone', 'example.com'].join('@')}`);
+  const piiText = `Senior backend engineer, write to ${['someone', 'example.com'].join('@')}`;
+  await page.getByLabel('About you').fill(piiText);
+  await expect(page.getByLabel('About you')).toHaveValue(piiText);
+  await page.getByLabel('About you').blur();
+  await expect(page.getByTestId('input-error')).toHaveCount(0);
   await expect(page.getByTestId('pii-warning')).toBeVisible();
   await page.getByRole('button', { name: 'Find roles' }).click();
   await expect(page.getByTestId('pii-blocked')).toBeVisible();
   await page.getByTestId('pii-blocked').getByRole('button', { name: 'Remove them' }).click();
+  await expect(page.getByTestId('pii-blocked')).toHaveCount(0);
   await expect(page.getByTestId('pii-warning')).toHaveCount(0);
   await expect(page.getByLabel('About you')).toHaveValue(/\[email removed\]/);
   await page.getByLabel('United States', { exact: true }).check();
