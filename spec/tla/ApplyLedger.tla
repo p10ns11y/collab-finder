@@ -4,7 +4,7 @@ EXTENDS Naturals
 Ids == {"p1", "p2", "p3"}
 Runs == {"r1", "r2"}
 MaxCrash == 2
-States == {"none", "drafted", "filled", "awaiting", "submitting", "needsCheck", "submitted", "rejected"}
+States == {"none", "drafted", "filled", "awaiting", "submitting", "needsCheck", "submitted", "rejected", "interview"}
 
 VARIABLES st, writes, sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted
 
@@ -78,6 +78,9 @@ Record(i) == done[i] /\ fresh[i] /\ Write(i, "submitting", "submitted") /\ UNCHA
 Recover(i) == ~fresh[i] /\ Write(i, "submitting", "needsCheck") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
 Confirm(i) == Write(i, "needsCheck", "submitted") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
 Reconcile(i) == Write(i, "needsCheck", "rejected") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
+RejectAwait(i) == Write(i, "awaiting", "rejected") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
+RejectSubmitted(i) == Write(i, "submitted", "rejected") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
+Interview(i) == Write(i, "submitted", "interview") /\ UNCHANGED <<sent, fresh, done, up, crashes, holder, lost, answered, blocked, granted>>
 
 LostRace(run, i) ==
   /\ holder[i] \in Runs \ {run}
@@ -98,14 +101,17 @@ Resume == ~up /\ up' = TRUE /\ UNCHANGED <<st, writes, sent, fresh, done, crashe
 Terminal(i) ==
   IF ~answered[i]
   THEN blocked[i] /\ st[i] = "drafted" /\ sent[i] = 0
-  ELSE /\ st[i] \in {"awaiting", "submitted", "rejected"}
-       /\ (st[i] = "awaiting" <=> ~granted[i])
-       /\ (st[i] \in {"submitted", "rejected"} => writes[<<i, "submitting">>] = 1)
+  ELSE /\ st[i] \in {"awaiting", "submitted", "rejected", "interview"}
+       /\ (st[i] = "awaiting" => ~granted[i])
+       /\ (st[i] \in {"submitted", "interview"} => granted[i] /\ writes[<<i, "submitting">>] = 1)
+       /\ (st[i] = "rejected" =>
+            \/ (writes[<<i, "submitting">>] = 0 /\ sent[i] = 0)
+            \/ (writes[<<i, "submitting">>] = 1 /\ granted[i]))
 
 Finished == up /\ \A i \in Ids : Terminal(i)
 
 Next ==
-  \/ (\E i \in Ids : Draft(i) \/ Fill(i) \/ Await(i) \/ Record(i) \/ Recover(i) \/ Confirm(i) \/ Reconcile(i))
+  \/ (\E i \in Ids : Draft(i) \/ Fill(i) \/ Await(i) \/ Record(i) \/ Recover(i) \/ Confirm(i) \/ Reconcile(i) \/ RejectAwait(i) \/ RejectSubmitted(i) \/ Interview(i))
   \/ (\E run \in Runs, j \in Ids : Intent(run, j) \/ Send(run, j) \/ LostRace(run, j))
   \/ Crash \/ Resume
   \/ (Finished /\ UNCHANGED vars)
@@ -118,11 +124,13 @@ AtMostOneSubmit == \A i \in Ids : sent[i] <= 1
 SubmitOnlyApproved == \A i \in Ids : sent[i] > 0 => granted[i]
 NoDuplicateEntries == \A p \in Ids \X States : writes[p] <= 1
 SubmittedImpliesAttempt == \A i \in Ids : st[i] = "submitted" => writes[<<i, "submitting">>] = 1 /\ sent[i] <= 1
-UnapprovedStopBeforeSubmit == \A i \in Ids : ~granted[i] => st[i] \notin {"submitting", "needsCheck", "submitted", "rejected"}
+UnapprovedStopBeforeSubmit == \A i \in Ids : ~granted[i] => st[i] \notin {"submitting", "needsCheck", "submitted", "interview"}
 UnansweredStops == \A i \in Ids : ~answered[i] => sent[i] = 0 /\ st[i] \in {"none", "drafted"} /\ writes[<<i, "awaiting">>] = 0 /\ writes[<<i, "submitting">>] = 0
-NoRetryFromNeedsCheck == \A i \in Ids : writes[<<i, "needsCheck">>] >= 1 => st[i] \in {"needsCheck", "submitted", "rejected"}
+NoRetryFromNeedsCheck == \A i \in Ids : writes[<<i, "needsCheck">>] >= 1 => st[i] \in {"needsCheck", "submitted", "rejected", "interview"}
 OwnSubmit == \A i \in Ids : sent[i] = 1 => holder[i] \in Runs
 LoserDoesNotHold == \A run \in Runs, i \in Ids : lost[<<run, i>>] => holder[i] # run
+InterviewAfterSubmit == \A i \in Ids : st[i] = "interview" => granted[i] /\ writes[<<i, "submitting">>] = 1 /\ sent[i] <= 1
+UngrantedRejectHasNoSubmit == \A i \in Ids : ~granted[i] /\ st[i] = "rejected" => sent[i] = 0 /\ writes[<<i, "submitting">>] = 0
 
 AlwaysFinishes == <>[]Finished
 =============================================================================
