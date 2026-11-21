@@ -88,7 +88,9 @@ test('boundary schemas: result card, WebMCP payload, and agent-only stateVersion
   assert.equal(parseRefineInput({ region: 'SE' }).isErr(), true);
   const agent = parseRefineInput({ actor: 'agent', region: 'SE' });
   assert.equal(agent.isErr(), true);
-  assert.match(agent._unsafeUnwrapErr().issues.join(' '), /stateVersion/);
+  const agentError = agent._unsafeUnwrapErr();
+  assert.equal(agentError.kind, 'SchemaInvalid');
+  assert.match(agentError.kind === 'SchemaInvalid' ? agentError.issues.join(' ') : '', /stateVersion/);
   assert.equal(parseRefineInput({ actor: 'agent', stateVersion: 1.5 })._unsafeUnwrapErr().kind, 'SchemaInvalid');
   assert.equal(parseRefineInput({ actor: 'agent', stateVersion: 4, remote: 'remote' })._unsafeUnwrap().stateVersion, 4);
 });
