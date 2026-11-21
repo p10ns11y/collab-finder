@@ -93,6 +93,7 @@
  },
  "genericSwe": {
   "fitsNow": [
+   "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
    "ashby:540c27e3-7ef2-786a-79ec-8160824035d1",
    "greenhouse:4590939",
    "greenhouse:7233844",
@@ -103,7 +104,6 @@
    "greenhouse:5129247",
    "greenhouse:1692030",
    "ashby:4270a773-3007-cff8-71e1-d4e924bf09b4",
-   "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
    "ashby:ade0c52c-026e-1397-ca55-acd1b735dd29",
    "greenhouse:1270434",
    "greenhouse:2629733",
@@ -202,8 +202,8 @@
    "ashby:4270a773-3007-cff8-71e1-d4e924bf09b4",
    "ashby:540c27e3-7ef2-786a-79ec-8160824035d1",
    "greenhouse:4590939",
-   "greenhouse:9777651",
    "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
+   "greenhouse:9777651",
    "greenhouse:1285115",
    "greenhouse:8531401",
    "greenhouse:5129247",
@@ -257,12 +257,12 @@
   "fitsNow": [
    "ashby:540c27e3-7ef2-786a-79ec-8160824035d1",
    "greenhouse:7233844",
-   "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
    "ashby:73a675aa-5b1b-ce0a-66de-2d8bad0584ea",
    "ashby:cf298539-f974-fe75-9d1e-4c6fe02ab851",
    "ashby:db881a93-cf82-2273-6890-0f2855015193",
    "greenhouse:8968335",
-   "ashby:6f63fe27-ada2-5c84-95cb-419040ef14bb"
+   "ashby:6f63fe27-ada2-5c84-95cb-419040ef14bb",
+   "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b"
   ],
   "stepTowardGoal": [],
   "stretch": [
@@ -285,8 +285,8 @@
  },
  "productOnlyFullstack": {
   "fitsNow": [
-   "ashby:4270a773-3007-cff8-71e1-d4e924bf09b4",
    "ashby:c3108f40-433f-7e7f-2542-b212f9d8c88b",
+   "ashby:4270a773-3007-cff8-71e1-d4e924bf09b4",
    "greenhouse:1285115",
    "greenhouse:8531401",
    "ashby:ade0c52c-026e-1397-ca55-acd1b735dd29",

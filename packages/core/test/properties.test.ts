@@ -1262,3 +1262,37 @@ test('E5 an HTML learner keeps Tech Trainee Programme: Developer in fitsNow', ()
   if (r.isErr()) throw new Error(r.error.kind);
   if (r.value.groups.fitsNow.length === 0 || !r.value.groups.fitsNow.some(x => x.id === 'e5')) throw new Error('fitsNow empty');
 });
+
+test('N6 a web-applications profile treats Product Engineer as a focus role and keeps engineer in the title tokens', () => {
+  const q = queryTokens('Senior software engineer with 8 years of experience building web applications in TypeScript and React');
+  if (!q.has('productengineer')) throw new Error('query missing productengineer');
+  if (!q.has('fullstack')) throw new Error('query missing fullstack');
+  const titleToks = tokensOf('Senior Product Engineer');
+  if (!titleToks.includes('productengineer') || !titleToks.includes('engineer')) throw new Error(`title tokens ${titleToks.join(',')}`);
+  if (titleFocus(q, 'Senior Product Engineer').roles < 1) throw new Error('product title has no role focus');
+  if (titleFocus(q, 'Senior Fullstack Engineer').roles < 1) throw new Error('fullstack title lost role focus');
+});
+
+test('N6b Member of Technical Staff keeps software and engineer tokens for a software-engineer query', () => {
+  const q = queryTokens('Senior software engineer with 8 years of experience building services in TypeScript');
+  const toks = tokensOf('Member of Technical Staff - SDK (Stockholm)');
+  if (!toks.includes('mts') || !toks.includes('software') || !toks.includes('engineer')) throw new Error(`mts tokens ${toks.join(',')}`);
+  const rel = relevance(q, { title: 'Member of Technical Staff - SDK (Stockholm)', role_tags: [] }, corpusStats([]));
+  if (rel <= 0) throw new Error(`mts relevance ${rel}`);
+});
+
+test('N6c a generalist scores Software Engineer - Product Engineering above Product Engineer or Software Engineer alone', () => {
+  const profile: MatchProfile = { description: 'Senior software engineer with 8 years of experience building web applications in TypeScript and React', region: 'EU', remote: 'any' };
+  const row = (id: string, title: string): PublicRow => ({ ...OPEN_ROW, id, company: id, title, url: `https://jobs.example.com/${id}`, role_tags: [], seniority: null });
+  const pool: PublicPool = { version: 'n6c', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' },
+    rows: [row('n6:both', 'Software Engineer - Product Engineering'), row('n6:pe', 'Product Engineer'), row('n6:se', 'Software Engineer')] };
+  const r = ok(profile, pool, BIG);
+  if (r.isErr()) throw new Error(r.error.kind);
+  const score = (id: string) => allRows(r).find(x => x.id === id)?.score;
+  const both = score('n6:both');
+  const pe = score('n6:pe');
+  const se = score('n6:se');
+  if (both === undefined || pe === undefined || se === undefined) throw new Error('missing row');
+  if (!(both > pe) || !(both > se)) throw new Error(`scores both=${both} pe=${pe} se=${se}`);
+  if (r.value.groups.fitsNow.every(x => x.id !== 'n6:both') || r.value.groups.fitsNow.every(x => x.id !== 'n6:pe')) throw new Error('not fitsNow');
+});
