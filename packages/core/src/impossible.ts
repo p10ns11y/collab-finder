@@ -1,6 +1,6 @@
 import type { LocalFx, AiCall, SpendApproval } from './effects.ts';
 import type { PublicRow } from './schema.ts';
-import { refresh } from './pipeline.ts';
+import { refresh } from './refresh.ts';
 import type { DecideRefreshSwap } from './decisions.ts';
 
 declare const localFx: LocalFx;
