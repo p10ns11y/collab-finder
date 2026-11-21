@@ -41,7 +41,7 @@
     "vite": "^5.4.19"
   },
   "dependencies": {
-    "@adaptate/core": "^2.2.2",
+    "@adaptate/core": "^2.2.4",
     "@fontsource-variable/dm-sans": "^5.2.8",
     "@xstate/react": "^6.1.0",
     "clsx": "^2.1.1",

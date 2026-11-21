@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@adaptate/core':
-        specifier: ^2.2.2
-        version: 2.2.2(zod@4.6.5)
+        specifier: ^2.2.4
+        version: 2.2.4(zod@4.6.5)
       '@fontsource-variable/dm-sans':
         specifier: ^5.2.8
         version: 5.2.8
@@ -87,8 +87,8 @@ importers:
 
 packages:
 
-  '@adaptate/core@2.2.2':
-    resolution: {integrity: sha512-FqqrFZTXJwY3fQ8sDBIpfURK91g2RTSFA1uBgqxy/43cUybowPhqj8Y8ixijCf7aW8+uSvVYra0ub9Jf6xl0+w==}
+  '@adaptate/core@2.2.4':
+    resolution: {integrity: sha512-2SlieLbKtd7JXfGtlbUJ1ZBmmc0xbPurZ/qOIDvMcta6D8gPyrjE9zGvQnC0T59Ojr3xzcA5BkpXA60FMIbKMw==}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1840,7 +1840,7 @@ packages:
 
 snapshots:
 
-  '@adaptate/core@2.2.2(zod@4.6.5)':
+  '@adaptate/core@2.2.4(zod@4.6.5)':
     dependencies:
       zod: 4.6.5
 
