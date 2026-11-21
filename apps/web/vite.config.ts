@@ -29,13 +29,6 @@ export default defineConfig({
     sourcemap: false,
     target: 'es2022',
     modulePreload: false,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('@ui-sdk') || id.includes('/sdk-path')) return 'ui-sdk';
-        },
-      },
-    },
   },
   server: { fs: { allow: ['../..'] } },
 });
