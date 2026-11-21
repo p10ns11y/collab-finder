@@ -1,9 +1,9 @@
-import { err, errAsync, ok, okAsync, Result, ResultAsync } from 'neverthrow';
+import { err, errAsync, ok, okAsync, Result, type ResultAsync } from 'neverthrow';
 import { match } from 'ts-pattern';
-import type { Actor, AppError, PiiKind, Source, VisitorError, Warning } from './errors.ts';
-import type { Clock, Fetch, Log, PoolStore } from './effects.ts';
-import type { DecideFit, DecideGroup, DecideRefreshSwap, Fit, GroupKey, MatchInput } from './decisions.ts';
-import { asResultCard, type PublicPool } from './schema.ts';
+import type { Actor, AppError, PiiKind, VisitorError, Warning } from './errors.ts';
+import type { Clock, Log, PoolStore } from './effects.ts';
+import type { DecideFit, DecideGroup, Fit, GroupKey, MatchInput } from './decisions.ts';
+import { asResultCard } from './schema.ts';
 import type { CardView } from './state.ts';
 
 const MIN_CHARS = 20;
@@ -31,15 +31,14 @@ export const matchStep = (fx: { pool: PoolStore; clock: Clock }, fit: DecideFit)
     const warnings: Warning[] = [];
     const ageDays = Math.floor((fx.clock.now().getTime() - Date.parse(pool.checkedRange.to)) / 864e5);
     if (ageDays > STALE_DAYS) warnings.push({ kind: 'PoolStale', checkedAt: `${pool.checkedRange.from}–${pool.checkedRange.to}`, ageDays });
-    return ResultAsync.combine(pool.rows.map(row => fit.decide({ input: i, row })))
-      .map(fs => ({ fits: fs.filter((f): f is Fit => f !== null), warnings }));
+    const fits = pool.rows.map(row => fit.decide({ input: i, row })).filter((f): f is Fit => f !== null);
+    return okAsync({ fits, warnings });
   }).andThen(m => (m.fits.length ? okAsync(m) : errAsync<Matched, AppError>({ kind: 'ZeroResults', widen: ['region', 'seniority'] })));
-export const groupStep = (g: DecideGroup, input: MatchInput) => (m: Matched): ResultAsync<Grouped, AppError> =>
-  ResultAsync.combine(m.fits.map(fit => g.decide({ input, fit }).map(k => [k, fit] as const))).map(pairs => {
-    const groups: Record<GroupKey, Fit[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
-    for (const [k, f] of pairs) groups[k].push(f);
-    return { groups, warnings: m.warnings };
-  });
+export const groupStep = (g: DecideGroup, input: MatchInput) => (m: Matched): ResultAsync<Grouped, AppError> => {
+  const groups: Record<GroupKey, Fit[]> = { fitsNow: [], stepTowardGoal: [], stretch: [] };
+  for (const fit of m.fits) groups[g.decide({ input, fit })].push(fit);
+  return okAsync({ groups, warnings: m.warnings });
+};
 export const render = (g: Grouped): Result<Rendered, AppError> => {
   const keys = Object.keys(g.groups) as GroupKey[];
   const groups = {} as Record<GroupKey, CardView[]>; const totals = {} as Record<GroupKey, number>;
@@ -56,9 +55,6 @@ export const runMatch = (fx: { pool: PoolStore; clock: Clock; log: Log }, d: { f
     validate(input).andThen(piiCheck(from)).asyncAndThen(matchStep(fx, d.fit)).andThen(groupStep(d.group, input)).andThen(render)
       .map(r => (fx.log.emit({ evt: 'match', ms: 0, count: r.totals.fitsNow }), r))
       .mapErr(e => (fx.log.emit({ evt: 'match', ms: 0, errorKind: e.kind }), e));
-
-export const refresh = (fx: { fetch: Fetch; pool: PoolStore; clock: Clock }, swap: DecideRefreshSwap, fetchAll: (f: Fetch) => ResultAsync<{ next: PublicPool; perSource: Record<Source, { before: number; after: number; ok: boolean }> }, AppError>) =>
-  fetchAll(fx.fetch).andThen(({ next, perSource }) => swap.decide({ perSource }).andThen(d => (d === 'swap' ? fx.pool.swap(next).map(() => 'swapped' as const) : okAsync('kept' as const))));
 
 export const OUT_OF_SCOPE_MSG = 'We cover software & AI engineering roles at ~510 tech companies, SE/EU/UK/US.';
 export type Recovery =
