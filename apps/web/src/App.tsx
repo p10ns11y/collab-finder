@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  poolStats, findPii, isAgencyRow, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  poolStats, findPii, isAgencyRow, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, readPool, recover, companyCount, scopeMessage, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
@@ -68,17 +68,20 @@ export function App() {
 
   const loadPool = useCallback(() => {
     setPool({ kind: 'loading' });
-    const getJson = (path: string) => fetch(path, { credentials: 'same-origin', cache: 'default' })
+    const getJson = (path: string, bust: string) => fetch(`${path}${bust}`, { credentials: 'same-origin', cache: bust ? 'reload' : 'default' })
       .then(r => (r.ok ? r.json() as Promise<unknown> : Promise.reject(new Error(String(r.status)))));
-    getJson('/pool.json')
+    const attempt = (bust: string): Promise<PublicPool> => getJson('/pool.json', bust)
       .then(async (index: unknown) => {
         const head = index as { shards?: unknown; version?: unknown; checkedRange?: unknown };
         if (!Array.isArray(head.shards)) return index;
-        const parts = await Promise.all(head.shards.filter((f): f is string => typeof f === 'string' && /^pool-\d+\.json$/.test(f)).map(f => getJson(`/${f}`)));
+        const parts = await Promise.all(head.shards.filter((f): f is string => typeof f === 'string' && /^pool-\d+\.json$/.test(f)).map(f => getJson(`/${f}`, bust)));
         return { version: head.version, checkedRange: head.checkedRange, rows: parts.flatMap(p => ((p as { rows?: unknown }).rows as unknown[] | undefined) ?? []) };
       })
-      .then((raw: unknown) => { const p = parsePool(raw); if (p.isOk()) poolStats(p.value); setPool(p.isOk() ? { kind: 'ready', pool: p.value } : { kind: 'failed' }); })
-      .catch(() => setPool({ kind: 'failed' }));
+      .then((raw: unknown) => { const p = readPool(raw); return p.isOk() ? p.value : Promise.reject(new Error(p.error.kind)); });
+    const refreshWorker = () => navigator.serviceWorker?.getRegistration().then(reg => reg?.update()).catch(() => undefined);
+    attempt('')
+      .catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); })
+      .then(p => { poolStats(p); setPool({ kind: 'ready', pool: p }); }, () => setPool({ kind: 'failed' }));
   }, []);
   useEffect(loadPool, [loadPool]);
 
@@ -142,7 +145,7 @@ export function App() {
       </header>
 
       <Alert tone="info" className="mb-6">
-        <strong className="font-semibold">Scope:</strong> {OUT_OF_SCOPE_MSG}
+        <strong className="font-semibold">Scope:</strong> {pool.kind === 'ready' ? scopeMessage(companyCount(pool.pool)) : OUT_OF_SCOPE_MSG}
         {pool.kind === 'ready' && (
           <span className="block mt-1">{pool.pool.rows.length.toLocaleString('en')} engineering roles, job facts and links only. Status last checked {pool.pool.checkedRange.to.slice(0, 10)}.</span>
         )}
