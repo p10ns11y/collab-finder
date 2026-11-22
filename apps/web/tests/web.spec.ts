@@ -349,9 +349,10 @@ test('sources, removal route and privacy page: linked from the footer, no script
   }
 });
 
-test('scope banner counts unique companies in the loaded pool', async ({ page }) => {
-  const pool = parsePool(JSON.parse(readFileSync(new URL('../public/pool.json', import.meta.url), 'utf8')))._unsafeUnwrap();
-  const n = companyCount(pool);
+test('scope banner counts unique companies in the loaded pool', async ({ page, request }) => {
+  const head = await (await request.get('/pool.json')).json() as { version?: unknown; checkedRange?: unknown; rows?: unknown[]; shards?: string[] };
+  const rows = head.shards ? (await Promise.all(head.shards.map(async f => ((await (await request.get(`/${f}`)).json()) as { rows: unknown[] }).rows))).flat() : head.rows;
+  const n = companyCount(parsePool({ version: head.version, checkedRange: head.checkedRange, rows })._unsafeUnwrap());
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
   await expect(page.getByText(`roles at ${n.toLocaleString('en')} tech companies`)).toBeVisible();
@@ -366,11 +367,12 @@ test.describe('roles load retry', () => {
       await page.route(/\/pool(-\d+)?\.json(\?.*)?$/, async route => {
         seen.push(new URL(route.request().url()).search);
         if (!first) return route.continue();
-        first = false;
-        if (broken === 'status') return route.fulfill({ status: 503, body: '' });
+        if (broken === 'status') { first = false; return route.fulfill({ status: 503, body: '' }); }
         const res = await route.fetch();
         const body = await res.json() as { rows?: Array<Record<string, unknown>> };
-        return route.fulfill({ response: res, json: { ...body, rows: (body.rows ?? []).map(r => ({ ...r, status: 42 })) } });
+        if (!body.rows) return route.fulfill({ response: res });
+        first = false;
+        return route.fulfill({ response: res, json: { ...body, rows: body.rows.map(r => ({ ...r, status: 42 })) } });
       });
       await page.goto('/');
       await expect(page.getByText(/engineering roles, job facts and links only/)).toBeVisible();
