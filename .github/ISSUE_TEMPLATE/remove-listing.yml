@@ -1,0 +1,25 @@
+name: Remove a listing
+description: Ask for a job listing or a whole board to be left out of kanithanj.ai
+title: "Remove listing: "
+body:
+  - type: input
+    id: link
+    attributes:
+      label: Posting or board link
+      description: The original posting URL or the job board URL.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: What should be removed
+      options:
+        - This posting
+        - Every posting from this board
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Anything else
+      description: Optional. Please do not include personal contact details.

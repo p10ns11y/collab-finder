@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  poolStats, findPii, isAgencyRow, match, mostlyNonLatin, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  poolStats, findPii, isAgencyRow, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, parsePool, recover, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type GroupKey, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
@@ -10,6 +10,9 @@ import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
 import { modelContext, registerWebMcp, type AgentSearch } from './webmcp.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
+
+const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
+const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
@@ -141,7 +144,7 @@ export function App() {
       <Alert tone="info" className="mb-6">
         <strong className="font-semibold">Scope:</strong> {OUT_OF_SCOPE_MSG}
         {pool.kind === 'ready' && (
-          <span className="block mt-1">{pool.pool.rows.length.toLocaleString('en')} listed roles, of which we match only engineering ones. Status last checked {pool.pool.checkedRange.to.slice(0, 10)}.</span>
+          <span className="block mt-1">{pool.pool.rows.length.toLocaleString('en')} engineering roles, job facts and links only. Status last checked {pool.pool.checkedRange.to.slice(0, 10)}.</span>
         )}
       </Alert>
 
@@ -167,8 +170,8 @@ export function App() {
         <div className="grid gap-2">
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
           <Input id="likes" name="likes" value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
-            placeholder="e.g. Spotify, Einride, robotics" aria-describedby="likes-help" autoComplete="off" />
-          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies and titles move up; nothing is added or removed. Stays in this browser tab and is never sent or saved.</p>
+            placeholder="e.g. Spotify, fintech, robotics" aria-describedby="likes-help" autoComplete="off" />
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies, titles and industries move up; nothing is added or removed. Industries we can tell from a company's own postings: {INDUSTRY_LABELS}. Stays in this browser tab and is never sent or saved.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -222,7 +225,12 @@ export function App() {
       </div>
 
       <footer className="mt-12 border-t border-border pt-4 text-xs text-text-muted">
-        Public job facts and links only. Postings belong to the employers; always check the posting before applying.
+        <p>Public job facts and links only. Postings belong to the employers; always check the posting before applying.</p>
+        <p className="mt-2">Sources: employers' public job boards on Greenhouse, Ashby, Lever and Workable, Platsbanken (JobTech, CC0) and Teamtailor career pages. No posting text is copied.</p>
+        <p className="mt-2">
+          <a className="underline" href={REMOVAL_URL} rel="noopener noreferrer" target="_blank">Ask to remove a listing</a>
+          {' · '}<a className="underline" href="/privacy.html">Privacy and terms</a>
+        </p>
       </footer>
     </div>
   );

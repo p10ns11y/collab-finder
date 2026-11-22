@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { transformSchema } from '@adaptate/core';
 import { err, ok, Result } from 'neverthrow';
 import type { PoolError } from './errors.ts';
+import { INDUSTRY_IDS } from './industry.ts';
 
 export const PERSONAL_KEYS = ['fit_score', 'fit_reasons', 'eu_moat', 'prior_application', 'work_rights', 'work_rights_reason', 'role_match'] as const;
 export type PersonalKey = (typeof PERSONAL_KEYS)[number];
@@ -11,6 +12,7 @@ export const PublicRowSchema = z.strictObject({
   location: z.string().nullable(), remote: z.enum(['remote', 'hybrid', 'onsite', 'unknown']),
   region: z.string().nullable(), role_tags: z.array(z.string()), seniority: z.string().nullable(),
   posted_at: z.string().nullable(), status: z.enum(['open', 'closed', 'unknown']), status_checked_at: z.string(),
+  industries: z.array(z.enum(INDUSTRY_IDS)).optional(),
 });
 type Row = z.infer<typeof PublicRowSchema>;
 

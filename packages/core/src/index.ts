@@ -12,3 +12,5 @@ export { isAgencyRow } from './vocab.ts';
 export { languageGo } from './vocab.ts';
 export { isSkillList, namesSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROLE_CAP, titleFocus, type TitleFocus, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
 export { isLocationPart } from './vocab.ts';
+export { INDUSTRIES, INDUSTRY_IDS, MIN_COMPANY_SHARE, MIN_DISTINCT_TERMS, companyIndustries, industriesOfText, industryOfLike, type Industry } from './industry.ts';
+export { buildPublicPool, honestRegion, inPoolScope, shapeRows, type PostingText, type ShapeStats } from './shape.ts';
