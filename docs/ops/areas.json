@@ -256,7 +256,8 @@
         ".gitignore",
         "src-tauri/.gitignore",
         "session-sot.example",
-        "skills-lock.json"
+        "skills-lock.json",
+        "LICENSE"
       ]
     },
     {
