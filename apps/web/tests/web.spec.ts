@@ -395,3 +395,26 @@ test.describe('roles load retry', () => {
     await expect(page.getByText('Could not load the roles')).toHaveCount(0);
   });
 });
+
+test('second visit: /privacy and /privacy.html load through the installed worker, also offline @firefox', async ({ page, context }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  const heading = page.getByRole('heading', { level: 1, name: 'Privacy and terms' });
+  await page.locator('footer').getByRole('link', { name: 'Privacy and terms' }).click();
+  await expect(heading).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  for (const path of ['/privacy', '/privacy.html', '/privacy/']) {
+    await page.goto(path);
+    await expect(heading).toBeVisible();
+  }
+  await context.setOffline(true);
+  await page.goto('/privacy');
+  await expect(heading).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await context.setOffline(false);
+});

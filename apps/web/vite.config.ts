@@ -19,6 +19,11 @@ const resolveUrl = (fromUrl: string, spec: string): string => {
   return `/${out.join('/')}`;
 };
 
+const cleanUrl = (file: string): string => {
+  const bare = file.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+  return bare.length > 1 ? bare.replace(/\/+$/, '') : '/';
+};
+
 const isRefreshable = (url: string): boolean => url === '/pool.json' || /^\/pool-\d+\.json$/.test(url);
 
 const staticAssets = (dist: string): Set<string> => {
@@ -51,14 +56,28 @@ const offlineServiceWorker = (): Plugin => ({
     for (const f of files) hash.update(readFileSync(join(dist, f)));
     const version = hash.digest('hex').slice(0, 16);
     const linked = staticAssets(dist);
-    const precache = ['/', ...files.filter(f => f !== '/index.html' && !isRefreshable(f) && (linked.has(f) || !f.startsWith('/assets/')))];
+    const precache = [...new Set(['/', ...files.filter(f => !isRefreshable(f) && (linked.has(f) || !f.startsWith('/assets/'))).map(cleanUrl)])];
     const template = readFileSync(new URL('./sw.template.js', import.meta.url), 'utf8');
     writeFileSync(join(dist, 'sw.js'), template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache)));
   },
 });
 
+const cleanUrlPreview = (): Plugin => ({
+  name: 'clean-url-preview',
+  apply: (_, env) => env.isPreview === true,
+  configurePreviewServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const path = (req.url ?? '/').split('?')[0] ?? '/';
+      if (!/\.html$/.test(path)) return next();
+      res.statusCode = 308;
+      res.setHeader('Location', cleanUrl(path));
+      res.end();
+    });
+  },
+});
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), offlineServiceWorker()],
+  plugins: [react(), tailwindcss(), offlineServiceWorker(), cleanUrlPreview()],
   build: {
     sourcemap: false,
     target: 'es2022',

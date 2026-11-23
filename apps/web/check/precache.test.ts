@@ -36,3 +36,11 @@ test('refreshable paths are network-first and only fall back to cache on fetch f
   const put = branch.indexOf('c.put(key');
   assert.ok(fetchFirst >= 0 && onFail > fetchFirst && put > fetchFirst && put < onFail);
 });
+
+test('precache uses clean URLs and the worker never stores a redirected response', () => {
+  const entries = precacheOf(readFileSync(here('../dist/sw.js'), 'utf8'));
+  assert.deepEqual(entries.filter(entry => entry.endsWith('.html') || (entry.length > 1 && entry.endsWith('/'))), []);
+  const template = readFileSync(here('../sw.template.js'), 'utf8');
+  assert.match(template, /res\.redirected \? new Response\(/);
+  assert.doesNotMatch(template, /addAll\(/);
+});
