@@ -53,7 +53,7 @@ test('vercel.json carries the CSP and security headers on every path', () => {
   assert.ok(!/unsafe-inline|unsafe-eval|\*|https?:/.test(csp), 'no wildcard, unsafe or remote source');
   assert.equal(header('Referrer-Policy'), 'no-referrer');
   assert.equal(header('X-Content-Type-Options'), 'nosniff');
-  assert.equal(header('X-Robots-Tag'), 'noindex');
+  assert.equal(header('X-Robots-Tag'), undefined);
   assert.match(header('Permissions-Policy') ?? '', /camera=\(\).*microphone=\(\).*geolocation=\(\)/);
 });
 
