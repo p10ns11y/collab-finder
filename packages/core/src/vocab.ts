@@ -169,8 +169,8 @@ const foldPlace = (s: string): string => s.toLowerCase().normalize('NFKD').repla
 const placeWords = (s: string): string[] => foldPlace(s).split(/[^a-z0-9]+/).filter(Boolean);
 const placeHas = (words: ReadonlyArray<string>, w: string): boolean => words.includes(w);
 const placePhrase = (words: ReadonlyArray<string>, p: string): boolean => ` ${words.join(' ')} `.includes(` ${p} `);
-const LATAM = new Set('brazil brasil argentina mexico chile colombia peru uruguay paraguay bolivia ecuador venezuela panama guatemala cuba honduras nicaragua latam'.split(' '));
-const LATAM_PHRASE = ['porto alegre', 'sao paulo', 'rio de janeiro', 'buenos aires', 'mexico city', 'costa rica', 'puerto rico', 'latin america'];
+const LATAM = new Set('brazil brasil bahia argentina mexico chile colombia peru uruguay paraguay bolivia ecuador venezuela panama guatemala cuba honduras nicaragua latam'.split(' '));
+const LATAM_PHRASE = ['porto alegre', 'porto seguro', 'rio grande do sul', 'sao paulo', 'rio de janeiro', 'buenos aires', 'mexico city', 'costa rica', 'puerto rico', 'latin america'];
 const OTHER_COUNTRY = new Set('canada india singapore australia japan china israel uae korea brazil'.split(' '));
 const SE_WORD = new Set('sweden sverige stockholm gothenburg goteborg malmo uppsala'.split(' '));
 const UK_WORD = new Set('uk england scotland wales london manchester edinburgh cambridge bristol oxford belfast glasgow'.split(' '));

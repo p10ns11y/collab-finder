@@ -35,7 +35,7 @@ test('the likes box is form state in the spec: shown results match it and person
 test('form text stays in the tab: no storage API and the pool load is the only fetch', () => {
   assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB|document\.cookie|sendBeacon|XMLHttpRequest|WebSocket/);
   assert.equal([...app.matchAll(/\bfetch\(/g)].length, 1);
-  assert.match(app, /fetch\(path, \{ credentials: 'same-origin'/);
+  assert.match(app, /fetch\(`\$\{path\}\$\{bust\}`, \{ credentials: 'same-origin'/);
 });
 
 const headers = JSON.parse(readFileSync(here('../vercel.json'), 'utf8')) as { headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }> };

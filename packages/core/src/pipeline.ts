@@ -56,7 +56,9 @@ export const runMatch = (fx: { pool: PoolStore; clock: Clock; log: Log }, d: { f
       .map(r => (fx.log.emit({ evt: 'match', ms: 0, count: r.totals.fitsNow }), r))
       .mapErr(e => (fx.log.emit({ evt: 'match', ms: 0, errorKind: e.kind }), e));
 
-export const OUT_OF_SCOPE_MSG = 'We cover software & AI engineering roles at ~510 tech companies, SE/EU/UK/US.';
+export const OUT_OF_SCOPE_MSG = 'We cover software & AI engineering roles at tech companies, SE/EU/UK/US.';
+export const scopeMessage = (companies: number): string =>
+  `We cover software & AI engineering roles at ${companies.toLocaleString('en')} tech ${companies === 1 ? 'company' : 'companies'}, SE/EU/UK/US.`;
 export type Recovery =
   | { ui: 'out-of-scope'; msg: string } | { ui: 'inline-field-error'; msg: string } | { ui: 'redact-preview'; spans: number } | { ui: 'retry-after'; s: number }
   | { ui: 'widen-chips'; chips: ReadonlyArray<string> } | { ui: 'partial-banner-retry' } | { ui: 'recheck-queued'; id: string }

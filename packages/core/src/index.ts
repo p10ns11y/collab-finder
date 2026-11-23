@@ -1,10 +1,10 @@
 export { match, poolStats, likedEntries, likesCompany, likesText, LIKED_POINTS, MAX_LIKES,SCORE_BUCKET, SKILL_POINTS, SKILL_LIST_PENALTY, LEVEL_RELEVANCE_STEP, PLACE_RELEVANCE, MOBILE_FREE_TOP, regionsOf, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, findPii, redactPii, validateProfile, understand, CORE_VERSION, MIN_CHARS, MAX_CHARS, STALE_DAYS, DEFAULT_LIMIT } from './match.ts';
 export type { Tier, RegionChoice, MatchProfile, MatchOptions, MatchRow, MatchResult, MatchError, Understood, Liked,RegionPref, RemotePref, PiiSpan } from './match.ts';
-export { parsePool } from './pool.ts';
+export { companyCount, parsePool, readPool } from './pool.ts';
 export { toPublicPool, type ExportFailure } from './export.ts';
 export { inScope, inLeadershipTrack } from './match.ts';
 export { inEnglish, mostlyNonLatin, isLeadershipRow, regionOf, SWEDISH } from './vocab.ts';
-export { recover, OUT_OF_SCOPE_MSG, type Recovery } from './pipeline.ts';
+export { recover, OUT_OF_SCOPE_MSG, scopeMessage, type Recovery } from './pipeline.ts';
 export { PublicRowSchema, privacyScan, exportRow, PERSONAL_KEYS, type PublicRow, type PublicPool } from './schema.ts';
 export type { GroupKey } from './decisions.ts';
 export type { VisitorError, Warning, AppError } from './errors.ts';
@@ -12,3 +12,5 @@ export { isAgencyRow } from './vocab.ts';
 export { languageGo } from './vocab.ts';
 export { isSkillList, namesSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROLE_CAP, titleFocus, type TitleFocus, corpusStats, queryTokens, relevance, tokensOf, rowTokens, type CorpusStats } from './relevance.ts';
 export { isLocationPart } from './vocab.ts';
+export { INDUSTRIES, INDUSTRY_IDS, MIN_COMPANY_SHARE, MIN_DISTINCT_TERMS, companyIndustries, industriesOfText, industryOfLike, type Industry } from './industry.ts';
+export { buildPublicPool, honestRegion, inPoolScope, shapeRows, type PostingText, type ShapeStats } from './shape.ts';

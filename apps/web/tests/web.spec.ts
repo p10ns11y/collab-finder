@@ -2,7 +2,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { ABUSE_INPUTS } from '../../../packages/core/test/abuse.ts';
 import { GOLDEN_INPUTS } from '../../../packages/core/test/golden-inputs.ts';
-import { parsePool } from '../../../packages/core/src/index.ts';
+import { companyCount, parsePool } from '../../../packages/core/src/index.ts';
 import { runMatch } from '../../../packages/core/src/surface.ts';
 
 const MARKER = 'quokkazebra';
@@ -330,4 +330,68 @@ test('product companies only is off by default and can be turned on', async ({ p
   await page.getByLabel(/Product companies only/).check();
   await fill(page, DESCRIPTION);
   await expect(page.getByTestId('results').or(page.getByTestId('zero-results'))).toBeVisible();
+});
+
+test('sources, removal route and privacy page: linked from the footer, no scripts, noindex, axe clean @firefox', async ({ page }) => {
+  await page.goto('/');
+  const footer = page.locator('footer');
+  await expect(footer).toContainText('Greenhouse, Ashby, Lever and Workable');
+  await expect(footer.getByRole('link', { name: 'Ask to remove a listing' })).toHaveAttribute('href', 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml');
+  await footer.getByRole('link', { name: 'Privacy and terms' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy and terms' })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+  expect(await page.locator('script').count()).toBe(0);
+  await expect(page.getByRole('link', { name: 'MIT License' })).toBeVisible();
+  if (test.info().project.name === 'chromium') {
+    const { default: AxeBuilder } = await import('@axe-core/playwright');
+    const found = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations.map(v => v.id);
+    expect(found).toEqual([]);
+  }
+});
+
+test('scope banner counts unique companies in the loaded pool', async ({ page, request }) => {
+  const head = await (await request.get('/pool.json')).json() as { version?: unknown; checkedRange?: unknown; rows?: unknown[]; shards?: string[] };
+  const rows = head.shards ? (await Promise.all(head.shards.map(async f => ((await (await request.get(`/${f}`)).json()) as { rows: unknown[] }).rows))).flat() : head.rows;
+  const n = companyCount(parsePool({ version: head.version, checkedRange: head.checkedRange, rows })._unsafeUnwrap());
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect(page.getByText(`roles at ${n.toLocaleString('en')} tech companies`)).toBeVisible();
+});
+
+test.describe('roles load retry', () => {
+  test.use({ serviceWorkers: 'block' });
+  for (const [name, broken] of [['the first roles fetch fails', 'status'], ['the first roles response does not parse', 'schema']] as const) {
+    test(`stale tab: when ${name}, one silent cache-busted retry loads the roles with no error @firefox`, async ({ page }) => {
+      const seen: string[] = [];
+      let first = true;
+      await page.route(/\/pool(-\d+)?\.json(\?.*)?$/, async route => {
+        seen.push(new URL(route.request().url()).search);
+        if (!first) return route.continue();
+        if (broken === 'status') { first = false; return route.fulfill({ status: 503, body: '' }); }
+        const res = await route.fetch();
+        const body = await res.json() as { rows?: Array<Record<string, unknown>> };
+        if (!body.rows) return route.fulfill({ response: res });
+        first = false;
+        return route.fulfill({ response: res, json: { ...body, rows: body.rows.map(r => ({ ...r, status: 42 })) } });
+      });
+      await page.goto('/');
+      await expect(page.getByText(/engineering roles, job facts and links only/)).toBeVisible();
+      await expect(page.getByText('Could not load the roles')).toHaveCount(0);
+      expect(seen[0]).toBe('');
+      expect(seen.some(s => /^\?r=\d+$/.test(s))).toBe(true);
+      await fill(page, DESCRIPTION, 'AI infrastructure');
+      await expect(page.getByTestId('results')).toBeVisible();
+    });
+  }
+
+  test('both attempts failing shows the error once with a working retry button', async ({ page }) => {
+    let calls = 0;
+    await page.route(/\/pool(-\d+)?\.json(\?.*)?$/, route => { calls += 1; return calls <= 2 ? route.fulfill({ status: 503, body: '' }) : route.continue(); });
+    await page.goto('/');
+    await expect(page.getByText('Could not load the roles')).toBeVisible();
+    expect(calls).toBe(2);
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByText(/engineering roles, job facts and links only/)).toBeVisible();
+    await expect(page.getByText('Could not load the roles')).toHaveCount(0);
+  });
 });

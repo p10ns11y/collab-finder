@@ -1,5 +1,6 @@
 const CACHE = 'kanithanj-__VERSION__';
 const PRECACHE = __PRECACHE__;
+const pageKey = (path) => [path, `${path}.html`].find(p => p !== '/' && p.endsWith('.html') && PRECACHE.includes(p)) ?? '/';
 const refreshable = (path) => path === '/pool.json' || /^\/pool-\d+\.json$/.test(path);
 
 self.addEventListener('install', event => {
@@ -15,7 +16,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
-  const key = event.request.mode === 'navigate' ? '/' : url.pathname;
+  const key = event.request.mode === 'navigate' ? pageKey(url.pathname) : url.pathname;
   if (refreshable(key)) {
     event.respondWith(
       fetch(event.request).then(res => {
