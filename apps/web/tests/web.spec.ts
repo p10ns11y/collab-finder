@@ -332,14 +332,14 @@ test('product companies only is off by default and can be turned on', async ({ p
   await expect(page.getByTestId('results').or(page.getByTestId('zero-results'))).toBeVisible();
 });
 
-test('sources, removal route and privacy page: linked from the footer, no scripts, noindex, axe clean @firefox', async ({ page }) => {
+test('sources, removal route and privacy page: linked from the footer, no scripts, indexable, axe clean @firefox', async ({ page }) => {
   await page.goto('/');
   const footer = page.locator('footer');
   await expect(footer).toContainText('Greenhouse, Ashby, Lever and Workable');
   await expect(footer.getByRole('link', { name: 'Ask to remove a listing' })).toHaveAttribute('href', 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml');
   await footer.getByRole('link', { name: 'Privacy and terms' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Privacy and terms' })).toBeVisible();
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+  await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
   expect(await page.locator('script').count()).toBe(0);
   await expect(page.getByRole('link', { name: 'MIT License' })).toBeVisible();
   if (test.info().project.name === 'chromium') {
