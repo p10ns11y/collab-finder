@@ -232,7 +232,7 @@ export function App() {
         <p className="mt-2">Sources: employers' public job boards on Greenhouse, Ashby, Lever and Workable, Platsbanken (JobTech, CC0) and Teamtailor career pages. No posting text is copied.</p>
         <p className="mt-2">
           <a className="underline" href={REMOVAL_URL} rel="noopener noreferrer" target="_blank">Ask to remove a listing</a>
-          {' · '}<a className="underline" href="/privacy.html">Privacy and terms</a>
+          {' · '}<a className="underline" href="/privacy">Privacy and terms</a>
         </p>
       </footer>
     </div>
