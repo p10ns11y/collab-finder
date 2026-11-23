@@ -422,33 +422,30 @@ test('second visit: /privacy and /privacy.html load through the installed worker
 
 const chip = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 
-test('reveal: one question first, then count, read-back, first 3 fits, growth, never an empty group @firefox', async ({ page }) => {
+test('reveal: one question first, then breadth, strengths, first 3 fits, growth, never an empty group @firefox', async ({ page }) => {
   const requests: Request[] = [];
   page.on('request', r => requests.push(r));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'What do you do today?' })).toBeVisible();
-  for (const id of ['live-count', 'read-back', 'first-fits', 'results']) await expect(page.getByTestId(id)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'What have you been doing these last years?' })).toBeVisible();
+  for (const id of ['live-count', 'read-back', 'first-fits', 'results', 'found-line']) await expect(page.getByTestId(id)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Find roles' })).toHaveCount(0);
   await expect(page.getByTestId('progress')).toHaveAttribute('aria-label', '0 of 4 unlocked');
 
-  await chip(page, 'Backend').click();
-  await expect(page.getByTestId('live-count')).toBeVisible();
-  const first = await page.getByTestId('live-count').innerText();
-  await expect(page.getByRole('heading', { name: 'How senior are you?' })).toBeVisible();
+  await chip(page, 'Back-end systems').click();
+  await expect(page.getByTestId('live-count')).toHaveText(/^[\d,]+ roles .*in \d+ countr/);
+  await expect(page.getByRole('heading', { name: 'Where do you live now?' })).toBeVisible();
   await expect(page.getByTestId('read-back')).toHaveCount(0);
 
   await page.getByTestId('free-text').fill(`I use Go and Postgres every day ${MARKER}`);
-  await chip(page, 'Senior').click();
-  await expect(page.getByTestId('read-back')).toContainText('You sound like a senior backend engineer who works with Go');
-  await expect(page.getByTestId('first-fits')).toHaveCount(0);
-
+  await chip(page, '10+ years').click();
   await chip(page, 'Sweden').click();
-  await expect(page.getByTestId('live-count')).not.toHaveText(first);
-  await chip(page, 'Sweden').click();
-  await chip(page, 'Anywhere').click();
+  await expect(page.getByTestId('read-back')).toContainText('Your strengths carry across fields: 10+ years of seeing work through');
+  await expect(page.getByTestId('read-back')).toContainText('hands-on with Go');
+  await expect(page.getByTestId('read-back')).not.toContainText(/You sound like an? /);
   const fits = page.getByTestId('first-fits').locator('[data-posting-id]');
   await expect(fits).toHaveCount(3);
   for (const why of await page.getByTestId('first-fits').getByTestId('why').allInnerTexts()) expect(why).toMatch(/^[A-Z].+\.$/);
+  await expect(page.getByTestId('first-fits').getByTestId('pick-label')).toContainText(['Outside Sweden, worth a look']);
   await expect(page.getByTestId('first-fits')).not.toContainText(/Seniority not stated|Last checked/);
   await expect(page.getByRole('heading', { name: 'Where do you want to grow?' })).toBeVisible();
   await expect(page.locator('[data-testid^="group-"]')).toHaveCount(0);
@@ -459,13 +456,48 @@ test('reveal: one question first, then count, read-back, first 3 fits, growth, n
   const groups = page.locator('[data-testid^="group-"]');
   await expect(groups.first()).toBeVisible();
   for (const g of await groups.all()) expect(await g.locator('[data-posting-id]').count()).toBeGreaterThan(0);
+  await page.getByTestId('first-fits').getByTestId('new-to-me').first().click();
+  await expect(page.getByTestId('found-line')).toHaveText(/^You found 1 new option in \d+ seconds\.$/);
+  const stored = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('kanithanj.found') ?? 'null'))).toMatchObject({ found: 1, firstMs: expect.any(Number) });
+  expect(stored).not.toContain(MARKER);
   expect(requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres every'))).toHaveLength(0);
+});
+
+test('reveal: where the pool has fields, the count spans them and one fit is a gentle pivot', async ({ page }) => {
+  const sample = JSON.parse(readFileSync(new URL('../public/pool.json', import.meta.url), 'utf8')) as { rows: Array<Record<string, unknown>> };
+  const cycle = ['fintech', 'healthtech', 'climate', 'devtools', 'security', 'ecommerce'];
+  const pool = { ...sample, rows: sample.rows.map((r, i) => ({ ...r, industries: [cycle[i % cycle.length]] })) };
+  await page.route(/\/pool\.json(\?.*)?$/, route => route.fulfill({ json: pool }));
+  await page.goto('/');
+  await chip(page, 'Back-end systems').click();
+  await expect(page.getByTestId('live-count')).toHaveText(/roles across \d+ fields in \d+ countr/);
+  await chip(page, 'United States').click();
+  await expect(page.getByTestId('first-fits').getByTestId('pick-label').first()).toHaveText(/^A pivot worth a look: /);
+  await expect(page.getByTestId('read-back')).toContainText(/Here they are wanted in /);
+});
+
+test('after load, using the reveal and the proof taps makes no network requests', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('freshness')).toHaveText(/[\d,]+ engineering roles at [\d,]+ tech companies/);
+  await page.waitForLoadState('networkidle');
+  const after: string[] = [];
+  page.on('request', r => { const u = new URL(r.url()); if (!(u.origin === 'http://127.0.0.1:4173' && /^\/assets\//.test(u.pathname))) after.push(r.url()); });
+  await chip(page, 'Data and reporting').click();
+  await chip(page, 'Back-end systems').click();
+  await chip(page, '15+ years').click();
+  await chip(page, 'United Kingdom').click();
+  await page.getByTestId('first-fits').getByTestId('new-to-me').first().click();
+  await chip(page, 'Not sure yet').click();
+  await expect(page.getByTestId('found-line')).toBeVisible();
+  await page.waitForTimeout(500);
+  expect(after).toEqual([]);
 });
 
 test('reveal respects reduced motion: no animation on revealed parts', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await chip(page, 'Backend').click();
+  await chip(page, 'Back-end systems').click();
   await expect(page.getByTestId('live-count')).toBeVisible();
   expect(await page.getByTestId('live-count').evaluate(e => getComputedStyle(e).animationName)).toBe('none');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -474,10 +506,12 @@ test('reveal respects reduced motion: no animation on revealed parts', async ({ 
 
 test.describe('mobile reveal', () => {
   test.use({ viewport: { width: 390, height: 664 }, isMobile: true, hasTouch: true });
-  test('one tap puts a live result above the fold', async ({ page }) => {
+  test('one tap puts a live result above the fold and it stays in view', async ({ page }) => {
     await page.goto('/');
-    await chip(page, 'Fullstack').tap();
-    await expect(page.getByTestId('live-count')).toBeInViewport();
+    await chip(page, 'Whole products, end to end').tap();
+    await expect(page.getByTestId('live-count')).toBeInViewport({ ratio: 1 });
+    await page.mouse.wheel(0, 400);
+    await expect(page.getByTestId('live-count')).toBeInViewport({ ratio: 1 });
   });
 });
 

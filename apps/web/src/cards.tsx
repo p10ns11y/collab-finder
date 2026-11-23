@@ -1,4 +1,6 @@
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { isAgencyRow, type GroupKey, type MatchResult, type MatchRow } from '../../../packages/core/src/index.ts';
+import { writeFound, type Found } from './breadth.ts';
 import { Badge } from './components/ui/badge.tsx';
 import { Card } from './components/ui/card.tsx';
 
@@ -24,10 +26,30 @@ const displayCompany = (c: string) =>
 
 const ageLabel = (days: number) => (days === 1 ? '1 day ago' : `${days} days ago`);
 
-export function RoleCard({ row }: { row: MatchRow }) {
+type Proof = Found & { ids: ReadonlySet<string>; mark: (id: string, found: boolean) => void };
+const ProofContext = createContext<Proof | null>(null);
+export const useProof = () => useContext(ProofContext);
+
+export function ProofProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<{ ids: ReadonlySet<string>; firstMs: number | null }>({ ids: new Set(), firstMs: null });
+  const mark = useCallback((id: string, found: boolean) => setState(s => {
+    const firstMs = s.firstMs ?? Math.round(performance.now());
+    const ids = found && !s.ids.has(id) ? new Set([...s.ids, id]) : s.ids;
+    if (ids === s.ids && firstMs === s.firstMs) return s;
+    writeFound({ found: ids.size, firstMs });
+    return { ids, firstMs };
+  }), []);
+  const value = useMemo(() => ({ ...state, found: state.ids.size, mark }), [state, mark]);
+  return <ProofContext.Provider value={value}>{children}</ProofContext.Provider>;
+}
+
+export function RoleCard({ row, label = null }: { row: MatchRow; label?: string | null }) {
   const company = displayCompany(row.company);
+  const proof = useProof();
+  const noted = proof?.ids.has(row.id) ?? false;
   return (
     <Card className="h-full" data-posting-id={row.id}>
+      {label && <p className="mb-1 text-xs font-medium text-accent" data-testid="pick-label">{label}</p>}
       <h4 className="text-base font-semibold">{row.title}</h4>
       <p className="text-sm text-text-muted">{company}{row.location ? ` · ${row.location}` : ''}</p>
       <p className="mt-2 text-sm text-text" data-testid="why">{whyLine(row.reasons)}</p>
@@ -41,7 +63,13 @@ export function RoleCard({ row }: { row: MatchRow }) {
         {row.reasons.some(r => r.startsWith('Title points to a different specialty')) && <Badge tone="warn">Different specialty</Badge>}
       </div>
       <a className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-accent"
-        href={row.url} target="_blank" rel="noopener noreferrer">View posting<span className="sr-only"> for {row.title} at {company} (opens in a new tab)</span></a>
+        href={row.url} target="_blank" rel="noopener noreferrer" onClick={() => proof?.mark(row.id, false)}>View posting<span className="sr-only"> for {row.title} at {company} (opens in a new tab)</span></a>
+      {proof && (
+        <button type="button" aria-pressed={noted} disabled={noted} onClick={() => proof.mark(row.id, true)} data-testid="new-to-me"
+          className="ml-4 inline-block min-h-11 text-sm text-text-muted underline underline-offset-2 hover:text-text disabled:no-underline focus-visible:outline-2 focus-visible:outline-accent">
+          {noted ? 'Noted' : 'I didn’t know about this'}
+        </button>
+      )}
     </Card>
   );
 }

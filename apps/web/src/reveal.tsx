@@ -1,53 +1,52 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { findPii, match, redactPii, MIN_CHARS, MAX_CHARS, type MatchResult, type PublicPool, type RegionPref, type RemotePref, type Understood } from '../../../packages/core/src/index.ts';
+import { DEFAULT_LIMIT, findPii, industriesOfText, match, redactPii, MIN_CHARS, MAX_CHARS, type MatchResult, type PublicPool, type Understood } from '../../../packages/core/src/index.ts';
+import { label } from '../../../packages/core/src/vocab.ts';
+import { breadth, fieldIndex, fieldLabel, firstThree, trim, type Home } from './breadth.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input, Textarea } from './components/ui/field.tsx';
-import { Groups, RoleCard } from './cards.tsx';
+import { Groups, RoleCard, useProof } from './cards.tsx';
 
-type Place = Exclude<RegionPref, 'any'>;
 const ROLES: ReadonlyArray<[string, string]> = [
-  ['backend engineer', 'Backend'], ['frontend engineer', 'Frontend'], ['fullstack engineer', 'Fullstack'],
-  ['platform engineer working on DevOps', 'Platform or DevOps'], ['data engineer', 'Data'], ['machine learning engineer', 'Machine learning'],
-  ['security engineer', 'Security'], ['engineering manager', 'Engineering manager'],
+  ['backend engineer', 'Back-end systems'], ['frontend engineer', 'Websites and screens'], ['fullstack engineer', 'Whole products, end to end'],
+  ['platform engineer working on DevOps', 'Servers, cloud and operations'], ['data engineer', 'Data and reporting'], ['machine learning engineer', 'Machine learning'],
+  ['security engineer', 'Security'], ['engineering manager', 'Leading a tech team'],
 ];
-const LEVELS: ReadonlyArray<[string, string]> = [['mid-level', 'Mid-level'], ['senior', 'Senior'], ['staff', 'Staff or principal'], ['lead', 'Lead']];
-const PLACES: ReadonlyArray<[string, string, ReadonlyArray<Place>, RemotePref]> = [
-  ['SE', 'Sweden', ['SE'], 'any'], ['EU', 'Anywhere in the EU', ['EU'], 'any'], ['UK', 'United Kingdom', ['UK'], 'any'],
-  ['US', 'United States', ['US'], 'any'], ['remote', 'Remote only', [], 'remote'], ['any', 'Anywhere', [], 'any'],
-];
+const TENURE: ReadonlyArray<[string, string]> = [['5+', '5+ years'], ['10+', '10+ years'], ['15+', '15+ years']];
+const HOMES: ReadonlyArray<[Home, string]> = [['SE', 'Sweden'], ['EU', 'Elsewhere in the EU'], ['UK', 'United Kingdom'], ['US', 'United States'], ['other', 'Somewhere else']];
 const GROWTH: ReadonlyArray<[string, string]> = [
   ['AI infrastructure, machine learning', 'AI and machine learning'], ['platform engineering, infrastructure', 'Platform and infrastructure'],
   ['engineering manager', 'Leading a team'], ['product engineering', 'Product engineering'],
 ];
-const PLACE_NAME: Readonly<Record<string, string>> = { SE: 'Sweden', EU: 'the EU', UK: 'the UK', US: 'the US' };
-const ROLE_NAME: Readonly<Record<string, string>> = { infra: 'infrastructure', ml: 'machine learning', leadership: 'engineering leadership' };
-const SKILL_NAME: Readonly<Record<string, string>> = { typescript: 'TypeScript', javascript: 'JavaScript', sql: 'SQL', aws: 'AWS', gcp: 'GCP', llm: 'LLMs', ml: 'machine learning', css: 'CSS', ios: 'iOS', graphql: 'GraphQL', postgres: 'Postgres' };
-const NOWHERE: ReadonlyArray<Place> = [];
-const STEPS = ['Your count', 'Your read', 'Your fits', 'Your growth'];
+const STRENGTH: Readonly<Record<string, string>> = {
+  backend: 'building reliable systems', frontend: 'making software easy to use',
+  fullstack: 'taking a product from screen to database', platform: 'keeping important systems running', infra: 'keeping important systems running',
+  data: 'turning data into something people trust', ml: 'making models useful in real work', ai: 'putting AI to practical use',
+  security: 'protecting systems and people', leadership: 'leading people through change',
+};
+const STEPS = ['Your options', 'Your strengths', 'Your fits', 'Your growth'];
 
-const skillName = (k: string) => SKILL_NAME[k] ?? `${k.charAt(0).toUpperCase()}${k.slice(1)}`;
 const list = (xs: ReadonlyArray<string>) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
+const n = (x: number) => x.toLocaleString('en');
 
-export const describe = (roles: ReadonlyArray<string>, level: string | null, free: string): string => {
-  const head = roles.length ? `${level ? `${level} ` : ''}${roles.join(' and ')}` : level && free.trim() ? level : '';
-  const text = [head, free.trim()].filter(Boolean).join(roles.length ? '. ' : ' ');
+export const describe = (roles: ReadonlyArray<string>, tenure: string | null, free: string): string => {
+  const years = tenure ? ` with ${tenure} years of experience` : '';
+  const head = roles.length ? `${roles.join(' and ')}${years}` : free.trim() && tenure ? `${tenure} years of experience` : '';
+  const text = [head, free.trim()].filter(Boolean).join(roles.length ? '. ' : ', ');
   return text.length >= MIN_CHARS || !roles.length ? text : `I work as ${article(head)} ${text}`;
 };
 
-export const readBack = (u: Understood, regions: ReadonlyArray<string>, remote: RemotePref): string => {
-  const kinds = u.roles.map(r => ROLE_NAME[r] ?? r);
-  const lead = kinds.includes('engineering leadership');
-  const what = lead ? 'engineering leader' : `${kinds.length ? `${list(kinds.slice(0, 2))} ` : 'software '}engineer`;
-  const who = `${u.seniority && u.seniority !== 'mid' ? `${u.seniority} ` : u.seniority === 'mid' ? 'mid-level ' : ''}${what}`;
-  const skills = u.skills.length ? ` who works with ${list(u.skills.slice(0, 3).map(skillName))}` : '';
-  const at = regions.length ? ` looking in ${list(regions.map(r => PLACE_NAME[r] ?? r))}` : remote === 'remote' ? ' who wants to work remotely' : u.places.length ? ` around ${list(u.places.map(r => PLACE_NAME[r] ?? r))}` : '';
-  return `You sound like ${article(who)} ${who}${skills}${skills && at ? ',' : ''}${at}.`;
+export const readBack = (u: Understood, tenure: string | null, fields: ReadonlyArray<string>): string => {
+  const strengths = [...new Set(u.roles.flatMap(r => (STRENGTH[r] ? [STRENGTH[r]] : [])))].slice(0, 2);
+  const skills = u.skills.slice(0, 3).map(label);
+  const parts = [...(tenure ? [`${tenure} years of seeing work through`] : []), ...(strengths.length ? strengths : ['solving problems with software']), ...(skills.length ? [`hands-on with ${list(skills)}`] : [])];
+  const named = fields.slice(0, 2).map(f => f.toLowerCase());
+  const more = fields.length - named.length;
+  const where = fields.length >= 2 ? ` Here they are wanted in ${named.join(', ')}${more > 0 ? ` and ${more} more field${more === 1 ? '' : 's'}` : ''}.` : '';
+  return `Your strengths carry across fields: ${list(parts)}.${where}`;
 };
 
-const total = (r: MatchResult) => r.totals.fitsNow + r.totals.stepTowardGoal + r.totals.stretch;
-const topThree = (r: MatchResult) => [...r.groups.fitsNow, ...r.groups.stretch].slice(0, 3);
 
 function Chips({ name, options, chosen, onPick }: { name: string; options: ReadonlyArray<[string, string]>; chosen: ReadonlyArray<string>; onPick: (v: string) => void }) {
   return (
@@ -72,14 +71,15 @@ function Dots({ step }: { step: number }) {
   );
 }
 
-function Count({ n }: { n: number }) {
-  const [seen, setSeen] = useState({ n, prev: n });
-  useEffect(() => { setSeen(s => (s.n === n ? s : { n, prev: s.n })); }, [n]);
+function Count({ roles, fields, countries }: { roles: number; fields: number; countries: number }) {
+  const [seen, setSeen] = useState({ n: roles, prev: roles });
+  useEffect(() => { setSeen(s => (s.n === roles ? s : { n: roles, prev: s.n })); }, [roles]);
   const delta = seen.n - seen.prev;
+  const span = [...(fields >= 2 ? [`across ${n(fields)} fields`] : []), ...(countries >= 1 ? [`in ${n(countries)} ${countries === 1 ? 'country' : 'countries'}`] : [])].join(' ');
   return (
-    <p className="reveal text-lg" data-testid="live-count" aria-live="polite">
-      <span key={seen.n} className="pop text-4xl font-semibold tabular-nums text-accent">{seen.n.toLocaleString('en')}</span> roles fit so far
-      {delta !== 0 && <span className="ml-2 text-sm text-text-muted">{delta > 0 ? '+' : '−'}{Math.abs(delta).toLocaleString('en')}</span>}
+    <p className="reveal sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-2 text-lg backdrop-blur-sm" data-testid="live-count" aria-live="polite">
+      <span key={seen.n} className="pop text-4xl font-semibold tabular-nums text-accent">{n(seen.n)}</span> roles {span || 'open to you'}
+      {delta !== 0 && <span className="ml-2 text-sm text-text-muted">{delta > 0 ? '+' : '−'}{n(Math.abs(delta))}</span>}
     </p>
   );
 }
@@ -89,38 +89,45 @@ const Question = ({ id, children }: { id: string; children: string }) => <h2 id=
 export function Reveal({ pool }: { pool: PublicPool }) {
   const [roles, setRoles] = useState<ReadonlyArray<string>>([]);
   const [free, setFree] = useState('');
-  const [level, setLevel] = useState<string | null>(null);
-  const [place, setPlace] = useState<string | null>(null);
+  const [tenure, setTenure] = useState<string | null>(null);
+  const [home, setHome] = useState<Home | null>(null);
   const [goal, setGoal] = useState('');
   const [growth, setGrowth] = useState<string | null>(null);
   const [all, setAll] = useState(false);
-  const description = useDeferredValue(describe(roles, level, free));
+  const proof = useProof();
+  const fields = useMemo(() => fieldIndex(pool), [pool]);
+  const description = useDeferredValue(describe(roles, tenure, free));
   const deferredGoal = useDeferredValue(goal || (growth && growth !== 'skip' ? growth : ''));
-  const chosenPlace = PLACES.find(p => p[0] === place);
-  const regions = chosenPlace?.[2] ?? NOWHERE;
-  const remote = chosenPlace?.[3] ?? 'any';
   const pii = useMemo(() => [...new Set(findPii(`${free}\n${goal}`).map(s => s.pii))], [free, goal]);
   const live = useMemo(() => (description.length < MIN_CHARS || pii.length ? null
-    : match({ description, goal: deferredGoal, likes: '', region: [...regions], remote, productOnly: false }, pool)), [description, deferredGoal, regions, remote, pii.length, pool]);
+    : match({ description, goal: deferredGoal, likes: '', region: [], remote: 'any', productOnly: false }, pool, { limit: pool.rows.length })), [description, deferredGoal, pii.length, pool]);
   const fresh = live?.isOk() ? live.value : null;
   const lastOk = useRef<MatchResult | null>(null);
   if (fresh) lastOk.current = fresh;
   const none = live?.isErr() === true && live.error.kind === 'ZeroResults';
   const ok = fresh ?? (none ? lastOk.current : null);
-  const count = fresh ? total(fresh) : 0;
-  const inferredPlace = ok && !place && ok.understood.places.length > 0;
-  const step = !ok ? 0 : !(level || ok.understood.seniority) ? 1 : !(place || inferredPlace) ? 2 : !(growth || goal.trim()) ? 3 : 4;
+  const wide = useMemo(() => (fresh ? breadth(fresh, fields) : { roles: 0, fields: [], countries: 0 }), [fresh, fields]);
+  const homeFields = useMemo(() => industriesOfText(free), [free]);
+  const picks = useMemo(() => (fresh ? firstThree(fresh, fields, home, homeFields) : []), [fresh, fields, home, homeFields]);
+  const shown = useMemo(() => (fresh ? trim(fresh, DEFAULT_LIMIT) : null), [fresh]);
+  const step = !ok ? 0 : !home ? 1 : !(growth || goal.trim()) ? 3 : 4;
   const pickRole = (v: string) => setRoles(rs => (rs.includes(v) ? rs.filter(r => r !== v) : [...rs, v].slice(-2)));
+  const toggle = <T,>(set: (f: (x: T | null) => T | null) => void, v: T) => set(x => (x === v ? null : v));
 
   return (
     <section aria-labelledby="q-role" className="grid gap-8" data-testid="reveal">
       <div className="flex items-center justify-between gap-4"><Dots step={step} /><a className="text-sm text-text-muted underline" href="#all">Show all options</a></div>
+      {ok && <Count roles={fresh ? wide.roles : 0} fields={fresh ? wide.fields.length : 0} countries={fresh ? wide.countries : 0} />}
       <div className="grid gap-4">
-        <Question id="q-role">What do you do today?</Question>
-        <Chips name="What do you do today?" options={ROLES} chosen={roles} onPick={pickRole} />
+        <Question id="q-role">What have you been doing these last years?</Question>
+        <Chips name="What have you been doing these last years?" options={ROLES} chosen={roles} onPick={pickRole} />
+        <div className="grid gap-2">
+          <p className="text-sm text-text-muted" id="q-tenure">For how long? (optional)</p>
+          <Chips name="For how long?" options={TENURE} chosen={tenure ? [tenure] : []} onPick={v => toggle(setTenure, v)} />
+        </div>
         <label className="grid gap-1 text-sm text-text-muted">
           Or say it in your own words
-          <Textarea value={free} maxLength={MAX_CHARS + 200} rows={2} onChange={e => setFree(e.target.value)} placeholder="e.g. 6 years of Go and Postgres, payments APIs" autoComplete="off" spellCheck data-testid="free-text" />
+          <Textarea value={free} maxLength={MAX_CHARS + 200} rows={2} onChange={e => setFree(e.target.value)} placeholder="e.g. Java and SQL for a bank" autoComplete="off" spellCheck data-testid="free-text" />
         </label>
         {pii.length > 0 && (
           <Alert tone="warn" role="alert" data-testid="pii-warning">
@@ -128,47 +135,45 @@ export function Reveal({ pool }: { pool: PublicPool }) {
             <Button type="button" variant="outline" size="sm" className="ml-2" onClick={() => { setFree(f => redactPii(f)); setGoal(g => redactPii(g)); }}>Remove them</Button>
           </Alert>
         )}
-        {live?.isErr() && live.error.kind === 'OutOfScope' && <Alert tone="trap" data-testid="out-of-scope">We cover software and AI engineering roles at tech companies for now.</Alert>}
+        {live?.isErr() && live.error.kind === 'OutOfScope' && <Alert tone="trap" data-testid="out-of-scope">For now we list software and AI engineering roles at tech companies.</Alert>}
       </div>
 
-      {ok && <Count n={count} />}
-      {none && <p className="text-sm text-text-muted" data-testid="none-there">No roles match that yet. Try a wider choice.</p>}
+      {none && <p className="text-sm text-text-muted" data-testid="none-there">Nothing matches that exact mix yet. Try one choice fewer.</p>}
 
       {step >= 1 && ok && (
         <div className="reveal grid gap-3">
-          <Question id="q-level">How senior are you?</Question>
-          <Chips name="How senior are you?" options={LEVELS} chosen={level ? [level] : []} onPick={v => setLevel(l => (l === v ? null : v))} />
-          {!level && ok.understood.seniority && <p className="text-sm text-text-muted">Read from your words: {ok.understood.seniority}.</p>}
-        </div>
-      )}
-
-      {step >= 2 && ok && (
-        <div className="reveal grid gap-3">
-          <p className="text-xl font-medium text-balance" data-testid="read-back">{readBack(ok.understood, regions, remote)}</p>
-          <p className="text-xs text-text-muted">Read only from what you typed and tapped, here in your browser.</p>
-          <Question id="q-place">Where do you want to work?</Question>
-          <Chips name="Where do you want to work?" options={PLACES.map(([v, l]) => [v, l] as [string, string])} chosen={place ? [place] : []} onPick={v => setPlace(p => (p === v ? null : v))} />
+          <Question id="q-home">Where do you live now?</Question>
+          <Chips name="Where do you live now?" options={HOMES} chosen={home ? [home] : []} onPick={v => toggle(setHome, v as Home)} />
         </div>
       )}
 
       {step >= 3 && ok && (
-        <div className="reveal grid gap-4">
+        <div className="reveal grid gap-3">
+          <p className="text-xl font-medium text-balance" data-testid="read-back">{readBack(ok.understood, tenure, wide.fields.map(fieldLabel))}</p>
+          <p className="text-xs text-text-muted">Read only from what you typed and tapped, here in your browser.</p>
+        </div>
+      )}
+
+      {step >= 3 && ok && (
+        <div className="reveal reveal-late grid gap-4">
           <h2 className="text-xl font-semibold">Your first 3 fits</h2>
-          {fresh && <ul className="grid gap-3 md:grid-cols-3" data-testid="first-fits">{topThree(fresh).map(r => <li key={r.id} className="reveal reveal-late"><RoleCard row={r} /></li>)}</ul>}
+          {fresh && <ul className="grid gap-3 md:grid-cols-3" data-testid="first-fits">{picks.map(p => <li key={p.row.id}><RoleCard row={p.row} label={p.label} /></li>)}</ul>}
           <Question id="q-grow">Where do you want to grow?</Question>
-          <Chips name="Where do you want to grow?" options={[...GROWTH, ['skip', 'Not sure yet']]} chosen={growth ? [growth] : []} onPick={v => setGrowth(g => (g === v ? null : v))} />
+          <Chips name="Where do you want to grow?" options={[...GROWTH, ['skip', 'Not sure yet']]} chosen={growth ? [growth] : []} onPick={v => toggle(setGrowth, v)} />
           <Input aria-label="Or name it" value={goal} onChange={e => setGoal(e.target.value)} placeholder="Or name it, e.g. robotics" autoComplete="off" />
         </div>
       )}
 
-      {step >= 4 && fresh && (
+      {step >= 4 && shown && (
         <div className="reveal grid gap-4" data-testid="results">
-          <p className="text-sm text-text-muted">Unlocked: roles toward your goal and stretch roles.</p>
-          {all ? <Groups result={fresh} keys={['fitsNow', 'stepTowardGoal', 'stretch']} /> : (
+          {all ? <Groups result={shown} keys={['fitsNow', 'stepTowardGoal', 'stretch']} /> : (
             <>
-              <Groups result={fresh} keys={['stepTowardGoal', 'stretch']} />
-              {fresh.groups.fitsNow.length > 3 && <div><Button variant="outline" onClick={() => setAll(true)}>Show all {fresh.totals.fitsNow.toLocaleString('en')} that fit now</Button></div>}
+              <Groups result={shown} keys={['stepTowardGoal', 'stretch']} />
+              {shown.totals.fitsNow > 3 && <div><Button variant="outline" onClick={() => setAll(true)}>Show all {n(shown.totals.fitsNow)} that fit now</Button></div>}
             </>
+          )}
+          {proof && proof.found > 0 && proof.firstMs !== null && (
+            <p className="text-sm font-medium" data-testid="found-line">You found {proof.found} new {proof.found === 1 ? 'option' : 'options'} in {Math.max(1, Math.round(proof.firstMs / 1000))} seconds.</p>
           )}
         </div>
       )}
