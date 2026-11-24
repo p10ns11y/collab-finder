@@ -46,13 +46,35 @@ function webPreviewFixturePlugin(): Plugin {
   }
 }
 
+function isStandingAnswersId(id: string): boolean {
+  return /standing-answers/i.test(id) || id.includes('STANDING_ANSWERS')
+}
+
+function standingAnswersGuardPlugin(): Plugin {
+  const refuse = (id: string): never => {
+    throw new Error(`standing-answers must never enter the client bundle: ${path.basename(id)}`)
+  }
+  return {
+    name: 'standing-answers-guard',
+    enforce: 'pre',
+    resolveId(source) {
+      if (isStandingAnswersId(source)) refuse(source)
+      return null
+    },
+    load(id) {
+      if (isStandingAnswersId(id)) refuse(id)
+      return null
+    },
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const webPreview = isWebPreview(mode)
   const tauriPlatform = process.env.TAURI_ENV_PLATFORM || process.env.TAURI_PLATFORM
   const tauriDebug = process.env.TAURI_ENV_DEBUG || process.env.TAURI_DEBUG
   return {
-    plugins: [...(webPreview ? [webPreviewFixturePlugin()] : []), react()],
+    plugins: [standingAnswersGuardPlugin(), ...(webPreview ? [webPreviewFixturePlugin()] : []), react()],
     resolve: {
       alias: {
         '@core': path.resolve(__dirname, 'src/core'),

@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "verify": "node scripts/run-verify.mjs",
+    "check:client-leak": "node --test scripts/ci-client-leak.test.mjs && node scripts/ci-client-leak.mjs",
     "mutate:xai-panel": "stryker run",
     "ci-check": "bash scripts/ci-check.sh",
     "ci-check-light": "bash scripts/ci-check-light.sh",

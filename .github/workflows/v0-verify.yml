@@ -9,6 +9,7 @@ on:
       - 'apps/web/**'
       - 'spec/tla/**'
       - '.github/workflows/v0-verify.yml'
+      - 'scripts/ci-client-leak.mjs'
 
 permissions:
   contents: read
@@ -63,6 +64,8 @@ jobs:
         working-directory: apps/web
       - run: npm run build
         working-directory: apps/web
+      - name: Client leak check (standing answers)
+        run: node scripts/ci-client-leak.mjs apps/web/dist
       - run: node --test check/*.test.ts
         working-directory: apps/web
       - run: npx playwright install --with-deps chromium firefox
