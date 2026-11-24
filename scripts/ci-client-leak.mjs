@@ -3,7 +3,8 @@
  * Fail when the client build ships standing-answers content or a reference to it.
  * Reports file and marker only, never the matched values.
  *
- * Run after `pnpm build:web`: node scripts/ci-client-leak.mjs [dist-web]
+ * Run after a build: node scripts/ci-client-leak.mjs [dir]
+ * dir defaults to $WEB_DIST, then dist-web. Use dist for the desktop bundle.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -22,7 +23,7 @@ export const SCHEMA_KEYS = [
 ]
 export const SCHEMA_KEY_THRESHOLD = 3
 
-const TEXT_FILE = /\.(js|mjs|cjs|html|json|map|webmanifest|txt|css|svg|xml)$/
+const TEXT_FILE = /\.(js|mjs|cjs|html|json|map|webmanifest|txt|css|svg|xml|md|yml|yaml|csv|ts)$/
 const IDENTIFIER = /\bSTANDING_ANSWERS\b/
 const PATH = /standing-answers/i
 
@@ -63,7 +64,7 @@ function main() {
   const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
   const label = relative(root, dist) || dist
   if (!existsSync(dist)) {
-    console.error(`ci-client-leak: ${label} is missing. Run pnpm build:web first.`)
+    console.error(`ci-client-leak: ${label} is missing. Build it first.`)
     process.exit(1)
   }
   const findings = scanDir(dist)

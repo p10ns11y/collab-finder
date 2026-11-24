@@ -92,8 +92,11 @@ jobs:
           pnpm run build:web
           node scripts/scan-web-privacy.mjs
 
-      - name: Client leak check (standing answers)
-        run: pnpm run check:client-leak
+      - name: Client leak check (standing answers, web preview and desktop)
+        run: |
+          pnpm run check:client-leak
+          pnpm build
+          node scripts/ci-client-leak.mjs dist
 
   check:
     needs: changes

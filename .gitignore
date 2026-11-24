@@ -12,6 +12,7 @@ dist
 dist-web
 dist-ssr
 *.local
+*.local.json
 .stryker-tmp
 reports
 

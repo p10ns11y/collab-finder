@@ -9,6 +9,7 @@ on:
       - 'apps/web/**'
       - 'spec/tla/**'
       - '.github/workflows/v0-verify.yml'
+      - 'scripts/ci-client-leak.mjs'
 
 permissions:
   contents: read

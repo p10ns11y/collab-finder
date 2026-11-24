@@ -55,6 +55,11 @@ test('schema keys quoted inside a source map fail', () => {
   assert.match(scanDir(dir).map((f) => f.marker).join('\n'), /schema keys/)
 })
 
+test('schema keys in a copied yaml file fail', () => {
+  const dir = fakeBuild({ 'notes/answers.yaml': 'relocation: x\nstart_date: x\nfiller_policy: x\n' })
+  assert.match(scanDir(dir).map((f) => f.marker).join('\n'), /schema keys/)
+})
+
 test('two schema keys alone stay under the threshold', () => {
   const dir = fakeBuild({ 'assets/form-mno.js': 'const f={relocation:"x",start_date:"x"};' })
   assert.deepEqual(scanDir(dir), [])
