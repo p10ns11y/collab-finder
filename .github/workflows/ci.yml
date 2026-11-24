@@ -92,6 +92,9 @@ jobs:
           pnpm run build:web
           node scripts/scan-web-privacy.mjs
 
+      - name: Client leak check (standing answers)
+        run: pnpm run check:client-leak
+
   check:
     needs: changes
     runs-on: ubuntu-22.04
