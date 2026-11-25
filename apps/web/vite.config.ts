@@ -82,6 +82,7 @@ export default defineConfig({
     sourcemap: false,
     target: 'es2022',
     modulePreload: false,
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

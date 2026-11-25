@@ -12,7 +12,7 @@ declare global { interface Window { kanithanjFlow: { send: (e: FlowEvent) => voi
 
 for (const [i, path] of paths.entries()) {
   test(`flow path ${i} renders every state it reaches`, async ({ page }) => {
-    await page.goto('/flow/?replay');
+    await page.goto('/flow?replay');
     for (const [j, step] of path.steps.entries()) {
       if (j > 0) await page.evaluate(e => window.kanithanjFlow.send(e), step.event as FlowEvent);
       const state = String(step.state.value) as FlowState;
@@ -28,7 +28,7 @@ test('a person walks sources, find, match, tailor, apply pack and confirm', asyn
   const snap = async (name: string) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: true }); };
   const requests: string[] = [];
   page.on('request', r => requests.push(r.url()));
-  await page.goto('/flow/');
+  await page.goto('/flow');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(STATE_VIEW.find);
   await snap('1-sources-find');
   await page.getByLabel('What you do').fill('Senior platform engineer, Go');
@@ -53,6 +53,15 @@ test('a person walks sources, find, match, tailor, apply pack and confirm', asyn
   await expect(page.getByText('Applied: no · Sent: no')).toBeVisible();
   await snap('6-confirmed');
   expect(requests.filter(u => !u.startsWith('http://127.0.0.1:4173/'))).toEqual([]);
+});
+
+test('after the home page installs the service worker, /flow still opens the flow', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await page.goto('/flow');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(STATE_VIEW.find);
 });
 
 test.afterAll(() => { if (report) writeFileSync(report, JSON.stringify({ generated: paths.length, passed }, null, 2)); });
