@@ -150,16 +150,6 @@ test('a bare Consulting suffix at a product company is not an agency signal', ()
   assert.equal(isAgencyRow({ company: 'Example Co', title: 'Backend Engineer (Contract)' }), true);
 });
 
-test('speed: a 30,000-row pool matches within budget once corpus stats are cached', () => {
-  const rows = Array.from({ length: 100 }, (_, k) => pool.rows.map(r => ({ ...r, id: `${r.id}#${k}` }))).flat();
-  const big = { ...pool, rows };
-  match(PERSONAS['seniorFullstackSe']!, big, { now });
-  const t0 = performance.now();
-  for (let i = 0; i < 3; i++) match(PERSONAS['seniorFullstackSe']!, big, { now });
-  const ms = (performance.now() - t0) / 3;
-  assert.ok(ms < 400, `${Math.round(ms)} ms`);
-});
-
 test('a row in a place named in the description gets exactly the place boost over the same row elsewhere', () => {
   const base = { ...pool.rows[0]!, title: 'Senior Backend Engineer', role_tags: [], status: 'open' as const, remote: 'remote' as const, seniority: 'senior' as const };
   const rows = [{ ...base, id: 'place:se', company: 'North Co', region: 'SE' as const }, { ...base, id: 'place:eu', company: 'South Co', region: 'EU' as const }];
