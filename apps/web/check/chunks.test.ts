@@ -73,3 +73,16 @@ test('webmcp polyfill is a separate lazy chunk, not statically linked from the e
   assert.ok(assets.some(polyfillish));
   assert.deepEqual([...staticAssets(dist)].filter(polyfillish), []);
 });
+
+test('xstate runs only inside the lazy flow chunks, each one self-contained so a retry never reuses a failed import', () => {
+  const html = readFileSync(join(dist, 'index.html'), 'utf8');
+  const src = /<script type="module"[^>]*\bsrc="(\/assets\/[^"]+\.js)"/.exec(html)?.[1];
+  assert.ok(src);
+  const runtime = (f: string) => readFileSync(join(dist, f), 'utf8').includes('xstate.init');
+  const assets = readdirSync(join(dist, 'assets')).filter(f => f.endsWith('.js')).map(f => `/assets/${f}`);
+  const flows = assets.filter(f => /\/flow-[^/]+\.js$/.test(f));
+  assert.equal(flows.length, 2);
+  assert.deepEqual(assets.filter(runtime).sort(), [...flows].sort());
+  for (const f of flows) assert.doesNotMatch(readFileSync(join(dist, f), 'utf8'), /\bfrom\s*["']\.|\bimport\s*\(?\s*["']\./);
+  assert.equal(runtime(src), false);
+});
