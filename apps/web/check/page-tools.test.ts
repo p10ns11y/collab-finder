@@ -97,3 +97,9 @@ test('summarizeRoles lists the first ten rows in each group and keeps the state 
   assert.equal(out.groups?.fitsNow.length, 10);
   assert.equal(TOOL_NAMES.join(','), 'find_roles,show_apply_pack,tailor_cv');
 });
+
+test('buildCvOutline carries the gaps it is given and none by default', () => {
+  const gaps = [{ kind: 'level', detail: 'Posted at staff, one level above your senior.', step: 'Lead with one project where you set direction beyond your own tasks.' }] as const;
+  assert.deepEqual(buildCvOutline('Senior backend engineer', row(), gaps).gaps, gaps);
+  assert.deepEqual(buildCvOutline('Senior backend engineer', row()).gaps, []);
+});

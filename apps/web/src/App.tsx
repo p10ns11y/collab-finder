@@ -112,8 +112,8 @@ export function App() {
   }, [pool, description, goal, likes, regions, remote, productOnly]);
 
   const version = useRef(0);
-  const latest = useRef({ run, view, description });
-  latest.current = { run, view, description };
+  const latest = useRef({ run, view, description, pool, regions, remote });
+  latest.current = { run, view, description, pool, regions, remote };
   const [outline, setOutline] = useState<CvOutline | null>(null);
   const [pack, setPack] = useState<ApplyPack | null>(null);
   const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (outcome: ConfirmOutcome) => void } | null>(null);
@@ -171,6 +171,7 @@ export function App() {
       },
       rowOf,
       description: () => latest.current.description,
+      gapState: () => latest.current,
       confirmApplyOrSend: detail => new Promise(resolve => {
         confirmRef.current?.resolve('cancelled');
         const ask = {

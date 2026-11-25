@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
+import type { Gap } from '../../../packages/core/src/index.ts';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
 
 export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: string; body: string; onConfirm: () => void; onCancel: () => void }) {
@@ -39,6 +40,25 @@ export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: str
   );
 }
 
+const HEAD: Readonly<Record<Gap['kind'], string>> = { skill: 'Skills', level: 'Level', region: 'Region', remote: 'Work mode' };
+
+export function GapList({ gaps }: { gaps: ReadonlyArray<Gap> }) {
+  if (!gaps.length) return null;
+  return (
+    <section className="mt-4" aria-labelledby="role-gaps-title" data-testid="role-gaps">
+      <h3 id="role-gaps-title" className="text-base font-semibold">Gaps to close</h3>
+      <ul className="mt-2 grid gap-3 text-sm">
+        {gaps.map(g => (
+          <li key={g.kind} data-gap={g.kind}>
+            <p><span className="font-medium">{HEAD[g.kind]}:</span> {g.detail}</p>
+            <p className="text-text-muted" data-testid="gap-step">{g.step}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: ApplyPack | null }) {
   return (
     <>
@@ -47,6 +67,7 @@ export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: 
           <h2 className="text-lg font-semibold">CV outline</h2>
           <p className="mt-1 text-sm text-text-muted">{outline.title} at {outline.company}</p>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{outline.emphasize.map(item => <li key={item}>{item}</li>)}</ul>
+          <GapList gaps={outline.gaps} />
           <p className="mt-3 text-xs text-text-muted">{outline.notice}</p>
         </Card>
       )}

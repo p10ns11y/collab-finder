@@ -14,3 +14,4 @@ export { isSkillList, namesSkillList, SKILL_TOKENS, FOCUS_ROLE_TOKENS, FOCUS_ROL
 export { isLocationPart } from './vocab.ts';
 export { INDUSTRIES, INDUSTRY_IDS, MIN_COMPANY_SHARE, MIN_DISTINCT_TERMS, companyIndustries, industriesOfText, industryOfLike, type Industry } from './industry.ts';
 export { buildPublicPool, honestRegion, inPoolScope, shapeRows, type PostingText, type ShapeStats } from './shape.ts';
+export { roleGaps, type Gap, type GapAsk, type GapKind, type GapRole } from './gaps.ts';
