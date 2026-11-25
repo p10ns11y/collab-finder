@@ -1,65 +1,122 @@
-import type { MatchResult, RegionPref, RemotePref } from '../../../packages/core/src/index.ts';
+import type {} from 'webmcp-types';
+import type { MatchResult, MatchRow } from '../../../packages/core/src/index.ts';
+import {
+  APPLY_SEND_NOTICE,
+  buildApplyPack,
+  buildCvOutline,
+  confirmedButNotSent,
+  declinedConfirm,
+  needsPersonConfirm,
+  parseFindRoles,
+  parseRolePick,
+  summarizeRoles,
+  type ApplyPack,
+  type CvOutline,
+  type FindRolesChange,
+} from './page-tools.ts';
 
-type Place = Exclude<RegionPref, 'any'>;
-export type AgentSearch = { description?: string; goal?: string; regions?: ReadonlyArray<Place>; remote?: RemotePref; productOnly?: boolean };
+export type AgentSearch = FindRolesChange;
 export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null };
 export type WebMcpHost = {
   version(): number;
   search(baseVersion: number, change: AgentSearch): HostAnswer;
-  urlOf(id: string): string | null;
-};
-type ToolText = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
-type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, boolean>; execute(input: Record<string, unknown>): Promise<ToolText> };
-type ModelContext = { registerTool(tool: Tool): unknown };
-
-export const modelContext = (): ModelContext | null => {
-  const mc = (globalThis.navigator as unknown as { modelContext?: Partial<ModelContext> } | undefined)?.modelContext;
-  return mc && typeof mc.registerTool === 'function' ? (mc as ModelContext) : null;
+  showAllOptions(): void;
+  rowOf(id: string): MatchRow | null;
+  description(): string;
+  confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<boolean>;
+  showCvOutline(outline: CvOutline): void;
+  showApplyPack(pack: ApplyPack): void;
 };
 
-const PLACES: ReadonlyArray<Place> = ['SE', 'EU', 'UK', 'US'];
-const REMOTES: ReadonlyArray<RemotePref> = ['any', 'remote', 'hybrid', 'onsite'];
-const text = (v: unknown, isError = false): ToolText => ({ content: [{ type: 'text', text: JSON.stringify(v) }], ...(isError ? { isError } : {}) });
-const summary = (a: HostAnswer) => a.error
-  ? { stateVersion: a.stateVersion, error: a.error }
-  : { stateVersion: a.stateVersion, verdict: a.verdict, groups: a.result ? Object.fromEntries(Object.entries(a.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))])) : null };
+type AnyContext = { registerTool(tool: object, options?: { signal?: AbortSignal }): Promise<void> };
 
-export const parseSearch = (input: Record<string, unknown>): { baseVersion: number; change: AgentSearch } | string => {
-  const v = input['stateVersion'];
-  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) return 'stateVersion (integer) is required; read it with get_state';
-  const change: AgentSearch = {};
-  if (typeof input['description'] === 'string') change.description = input['description'].slice(0, 2000);
-  if (typeof input['goal'] === 'string') change.goal = input['goal'].slice(0, 500);
-  if (Array.isArray(input['regions'])) change.regions = PLACES.filter(p => (input['regions'] as unknown[]).includes(p));
-  if (typeof input['remote'] === 'string' && (REMOTES as ReadonlyArray<string>).includes(input['remote'])) change.remote = input['remote'] as RemotePref;
-  if (typeof input['productOnly'] === 'boolean') change.productOnly = input['productOnly'];
-  return { baseVersion: v, change };
+export const modelContext = (): AnyContext | null => {
+  const doc = globalThis.document?.modelContext;
+  if (doc && typeof doc.registerTool === 'function') return doc;
+  const nav = (globalThis.navigator as unknown as { modelContext?: AnyContext | undefined }).modelContext;
+  return nav && typeof nav.registerTool === 'function' ? nav : null;
 };
 
-const onlyFilters = ({ regions, remote, productOnly }: AgentSearch): AgentSearch =>
-  ({ ...(regions ? { regions } : {}), ...(remote ? { remote } : {}), ...(productOnly !== undefined ? { productOnly } : {}) });
-const FILTERS = { regions: { type: 'array', items: { enum: PLACES } }, remote: { enum: REMOTES }, productOnly: { type: 'boolean' } };
-let registered = false;
-export function registerWebMcp(host: WebMcpHost): boolean {
+const FILTERS = {
+  regions: { type: 'array', items: { enum: ['SE', 'EU', 'UK', 'US'] } },
+  remote: { enum: ['any', 'remote', 'hybrid', 'onsite'] },
+  productOnly: { type: 'boolean' },
+};
+
+const rolePickSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: {
+    id: { type: 'string', description: 'Id of a role already shown on the page' },
+    apply: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not apply.' },
+    send: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not send.' },
+  },
+};
+
+export function registerWebMcp(host: WebMcpHost, signal: AbortSignal): void {
   const mc = modelContext();
-  if (!mc || registered) return registered;
-  registered = true;
-  const write = (needsDescription: boolean) => async (input: Record<string, unknown>) => {
-    const p = parseSearch(input);
-    if (typeof p === 'string') return text({ error: p }, true);
-    if (needsDescription && !p.change.description) return text({ error: 'description is required' }, true);
-    const a = host.search(p.baseVersion, needsDescription ? p.change : onlyFilters(p.change));
-    return text(summary(a), a.error !== null);
+  if (!mc) return;
+  const opts = { signal };
+  const afterConfirm = async (id: string) => {
+    const row = host.rowOf(id);
+    if (!row) return { stateVersion: host.version(), error: 'not a role shown on the page' };
+    const ok = await host.confirmApplyOrSend({ id: row.id, title: row.title, url: row.url });
+    if (!ok) return declinedConfirm(host.version());
+    const pack = buildApplyPack(row);
+    host.showApplyPack(pack);
+    return { ...confirmedButNotSent(host.version(), row.url), pack };
   };
-  mc.registerTool({ name: 'get_state', description: 'Read the page state version. Pass it as stateVersion to any write; a write on an old version is refused.',
-    inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: true }, execute: async () => text({ stateVersion: host.version() }) });
-  mc.registerTool({ name: 'match_roles', description: 'Fill the page form with a self-description and run the match in this browser. Nothing leaves the page.',
-    inputSchema: { type: 'object', required: ['stateVersion', 'description'], properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS } },
-    execute: write(true) });
-  mc.registerTool({ name: 'refine_search', description: 'Change regions, work mode or the product-companies filter and rerun the match.',
-    inputSchema: { type: 'object', required: ['stateVersion'], properties: { stateVersion: { type: 'integer' }, ...FILTERS } }, execute: write(false) });
-  mc.registerTool({ name: 'open_posting', description: 'Get the link of a posting shown on the page.', annotations: { readOnlyHint: true },
-    inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
-    execute: async input => { const url = typeof input['id'] === 'string' ? host.urlOf(input['id']) : null; return url ? text({ url }) : text({ error: 'not a posting shown on the page' }, true); } });
-  return true;
+  void Promise.all([
+    mc.registerTool({
+      name: 'find_roles',
+      title: 'Find roles',
+      description: 'Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.',
+      inputSchema: {
+        type: 'object',
+        required: ['stateVersion'],
+        properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
+      },
+      execute: (input: Record<string, unknown>) => {
+        const parsed = parseFindRoles(input);
+        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+        host.showAllOptions();
+        const answer = host.search(parsed.value.baseVersion, parsed.value.change);
+        return summarizeRoles(answer);
+      },
+    }, opts),
+    mc.registerTool({
+      name: 'tailor_cv',
+      title: 'Tailor CV',
+      description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.',
+      annotations: { readOnlyHint: true },
+      inputSchema: rolePickSchema,
+      execute: async (input: Record<string, unknown>) => {
+        const parsed = parseRolePick(input);
+        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+        if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
+        const row = host.rowOf(parsed.value.id);
+        if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
+        const outline = buildCvOutline(host.description(), row);
+        host.showCvOutline(outline);
+        return { stateVersion: host.version(), ...outline };
+      },
+    }, opts),
+    mc.registerTool({
+      name: 'show_apply_pack',
+      title: 'Show apply pack',
+      description: `Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. ${APPLY_SEND_NOTICE}`,
+      annotations: { readOnlyHint: true },
+      inputSchema: rolePickSchema,
+      execute: async (input: Record<string, unknown>) => {
+        const parsed = parseRolePick(input);
+        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+        if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
+        const row = host.rowOf(parsed.value.id);
+        if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
+        const pack = buildApplyPack(row);
+        host.showApplyPack(pack);
+        return { stateVersion: host.version(), ...pack };
+      },
+    }, opts),
+  ]).catch(() => undefined);
 }

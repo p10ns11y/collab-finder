@@ -12,3 +12,5 @@ body { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .reveal, .pop { animation: none; }
 }
+
+form:tool-form-active { outline: light-dark(#2563eb, #67e8f9) dashed 1px; outline-offset: 4px; }

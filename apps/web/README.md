@@ -41,3 +41,7 @@ flowchart LR
 - Rows collapse into one, across all groups and kept in the best group, only when the title differs by location parts alone, such as `, Rome`, ` - Berlin`, `(London)` or `| Sweden | Remote`.
 - Mobile-titled rows for a profile without mobile terms stay in stretch, never in its top 10 while other stretch rows remain. Rows with no other overlap sit at the bottom.
 - The goal signals `frontier AI labs` and `product teams` are understood but match titles only, and few titles name them (9 and 1 in the v0 pool). They become company-level signals in v1.
+
+## Page tools (WebMCP)
+
+The official `@w3c/webmcp-polyfill` is loaded in `src/main.tsx` so `document.modelContext` exists in a secure browser. The current form is annotated with `toolname="find_roles"` (no `toolautosubmit`). The same page also registers `find_roles`, `tailor_cv` and `show_apply_pack` through `registerTool`, because the polyfill does not yet implement declarative forms. All three stay in the tab and are read-only: they do not apply or send. If a call asks to apply or send, a person must confirm in the page, and the page still does not apply or send. Rebuilding the live surfaces with UI SDK components is a later step.

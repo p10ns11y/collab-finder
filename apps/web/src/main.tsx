@@ -1,3 +1,4 @@
+import '@w3c/webmcp-polyfill/auto';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
