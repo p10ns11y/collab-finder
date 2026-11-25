@@ -4,9 +4,9 @@
   "version": "1.2.0",
   "identifier": "com.p10ns11y.collab-finder",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build && node scripts/ci-client-leak.mjs dist",
-    "frontendDist": "../dist",
+    "beforeDevCommand": "pnpm --filter @kanithanj/desktop dev",
+    "beforeBuildCommand": "pnpm --filter @kanithanj/desktop build && node scripts/ci-client-leak.mjs apps/desktop/dist",
+    "frontendDist": "../apps/desktop/dist",
     "devUrl": "http://localhost:5173"
   },
   "app": {

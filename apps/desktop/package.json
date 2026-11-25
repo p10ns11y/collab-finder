@@ -1,0 +1,42 @@
+{
+  "name": "@kanithanj/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:web": "tsc -b && vite build --mode web-preview",
+    "type-check": "tsc -b",
+    "preview": "vite preview",
+    "mutate:xai-panel": "stryker run"
+  },
+  "dependencies": {
+    "@adaptate/core": "^2.2.4",
+    "@fontsource-variable/dm-sans": "^5.2.8",
+    "@xstate/react": "^6.1.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
+    "xstate": "^5.33.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^10.0.0",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@tauri-apps/api": "^2.11.0",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@xstate/graph": "^3.0.4",
+    "autoprefixer": "^10.5.0",
+    "esbuild": "^0.28.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^5.4.19"
+  }
+}

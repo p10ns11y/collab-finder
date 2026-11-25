@@ -20,7 +20,7 @@ lizard src-tauri/src \
   --ignore_warnings "${RUST_BASELINE}"
 
 echo "== Lizard TS domain core (CCN threshold ${CCN})"
-lizard src/core \
+lizard apps/desktop/src/core \
   -l javascript \
   -C "${CCN}" \
   --ignore_warnings 0

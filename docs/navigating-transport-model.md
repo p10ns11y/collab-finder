@@ -174,9 +174,9 @@ state: the first risk stage in map order (`lead`), the slot it lives in, its nam
 
 | Concern | File |
 |---------|------|
-| Slot / motion / craft / weather transforms (pure) | `src/core/domain/heading-transport.ts` |
-| Test vectors | `src/core/domain/heading-transport.verify.runner.mjs` |
-| Next Do surface | `src/view/screens/heading-screen.tsx` |
+| Slot / motion / craft / weather transforms (pure) | `apps/desktop/src/core/domain/heading-transport.ts` |
+| Test vectors | `apps/desktop/src/core/domain/heading-transport.verify.runner.mjs` |
+| Next Do surface | `apps/desktop/src/view/screens/heading-screen.tsx` |
 
 Token lists in the domain module are `SCREAMING_SNAKE` module constants so a future agent can grep
 and extend one list — `DEBT_TOKENS`, `MISSION_TOKENS`, `BODY_TOKENS`, `SEASON_LOGISTICS`,

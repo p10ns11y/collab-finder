@@ -4,7 +4,7 @@
  * private profile, ledger, CV, standing-answer, host or name data.
  *
  * Run after `pnpm build:web`: node scripts/scan-web-privacy.mjs
- * Optional dir: node scripts/scan-web-privacy.mjs dist-web
+ * Optional dir: node scripts/scan-web-privacy.mjs apps/desktop/dist-web
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { operatorPersonalNames } from './operator-personal-names.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
+const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'apps/desktop/dist-web')
 
 if (!existsSync(dist)) {
   console.error(`scan-web-privacy: ${relative(root, dist) || dist} is missing. Run pnpm build:web first.`)

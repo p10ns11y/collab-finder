@@ -190,6 +190,6 @@ wry’s `os-webview` feature mentions future ports (“cef”, “servo”) in d
 |------|------|
 | `src-tauri/tauri.conf.json` | `withGlobalTauri`, `devUrl`, window size |
 | `src-tauri/Cargo.lock` | `webkit2gtk`, `wry` on Linux |
-| `src/adapters/tauri/safe-invoke.ts` | Production IPC seam (add dev logging here) |
+| `apps/desktop/src/adapters/tauri/safe-invoke.ts` | Production IPC seam (add dev logging here) |
 | `src-tauri/src/lib.rs` | `#[tauri::command]` handlers including `hydrate_tweet` |
 | `src-tauri/src/x_search.rs` | `lookup_tweet` → X API (terminal-side HTTP) |

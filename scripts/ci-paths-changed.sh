@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Emit app_source and release_build for CI job gating.
 #
-# app_source    — src/ or src-tauri/ changed → complexity (Lizard, no WebKit)
+# app_source    — apps/desktop/ or src-tauri/ changed → complexity (Lizard, no WebKit)
 # release_build — version *field* changed in manifests → WebKit + Rust tests + CRAP
 # Tag binary build — release.yml only (not this script)
 set -euo pipefail
@@ -25,7 +25,7 @@ fi
 
 if [ -n "${RANGE:-}" ]; then
   CHANGED="$(git diff --name-only "$RANGE")"
-  if printf '%s\n' "$CHANGED" | grep -qE '^(src/|src-tauri/)'; then
+  if printf '%s\n' "$CHANGED" | grep -qE '^(apps/desktop/|src-tauri/)'; then
     APP_SOURCE=true
   fi
 

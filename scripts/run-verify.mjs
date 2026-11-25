@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Run domain verify runners under src/ and script checks under scripts/.
+ * Run domain verify runners under apps/desktop/src and script checks under scripts/.
  * Entry: *.verify.mjs wrappers, or *.verify.runner.mjs when no wrapper exists.
  */
 import { readdirSync, statSync } from 'node:fs'
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const srcRoot = join(root, 'src')
+const srcRoot = join(root, 'apps/desktop/src')
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -54,7 +54,7 @@ const scriptChecks = walk(join(root, 'scripts')).sort()
 const targets = [...wrappers, ...runners, ...scriptChecks]
 
 if (targets.length === 0) {
-  console.error('No verify targets found under src/')
+  console.error('No verify targets found under apps/desktop/src')
   process.exit(1)
 }
 

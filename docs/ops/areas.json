@@ -3,43 +3,43 @@
     {
       "id": "shell",
       "include": [
-        "src/main.tsx",
-        "src/App.tsx",
-        "src/vite-env.d.ts",
-        "src/app/**",
-        "src/shell/**",
-        "src/lib/**",
-        "src/index.css",
-        "src/types/**",
-        "src/view/finder-app-view.tsx",
-        "src/view/web-preview-chrome.verify.mjs",
-        "src/view/screens/heading-screen.tsx",
-        "src/components/layout/**",
-        "src/components/ui/**",
-        "src/components/finder/command-palette.tsx",
-        "src/components/finder/error-banner.tsx",
-        "src/core/domain/finder-nav*",
-        "src/core/domain/finder-keyboard*",
-        "src/core/domain/heading-*",
-        "index.html"
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/App.tsx",
+        "apps/desktop/src/vite-env.d.ts",
+        "apps/desktop/src/app/**",
+        "apps/desktop/src/shell/**",
+        "apps/desktop/src/lib/**",
+        "apps/desktop/src/index.css",
+        "apps/desktop/src/types/**",
+        "apps/desktop/src/view/finder-app-view.tsx",
+        "apps/desktop/src/view/web-preview-chrome.verify.mjs",
+        "apps/desktop/src/view/screens/heading-screen.tsx",
+        "apps/desktop/src/components/layout/**",
+        "apps/desktop/src/components/ui/**",
+        "apps/desktop/src/components/finder/command-palette.tsx",
+        "apps/desktop/src/components/finder/error-banner.tsx",
+        "apps/desktop/src/core/domain/finder-nav*",
+        "apps/desktop/src/core/domain/finder-keyboard*",
+        "apps/desktop/src/core/domain/heading-*",
+        "apps/desktop/index.html"
       ]
     },
     {
       "id": "runtime",
       "include": [
-        "src/core/finder/**",
-        "src/core/mvu/**",
-        "src/runtime/**",
-        "src/ports/finder-port.ts",
-        "src/core/async.ts",
-        "src/core/result.ts",
-        "src/core/error.ts"
+        "apps/desktop/src/core/finder/**",
+        "apps/desktop/src/core/mvu/**",
+        "apps/desktop/src/runtime/**",
+        "apps/desktop/src/ports/finder-port.ts",
+        "apps/desktop/src/core/async.ts",
+        "apps/desktop/src/core/result.ts",
+        "apps/desktop/src/core/error.ts"
       ]
     },
     {
       "id": "bridge",
       "include": [
-        "src/adapters/tauri/**",
+        "apps/desktop/src/adapters/tauri/**",
         "src-tauri/src/lib.rs",
         "src-tauri/src/main.rs",
         "src-tauri/src/commands/mod.rs",
@@ -47,7 +47,9 @@
         "src-tauri/tauri.conf.json",
         "src-tauri/build.rs"
       ],
-      "exclude": ["src/adapters/tauri/credentials-adapter.ts"]
+      "exclude": [
+        "apps/desktop/src/adapters/tauri/credentials-adapter.ts"
+      ]
     },
     {
       "id": "discover",
@@ -56,20 +58,20 @@
         "src-tauri/src/cv_home.rs",
         "src-tauri/src/xai.rs",
         "src-tauri/src/llm_route.rs",
-        "src/core/domain/application-pack.ts",
-        "src/core/domain/cv-*",
-        "src/core/domain/discover-*",
-        "src/core/domain/devprofile-path-panel*",
-        "src/core/domain/fit-*",
-        "src/core/domain/llm-route*",
-        "src/core/domain/opportunity-rail-label*",
-        "src/core/domain/opportunity-target*",
-        "src/core/domain/opportunity-url*",
-        "src/core/domain/fixtures/**",
-        "src/components/finder/opportunity-target-fit-panel.tsx",
-        "src/components/finder/artifact-reader.tsx",
-        "src/components/finder/cv-*",
-        "src/view/screens/discover-screen.tsx",
+        "apps/desktop/src/core/domain/application-pack.ts",
+        "apps/desktop/src/core/domain/cv-*",
+        "apps/desktop/src/core/domain/discover-*",
+        "apps/desktop/src/core/domain/devprofile-path-panel*",
+        "apps/desktop/src/core/domain/fit-*",
+        "apps/desktop/src/core/domain/llm-route*",
+        "apps/desktop/src/core/domain/opportunity-rail-label*",
+        "apps/desktop/src/core/domain/opportunity-target*",
+        "apps/desktop/src/core/domain/opportunity-url*",
+        "apps/desktop/src/core/domain/fixtures/**",
+        "apps/desktop/src/components/finder/opportunity-target-fit-panel.tsx",
+        "apps/desktop/src/components/finder/artifact-reader.tsx",
+        "apps/desktop/src/components/finder/cv-*",
+        "apps/desktop/src/view/screens/discover-screen.tsx",
         "scripts/fit-calibration.mjs"
       ]
     },
@@ -82,13 +84,13 @@
         "src-tauri/src/product_lane.rs",
         "src-tauri/src/commands/hunt.rs",
         "src-tauri/tests/**",
-        "src/core/domain/hunt-rails*",
-        "src/core/domain/platsbanken*",
-        "src/core/domain/mission-*",
-        "src/core/domain/sweden-hunt*",
-        "src/components/finder/hunt-*",
-        "src/view/screens/sweden-screen.tsx",
-        "src/view/screens/mission-screen.tsx",
+        "apps/desktop/src/core/domain/hunt-rails*",
+        "apps/desktop/src/core/domain/platsbanken*",
+        "apps/desktop/src/core/domain/mission-*",
+        "apps/desktop/src/core/domain/sweden-hunt*",
+        "apps/desktop/src/components/finder/hunt-*",
+        "apps/desktop/src/view/screens/sweden-screen.tsx",
+        "apps/desktop/src/view/screens/mission-screen.tsx",
         "data/hunt-presets/**",
         "data/mission-firms/**",
         "scripts/generate-firm-list.mjs",
@@ -102,14 +104,14 @@
         "src-tauri/src/finder_reactor.rs",
         "src-tauri/src/x_search.rs",
         "src-tauri/src/x_query.rs",
-        "src/core/domain/finder.ts",
-        "src/core/domain/distillation.ts",
-        "src/core/domain/search-presets.ts",
-        "src/components/finder/search-workspace.tsx",
-        "src/components/finder/tweet-feed.tsx",
-        "src/components/finder/decision-panel.tsx",
-        "src/components/finder/pause-log.tsx",
-        "src/view/screens/xplore-screen.tsx",
+        "apps/desktop/src/core/domain/finder.ts",
+        "apps/desktop/src/core/domain/distillation.ts",
+        "apps/desktop/src/core/domain/search-presets.ts",
+        "apps/desktop/src/components/finder/search-workspace.tsx",
+        "apps/desktop/src/components/finder/tweet-feed.tsx",
+        "apps/desktop/src/components/finder/decision-panel.tsx",
+        "apps/desktop/src/components/finder/pause-log.tsx",
+        "apps/desktop/src/view/screens/xplore-screen.tsx",
         "data/distillation/x-search/**"
       ]
     },
@@ -120,12 +122,12 @@
         "src-tauri/src/decide.rs",
         "src-tauri/src/decide/**",
         "src-tauri/schemas/**",
-        "src/core/domain/history.ts",
-        "src/core/domain/pipeline-timeline.ts",
-        "src/core/domain/opportunity-pipeline*",
-        "src/core/domain/apply-reply-lane*",
-        "src/core/domain/qualify-policy*",
-        "src/view/screens/pipeline-screen.tsx",
+        "apps/desktop/src/core/domain/history.ts",
+        "apps/desktop/src/core/domain/pipeline-timeline.ts",
+        "apps/desktop/src/core/domain/opportunity-pipeline*",
+        "apps/desktop/src/core/domain/apply-reply-lane*",
+        "apps/desktop/src/core/domain/qualify-policy*",
+        "apps/desktop/src/view/screens/pipeline-screen.tsx",
         "scripts/export-pipeline.mjs",
         "scripts/sync-pack-artifacts.py",
         "scripts/qualify-hillclimb.mjs"
@@ -135,8 +137,8 @@
       "id": "quest",
       "include": [
         "src-tauri/src/local_grok.rs",
-        "src/core/domain/quest*",
-        "src/components/finder/quest-drawer.tsx"
+        "apps/desktop/src/core/domain/quest*",
+        "apps/desktop/src/components/finder/quest-drawer.tsx"
       ]
     },
     {
@@ -144,13 +146,13 @@
       "include": [
         "src-tauri/src/secrets.rs",
         "src-tauri/src/secrets/**",
-        "src/core/domain/credentials.ts",
-        "src/core/domain/xai-key-*",
-        "src/core/security/**",
-        "src/ports/credentials-port.ts",
-        "src/adapters/tauri/credentials-adapter.ts",
-        "src/components/finder/credentials-*",
-        "src/view/screens/settings-screen.tsx"
+        "apps/desktop/src/core/domain/credentials.ts",
+        "apps/desktop/src/core/domain/xai-key-*",
+        "apps/desktop/src/core/security/**",
+        "apps/desktop/src/ports/credentials-port.ts",
+        "apps/desktop/src/adapters/tauri/credentials-adapter.ts",
+        "apps/desktop/src/components/finder/credentials-*",
+        "apps/desktop/src/view/screens/settings-screen.tsx"
       ]
     },
     {
@@ -183,10 +185,10 @@
         "src-tauri/src/environment.rs",
         "src-tauri/src/firm_durability.rs",
         "src-tauri/src/facts.rs",
-        "src/core/domain/operator-pack-health.ts",
-        "src/core/domain/firm-durability.ts",
-        "src/core/domain/firm-maintained-list*",
-        "src/view/screens/preferences-*",
+        "apps/desktop/src/core/domain/operator-pack-health.ts",
+        "apps/desktop/src/core/domain/firm-durability.ts",
+        "apps/desktop/src/core/domain/firm-maintained-list*",
+        "apps/desktop/src/view/screens/preferences-*",
         "data/durability/**",
         "data/facts/**",
         "data/pipeline/**",
@@ -206,8 +208,8 @@
       "id": "network",
       "include": [
         "src-tauri/src/network_graph.rs",
-        "src/core/domain/network-graph.ts",
-        "src/view/screens/network-screen.tsx",
+        "apps/desktop/src/core/domain/network-graph.ts",
+        "apps/desktop/src/view/screens/network-screen.tsx",
         "data/connections.sample.csv",
         "data/contacts.sample.csv",
         "data/network-csv.md"
@@ -217,15 +219,21 @@
       "id": "hire-board",
       "include": [
         "src-tauri/src/hire_board.rs",
-        "src/core/domain/hire-board.ts",
-        "src/components/finder/hire-board-panel.tsx",
+        "apps/desktop/src/core/domain/hire-board.ts",
+        "apps/desktop/src/components/finder/hire-board-panel.tsx",
         "data/hire-board/**"
       ]
     },
     {
       "id": "profile-data",
-      "include": ["data/distillation/**", "scripts/prune-public-projects.mjs", "src/web/fixtures/**"],
-      "exclude": ["data/distillation/x-search/**"]
+      "include": [
+        "data/distillation/**",
+        "scripts/prune-public-projects.mjs",
+        "apps/desktop/src/web/fixtures/**"
+      ],
+      "exclude": [
+        "data/distillation/x-search/**"
+      ]
     },
     {
       "id": "ops",
@@ -247,27 +255,48 @@
         "pnpm-lock.yaml",
         "src-tauri/Cargo.*",
         "src-tauri/icons/**",
-        "tsconfig.json",
-        "tsconfig.node.json",
-        "vite.config.ts",
-        "postcss.config.js",
-        "stryker.config.json",
+        "apps/desktop/tsconfig.json",
+        "apps/desktop/tsconfig.node.json",
+        "apps/desktop/vite.config.ts",
+        "apps/desktop/postcss.config.js",
+        "apps/desktop/stryker.config.json",
         ".gitignore",
         "src-tauri/.gitignore",
         "session-sot.example",
         "skills-lock.json",
-        "LICENSE"
+        "LICENSE",
+        "pnpm-workspace.yaml",
+        "apps/desktop/package.json"
       ]
     },
     {
       "id": "kanithanj-v0",
-      "include": ["packages/**", "apps/**", "spec/**"],
-      "exclude": ["**/*.md"]
+      "include": [
+        "packages/**",
+        "apps/web/**",
+        "spec/**"
+      ],
+      "exclude": [
+        "**/*.md"
+      ]
     },
     {
       "id": "docs",
-      "include": ["**/*.md", "docs/**", ".agents/**", ".grok/**", "archive/**"],
-      "exclude": ["docs/qa/**", "data/**", "vendor/**", ".github/**", "src-tauri/tests/**", "src/web/fixtures/**"]
+      "include": [
+        "**/*.md",
+        "docs/**",
+        ".agents/**",
+        ".grok/**",
+        "archive/**"
+      ],
+      "exclude": [
+        "docs/qa/**",
+        "data/**",
+        "vendor/**",
+        ".github/**",
+        "src-tauri/tests/**",
+        "apps/desktop/src/web/fixtures/**"
+      ]
     }
   ]
 }
