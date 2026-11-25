@@ -279,7 +279,7 @@ const mondayRun = rustCli(['src-tauri/src/qualify_policy.rs'], '2026-10-19', tru
 must(mondayRun.stdout.includes('rust run\n'), mondayRun.stdout)
 must((mondayRun.stdout.match(/cargo test --lib/g) || []).length === 1, mondayRun.stdout)
 
-const screenOnly = rustCli(['src/view/screens/discover-screen.tsx'], '2026-10-16', false)
+const screenOnly = rustCli(['apps/desktop/src/view/screens/discover-screen.tsx'], '2026-10-16', false)
 must(screenOnly.stdout === 'applied\nrust skip\n', screenOnly.stdout)
 
 const findingsAfter = readFileSync(join(root, 'docs/ops/FINDINGS.md'), 'utf8')

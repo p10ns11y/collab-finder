@@ -4,7 +4,7 @@
  * Reports file and marker only, never the matched values.
  *
  * Run after a build: node scripts/ci-client-leak.mjs [dir]
- * dir defaults to $WEB_DIST, then dist-web. Use dist for the desktop bundle.
+ * dir defaults to $WEB_DIST, then apps/desktop/dist-web. Use apps/desktop/dist for the desktop bundle.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -61,7 +61,7 @@ export function scanDir(dir) {
 
 function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-  const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
+  const dist = resolve(root, process.argv[2] || process.env.WEB_DIST || 'apps/desktop/dist-web')
   const label = relative(root, dist) || dist
   if (!existsSync(dist)) {
     console.error(`ci-client-leak: ${label} is missing. Build it first.`)

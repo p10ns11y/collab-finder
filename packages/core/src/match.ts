@@ -4,7 +4,7 @@ import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, tokensOf, type CorpusStats, type TitleFocus } from './relevance.ts';
 import { INDUSTRIES, industryOfLike, type Industry } from './industry.ts';
-import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, LOCATION_PARTS, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level, type WorldRegion } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -12,7 +12,7 @@ export const MAX_CHARS = 2000;
 export const STALE_DAYS = 7;
 export const DEFAULT_LIMIT = 30;
 
-export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
+export type RegionPref = WorldRegion | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type RegionChoice = RegionPref | ReadonlyArray<RegionPref>;
 export type MatchProfile = { description: string; goal?: string; likes?: string; region?: RegionChoice; remote?: RemotePref; productOnly?: boolean };
@@ -120,10 +120,12 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
 }
 const NORDIC_LOC = /(?:^|[^a-z])(?:sweden|sverige|stockholm|gothenburg|goteborg|malmo|malmö|uppsala|oslo|bergen|norway|norge|copenhagen|københavn|denmark|danmark|helsinki|espoo|finland|reykjavik|iceland|nordics?)(?=$|[^a-z])/i;
 
+const FAR: ReadonlyArray<string> = ['CA', 'LATAM', 'APAC', 'MEA'];
 const regionOk = (prefs: ReadonlyArray<Exclude<RegionPref, 'any'>>, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
-  if (r === null || r === 'other' || r === '') return 'unknown';
+  if (r === null || r === '') return 'unknown';
   if (prefs.length === 0) return 'yes';
+  if (r === 'other') return 'unknown';
   return prefs.some(pref => (pref === 'EU' ? r === 'EU' || r === 'SE' : r === pref)) ? 'yes' : 'no';
 };
 const remoteOk = (pref: RemotePref, r: PublicRow['remote']): 'yes' | 'no' | 'unknown' => {
@@ -166,7 +168,8 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   if (u.entry && !entryFieldOk(row.title, u.learned)) return null;
   if (!u.entry && !titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
-  const region = row.region === 'EU' && regionOf(row.location ?? '') === 'other' ? 'other' : row.region;
+  const parts = row.region === 'EU' ? (row.location ?? '').split(LOCATION_PARTS).map(regionOf).filter(r => r !== null) : [];
+  const region = parts.length && parts.every(r => FAR.includes(r)) ? parts[0]! : row.region;
   const reg = regionOk(p.regions, region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   MTS.lastIndex = 0;

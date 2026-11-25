@@ -16,7 +16,7 @@ Before push on Rust changes, run **`pnpm run ci-check`** locally (WebKit require
 
 ## What runs where
 
-| Layer | Meta / agent / scripts | `src/` only | Version bump in diff | Tag `v*.*.*` |
+| Layer | Meta / agent / scripts | `apps/desktop/` only | Version bump in diff | Tag `v*.*.*` |
 |-------|------------------------|-------------|----------------------|--------------|
 | Type-check + verify | yes | yes | yes | yes (release build) |
 | Rust tests | — | — | yes (+ WebKit) | yes (+ WebKit) |
@@ -31,7 +31,7 @@ Version manifests: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo
 | Layer | Check | Why |
 |-------|--------|-----|
 | TypeScript | `tsc -b` | Types + project references |
-| Domain | verify runners under `src/` | Critical MVU machines, IPC contracts, keyboard/nav, wiring |
+| Domain | verify runners under `apps/desktop/src/` | Critical MVU machines, IPC contracts, keyboard/nav, wiring |
 | Rust | `cargo test --lib` | Secrets stability, reactor, opportunity target, rank, cv_home |
 | Fixtures | `scripts/seed-testdata-for-ci.sh` | Populates gitignored `src-tauri/testdata/` from public distillation stubs |
 
@@ -39,14 +39,14 @@ Verify runners are **behavioral** tests (not line-coverage theater): they assert
 
 ## Cyclomatic complexity
 
-Rust: **CCN ≤ 15** per function (Lizard). CI allows a **baseline of 14** existing violations (`LIZARD_RUST_WARN_BASELINE`) — new violations fail the job. TypeScript `src/core` must stay at **0** warnings.
+Rust: **CCN ≤ 15** per function (Lizard). CI allows a **baseline of 14** existing violations (`LIZARD_RUST_WARN_BASELINE`) — new violations fail the job. TypeScript `apps/desktop/src/core` must stay at **0** warnings.
 
 Goal: drive Rust baseline to **0** by refactoring hot spots (see CRAP report artifacts).
 
 Scanned trees:
 
 - `src-tauri/src` (Rust backend)
-- `src/core` (pure domain)
+- `apps/desktop/src/core` (pure domain)
 
 ## CRAP report (CI artifact)
 
@@ -64,7 +64,7 @@ when baseline is stable.
 
 `.github/workflows/ci.yml`:
 
-- **changes** — `app_source` (`src/` / `src-tauri/`) and `release_build` (version manifests)
+- **changes** — `app_source` (`apps/desktop/` / `src-tauri/`) and `release_build` (version manifests)
 - **check** — light always except version-bump diffs (then WebKit + Rust tests)
 - **complexity** — Lizard when `app_source`
 - **crap_report** — when `release_build` (needs WebKit)

@@ -24,8 +24,8 @@ test('companyCount: unique companies, case and spacing folded; scopeMessage uses
   const rows = [{ company: 'Brisklabs' }, { company: ' brisklabs ' }, { company: 'Lumenforge' }] as never;
   assert.equal(companyCount({ rows }), 2);
   assert.equal(companyCount(parsePool(raw)._unsafeUnwrap()), new Set(raw.rows.map((r: { company: string }) => r.company.trim().toLowerCase())).size);
-  assert.equal(scopeMessage(1234), 'We cover software & AI engineering roles at 1,234 tech companies, SE/EU/UK/US.');
-  assert.equal(scopeMessage(1), 'We cover software & AI engineering roles at 1 tech company, SE/EU/UK/US.');
+  assert.equal(scopeMessage(1234), 'We cover software & AI engineering roles at 1,234 tech companies.');
+  assert.equal(scopeMessage(1), 'We cover software & AI engineering roles at 1 tech company.');
 });
 
 test('summary: every sample role has a short summary, it reaches the matched row, and a long one is rejected', () => {

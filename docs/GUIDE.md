@@ -134,9 +134,9 @@ CI details: [ci.md](./ci.md).
 
 | Layer | Location |
 |-------|----------|
-| MVU UI | `src/core/finder/`, `src/view/`, `src/components/finder/` |
-| Screens | `src/view/screens/`, `src/components/layout/sidebar-nav.tsx` |
-| Tauri bridge | `src/adapters/tauri/`, `src/ports/` |
+| MVU UI | `apps/desktop/src/core/finder/`, `apps/desktop/src/view/`, `apps/desktop/src/components/finder/` |
+| Screens | `apps/desktop/src/view/screens/`, `apps/desktop/src/components/layout/sidebar-nav.tsx` |
+| Tauri bridge | `apps/desktop/src/adapters/tauri/`, `apps/desktop/src/ports/` |
 | X + secrets | `src-tauri/src/lib.rs`, `secrets.rs`, `app_dirs.rs` |
 | Target / packs / apply CV | `src-tauri/src/opportunity_target.rs`, `cv_home.rs` |
 | Rank / operator pack | `rank_config.rs`, `operator_pack.rs` |

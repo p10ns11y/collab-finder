@@ -2,13 +2,14 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import { Reveal } from './reveal.tsx';
 import {
   poolStats, findPii, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
-  type MatchResult, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
+  type MatchResult, type PublicPool, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
 import type { AgentSearch, ConfirmOutcome, WebMcpHost } from './webmcp.ts';
 import type { FlowEvent, Snap, View } from './flow.ts';
+import { REGIONS, type Place } from './regions.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
@@ -37,8 +38,6 @@ class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode
   render() { return this.state.failed ? null : this.props.children; }
 }
 
-type Place = Exclude<RegionPref, 'any'>;
-const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
 const SEARCHED: ReadonlySet<string> = new Set(['matched', 'tailored', 'pack', 'confirming', 'confirmed']);
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
@@ -201,7 +200,7 @@ export function App() {
         <h1 className="text-sm font-semibold tracking-tight text-text-muted">kanithanj.ai</h1>
         <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
           {pool
-            ? `${pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool).toLocaleString('en')} tech companies in SE/EU/UK/US, checked ${pool.checkedRange.to.slice(0, 10)}. `
+            ? `${pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool).toLocaleString('en')} tech companies, checked ${pool.checkedRange.to.slice(0, 10)}. `
             : `${OUT_OF_SCOPE_MSG} `}
           Matching runs in your browser; nothing you type leaves this page.
         </p>

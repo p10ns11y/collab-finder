@@ -22,10 +22,10 @@ import {
   emptyPolicy,
   falsePolicyWriteRate,
   firmKey,
-} from '../src/core/domain/qualify-policy.ts'
+} from '../apps/desktop/src/core/domain/qualify-policy.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const fixturePath = join(root, 'src/core/domain/fixtures/outcome-seed.json')
+const fixturePath = join(root, 'apps/desktop/src/core/domain/fixtures/outcome-seed.json')
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
 const cited = Array.isArray(fixture.rows) ? fixture.rows : []
 const gate = fixture.policy_gate
