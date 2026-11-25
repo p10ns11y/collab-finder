@@ -62,7 +62,7 @@ flowchart LR
   ingest --> store
 ```
 
-An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `fc493a2`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
+An arrow means depends on. Edges were read from TS imports, Rust paths, and IPC names on main at `9236e36`: 88 directed edges. The hub edge folds 55 links (UI kit, messages, IPC). The other 33 are drawn. `<-->` is a two-way pair.
 
 15 areas share one tree. `bridge` has 12 neighbours. `store` is the data area the most others depend on. Cycles run through `shell`, `runtime`, `bridge`, `discover`, `hunt`, `xplore`, `pipeline`, `quest`, `credentials`, `store`, `packs`, `ingest`, `network`, and `hire-board`. `profile-data` only has incoming edges. `cv-renderer`, `ops`, `kanithanj-v0`, and `docs` have none. `ops` still chooses which checks run.
 <!-- /area-map-graph:mermaid -->
@@ -106,29 +106,29 @@ Lines are added plus deleted on main from 2026-10-26 (30 days) and 2026-08-27 (9
 
 | Area | Kind | 30 days: commits / lines | 90 days: commits / lines | Edges in / out (neighbours) | Cadence | Reason |
 |---|---|---|---|---|---|---|
-| bridge | functional | 2 / 3 | 19 / 1,368 | 7 / 12 (12) | Nightly | 10+ neighbours |
+| shell | functional | 1 / 4,376 | 1 / 4,376 | 11 / 10 (11) | Nightly | 1,500+ lines in 30 days; 10+ neighbours |
+| runtime | functional | 1 / 4,180 | 1 / 4,180 | 11 / 11 (11) | Nightly | 1,500+ lines in 30 days; 10+ neighbours |
+| discover | functional | 1 / 3,924 | 6 / 4,266 | 9 / 10 (10) | Nightly | 1,500+ lines in 30 days; 10+ neighbours |
+| pipeline | functional | 2 / 2,710 | 7 / 4,189 | 5 / 5 (6) | Nightly | 1,500+ lines in 30 days |
+| hunt | functional | 1 / 1,864 | 15 / 6,208 | 4 / 8 (8) | Nightly | 1,500+ lines in 30 days |
+| bridge | functional | 3 / 811 | 20 / 2,176 | 7 / 12 (12) | Nightly | 10+ neighbours |
 | store | data | 0 / 0 | 6 / 1,053 | 9 / 3 (10) | Nightly | 10+ neighbours; owns the database path; owns the sync path |
-| discover | functional | 0 / 0 | 5 / 342 | 9 / 10 (10) | Nightly | 10+ neighbours |
-| runtime | functional | 0 / 0 | 0 / 0 | 11 / 11 (11) | Nightly | 10+ neighbours |
-| shell | functional | 0 / 0 | 0 / 0 | 11 / 10 (11) | Nightly | 10+ neighbours |
-| ops | ops | 10 / 1,627 | 29 / 4,546 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
-| pipeline | functional | 1 / 1,128 | 6 / 2,607 | 5 / 5 (6) | Weekly | 1,000+ lines in 90 days |
-| packs | data | 1 / 118 | 12 / 1,331 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
-| hunt | functional | 0 / 0 | 14 / 4,344 | 4 / 8 (8) | Weekly | 1,000+ lines in 90 days |
-| xplore | functional | 0 / 0 | 2 / 192 | 8 / 5 (9) | Weekly | 9 neighbours |
-| kanithanj-v0 | functional | 19 / 9,310 | 19 / 9,310 | 0 / 0 (0) | Monthly | no import edges |
-| docs | docs | 10 / 358 | 59 / 6,227 | 0 / 0 (0) | Monthly | no import edges |
-| network | data | 1 / 4 | 3 / 53 | 4 / 4 (5) | Monthly | quiet leaf |
-| cv-renderer | functional | 1 / 2 | 12 / 2,946 | 0 / 0 (0) | Monthly | no import edges |
+| ops | ops | 12 / 2,033 | 31 / 4,952 | 0 / 0 (0) | Weekly | no import edges, but it sets which checks run |
+| packs | data | 2 / 1,289 | 13 / 2,502 | 7 / 5 (8) | Weekly | 1,000+ lines in 90 days |
+| credentials | functional | 1 / 1,227 | 2 / 1,610 | 4 / 5 (5) | Weekly | 1,000+ lines in 90 days |
+| quest | functional | 1 / 931 | 1 / 931 | 3 / 4 (5) | Weekly | 931 lines in 30 days |
+| network | data | 2 / 495 | 4 / 544 | 4 / 4 (5) | Weekly | 495 lines in 30 days |
+| xplore | functional | 1 / 455 | 3 / 647 | 8 / 5 (9) | Weekly | 455 lines in 30 days |
+| hire-board | data | 1 / 238 | 2 / 239 | 3 / 4 (5) | Weekly | 238 lines in 30 days |
+| kanithanj-v0 | functional | 21 / 10,650 | 21 / 10,650 | 0 / 0 (0) | Monthly | no import edges |
+| cv-renderer | functional | 2 / 3,061 | 13 / 5,055 | 0 / 0 (0) | Monthly | no import edges |
+| docs | docs | 12 / 756 | 61 / 6,625 | 0 / 0 (0) | Monthly | no import edges |
+| profile-data | data | 1 / 108 | 2 / 109 | 2 / 0 (2) | Monthly | quiet leaf |
 | ingest | data | 0 / 0 | 2 / 822 | 1 / 2 (3) | Monthly | quiet leaf |
-| credentials | functional | 0 / 0 | 1 / 383 | 4 / 5 (5) | Monthly | quiet leaf |
-| hire-board | data | 0 / 0 | 1 / 1 | 3 / 4 (5) | Monthly | quiet leaf |
-| profile-data | data | 0 / 0 | 1 / 1 | 2 / 0 (2) | Monthly | quiet leaf |
-| quest | functional | 0 / 0 | 0 / 0 | 3 / 4 (5) | Monthly | quiet leaf |
 
-5 nightly, 5 weekly, 9 monthly.
+7 nightly, 7 weekly, 5 monthly.
 
-Apart from area rows: 30 days 9 commits / 3,480 lines; 90 days 52 commits / 22,495 lines.
+Apart from area rows: 30 days 12 commits / 29,075 lines; 90 days 61 commits / 49,040 lines.
 <!-- /area-map-graph:cadence -->
 
 ## Schedule (UTC)
