@@ -147,8 +147,12 @@ export type RoleSummary = {
   verdict: string;
   error: string | null;
   note?: string;
+  readAs: string | null;
   groups: Record<string, Array<{ id: string; title: string; company: string; reasons: ReadonlyArray<string> }>> | null;
 };
+
+const readAs = (u: MatchResult['understood']) =>
+  `${[...u.roles, ...u.skills].join(', ') || 'general software engineering'}${u.seniority ? `, ${u.seniority} level` : ''}${u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}`;
 
 export function summarizeRoles(answer: { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null; note?: string }): RoleSummary {
   return {
@@ -156,6 +160,7 @@ export function summarizeRoles(answer: { stateVersion: number; result: MatchResu
     verdict: answer.verdict,
     error: answer.error,
     ...(answer.note ? { note: answer.note } : {}),
+    readAs: answer.result ? readAs(answer.result.understood) : null,
     groups: answer.result
       ? Object.fromEntries(Object.entries(answer.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))]))
       : null,

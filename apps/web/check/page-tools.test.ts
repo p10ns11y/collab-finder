@@ -114,5 +114,6 @@ test('summarizeRoles lists the first ten rows in each group and keeps the state 
   });
   assert.equal(out.stateVersion, 2);
   assert.equal(out.groups?.fitsNow.length, 10);
+  assert.equal(out.readAs, 'backend, go, senior level');
   assert.equal(TOOL_NAMES.join(','), 'find_roles,show_apply_pack,tailor_cv');
 });
