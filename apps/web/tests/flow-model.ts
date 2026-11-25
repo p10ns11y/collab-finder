@@ -1,6 +1,6 @@
 import { getShortestPaths } from '@xstate/graph';
-import { createMachine } from 'xstate';
-import type { EventType, Step } from '../src/flow.ts';
+import { transition } from 'xstate';
+import { flowMachine, type EventType, type FlowEvent, type Step } from '../src/flow.ts';
 
 export type Edge = { from: Step; event: EventType; to: Step };
 
@@ -21,30 +21,40 @@ export const STEPS = Object.keys(EXPECTED) as Step[];
 export const EVENTS: ReadonlyArray<EventType> = ['POOL_LOADED', 'POOL_FAILED', 'RETRY', 'EDIT', 'MATCHED', 'MATCH_FAILED', 'TAILOR', 'PACK', 'REQUEST_CONFIRM', 'CONFIRM', 'CANCEL', 'CONFIRM_FAILED'];
 export const LIFECYCLE: ReadonlySet<EventType> = new Set(['POOL_LOADED', 'POOL_FAILED', 'RETRY']);
 
-export const EDGES: ReadonlyArray<Edge> = STEPS.flatMap(from => EVENTS.flatMap(event => {
+const probe = (type: EventType): FlowEvent => {
+  switch (type) {
+    case 'MATCHED': return { type, view: { kind: 'results', result: {} as never, ms: 0 } };
+    case 'MATCH_FAILED': return { type, view: { kind: 'outOfScope', reason: 'probe' } };
+    case 'TAILOR': return { type, outline: {} as never };
+    case 'PACK': return { type, pack: {} as never };
+    case 'REQUEST_CONFIRM': return { type, ask: { id: 0, title: '', body: '', pack: {} as never } };
+    default: return { type } as FlowEvent;
+  }
+};
+const PROBES = EVENTS.map(probe);
+const stepOf = (value: unknown) => String(value) as Step;
+
+const graph = getShortestPaths(flowMachine, { events: PROBES, serializeState: s => stepOf(s.value) });
+
+export const MACHINE_STEPS: ReadonlyArray<Step> = graph.map(p => stepOf(p.state.value));
+
+export const EDGES: ReadonlyArray<Edge> = graph.flatMap(p => PROBES.flatMap(ev => {
+  if (!p.state.can(ev)) return [];
+  return [{ from: stepOf(p.state.value), event: ev.type, to: stepOf(transition(flowMachine, p.state, ev)[0].value) }];
+}));
+
+export const ORACLE_EDGES: ReadonlyArray<Edge> = STEPS.flatMap(from => EVENTS.flatMap(event => {
   const to = EXPECTED[from][event];
   return to ? [{ from, event, to }] : [];
 }));
 
-export const model = createMachine({
-  id: 'expected',
-  initial: 'loading',
-  states: Object.fromEntries(STEPS.map(from => [from, { on: Object.fromEntries(Object.entries(EXPECTED[from]).map(([event, to]) => [event, { target: to }])) }])),
-});
-
-const shortestPrefixes = (): ReadonlyMap<Step, ReadonlyArray<Edge>> => {
-  const prefix = new Map<Step, ReadonlyArray<Edge>>();
-  for (const path of getShortestPaths(model, { events: EVENTS.map(type => ({ type })) })) {
-    const steps = path.steps.slice(1);
-    const edges = steps.map((st, k) => ({ from: String((k ? steps[k - 1]! : path.steps[0]!).state.value) as Step, event: st.event.type as EventType, to: String(st.state.value) as Step }));
-    prefix.set(String(path.state.value) as Step, edges);
-  }
-  return prefix;
-};
+const prefixes = new Map<Step, ReadonlyArray<Edge>>(graph.map(p => {
+  const steps = p.steps.slice(1);
+  return [stepOf(p.state.value), steps.map((st, k) => ({ from: stepOf((k ? steps[k - 1]! : p.steps[0]!).state.value), event: st.event.type as EventType, to: stepOf(st.state.value) }))];
+}));
 
 export const coverPaths = (): ReadonlyArray<ReadonlyArray<Edge>> => {
-  const prefix = shortestPrefixes();
-  const all = EDGES.map(e => [...(prefix.get(e.from) ?? []), e]);
+  const all = EDGES.map(e => [...(prefixes.get(e.from) ?? []), e]);
   const key = (p: ReadonlyArray<Edge>) => p.map(e => `${e.from}:${e.event}`).join('>');
   return all.filter(p => !all.some(q => q.length > p.length && key(q).startsWith(`${key(p)}>`)));
 };

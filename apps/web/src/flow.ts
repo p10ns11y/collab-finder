@@ -1,3 +1,4 @@
+import { assertEvent, assign, initialTransition, setup, transition, type SnapshotFrom } from 'xstate';
 import type { MatchResult } from '../../../packages/core/src/index.ts';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
 
@@ -20,38 +21,63 @@ export type FlowEvent =
 export type EventType = FlowEvent['type'];
 export type Snap = { step: Step; version: number; view: View; outline: CvOutline | null; pack: ApplyPack | null; ask: Ask | null };
 
-const shown = { EDIT: 'find', MATCHED: 'matched', MATCH_FAILED: 'find', TAILOR: 'tailored', PACK: 'pack', REQUEST_CONFIRM: 'confirming' } as const;
+type Context = Omit<Snap, 'step'>;
 
-export const TABLE: Readonly<Record<Step, Partial<Record<EventType, Step>>>> = {
-  loading: { POOL_LOADED: 'find', POOL_FAILED: 'failed' },
-  failed: { RETRY: 'loading' },
-  find: { EDIT: 'find', MATCHED: 'matched', MATCH_FAILED: 'find' },
-  matched: shown,
-  tailored: shown,
-  pack: shown,
-  confirmed: shown,
-  confirming: { REQUEST_CONFIRM: 'confirming', CONFIRM: 'confirmed', CANCEL: 'matched', CONFIRM_FAILED: 'matched' },
-};
+const flowSetup = setup({
+  types: { context: {} as Context, events: {} as FlowEvent },
+  guards: {
+    hasResults: ({ event }) => event.type === 'MATCHED' && event.view.kind === 'results',
+    noResults: ({ event }) => event.type === 'MATCH_FAILED' && event.view.kind !== 'results',
+  },
+  actions: {
+    bump: assign({ version: ({ context }) => context.version + 1 }),
+    edit: assign({ view: { kind: 'idle' }, outline: null, pack: null }),
+    show: assign({ view: ({ event }) => { assertEvent(event, ['MATCHED', 'MATCH_FAILED']); return event.view; }, outline: null, pack: null }),
+    tailor: assign(({ event }) => { assertEvent(event, 'TAILOR'); return { outline: event.outline, pack: null }; }),
+    showPack: assign({ pack: ({ event }) => { assertEvent(event, 'PACK'); return event.pack; } }),
+    ask: assign({ ask: ({ event }) => { assertEvent(event, 'REQUEST_CONFIRM'); return event.ask; } }),
+    confirm: assign(({ context }) => ({ pack: context.ask?.pack ?? null, ask: null })),
+    close: assign({ ask: null }),
+  },
+});
 
-const LIFECYCLE: ReadonlySet<EventType> = new Set(['POOL_LOADED', 'POOL_FAILED', 'RETRY']);
+const shown = {
+  EDIT: { target: 'find', actions: ['bump', 'edit'] },
+  MATCHED: { target: 'matched', guard: 'hasResults', actions: ['bump', 'show'] },
+  MATCH_FAILED: { target: 'find', guard: 'noResults', actions: ['bump', 'show'] },
+  TAILOR: { target: 'tailored', actions: ['bump', 'tailor'] },
+  PACK: { target: 'pack', actions: ['bump', 'showPack'] },
+  REQUEST_CONFIRM: { target: 'confirming', actions: ['bump', 'ask'] },
+} as const;
 
-export const START: Snap = { step: 'loading', version: 0, view: { kind: 'idle' }, outline: null, pack: null, ask: null };
+export const flowMachine = flowSetup.createMachine({
+  id: 'flow',
+  initial: 'loading',
+  context: { version: 0, view: { kind: 'idle' }, outline: null, pack: null, ask: null },
+  states: {
+    loading: { on: { POOL_LOADED: 'find', POOL_FAILED: 'failed' } },
+    failed: { on: { RETRY: 'loading' } },
+    find: { on: { EDIT: shown.EDIT, MATCHED: shown.MATCHED, MATCH_FAILED: shown.MATCH_FAILED } },
+    matched: { on: shown },
+    tailored: { on: shown },
+    pack: { on: shown },
+    confirmed: { on: shown },
+    confirming: { on: {
+      REQUEST_CONFIRM: shown.REQUEST_CONFIRM,
+      CONFIRM: { target: 'confirmed', actions: ['bump', 'confirm'] },
+      CANCEL: { target: 'matched', actions: ['bump', 'close'] },
+      CONFIRM_FAILED: { target: 'matched', actions: ['bump', 'close'] },
+    } },
+  },
+});
+
+const snapOf = (m: SnapshotFrom<typeof flowMachine>): Snap => ({ step: m.value as Step, ...m.context });
+
+export const START: Snap = snapOf(initialTransition(flowMachine)[0]);
 
 export function next(s: Snap, e: FlowEvent): Snap | null {
-  const step = TABLE[s.step][e.type];
-  if (!step) return null;
-  if ((e.type === 'MATCHED' || e.type === 'MATCH_FAILED') && (e.type === 'MATCHED') !== (e.view.kind === 'results')) return null;
-  const n: Snap = { ...s, step, version: LIFECYCLE.has(e.type) ? s.version : s.version + 1 };
-  switch (e.type) {
-    case 'EDIT': return { ...n, view: { kind: 'idle' }, outline: null, pack: null };
-    case 'MATCHED':
-    case 'MATCH_FAILED': return { ...n, view: e.view, outline: null, pack: null };
-    case 'TAILOR': return { ...n, outline: e.outline, pack: null };
-    case 'PACK': return { ...n, pack: e.pack };
-    case 'REQUEST_CONFIRM': return { ...n, ask: e.ask };
-    case 'CONFIRM': return { ...n, pack: s.ask?.pack ?? null, ask: null };
-    case 'CANCEL':
-    case 'CONFIRM_FAILED': return { ...n, ask: null };
-    default: return n;
-  }
+  const { step, ...context } = s;
+  const at = flowMachine.resolveState({ value: step, context });
+  if (!at.can(e)) return null;
+  return snapOf(transition(flowMachine, at, e)[0]);
 }

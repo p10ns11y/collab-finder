@@ -64,6 +64,17 @@ const offlineServiceWorker = (): Plugin => ({
   },
 });
 
+const retryCopy = (): Plugin => ({
+  name: 'retry-copy',
+  apply: 'build',
+  enforce: 'pre',
+  async resolveId(source, importer, options) {
+    if (!importer?.endsWith('?r=1') || !(source === 'xstate' || importer.includes('/node_modules/xstate/'))) return null;
+    const hit = await this.resolve(source, importer.slice(0, -4), { ...options, skipSelf: true });
+    return hit && !hit.external ? { ...hit, id: `${hit.id}?r=1` } : null;
+  },
+});
+
 const cleanUrlPreview = (): Plugin => ({
   name: 'clean-url-preview',
   apply: (_, env) => env.isPreview === true,
@@ -79,7 +90,7 @@ const cleanUrlPreview = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), offlineServiceWorker(), cleanUrlPreview()],
+  plugins: [retryCopy(), react(), tailwindcss(), offlineServiceWorker(), cleanUrlPreview()],
   build: {
     sourcemap: false,
     target: 'es2022',

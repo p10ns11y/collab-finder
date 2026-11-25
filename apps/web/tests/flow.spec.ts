@@ -1,8 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { EDGES, coverPaths, covered, LIFECYCLE } from './flow-model.ts';
+import { EDGES, ORACLE_EDGES, MACHINE_STEPS, STEPS, coverPaths, covered, LIFECYCLE } from './flow-model.ts';
 
 const paths = coverPaths();
+test('runtime machine matches the independent transition oracle', () => {
+  const key = (e: { from: string; event: string; to: string }) => `${e.from}:${e.event}:${e.to}`;
+  expect(EDGES.map(key).sort()).toEqual(ORACLE_EDGES.map(key).sort());
+  expect([...MACHINE_STEPS].sort()).toEqual([...STEPS].sort());
+});
 const sample = readFileSync(new URL('../../../packages/core/fixtures/pool.sample.json', import.meta.url), 'utf8');
 const DESCRIPTION = 'Senior backend engineer with Go and Postgres, distributed systems';
 const shots = process.env['EVIDENCE_DIR'];
@@ -49,7 +54,13 @@ const shows = async (page: Page, step: string, dialog: boolean, seen: Shown = {}
   else await expect(page.getByTestId('results')).toBeVisible();
   if (step === 'tailored') { await expect(page.getByTestId('cv-outline')).toContainText(seen.outlined!.label); await count('apply-pack', 0); }
   if (step === 'pack' || step === 'confirmed') await expect(page.getByTestId('apply-pack')).toContainText(seen.packed!.label);
-  if (step === 'confirming' && dialog) await expect(page.getByTestId('person-confirm')).toContainText(seen.asked!.label);
+  if (step === 'confirming' && dialog) {
+    await expect(page.getByTestId('person-confirm')).toContainText(seen.asked!.label);
+    if (seen.packed?.id !== seen.asked?.id) {
+      const pack = page.getByTestId('apply-pack');
+      if (await pack.count()) await expect(pack).not.toContainText(seen.asked!.label);
+    }
+  }
   await count('confirmed', step === 'confirmed' ? 1 : 0);
   await count('person-confirm', step === 'confirming' && dialog ? 1 : 0);
 };
@@ -164,6 +175,8 @@ for (const first of ['confirm', 'pack'] as const) {
     if (first === 'confirm') expect(older?.error).toMatch(/cancelled/);
     await expect(page.getByTestId('person-confirm')).toContainText(roles[1].label);
     await expect(page.getByTestId('person-confirm')).not.toContainText(roles[0].label);
+    if (first === 'pack') await expect(page.getByTestId('apply-pack')).not.toContainText(roles[1].label);
+    else await expect(page.getByTestId('apply-pack')).toHaveCount(0);
     await page.getByRole('button', { name: 'Confirm', exact: true }).click();
     expect((await page.evaluate(() => window.pendingForTest))?.confirmed).toBe(true);
     await expect(page.getByTestId('apply-pack')).toContainText(roles[1].label);

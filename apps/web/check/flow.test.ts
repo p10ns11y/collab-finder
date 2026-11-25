@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { match, parsePool } from '../../../packages/core/src/index.ts';
 import { next, START, type EventType, type FlowEvent, type Snap, type Step } from '../src/flow.ts';
 import { buildApplyPack, buildCvOutline } from '../src/page-tools.ts';
-import { EDGES, EVENTS, EXPECTED, LIFECYCLE, STEPS, coverPaths, covered, model } from '../tests/flow-model.ts';
+import { EDGES, EVENTS, EXPECTED, LIFECYCLE, STEPS, coverPaths, covered, MACHINE_STEPS, ORACLE_EDGES } from '../tests/flow-model.ts';
 
 const pool = parsePool(JSON.parse(readFileSync(new URL('../../../packages/core/fixtures/pool.sample.json', import.meta.url), 'utf8')))._unsafeUnwrap();
 const result = match({ description: 'Senior backend engineer with Go and Postgres, distributed systems' }, pool, { now: new Date('2026-11-19T20:00:00Z') })._unsafeUnwrap();
@@ -56,6 +56,7 @@ for (const [i, path] of paths.entries()) {
       assert.equal(n.step, edge.to, `${edge.from} --${edge.event}-->`);
       assert.equal(n.version, s.version + (LIFECYCLE.has(edge.event) ? 0 : 1));
       shows(n, ev, newest);
+      if (n.step === 'confirming') assert.equal(n.pack, s.pack, 'a pending request leaves the visible pack alone');
       if (!at.has(n.step)) at.set(n.step, n);
       s = n;
     }
@@ -74,10 +75,13 @@ for (const [name, first] of [['confirm A then B', 'REQUEST_CONFIRM'], ['pack A t
     const start = [{ type: 'POOL_LOADED' }, payload('MATCHED')] as FlowEvent[];
     let s = start.reduce((a: Snap, e) => next(a, e)!, START);
     s = next(s, payload(first, 0))!;
+    const shownPack = s.pack;
     const b = payload('REQUEST_CONFIRM', 1);
     s = next(s, b)!;
     assert.equal(s.step, 'confirming');
     assert.ok(b.type === 'REQUEST_CONFIRM');
+    assert.equal(s.pack, shownPack, 'pending request cannot change the visible pack');
+    assert.notEqual(s.pack?.url, b.ask.pack.url, 'B stays hidden before Confirm');
     assert.equal(s.ask?.body, b.ask.body);
     assert.equal(s.ask?.pack.url, roles[1]!.pack.url);
     s = next(s, { type: 'CONFIRM' })!;
@@ -89,7 +93,9 @@ for (const [name, first] of [['confirm A then B', 'REQUEST_CONFIRM'], ['pack A t
 
 test('every expected transition is covered by a path', () => {
   assert.equal(covered(paths), EDGES.length);
-  assert.deepEqual(Object.keys(model.config.states ?? {}).sort(), [...STEPS].sort());
+  assert.deepEqual([...MACHINE_STEPS].sort(), [...STEPS].sort());
+  const key = (e: { from: string; event: string; to: string }) => `${e.from}:${e.event}:${e.to}`;
+  assert.deepEqual(EDGES.map(key).sort(), ORACLE_EDGES.map(key).sort());
 });
 
 test('every other event is refused and leaves the version alone', () => {
