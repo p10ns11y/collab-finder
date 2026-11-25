@@ -316,6 +316,56 @@ test.afterAll(() => {
   if (out) writeFileSync(out, JSON.stringify({ paths: paths.length, transitions: EDGES.length, covered: covered(paths), passed }, null, 2));
 });
 
+const cyanActions = (page: Page) => page.evaluate(() => {
+  const probe = document.createElement('span'); probe.className = 'bg-accent'; document.body.append(probe);
+  const accent = getComputedStyle(probe).backgroundColor; probe.remove();
+  return [...document.querySelectorAll('a, button')].filter(el => (el as HTMLElement).offsetParent !== null && getComputedStyle(el).backgroundColor === accent).map(el => (el.textContent ?? '').trim());
+});
+
+test('design r3: one cyan action per screen, Lead with is typed phrases, focus lands on the confirmed heading', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.getByLabel('Where do you want to grow? (optional)')).not.toHaveAttribute('placeholder', /\bSI\b|\bAI\b/);
+  await expect(page.locator('body')).not.toContainText('Off by default');
+  await expect.poll(() => cyanActions(page)).toEqual(['Find roles']);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await expect(page.getByTestId('flow-stage')).toContainText('Your matches');
+  await expect.poll(() => cyanActions(page)).toEqual([]);
+  await call(page, 'tailor_cv', { id: roles[0].id });
+  const lead = page.getByTestId('cv-outline').locator('ol li');
+  await expect(lead).toHaveCount(4);
+  const lines = (await lead.allInnerTexts()).map(t => t.replace(/^\d+\s*/, ''));
+  expect([...lines].sort()).toEqual(['Backend', 'Distributed systems', 'Go', 'Postgres']);
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  await expect.poll(() => cyanActions(page)).toEqual([expect.stringMatching(/^Open posting/)]);
+  await expect(page.getByTestId('apply-pack')).not.toContainText(/Region:|Open when last checked|Level fits/);
+  await requestConfirm(page, roles[1].id);
+  await expect(page.getByTestId('person-confirm')).not.toContainText('Confirm to get the posting link');
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByTestId('confirmed')).toBeVisible();
+  await expect(page.getByTestId('apply-pack').getByRole('heading', { level: 2 })).toBeFocused();
+  await expect.poll(() => cyanActions(page)).toEqual([expect.stringMatching(/^Open posting/)]);
+  await expect(page.getByTestId('apply-pack')).not.toContainText(/Region:|Open when last checked|Level fits/);
+  await page.getByLabel('Work mode').selectOption('remote');
+  await expect.poll(() => cyanActions(page)).toEqual(['Find roles']);
+});
+
+test('design r3 mobile: 44 px checkbox rows and a one-line step rail that stays in view', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?all');
+  await toolsReady(page);
+  const heights = await page.locator('label:has(input[type="checkbox"])').evaluateAll(els => els.map(el => el.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(0);
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  const line = page.getByTestId('step-line');
+  await expect(line).toHaveText('Step 4 of 5 · Apply pack');
+  await page.getByTestId('apply-pack').scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => line.evaluate(el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height < 24; })).toBe(true);
+});
+
 test('flow design: a form rail and a state-driven stage, hairline matches and no reviewer copy', async ({ page }) => {
   await page.goto('/?all');
   await toolsReady(page);

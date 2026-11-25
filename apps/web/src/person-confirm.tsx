@@ -74,12 +74,14 @@ function PackPanel({ pack, outline, phase }: { pack: ApplyPack; outline: CvOutli
   const facts: Array<[string, string]> = [['Location', pack.location ?? 'See posting'], ['Work mode', pack.remote], ['Status', pack.status]];
   const lead = outline?.roleId === pack.roleId ? outline.emphasize.filter(item => !pack.reasons.includes(item)) : [];
   const where = [pack.company, pack.location].filter(Boolean).join(' · ');
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (phase === 'confirmed') heading.current?.focus(); }, [phase]);
   return (
     <Card className="p-0" data-testid="apply-pack" data-phase={phase}>
       <header className="flex flex-wrap items-end justify-between gap-6 border-b border-border p-6 md:p-10">
         <div className="min-w-0">
           <p className={eyebrow}>Apply pack</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance">{pack.title}<span className="sr-only"> at {pack.company}</span></h2>
+          <h2 ref={heading} tabIndex={-1} className="mt-3 text-3xl font-semibold tracking-tight text-balance outline-none">{pack.title}<span className="sr-only"> at {pack.company}</span></h2>
           <p className="mt-2 text-sm text-text-muted" aria-hidden="true">{where}</p>
           {phase !== 'ready' && <p className={phase === 'confirmed' ? 'mt-4 text-sm font-semibold text-ok-text' : 'mt-4 text-sm text-text-muted'} data-testid={phase} role="status">{PHASE_LINE[phase]}</p>}
         </div>

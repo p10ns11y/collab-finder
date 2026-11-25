@@ -1,4 +1,4 @@
-import type { MatchResult, MatchRow, RegionPref, RemotePref } from '../../../packages/core/src/index.ts';
+import { isLocationPart, type MatchResult, type MatchRow, type RegionPref, type RemotePref } from '../../../packages/core/src/index.ts';
 
 export type Place = Exclude<RegionPref, 'any'>;
 export const PLACES: ReadonlyArray<Place> = ['SE', 'EU', 'UK', 'US'];
@@ -56,18 +56,42 @@ export type CvOutline = {
   notice: string;
 };
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'you', 'your', 'this', 'that', 'from', 'into', 'a', 'an', 'of', 'to', 'in', 'on', 'or', 'at']);
-const tokens = (s: string): ReadonlyArray<string> => (s.toLowerCase().match(/[a-z][a-z0-9+.#-]{1,}/g) ?? []).filter(w => !STOP.has(w));
+const GENERIC = new Set(['senior', 'staff', 'junior', 'lead', 'principal', 'mid', 'mid-level', 'engineer', 'engineers', 'engineering', 'developer', 'software', 'years', 'year', 'experience', 'i', 'am', 'a', 'an', 'the', 'my', 'of', 'on', 'working', 'building', 'who', 'writes', 'every', 'day', 'based', 'remote', 'hybrid']);
+const PHRASE_SPLIT = /[,;.\n()]|\b(?:and|with|in|at|using|plus)\b/i;
+const words = (s: string) => s.toLowerCase().match(/[a-z0-9][a-z0-9+#.-]*/g) ?? [];
+export const FACT = /^(?:Region|Open when|Level fits|Posting level|One level above|Seniority not stated|Location not confirmed|Remote policy|Work mode|Status unknown|Also listed)/;
+
+export function typedPhrases(description: string): ReadonlyArray<string> {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of description.split(PHRASE_SPLIT)) {
+    let run: string[] = [];
+    const flush = () => {
+      const phrase = run.join(' ').replace(/[^\p{L}\p{N}+#.\- ]/gu, '').trim();
+      run = [];
+      const key = phrase.toLowerCase();
+      if (!phrase || seen.has(key) || isLocationPart(phrase)) return;
+      seen.add(key);
+      out.push(phrase.charAt(0).toUpperCase() + phrase.slice(1));
+    };
+    for (const w of part.trim().split(/\s+/)) {
+      if (!w || GENERIC.has(w.toLowerCase()) || /^\d+\+?$/.test(w)) flush(); else run.push(w);
+    }
+    flush();
+  }
+  return out;
+}
 
 export function buildCvOutline(description: string, row: MatchRow): CvOutline {
-  const named = new Set(tokens(description));
-  const overlap = [...new Set(tokens(`${row.title} ${row.company}`).filter(w => named.has(w)))].slice(0, 8);
-  const emphasize = [...overlap, ...row.reasons.slice(0, 5)].slice(0, 8);
+  const posting = new Set(words([row.title, row.summary ?? '', ...row.reasons.filter(r => !FACT.test(r))].join(' ')));
+  const phrases = typedPhrases(description);
+  const hits = phrases.filter(p => words(p).some(w => posting.has(w)));
+  const emphasize = [...hits, ...phrases.filter(p => !hits.includes(p))].slice(0, 5);
   return {
     roleId: row.id,
     title: row.title,
     company: row.company,
-    emphasize: emphasize.length ? emphasize : row.reasons.slice(0, 5),
+    emphasize,
     notice: 'This outline is built in your browser from the text on this page and public posting facts. It is not a submitted CV and nothing is sent.',
   };
 }
@@ -94,7 +118,7 @@ export function buildApplyPack(row: MatchRow): ApplyPack {
     location: row.location,
     remote: row.remote,
     status: row.status,
-    reasons: row.reasons.slice(0, 5),
+    reasons: row.reasons.filter(r => !FACT.test(r)).slice(0, 5),
     checklist: [
       'Read the live posting end to end.',
       'Check that the role is still open.',

@@ -8,9 +8,15 @@ import { Button } from './components/ui/button.tsx';
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
 const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', productOnly: 'Include agencies and freelance', goal: 'Add a goal', seniority: 'Any level' };
 const STAGES = { loading: 0, failed: 0, find: 0, matched: 1, tailored: 2, pack: 3, confirming: 3, confirmed: 4 } satisfies Record<Step, number>;
+const STEP_TITLES = ['Find', 'Matches', 'CV outline', 'Apply pack', 'Confirmed'];
 export function StepRail({ step }: { step: Step }) {
   const active = STAGES[step];
-  return <ol aria-label="Your progress" className="mb-8 flex flex-wrap gap-x-6 gap-y-2 border-b border-border pb-4 text-xs text-text-muted">{['Find', 'Matches', 'CV outline', 'Apply pack', 'Confirmed'].map((title, i) => <li key={title} aria-current={i === active ? 'step' : undefined} className={i === active ? 'font-semibold text-text' : ''}><span className="mr-2 tabular-nums">{i < active ? '✓' : i + 1}</span>{title}</li>)}</ol>;
+  return (
+    <div className="sticky top-0 z-10 mb-8 border-b border-border bg-bg py-3 text-xs text-text-muted sm:static sm:pb-4 sm:pt-0">
+      <p className="sm:hidden" data-testid="step-line">Step {active + 1} of {STEP_TITLES.length} · <span className="font-semibold text-text">{STEP_TITLES[active]}</span></p>
+      <ol aria-label="Your progress" className="hidden flex-wrap gap-x-6 gap-y-2 sm:flex">{STEP_TITLES.map((title, i) => <li key={title} aria-current={i === active ? 'step' : undefined} className={i === active ? 'font-semibold text-text' : ''}><span className="mr-2 tabular-nums">{i < active ? '✓' : i + 1}</span>{title}</li>)}</ol>
+    </div>
+  );
 }
 
 export function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View; onWiden: (w: string) => void; onRemovePii: () => void; sdkPath: boolean }) {

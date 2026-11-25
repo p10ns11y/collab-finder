@@ -39,6 +39,7 @@ class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode
 
 type Place = Exclude<RegionPref, 'any'>;
 const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
+const SEARCHED: ReadonlySet<string> = new Set(['matched', 'tailored', 'pack', 'confirming', 'confirmed']);
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'junior': 'The pool has mid-level and senior roles only, no junior, intern or graduate roles yet.',
@@ -228,7 +229,7 @@ export function App() {
         </div>
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
-          <Input id="goal" ref={goalRef} name="goal" toolparamdescription="Optional area you want to grow into" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. SI infrastructure" autoComplete="off" />
+          <Input id="goal" ref={goalRef} name="goal" toolparamdescription="Optional area you want to grow into" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. developer tools" autoComplete="off" />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
@@ -247,7 +248,7 @@ export function App() {
                 <legend className="text-sm font-semibold">Regions</legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {REGIONS.map(([v, l]) => (
-                    <label key={v} className="flex items-center gap-2 text-sm">
+                    <label key={v} className="flex min-h-11 items-center gap-2 text-sm lg:min-h-0">
                       <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-text focus-visible:outline-accent"
                         onChange={() => { setRegions(regions.includes(v) ? regions.filter(x => x !== v) : [...regions, v]); formChanged(); }} />
                       {l}
@@ -265,12 +266,12 @@ export function App() {
             </Select>
           </div>
         </div>
-        <label className="flex items-start gap-2 text-sm">
+        <label className="flex min-h-11 items-center gap-2 text-sm lg:min-h-0 lg:items-start">
           <input type="checkbox" id="product-only" name="productOnly" toolparamdescription="If set, hide agency, consultancy or freelance-looking roles" checked={productOnly} className="mt-0.5 size-4 accent-text focus-visible:outline-accent" aria-describedby="product-only-help"
             onChange={() => { setProductOnly(!productOnly); formChanged(); }} />
           <span>
             Product companies only
-            <span id="product-only-help" className="block text-xs text-text-muted">Hides roles that look like agency, consultancy or freelance contracts, judged from the title and company name. Off by default.</span>
+            <span id="product-only-help" className="block text-xs text-text-muted">Hides roles that look like agency, consultancy or freelance contracts, judged from the title and company name.</span>
           </span>
         </label>
         {nonLatin && <p className="text-sm text-text-muted" data-testid="language-hint">Works best in English or Swedish.</p>}
@@ -280,7 +281,7 @@ export function App() {
             <Button type="button" variant="outline" size="sm" className="ml-2" onClick={removePii}>Remove them</Button>
           </Alert>
         )}
-        <div><Button type="submit" className="w-full" disabled={!pool}>Find roles</Button></div>
+        <div><Button type="submit" className="w-full transition-none" variant={SEARCHED.has(step) ? 'outline' : 'default'} data-testid="find-roles" disabled={!pool}>Find roles</Button></div>
       </form>
       </div>
       <div ref={resultsRef} data-testid="flow-stage" tabIndex={-1} className="min-w-0 outline-none" aria-live="polite">
