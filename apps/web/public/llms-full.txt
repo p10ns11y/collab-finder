@@ -1,0 +1,112 @@
+# kanithanj.ai (full)
+
+This page matches a short self-description to public software and engineering roles in your browser. Nothing you type leaves the page. This page never applies or sends on your behalf. A person must confirm, then open the posting themselves.
+
+On the first find_roles call, pass stateVersion 0. After that, pass the stateVersion last returned. A stale stateVersion is refused with StaleWrite and the current version. While a person-confirm step is open, other tools return an error until it is answered. tailor_cv and show_apply_pack only accept an id already shown on the page.
+
+## Regions and filters
+
+regions is an optional array of: SE Sweden, EU (includes Sweden), UK United Kingdom, US United States, CA Canada, LATAM Latin America, APAC Asia-Pacific, MEA Middle East and Africa. If no region is picked, every place counts as a fit.
+
+remote is one of: any, remote, hybrid, onsite. productOnly is a boolean that hides roles that look like agency or freelance work.
+
+## Page tools
+
+### find_roles (Find roles)
+
+Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.
+
+Input schema:
+{
+  "type": "object",
+  "required": [
+    "stateVersion"
+  ],
+  "properties": {
+    "stateVersion": {
+      "type": "integer"
+    },
+    "description": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string"
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "SE",
+          "EU",
+          "UK",
+          "US",
+          "CA",
+          "LATAM",
+          "APAC",
+          "MEA"
+        ]
+      }
+    },
+    "remote": {
+      "enum": [
+        "any",
+        "remote",
+        "hybrid",
+        "onsite"
+      ]
+    },
+    "productOnly": {
+      "type": "boolean"
+    }
+  }
+}
+
+### show_apply_pack (Show apply pack)
+
+Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. This page never applies or sends on your behalf. A person must confirm, then open the posting themselves.
+
+Input schema:
+{
+  "type": "object",
+  "required": [
+    "id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Id of a role already shown on the page"
+    },
+    "apply": {
+      "type": "boolean",
+      "description": "If true, a person must confirm in the page. The page still does not apply."
+    },
+    "send": {
+      "type": "boolean",
+      "description": "If true, a person must confirm in the page. The page still does not send."
+    }
+  }
+}
+
+### tailor_cv (Tailor CV)
+
+Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.
+
+Input schema:
+{
+  "type": "object",
+  "required": [
+    "id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Id of a role already shown on the page"
+    }
+  }
+}
+
+## How to use them
+
+1. Call find_roles with stateVersion 0 and a description. Skip name, email and phone; they are not needed.
+2. Pick an id from the result and call tailor_cv or show_apply_pack.
+3. If apply or send is set on show_apply_pack, a person must confirm in the page, then open the posting themselves.
