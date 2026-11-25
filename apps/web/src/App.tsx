@@ -8,17 +8,28 @@ import {
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
-import type { AgentSearch, WebMcpHost } from './webmcp.ts';
-import type { ApplyPack, CvOutline } from './page-tools.ts';
+import type { AgentSearch, ConfirmOutcome, WebMcpHost } from './webmcp.ts';
+import type { FlowEvent, Snap, View } from './flow.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
-const PersonConfirm = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.PersonConfirm })));
-const ToolCards = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.ToolCards })));
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
+
+const retrying = <T,>(first: () => Promise<T>, again: () => Promise<unknown>) => {
+  let tries = 0;
+  return () => {
+    const i = tries;
+    return (i ? again() as Promise<T> : first()).catch((err: unknown) => {
+      if (tries === i && i < 1) tries += 1;
+      return Promise.reject(err);
+    });
+  };
+};
+const loadSoft = retrying(() => import('./person-confirm.tsx'), () => import('./person-confirm.tsx?r=1'));
+const loadFlow = retrying(() => import('./flow.ts'), () => import('./flow.ts?r=1'));
 
 class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -26,15 +37,6 @@ class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode
   componentDidCatch() { this.props.onError?.(); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-
-type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
-type View =
-  | { kind: 'idle' }
-  | { kind: 'inputError'; msg: string }
-  | { kind: 'piiWarning'; kinds: ReadonlyArray<string> }
-  | { kind: 'outOfScope'; reason: string }
-  | { kind: 'zeroResults'; widen: ReadonlyArray<string> }
-  | { kind: 'results'; result: MatchResult; ms: number };
 
 type Place = Exclude<RegionPref, 'any'>;
 const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
@@ -57,20 +59,33 @@ const toView = (e: VisitorError): View => {
 const wantsAll = () => window.location.hash === '#all' || new URLSearchParams(window.location.search).has('all');
 
 export function App() {
-  const [pool, setPool] = useState<PoolState>({ kind: 'loading' });
+  const [pool, setPool] = useState<PublicPool | null>(null);
+  const [snap, setSnap] = useState<Snap | null>(null);
+  const [down, setDown] = useState(false);
+  const snapRef = useRef<Snap | null>(null);
+  const flowMod = useRef<typeof import('./flow.ts') | null>(null);
+  const send = (e: FlowEvent) => {
+    const m = flowMod.current;
+    const n = m && m.next(snapRef.current ?? m.START, e);
+    if (!n) return;
+    snapRef.current = n;
+    setSnap(n);
+  };
+  const step = snap?.step ?? (down ? 'failed' : 'loading');
+  const view: View = snap?.view ?? { kind: 'idle' };
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
   const [likes, setLikes] = useState('');
   const [regions, setRegions] = useState<ReadonlyArray<Place>>([]);
   const [productOnly, setProductOnly] = useState(false);
   const [remote, setRemote] = useState<RemotePref>('any');
-  const [view, setView] = useState<View>({ kind: 'idle' });
   const [showAll, setShowAll] = useState(wantsAll);
   const goalRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const loadPool = useCallback(() => {
-    setPool({ kind: 'loading' });
+    setDown(false);
+    send({ type: 'RETRY' });
     const getJson = (path: string, bust: string) => fetch(`${path}${bust}`, { credentials: 'same-origin', cache: bust ? 'reload' : 'default' })
       .then(r => (r.ok ? r.json() as Promise<unknown> : Promise.reject(new Error(String(r.status)))));
     const attempt = (bust: string): Promise<PublicPool> => getJson('/pool.json', bust)
@@ -82,9 +97,9 @@ export function App() {
       })
       .then((raw: unknown) => { const p = readPool(raw); return p.isOk() ? p.value : Promise.reject(new Error(p.error.kind)); });
     const refreshWorker = () => navigator.serviceWorker?.getRegistration().then(reg => reg?.update()).catch(() => undefined);
-    attempt('')
-      .catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); })
-      .then(p => { poolStats(p); setPool({ kind: 'ready', pool: p }); }, () => setPool({ kind: 'failed' }));
+    const flow = loadFlow().then(m => { flowMod.current = m; });
+    const data = attempt('').catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); });
+    Promise.all([flow, data]).then(([, p]) => { poolStats(p); setPool(p); send({ type: 'POOL_LOADED' }); }, () => flowMod.current ? send({ type: 'POOL_FAILED' }) : setDown(true));
   }, []);
   useEffect(loadPool, [loadPool]);
 
@@ -92,78 +107,88 @@ export function App() {
   const nonLatin = useMemo(() => mostlyNonLatin(`${description}\n${goal}\n${likes}`), [description, goal, likes]);
 
   const run = useCallback((over?: AgentSearch) => {
-    if (pool.kind !== 'ready') return null;
+    if (!pool) return null;
     const t0 = performance.now();
-    const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
+    const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
-    setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
+    send(r.isOk() ? { type: 'MATCHED', view: { kind: 'results', result: r.value, ms } } : { type: 'MATCH_FAILED', view: toView(r.error) });
     requestAnimationFrame(() => resultsRef.current?.focus());
     return r;
   }, [pool, description, goal, likes, regions, remote, productOnly]);
 
-  const version = useRef(0);
-  const latest = useRef({ run, view, description });
-  latest.current = { run, view, description };
-  const [outline, setOutline] = useState<CvOutline | null>(null);
-  const [pack, setPack] = useState<ApplyPack | null>(null);
-  const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (ok: boolean) => void } | null>(null);
-  const confirmRef = useRef<{ resolve: (ok: boolean) => void } | null>(null);
+  const latest = useRef({ run, description });
+  latest.current = { run, description };
+  const confirmRef = useRef<((outcome: ConfirmOutcome) => void) | null>(null);
   const confirmId = useRef(0);
+  const [soft, setSoft] = useState<typeof import('./person-confirm.tsx') | null>(null);
+  const setSoftRef = useRef(setSoft);
+  setSoftRef.current = setSoft;
+  const showAllRef = useRef(showAll);
+  showAllRef.current = showAll;
+  const cardsWaiter = useRef<((shown: boolean) => void) | null>(null);
+  const settleCards = (shown: boolean) => {
+    const wait = cardsWaiter.current;
+    cardsWaiter.current = null;
+    wait?.(shown);
+  };
+  const showPanel = (e: FlowEvent) => new Promise<boolean>(resolve => {
+    cardsWaiter.current?.(false);
+    cardsWaiter.current = resolve;
+    send(e);
+    if (!showAllRef.current) settleCards(false);
+    else void loadSoft().then(m => setSoftRef.current(m), () => settleCards(false));
+  });
+  const settleConfirm = (outcome: ConfirmOutcome) => {
+    const resolve = confirmRef.current;
+    if (!resolve) return;
+    confirmRef.current = null;
+    if (outcome === 'confirmed') void showPanel({ type: 'CONFIRM' }).then(ok => resolve(ok ? outcome : 'unshown'));
+    else { send({ type: outcome === 'cancelled' ? 'CANCEL' : 'CONFIRM_FAILED' }); resolve(outcome); }
+  };
   useEffect(() => {
     const registration = new AbortController();
-    const rowOf = (id: string) => {
-      const v = latest.current.view;
-      return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id) ?? null) : null;
-    };
     const host: WebMcpHost = {
-      version: () => version.current,
-      search: (base, change) => {
-        if (base !== version.current) return { stateVersion: version.current, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${version.current}` };
+      snap: () => snapRef.current,
+      search: change => {
         if (change.description !== undefined) { setDescription(change.description); latest.current.description = change.description; }
         if (change.goal !== undefined) setGoal(change.goal);
         if (change.regions) setRegions(change.regions);
         if (change.remote) setRemote(change.remote);
         if (change.productOnly !== undefined) setProductOnly(change.productOnly);
-        version.current += 1;
         const r = latest.current.run(change);
-        return { stateVersion: version.current, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
+        return { stateVersion: snapRef.current?.version ?? 0, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
       },
       showAllOptions: () => {
         setShowAll(true);
         if (!wantsAll()) window.location.hash = 'all';
       },
-      rowOf,
       description: () => latest.current.description,
-      confirmApplyOrSend: detail => new Promise(resolve => {
-        confirmRef.current?.resolve(false);
-        const ask = {
-          id: confirmId.current += 1,
-          title: 'Person confirm needed',
-          body: `A tool asked to apply or send for ${detail.title}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
-          resolve,
-        };
-        confirmRef.current = ask;
-        setConfirmAsk(ask);
+      confirmApplyOrSend: ask => new Promise(resolve => {
+        const older = confirmRef.current;
+        send({ type: 'REQUEST_CONFIRM', ask: { ...ask, id: confirmId.current += 1 } });
+        confirmRef.current = resolve;
+        older?.('cancelled');
+        void loadSoft().then(m => setSoftRef.current(m), () => settleConfirm('unavailable'));
       }),
-      showCvOutline: next => { setOutline(next); setPack(null); },
-      showApplyPack: next => { setPack(next); },
+      showCvOutline: outline => showAllRef.current ? showPanel({ type: 'TAILOR', outline }) : Promise.resolve(false),
+      showApplyPack: pack => showAllRef.current ? showPanel({ type: 'PACK', pack }) : Promise.resolve(false),
     };
     void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal)).catch(() => undefined);
     return () => {
       registration.abort();
-      confirmRef.current?.resolve(false);
+      settleCards(false);
+      confirmRef.current?.('cancelled');
       confirmRef.current = null;
     };
   }, []);
 
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
-  const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
-  useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); } }, [view]);
+  const formChanged = () => { send({ type: 'EDIT' }); };
+  useEffect(() => { if (!showAll) settleCards(false); }, [showAll]);
   const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
-    version.current += 1;
     if (w === 'region') { setRegions([]); run({ regions: [] }); }
     else if (w === 'productOnly') { setProductOnly(false); run({ productOnly: false }); }
     else if (w === 'remote') { setRemote('any'); run({ remote: 'any' }); }
@@ -171,25 +196,25 @@ export function App() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6" data-step={step}>
       <header className="mb-6">
         <h1 className="text-sm font-semibold tracking-tight text-text-muted">kanithanj.ai</h1>
         <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
-          {pool.kind === 'ready'
-            ? `${pool.pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool.pool).toLocaleString('en')} tech companies in SE/EU/UK/US, checked ${pool.pool.checkedRange.to.slice(0, 10)}. `
+          {pool
+            ? `${pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool).toLocaleString('en')} tech companies in SE/EU/UK/US, checked ${pool.checkedRange.to.slice(0, 10)}. `
             : `${OUT_OF_SCOPE_MSG} `}
           Matching runs in your browser; nothing you type leaves this page.
         </p>
       </header>
 
-      {pool.kind === 'loading' && <p role="status" className="mb-6 text-text-muted">Loading roles…</p>}
-      {pool.kind === 'failed' && (
+      {step === 'loading' && <p role="status" className="mb-6 text-text-muted">Loading roles…</p>}
+      {step === 'failed' && (
         <Alert tone="broken" className="mb-6" role="alert">
           Could not load the roles. Check your connection. <Button variant="outline" size="sm" className="ml-2" onClick={loadPool}>Try again</Button>
         </Alert>
       )}
 
-      {!showAll && pool.kind === 'ready' && <Reveal pool={pool.pool} />}
+      {!showAll && pool && <Reveal pool={pool} />}
 
       {showAll && <>
       <h2 className="mb-4 text-2xl font-semibold">Describe yourself</h2>
@@ -255,26 +280,23 @@ export function App() {
             <Button type="button" variant="outline" size="sm" className="ml-2" onClick={removePii}>Remove them</Button>
           </Alert>
         )}
-        <div><Button type="submit" disabled={pool.kind !== 'ready'}>Find roles</Button></div>
+        <div><Button type="submit" disabled={!pool}>Find roles</Button></div>
       </form>
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {(outline || pack) && <SoftBoundary><Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense></SoftBoundary>}
+        {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} confirmed={step === 'confirmed'} onShown={() => settleCards(true)} /></SoftBoundary>}
       </div>
       </>}
 
-      {confirmAsk && (
-        <SoftBoundary onError={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}>
-          <Suspense fallback={null}>
-            <PersonConfirm
-              key={confirmAsk.id}
-              title={confirmAsk.title}
-              body={confirmAsk.body}
-              onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
-              onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
-            />
-          </Suspense>
+      {snap?.ask && soft && (
+        <SoftBoundary key={snap.ask.id} onError={() => settleConfirm('unavailable')}>
+          <soft.ConfirmPane
+            title={snap.ask.title}
+            body={snap.ask.body}
+            onCancel={() => settleConfirm('cancelled')}
+            onConfirm={() => settleConfirm('confirmed')}
+          />
         </SoftBoundary>
       )}
 
