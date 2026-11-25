@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Groups } from './cards.tsx';
 import { Reveal } from './reveal.tsx';
 import {
@@ -19,6 +19,13 @@ const PersonConfirm = lazy(() => import('./person-confirm.tsx').then(m => ({ def
 const ToolCards = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.ToolCards })));
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
+
+class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError?.(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
 type View =
@@ -99,8 +106,9 @@ export function App() {
   latest.current = { run, view, description };
   const [outline, setOutline] = useState<CvOutline | null>(null);
   const [pack, setPack] = useState<ApplyPack | null>(null);
-  const [confirmAsk, setConfirmAsk] = useState<{ title: string; body: string; resolve: (ok: boolean) => void } | null>(null);
+  const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (ok: boolean) => void } | null>(null);
   const confirmRef = useRef<{ resolve: (ok: boolean) => void } | null>(null);
+  const confirmId = useRef(0);
   useEffect(() => {
     const registration = new AbortController();
     const rowOf = (id: string) => {
@@ -129,6 +137,7 @@ export function App() {
       confirmApplyOrSend: detail => new Promise(resolve => {
         confirmRef.current?.resolve(false);
         const ask = {
+          id: confirmId.current += 1,
           title: 'Person confirm needed',
           body: `A tool asked to apply or send for ${detail.title}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
           resolve,
@@ -139,7 +148,7 @@ export function App() {
       showCvOutline: next => { setOutline(next); setPack(null); },
       showApplyPack: next => { setPack(next); },
     };
-    void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal));
+    void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal)).catch(() => undefined);
     return () => {
       registration.abort();
       confirmRef.current?.resolve(false);
@@ -251,19 +260,22 @@ export function App() {
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {(outline || pack) && <Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense>}
+        {(outline || pack) && <SoftBoundary><Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense></SoftBoundary>}
       </div>
       </>}
 
       {confirmAsk && (
-        <Suspense fallback={null}>
-          <PersonConfirm
-            title={confirmAsk.title}
-            body={confirmAsk.body}
-            onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
-            onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
-          />
-        </Suspense>
+        <SoftBoundary onError={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}>
+          <Suspense fallback={null}>
+            <PersonConfirm
+              key={confirmAsk.id}
+              title={confirmAsk.title}
+              body={confirmAsk.body}
+              onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
+              onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
+            />
+          </Suspense>
+        </SoftBoundary>
       )}
 
       <footer className="mt-12 border-t border-border pt-4 text-xs text-text-muted">

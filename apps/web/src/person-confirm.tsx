@@ -8,8 +8,13 @@ export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: str
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const onDialogCancel = (event: Event) => { event.preventDefault(); onCancel(); };
+    el.addEventListener('cancel', onDialogCancel);
     if (!el.open) el.showModal();
-    return () => { if (el.open) el.close(); };
+    return () => {
+      el.removeEventListener('cancel', onDialogCancel);
+      if (el.open) el.close();
+    };
   }, []);
   return (
     <dialog ref={ref} aria-labelledby="person-confirm-title" data-testid="person-confirm"

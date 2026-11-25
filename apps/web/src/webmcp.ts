@@ -66,7 +66,7 @@ const afterFirstPaint = (signal: AbortSignal): Promise<boolean> => new Promise(r
     if (signal.aborted) { finish(false); return; }
     requestAnimationFrame(armIdle);
   });
-  paintTimeoutId = setTimeout(armIdle, 0);
+  paintTimeoutId = setTimeout(armIdle, 1500);
 });
 
 let polyfill: Promise<void> | undefined;
@@ -177,7 +177,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           return { stateVersion: host.version(), ...pack };
         },
       }, opts),
-    ].map(task => task.catch(ignoreAbort)));
+    ].map(task => Promise.resolve(task).catch(ignoreAbort)));
   } catch (err) {
     ignoreAbort(err);
   }

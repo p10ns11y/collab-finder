@@ -243,6 +243,30 @@ test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or s
   expect(leaking).toHaveLength(0);
 });
 
+test('WebMCP confirm: Escape cancels and a second request reopens the dialog', async ({ page }) => {
+  await page.goto('/?all');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.error ?? null).toBe(null);
+  const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+  expect(anyId).toBeTruthy();
+  const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.keyboard.press('Escape');
+  const cancelled = await pending;
+  expect(cancelled.applied).toBe(false);
+  expect(cancelled.sent).toBe(false);
+  await expect(page.getByTestId('person-confirm')).toHaveCount(0);
+  const pendingAgain = call(page, 'show_apply_pack', { id: anyId, apply: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  const cancelledAgain = await pendingAgain;
+  expect(cancelledAgain.applied).toBe(false);
+  expect(cancelledAgain.sent).toBe(false);
+});
+
 test('WebMCP polyfill: find_roles on the home page reveals the form and results', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('reveal')).toBeVisible();
@@ -296,7 +320,27 @@ test.describe(() => {
       const nav = navigator as unknown as { modelContext?: { getTools: () => Promise<Array<{ name: string }>> } };
       return ((await nav.modelContext?.getTools()) ?? []).map(t => t.name).sort();
     })).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    await page.waitForLoadState('networkidle');
     expect(hits).toEqual([]);
+  });
+
+  test('a failed person-confirm chunk cancels the request and leaves the form visible', async ({ context, page }) => {
+    await context.route(/person-confirm/, route => route.abort());
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+    expect(first.error ?? null).toBe(null);
+    const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+    const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+    expect(anyId).toBeTruthy();
+    const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
+    const cancelled = await pending;
+    expect(cancelled.applied).toBe(false);
+    expect(cancelled.sent).toBe(false);
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeVisible();
+    await expect(page.getByLabel('About you')).toBeVisible();
+    await expect(page.getByTestId('person-confirm')).toHaveCount(0);
   });
 });
 
