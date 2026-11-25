@@ -315,3 +315,156 @@ test.afterAll(() => {
   const out = process.env['FLOW_E2E_REPORT'];
   if (out) writeFileSync(out, JSON.stringify({ paths: paths.length, transitions: EDGES.length, covered: covered(paths), passed }, null, 2));
 });
+
+const cyanActions = (page: Page) => page.evaluate(() => {
+  const probe = document.createElement('span'); probe.className = 'bg-accent'; document.body.append(probe);
+  const accent = getComputedStyle(probe).backgroundColor; probe.remove();
+  return [...document.querySelectorAll('a, button')].filter(el => (el as HTMLElement).offsetParent !== null && getComputedStyle(el).backgroundColor === accent).map(el => (el.textContent ?? '').trim());
+});
+
+test('design r3: one cyan action per screen, Lead with is typed phrases, focus lands on the confirmed heading', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.getByLabel('Where do you want to grow? (optional)')).not.toHaveAttribute('placeholder', /\bSI\b|\bAI\b/);
+  await expect(page.locator('body')).not.toContainText('Off by default');
+  await expect.poll(() => cyanActions(page)).toEqual(['Find roles']);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await expect(page.getByTestId('flow-stage')).toContainText('Your matches');
+  await expect.poll(() => cyanActions(page)).toEqual([]);
+  await expect(page.getByTestId('flow-stage')).not.toContainText('Read as');
+  await call(page, 'tailor_cv', { id: roles[0].id });
+  await expect(page.getByTestId('lead-line')).toHaveText(/^Open with your (backend|distributed systems|Go|Postgres)( and (backend|distributed systems|Go|Postgres))? work, then show .+\.$/);
+  for (const phrase of ['backend', 'distributed systems', 'Go', 'Postgres']) await expect(page.getByTestId('lead-line')).toContainText(phrase);
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  await expect.poll(() => cyanActions(page)).toEqual([expect.stringMatching(/^Open posting/)]);
+  await expect(page.getByTestId('apply-pack')).not.toContainText(/Region:|Open when last checked|Level fits/);
+  await requestConfirm(page, roles[1].id);
+  await expect(page.getByTestId('person-confirm')).not.toContainText('Confirm to get the posting link');
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByTestId('confirmed')).toBeVisible();
+  await expect(page.getByTestId('apply-pack').getByRole('heading', { level: 2 })).toBeFocused();
+  await expect.poll(() => cyanActions(page)).toEqual([expect.stringMatching(/^Open posting/)]);
+  await expect(page.getByTestId('apply-pack')).not.toContainText(/Region:|Open when last checked|Level fits/);
+  await page.getByLabel('Work mode').selectOption('remote');
+  await expect.poll(() => cyanActions(page)).toEqual(['Find roles']);
+});
+
+test('design r3 mobile: 44 px checkbox rows and a one-line step rail that stays in view', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?all');
+  await toolsReady(page);
+  const heights = await page.locator('label:has(input[type="checkbox"])').evaluateAll(els => els.map(el => el.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(0);
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  const line = page.getByTestId('step-line');
+  await expect(line).toHaveText('Step 4 of 5 · Apply pack');
+  await page.getByTestId('apply-pack').scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => line.evaluate(el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height < 24; })).toBe(true);
+});
+
+test('flow design: a form rail and a state-driven stage, hairline matches and no reviewer copy', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.getByTestId('flow-stage')).toContainText('Find your next role');
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await expect(page.getByTestId('flow-stage')).toContainText('Your matches');
+  await expect(page.getByTestId('flow-stage').locator('[data-posting-id]').first()).toHaveAttribute('data-layout', 'row');
+  await call(page, 'tailor_cv', { id: roles[0].id });
+  await expect(page.getByTestId('cv-outline')).toContainText('Lead with');
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  await expect(page.getByTestId('apply-pack')).toContainText('Before you apply');
+  await requestConfirm(page, roles[1].id);
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByTestId('confirmed')).toContainText('✓');
+  await expect(page.locator('body')).not.toContainText(/nothing was applied|does not apply or send|nothing was sent/i);
+  const samples = await page.getByTestId('flow-stage').locator('[data-posting-id] [data-testid="why"]').allInnerTexts();
+  expect(samples.every(t => !/ role\.$/.test(t))).toBe(true);
+});
+
+const cyanAnything = (page: Page) => page.evaluate(() => {
+  const probe = document.createElement('span'); probe.className = 'text-accent'; document.body.append(probe);
+  const accent = getComputedStyle(probe).color; probe.remove();
+  return [...document.querySelectorAll('body *')].filter(el => (el as HTMLElement).offsetParent !== null && [getComputedStyle(el).color, getComputedStyle(el).backgroundColor].includes(accent))
+    .map(el => (el.textContent ?? '').trim() || el.tagName);
+});
+
+test('design r4: first load uses eight homes and shows worldwide, cyan stays off counts and chips, no safety copy, text holds contrast while it rises', async ({ page }) => {
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Back-end systems', exact: true }).click();
+  await page.getByRole('button', { name: '5+ years', exact: true }).click();
+  const homes = page.getByRole('group', { name: 'Where do you live now?' }).getByRole('button');
+  await expect(homes).toHaveText(['Sweden', 'Elsewhere in the EU', 'United Kingdom', 'United States', 'Canada', 'Latin America', 'Asia-Pacific', 'Middle East and Africa', 'Somewhere else']);
+  await expect(page.getByTestId('live-count')).toContainText('worldwide');
+  await page.getByRole('button', { name: 'Canada', exact: true }).click();
+  await expect(page.getByTestId('first-fits')).toBeVisible();
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2aa']).withRules(['color-contrast']).analyze();
+  expect(axe.violations.flatMap(v => v.nodes.map(n => n.target.join(' ')))).toEqual([]);
+  const fades = await page.evaluate(() => document.getAnimations().flatMap(a => ((a.effect as KeyframeEffect | null)?.getKeyframes() ?? []).filter(k => 'opacity' in k)).length);
+  expect(fades).toBe(0);
+  await expect(page.getByTestId('first-fits').getByTestId('pick-label')).toContainText(['Outside Canada, worth a look']);
+  expect(await cyanAnything(page)).toEqual([]);
+  await expect(page.locator('body')).not.toContainText(/nothing you type leaves|Read only from what you typed|didn’t know about this/i);
+
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.locator('body')).not.toContainText(/nothing you type leaves|Skip your name|Industries:|judged from the title/i);
+  const worldwide = page.getByTestId('worldwide');
+  await expect(worldwide).toBeChecked();
+  await expect(page.getByText('Worldwide until you pick a region.')).toBeVisible();
+  await page.getByLabel('Canada', { exact: true }).check();
+  await expect(worldwide).not.toBeChecked();
+  await worldwide.check();
+  await expect(page.getByLabel('Canada', { exact: true })).not.toBeChecked();
+  await page.getByLabel('Middle East and Africa', { exact: true }).check();
+  await page.getByLabel('Work mode').selectOption('onsite');
+  await page.getByLabel('About you').fill(DESCRIPTION);
+  await page.getByRole('button', { name: 'Find roles' }).click();
+  await expect(page.getByTestId('zero-results')).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect.poll(() => cyanActions(page)).toEqual(['Search anywhere']);
+});
+
+test('a follow-up find_roles that matches nothing keeps the roles already shown, and tailor_cv still works on them', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION });
+  const [role] = twoRoles(first);
+  const ids = Object.values(first.groups ?? {}).flat().map(r => r.id);
+  const narrow = await call(page, 'find_roles', { stateVersion: first.stateVersion, regions: ['MEA'], remote: 'onsite' }) as Answer & { verdict?: string; note?: string };
+  expect(narrow.verdict).toBe('ZeroResults');
+  expect(narrow.error ?? null).toBe(null);
+  expect(narrow.note).toMatch(/kept the \d+ roles already shown/);
+  expect(Object.values(narrow.groups ?? {}).flat().map(r => r.id)).toEqual(ids);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await expect(page.getByTestId('zero-results')).toHaveCount(0);
+  await expect(page.getByLabel('Middle East and Africa', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Work mode')).toHaveValue('any');
+  const outline = await call(page, 'tailor_cv', { id: role.id });
+  expect(outline.error ?? null).toBe(null);
+  await expect(page.getByTestId('cv-outline')).toContainText(role.label.split(' at ')[0]!);
+});
+
+const typeScale = (page: Page) => page.getByTestId('reveal').evaluate(root => {
+  const seen = [...root.querySelectorAll('*')].filter(el => (el as HTMLElement).offsetParent !== null && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent!.trim()));
+  const style = seen.map(el => getComputedStyle(el));
+  return { sizes: [...new Set(style.map(s => s.fontSize))].sort(), weights: [...new Set(style.map(s => s.fontWeight))].sort(), big: style.filter(s => s.fontSize === '36px').length };
+});
+
+for (const [name, width, big] of [['desktop', 1280, 1], ['mobile', 390, 0]] as const) {
+  test(`reveal type scale on ${name}: 12/14/16/22/36 and 400/600 only, ${big} title at 36 px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Back-end systems', exact: true }).click();
+    await page.getByRole('button', { name: '5+ years', exact: true }).click();
+    await page.getByRole('button', { name: 'Sweden', exact: true }).click();
+    await expect(page.getByTestId('first-fits')).toBeVisible();
+    const t = await typeScale(page);
+    expect(t.sizes.every(s => ['12px', '14px', '16px', '22px', '36px'].includes(s))).toBe(true);
+    expect(t.weights.every(w => ['400', '600'].includes(w))).toBe(true);
+    expect(t.big).toBe(big);
+  });
+}

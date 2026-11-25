@@ -14,7 +14,7 @@ remote is one of: any, remote, hybrid, onsite. productOnly is a boolean that hid
 
 ### find_roles (Find roles)
 
-Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.
+Fill the page form with a self-description and show matching roles in this browser. If a change matches nothing, the roles already shown stay. Nothing leaves the page. Does not apply or send.
 
 Input schema:
 {
@@ -24,7 +24,8 @@ Input schema:
   ],
   "properties": {
     "stateVersion": {
-      "type": "integer"
+      "type": "integer",
+      "description": "Pass 0 on the first call, then the stateVersion from the last answer."
     },
     "description": {
       "type": "string"

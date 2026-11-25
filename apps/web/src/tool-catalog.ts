@@ -29,11 +29,11 @@ export const PAGE_TOOLS = [
   {
     name: 'find_roles',
     title: 'Find roles',
-    description: 'Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.',
+    description: 'Fill the page form with a self-description and show matching roles in this browser. If a change matches nothing, the roles already shown stay. Nothing leaves the page. Does not apply or send.',
     inputSchema: {
       type: 'object',
       required: ['stateVersion'],
-      properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
+      properties: { stateVersion: { type: 'integer', description: 'Pass 0 on the first call, then the stateVersion from the last answer.' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
     },
   },
   {

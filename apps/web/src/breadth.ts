@@ -23,10 +23,14 @@ export const countriesOf = (row: Pick<MatchRow, 'location' | 'region'>): Readonl
   return found.length ? found : fallback ? [fallback] : [];
 };
 
-export type Home = 'SE' | 'EU' | 'UK' | 'US' | 'other';
-export const HOME_NAME: Readonly<Record<Home, string>> = { SE: 'Sweden', EU: 'the EU', UK: 'the UK', US: 'the US', other: 'your country' };
+export type Home = 'SE' | 'EU' | 'UK' | 'US' | 'CA' | 'LATAM' | 'APAC' | 'MEA' | 'other';
+export const HOME_NAME: Readonly<Record<Home, string>> = {
+  SE: 'Sweden', EU: 'the EU', UK: 'the UK', US: 'the US', CA: 'Canada', LATAM: 'Latin America', APAC: 'Asia-Pacific', MEA: 'the Middle East and Africa', other: 'your country',
+};
+const BY_ROW = new Set<Home>(['CA', 'LATAM', 'APAC', 'MEA']);
 export const isAbroad = (row: MatchRow, home: Home | null): boolean => {
   if (!home || home === 'other') return false;
+  if (BY_ROW.has(home)) return !!row.region && row.region !== 'remote-anywhere' && row.region !== home;
   const cs = countriesOf(row);
   if (!cs.length) return false;
   return home === 'EU' ? cs.every(c => !EU.has(c)) : !cs.includes(BY_REGION[home] ?? '');

@@ -6,7 +6,7 @@ This page matches a short self-description to public software and engineering ro
 
 Use these tools after the page has loaded. On the first find_roles call, pass stateVersion 0. After that, pass the stateVersion last returned. A stale stateVersion is refused. While a person-confirm step is open, other tools are refused until it is answered.
 
-- find_roles (Find roles): Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send. Inputs: stateVersion, description, goal, regions, remote, productOnly. Required: stateVersion.
+- find_roles (Find roles): Fill the page form with a self-description and show matching roles in this browser. If a change matches nothing, the roles already shown stay. Nothing leaves the page. Does not apply or send. Inputs: stateVersion, description, goal, regions, remote, productOnly. Required: stateVersion.
 - show_apply_pack (Show apply pack): Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. This page never applies or sends on your behalf. A person must confirm, then open the posting themselves. Inputs: id, apply, send. Required: id.
 - tailor_cv (Tailor CV): Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV. Inputs: id. Required: id.
 

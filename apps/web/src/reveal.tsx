@@ -13,7 +13,10 @@ const ROLES: ReadonlyArray<[string, string]> = [
   ['security engineer', 'Security'], ['engineering manager', 'Leading a tech team'],
 ];
 const TENURE: ReadonlyArray<[string, string]> = [['5+', '5+ years'], ['10+', '10+ years'], ['15+', '15+ years']];
-const HOMES: ReadonlyArray<[Home, string]> = [['SE', 'Sweden'], ['EU', 'Elsewhere in the EU'], ['UK', 'United Kingdom'], ['US', 'United States'], ['other', 'Somewhere else']];
+const HOMES: ReadonlyArray<[Home, string]> = [
+  ['SE', 'Sweden'], ['EU', 'Elsewhere in the EU'], ['UK', 'United Kingdom'], ['US', 'United States'],
+  ['CA', 'Canada'], ['LATAM', 'Latin America'], ['APAC', 'Asia-Pacific'], ['MEA', 'Middle East and Africa'], ['other', 'Somewhere else'],
+];
 const GROWTH: ReadonlyArray<[string, string]> = [
   ['AI infrastructure, machine learning', 'AI and machine learning'], ['platform engineering, infrastructure', 'Platform and infrastructure'],
   ['engineering manager', 'Leading a team'], ['product engineering', 'Product engineering'],
@@ -53,7 +56,7 @@ function Chips({ name, options, chosen, onPick }: { name: string; options: Reado
     <div role="group" aria-label={name} className="flex flex-wrap gap-2">
       {options.map(([v, l]) => (
         <button key={v} type="button" aria-pressed={chosen.includes(v)} onClick={() => onPick(v)}
-          className="min-h-11 rounded-pill border border-border bg-surface px-4 text-sm transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-bg focus-visible:outline-2 focus-visible:outline-accent">
+          className="min-h-11 rounded-pill border border-border bg-surface px-4 text-sm transition-colors hover:border-text-muted aria-pressed:border-text aria-pressed:bg-text aria-pressed:text-bg focus-visible:outline-2 focus-visible:outline-accent">
           {l}
         </button>
       ))}
@@ -65,7 +68,7 @@ function Dots({ step }: { step: number }) {
   return (
     <ol className="flex items-center gap-2" aria-label={`${step} of ${STEPS.length} unlocked`} data-testid="progress">
       {STEPS.map((s, i) => (
-        <li key={s} title={s} className={`size-2.5 rounded-full ${i < step ? 'bg-accent' : 'bg-border'}`}><span className="sr-only">{s}{i < step ? ' unlocked' : ''}</span></li>
+        <li key={s} title={s} className={`size-2.5 rounded-full ${i < step ? 'bg-text' : 'bg-border'}`}><span className="sr-only">{s}{i < step ? ' unlocked' : ''}</span></li>
       ))}
     </ol>
   );
@@ -77,14 +80,14 @@ function Count({ roles, fields, countries }: { roles: number; fields: number; co
   const delta = seen.n - seen.prev;
   const span = [...(fields >= 2 ? [`across ${n(fields)} fields`] : []), ...(countries >= 1 ? [`in ${n(countries)} ${countries === 1 ? 'country' : 'countries'}`] : [])].join(' ');
   return (
-    <p className="reveal sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-2 text-lg backdrop-blur-sm" data-testid="live-count" aria-live="polite">
-      <span key={seen.n} className="pop text-4xl font-semibold tabular-nums text-accent">{n(seen.n)}</span> roles {span || 'open to you'}
+    <p className="reveal sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-2 text-base backdrop-blur-sm" data-testid="live-count" aria-live="polite">
+      <span key={seen.n} className="pop text-xl font-semibold tabular-nums">{n(seen.n)}</span> roles {span ? `${span} worldwide` : 'open to you worldwide'}
       {delta !== 0 && <span className="ml-2 text-sm text-text-muted">{delta > 0 ? '+' : '−'}{n(Math.abs(delta))}</span>}
     </p>
   );
 }
 
-const Question = ({ id, children }: { id: string; children: string }) => <h2 id={id} className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{children}</h2>;
+const Question = ({ id, lead = false, children }: { id: string; lead?: boolean; children: string }) => <h2 id={id} className={`text-xl font-semibold tracking-tight text-balance ${lead ? 'sm:text-3xl' : ''}`}>{children}</h2>;
 
 export function Reveal({ pool }: { pool: PublicPool }) {
   const [roles, setRoles] = useState<ReadonlyArray<string>>([]);
@@ -119,7 +122,7 @@ export function Reveal({ pool }: { pool: PublicPool }) {
       <div className="flex items-center justify-between gap-4"><Dots step={step} /><a className="text-sm text-text-muted underline" href="#all">Show all options</a></div>
       {ok && <Count roles={fresh ? wide.roles : 0} fields={fresh ? wide.fields.length : 0} countries={fresh ? wide.countries : 0} />}
       <div className="grid gap-4">
-        <Question id="q-role">What have you been doing these last years?</Question>
+        <Question id="q-role" lead>What have you been doing these last years?</Question>
         <Chips name="What have you been doing these last years?" options={ROLES} chosen={roles} onPick={pickRole} />
         <div className="grid gap-2">
           <p className="text-sm text-text-muted" id="q-tenure">For how long? (optional)</p>
@@ -149,8 +152,7 @@ export function Reveal({ pool }: { pool: PublicPool }) {
 
       {step >= 3 && ok && (
         <div className="reveal grid gap-3">
-          <p className="text-xl font-medium text-balance" data-testid="read-back">{readBack(ok.understood, tenure, wide.fields.map(fieldLabel))}</p>
-          <p className="text-xs text-text-muted">Read only from what you typed and tapped, here in your browser.</p>
+          <p className="text-xl text-balance" data-testid="read-back">{readBack(ok.understood, tenure, wide.fields.map(fieldLabel))}</p>
         </div>
       )}
 
@@ -173,7 +175,7 @@ export function Reveal({ pool }: { pool: PublicPool }) {
             </>
           )}
           {proof && proof.found > 0 && proof.firstMs !== null && (
-            <p className="text-sm font-medium" data-testid="found-line">You found {proof.found} new {proof.found === 1 ? 'option' : 'options'} in {Math.max(1, Math.round(proof.firstMs / 1000))} seconds.</p>
+            <p className="text-sm font-semibold" data-testid="found-line">You found {proof.found} new {proof.found === 1 ? 'option' : 'options'} in {Math.max(1, Math.round(proof.firstMs / 1000))} seconds.</p>
           )}
         </div>
       )}
