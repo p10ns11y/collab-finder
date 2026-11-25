@@ -63,9 +63,14 @@ function run(cmd: string, args: string[]): string {
   const result = spawnSync(cmd, args, { encoding: "utf8" });
   if (result.error) fail(`${cmd} failed to start: ${result.error.message}`);
   if (result.status !== 0) {
-    fail(`${cmd} ${args.join(" ")} exited ${result.status}: ${result.stderr}`);
+    throw new Error(`${cmd} ${args.join(" ")} exited ${result.status}: ${result.stderr}`);
   }
   return result.stdout;
+}
+
+function isEncryptedExtractError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /incorrect password|encrypted|password/i.test(message);
 }
 
 function bboxWords(pdf: string): Word[] {
@@ -146,10 +151,21 @@ function hyphenSplitKeywords(rawText: string, words: Word[], keywords: readonly 
 }
 
 export function evaluatePdf(pdf: string, markers: readonly string[]): { content: NamedCheck[]; layout: NamedCheck[] } {
-  const rawText = run("pdftotext", [pdf, "-"]);
+  let rawText = "";
+  let info = "";
+  let words: Word[] = [];
+  let encrypted = false;
+  try {
+    rawText = run("pdftotext", [pdf, "-"]);
+    info = run("pdfinfo", [pdf]);
+    words = bboxWords(pdf);
+  } catch (error) {
+    if (!isEncryptedExtractError(error)) throw error;
+    encrypted = true;
+    try { info = run("pdfinfo", [pdf]); } catch { /* pdfinfo may also need the password */ }
+  }
+  if (/Encrypted:\s+yes/.test(info)) encrypted = true;
   const text = rawText.replace(/\s+/g, " ");
-  const words = bboxWords(pdf);
-  const info = run("pdfinfo", [pdf]);
   const pages = Number(info.match(/Pages:\s+(\d+)/)?.[1] || 0);
   const pageWidth = Number(info.match(/Page size:\s+([\d.]+)/)?.[1]);
   const pageHeight = Number(info.match(/Page size:\s+[\d.]+\s+x\s+([\d.]+)/)?.[1]);
@@ -224,8 +240,8 @@ export function evaluatePdf(pdf: string, markers: readonly string[]): { content:
 
   layout.push({
     name: "unencrypted",
-    pass: !/Encrypted:\s+yes/.test(info),
-    detail: /Encrypted:\s+yes/.test(info) ? "PDF is encrypted" : undefined,
+    pass: !encrypted,
+    detail: encrypted ? "PDF is encrypted" : undefined,
   });
 
   const a4 =

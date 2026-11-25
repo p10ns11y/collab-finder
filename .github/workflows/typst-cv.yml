@@ -5,6 +5,9 @@ on:
     branches: [master, main, feat/**]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: typst-cv-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -24,12 +27,12 @@ jobs:
         with:
           bun-version: 1.4.4
 
-      - name: poppler
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: poppler and qpdf
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils qpdf
         working-directory: .
 
       - name: Install package
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Unit tests
         run: bun test src/lib
