@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/tokens-css.ts && node scripts/prepare-pool.ts && tsc --noEmit && vite build && vite build -c vite.flow.config.ts",
+    "build": "node scripts/tokens-css.ts && node scripts/prepare-pool.ts && tsc --noEmit && rm -rf dist && vite build -c vite.flow.config.ts && vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "test:e2e": "playwright test"
   },

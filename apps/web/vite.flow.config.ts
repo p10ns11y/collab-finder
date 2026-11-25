@@ -9,6 +9,6 @@ export default defineConfig({
     target: 'es2022',
     modulePreload: false,
     emptyOutDir: false,
-    rollupOptions: { input: { flow: 'flow/index.html' } },
+    rollupOptions: { input: { flow: 'flow.html' } },
   },
 });
