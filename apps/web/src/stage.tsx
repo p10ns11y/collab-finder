@@ -55,15 +55,12 @@ export function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View;
 
 function Results({ result, ms }: { result: MatchResult; ms: number }) {
   const stale = result.warnings.find(w => w.kind === 'PoolStale');
-  const u = result.understood;
-  const understood = [...u.roles, ...u.skills].join(', ');
   return (
     <section aria-labelledby="results-title" data-testid="results">
       <h2 id="results-title" className="text-xl font-semibold tracking-tight">Your matches</h2>
       {result.likesMiss && <p className="mt-2 text-sm text-text-muted" data-testid="likes-miss">None of those words matched.</p>}
       <p className="mt-2 text-xs text-text-muted">
-        Matched in {ms} ms in your browser. Read as: {understood || 'general software engineering'}
-        {u.seniority ? `, ${u.seniority} level` : ''}{u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}.
+        Matched in {ms} ms.
       </p>
       {stale && stale.kind === 'PoolStale' && (
         <Alert tone="warn" className="mt-4" data-testid="stale-banner">

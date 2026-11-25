@@ -223,14 +223,14 @@ const subscribe = (handle: { instance: { subscribe: (listener: () => void) => ()
 function RegionTrigger({ handle }: { handle: PrimitiveHandle<typeof regionPicker> }) {
   return usePart(handle, 'trigger', {}, {
     type: 'button',
-    className: 'inline-flex items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-medium',
+    className: 'inline-flex items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-semibold',
     'aria-describedby': 'region-help',
     children: 'Regions',
   }, 'button');
 }
 
 function RegionTitle() {
-  return usePart(regionPicker, 'title', {}, { className: 'text-sm font-medium', children: 'Regions' }, 'h3');
+  return usePart(regionPicker, 'title', {}, { className: 'text-sm font-semibold', children: 'Regions' }, 'h3');
 }
 
 function RegionSearch() {
@@ -351,16 +351,14 @@ export function SdkResults({ result, ms }: { result: MatchResult; ms: number }) 
   );
   const state = useSyncExternalStore(subscribe(handle), () => handle.instance.get() as MatchState, () => handle.instance.get() as MatchState);
   const selected = rows.find(row => row.id === state.value[0]);
-  const understood = [...result.understood.roles, ...result.understood.skills].join(', ');
   const stale = result.warnings.find(warning => warning.kind === 'PoolStale');
   useEffect(() => { handle.api.virtual.refresh(); }, [listed, handle.api.virtual]);
   return (
     <section aria-labelledby="results-title" data-testid="results">
-      <h2 id="results-title" className="text-2xl font-semibold">Your matches</h2>
+      <h2 id="results-title" className="text-xl font-semibold">Your matches</h2>
       {result.likesMiss && <p className="mt-2 text-sm text-text-muted" data-testid="likes-miss">None of those words matched.</p>}
       <p className="mt-1 text-sm text-text-muted">
-        Matched in {ms} ms in your browser. Read as: {understood || 'general software engineering'}
-        {result.understood.seniority ? `, ${result.understood.seniority} level` : ''}{result.understood.goal.length ? `; goal: ${result.understood.goal.join(', ')}` : ''}.
+        Matched in {ms} ms.
       </p>
       {stale && stale.kind === 'PoolStale' && (
         <p className="mt-4 text-sm text-text-muted" data-testid="stale-banner">
@@ -370,7 +368,7 @@ export function SdkResults({ result, ms }: { result: MatchResult; ms: number }) 
       <div className="mt-6">
         <MatchScroller handle={handle} rows={rows} items={items} />
         {selected && (
-          <a className="mt-3 inline-block text-sm font-medium text-text underline underline-offset-2" href={selected.url} target="_blank" rel="noopener noreferrer">
+          <a className="mt-3 inline-block text-sm font-semibold text-text underline underline-offset-2" href={selected.url} target="_blank" rel="noopener noreferrer">
             View posting for {selected.title} at {displayCompany(selected.company)} (opens in a new tab)
           </a>
         )}

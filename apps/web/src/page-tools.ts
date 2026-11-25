@@ -52,6 +52,7 @@ export type CvOutline = {
   title: string;
   company: string;
   emphasize: ReadonlyArray<string>;
+  lead: string;
   notice: string;
 };
 
@@ -81,6 +82,18 @@ export function typedPhrases(description: string): ReadonlyArray<string> {
   return out;
 }
 
+const andList = (xs: ReadonlyArray<string>) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+export function leadLine(phrases: ReadonlyArray<string>, description: string): string {
+  if (!phrases.length) return '';
+  const typed = phrases.map(p => {
+    const at = description.toLowerCase().indexOf(p.toLowerCase());
+    return at < 0 ? p : description.slice(at, at + p.length);
+  });
+  const rest = typed.slice(2);
+  return `Open with your ${andList(typed.slice(0, 2))} work${rest.length ? `, then show ${andList(rest)}` : ''}.`;
+}
+
 export function buildCvOutline(description: string, row: MatchRow): CvOutline {
   const posting = new Set(words([row.title, row.summary ?? '', ...row.reasons.filter(r => !FACT.test(r))].join(' ')));
   const phrases = typedPhrases(description);
@@ -91,6 +104,7 @@ export function buildCvOutline(description: string, row: MatchRow): CvOutline {
     title: row.title,
     company: row.company,
     emphasize,
+    lead: leadLine(emphasize, description),
     notice: 'This outline is built in your browser from the text on this page and public posting facts. It is not a submitted CV and nothing is sent.',
   };
 }

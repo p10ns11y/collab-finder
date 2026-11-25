@@ -71,7 +71,7 @@ export function RoleCard({ row, label = null, layout = 'card' }: { row: MatchRow
         {proof && (
           <button type="button" aria-pressed={noted} disabled={noted} onClick={() => proof.mark(row.id, true)} data-testid="new-to-me"
             className="inline-block min-h-11 text-text-muted underline underline-offset-4 hover:text-text disabled:no-underline focus-visible:outline-2 focus-visible:outline-accent">
-            {noted ? 'Noted' : 'New to me'}
+            {noted ? 'Interested' : 'I’m interested'}
           </button>
         )}
       </div>

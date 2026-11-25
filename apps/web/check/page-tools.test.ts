@@ -50,6 +50,7 @@ test('buildCvOutline leads with phrases the person typed, posting hits first, ne
   const outline = buildCvOutline('Senior backend engineer with Go and Postgres, distributed systems, 8 years', row({ title: 'Distributed Systems Engineer', reasons }));
   assert.equal(outline.roleId, 'ashby:1');
   assert.deepEqual(outline.emphasize, ['Distributed systems', 'Backend', 'Go', 'Postgres']);
+  assert.equal(outline.lead, 'Open with your distributed systems and backend work, then show Go and Postgres.');
   assert.match(outline.notice, /not a submitted CV/);
   assert.doesNotMatch(outline.notice, /sent a CV|applied/i);
 });

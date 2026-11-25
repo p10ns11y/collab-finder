@@ -56,9 +56,7 @@ function OutlinePanel({ outline }: { outline: CvOutline }) {
       </div>
       <section aria-label="Lead your CV with">
         <h3 className={label}>Lead with</h3>
-        <ol className="mt-4 divide-y divide-border border-y border-border text-sm">
-          {outline.emphasize.map((item, i) => <li key={item} className="flex gap-4 py-3"><span className="w-5 text-xs tabular-nums text-text-muted">{i + 1}</span><span>{item}</span></li>)}
-        </ol>
+        <p className="mt-4 border-y border-border py-3 text-base" data-testid="lead-line">{outline.lead}</p>
       </section>
     </Card>
   );
@@ -72,7 +70,7 @@ const PHASE_LINE: Record<Exclude<Phase, 'ready'>, string> = {
 
 function PackPanel({ pack, outline, phase }: { pack: ApplyPack; outline: CvOutline | null; phase: Phase }) {
   const facts: Array<[string, string]> = [['Location', pack.location ?? 'See posting'], ['Work mode', pack.remote], ['Status', pack.status]];
-  const lead = outline?.roleId === pack.roleId ? outline.emphasize.filter(item => !pack.reasons.includes(item)) : [];
+  const lead = outline?.roleId === pack.roleId ? outline.lead : '';
   const where = [pack.company, pack.location].filter(Boolean).join(' · ');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (phase === 'confirmed') heading.current?.focus(); }, [phase]);
@@ -94,8 +92,9 @@ function PackPanel({ pack, outline, phase }: { pack: ApplyPack; outline: CvOutli
           <dl className="mt-4 grid gap-4 text-sm">{facts.map(([k, v]) => <div key={k}><dt className="text-xs text-text-muted">{k}</dt><dd className="mt-1 capitalize">{v}</dd></div>)}</dl>
         </section>
         <section>
-          <h3 className={label}>{lead.length ? 'Lead with' : 'Why it fits'}</h3>
-          <ul className="mt-4 divide-y divide-border border-y border-border text-sm">{(lead.length ? lead : pack.reasons).map(r => <li key={r} className="py-3">{r}</li>)}</ul>
+          <h3 className={label}>{lead ? 'Lead with' : 'Why it fits'}</h3>
+          {lead ? <p className="mt-4 border-y border-border py-3 text-sm">{lead}</p>
+            : <ul className="mt-4 divide-y divide-border border-y border-border text-sm">{pack.reasons.map(r => <li key={r} className="py-3">{r}</li>)}</ul>}
         </section>
         <section>
           <h3 className={label}>Before you apply</h3>

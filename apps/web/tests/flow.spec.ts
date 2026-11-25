@@ -331,11 +331,10 @@ test('design r3: one cyan action per screen, Lead with is typed phrases, focus l
   const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
   await expect(page.getByTestId('flow-stage')).toContainText('Your matches');
   await expect.poll(() => cyanActions(page)).toEqual([]);
+  await expect(page.getByTestId('flow-stage')).not.toContainText('Read as');
   await call(page, 'tailor_cv', { id: roles[0].id });
-  const lead = page.getByTestId('cv-outline').locator('ol li');
-  await expect(lead).toHaveCount(4);
-  const lines = (await lead.allInnerTexts()).map(t => t.replace(/^\d+\s*/, ''));
-  expect([...lines].sort()).toEqual(['Backend', 'Distributed systems', 'Go', 'Postgres']);
+  await expect(page.getByTestId('lead-line')).toHaveText(/^Open with your (backend|distributed systems|Go|Postgres)( and (backend|distributed systems|Go|Postgres))? work, then show .+\.$/);
+  for (const phrase of ['backend', 'distributed systems', 'Go', 'Postgres']) await expect(page.getByTestId('lead-line')).toContainText(phrase);
   await call(page, 'show_apply_pack', { id: roles[0].id });
   await expect.poll(() => cyanActions(page)).toEqual([expect.stringMatching(/^Open posting/)]);
   await expect(page.getByTestId('apply-pack')).not.toContainText(/Region:|Open when last checked|Level fits/);
@@ -448,3 +447,24 @@ test('a follow-up find_roles that matches nothing keeps the roles already shown,
   expect(outline.error ?? null).toBe(null);
   await expect(page.getByTestId('cv-outline')).toContainText(role.label.split(' at ')[0]!);
 });
+
+const typeScale = (page: Page) => page.getByTestId('reveal').evaluate(root => {
+  const seen = [...root.querySelectorAll('*')].filter(el => (el as HTMLElement).offsetParent !== null && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent!.trim()));
+  const style = seen.map(el => getComputedStyle(el));
+  return { sizes: [...new Set(style.map(s => s.fontSize))].sort(), weights: [...new Set(style.map(s => s.fontWeight))].sort(), big: style.filter(s => s.fontSize === '36px').length };
+});
+
+for (const [name, width, big] of [['desktop', 1280, 1], ['mobile', 390, 0]] as const) {
+  test(`reveal type scale on ${name}: 12/14/16/22/36 and 400/600 only, ${big} title at 36 px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Back-end systems', exact: true }).click();
+    await page.getByRole('button', { name: '5+ years', exact: true }).click();
+    await page.getByRole('button', { name: 'Sweden', exact: true }).click();
+    await expect(page.getByTestId('first-fits')).toBeVisible();
+    const t = await typeScale(page);
+    expect(t.sizes.every(s => ['12px', '14px', '16px', '22px', '36px'].includes(s))).toBe(true);
+    expect(t.weights.every(w => ['400', '600'].includes(w))).toBe(true);
+    expect(t.big).toBe(big);
+  });
+}
