@@ -6,7 +6,7 @@ export type Command =
   | { name: "link" }
   | { name: "sync" }
   | { name: "pick" }
-  | { name: "generate"; pack: "master" | { ref: string }; noSubmitCopy: boolean }
+  | { name: "generate"; pack: "master" | { ref: string }; noSubmitCopy: boolean; out?: string }
   | { name: "default" };
 
 const VERBS = new Set(["help", "list", "status", "open", "link", "link-packs", "sync", "pick", "generate"]);
@@ -18,13 +18,32 @@ export function parseArgv(argv: string[]): Command {
   }
 
   const noSubmitCopy = args.includes("--no-submit-copy");
-  const positional = args.filter((arg) => !arg.startsWith("-"));
+  let out: string | undefined;
+  const passed: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--no-submit-copy" || arg === "--master") {
+      passed.push(arg);
+      continue;
+    }
+    if (arg === "--out") {
+      out = args[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--out=")) {
+      out = arg.slice("--out=".length);
+      continue;
+    }
+    passed.push(arg);
+  }
+  const positional = passed.filter((arg) => !arg.startsWith("-"));
   const verb = positional[0];
 
   if (!verb) return { name: "default" };
 
   if (!VERBS.has(verb)) {
-    return { name: "generate", pack: { ref: verb }, noSubmitCopy };
+    return { name: "generate", pack: { ref: verb }, noSubmitCopy, ...(out ? { out } : {}) };
   }
 
   if (verb === "list") return { name: "list" };
@@ -42,9 +61,9 @@ export function parseArgv(argv: string[]): Command {
   if (verb === "generate") {
     const packRef = positional[1];
     if (!packRef || packRef === "master" || args.includes("--master")) {
-      return { name: "generate", pack: "master", noSubmitCopy };
+      return { name: "generate", pack: "master", noSubmitCopy, ...(out ? { out } : {}) };
     }
-    return { name: "generate", pack: { ref: packRef }, noSubmitCopy };
+    return { name: "generate", pack: { ref: packRef }, noSubmitCopy, ...(out ? { out } : {}) };
   }
 
   return { name: "help" };
@@ -60,6 +79,7 @@ export const HELP = `Usage:
   kanithanj.cv generate [pack]     write PDF (master if omitted)
   kanithanj.cv <pack|opp_N|id>     generate (same as generate <pack>)
   kanithanj.cv generate <pack> --no-submit-copy
+  kanithanj.cv generate --master --out <file.pdf>
 
 How to use:
   1. Install once (Preferences or scripts/install-kanithanj-cv.sh).

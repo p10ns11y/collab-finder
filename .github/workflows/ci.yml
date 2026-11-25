@@ -115,6 +115,9 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: poppler (PDF text for the privacy scan)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
       - name: Light check (type-check + verify)
         if: needs.changes.outputs.release_build != 'true'
         run: bash scripts/ci-check-light.sh

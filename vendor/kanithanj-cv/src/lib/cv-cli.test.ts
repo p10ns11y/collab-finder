@@ -46,6 +46,15 @@ describe("parseArgv", () => {
     });
   });
 
+  test("generate --out is forwarded", () => {
+    expect(parseArgv(["generate", "--master", "--out", "public/cv.pdf"])).toEqual({
+      name: "generate",
+      pack: "master",
+      noSubmitCopy: false,
+      out: "public/cv.pdf",
+    });
+  });
+
   test("open last is the default target", () => {
     expect(parseArgv(["open"])).toEqual({ name: "open", target: "last" });
     expect(parseArgv(["open", "last"])).toEqual({ name: "open", target: "last" });
