@@ -34,10 +34,6 @@ export const ApplyPackBase = z.object({
   confirmed: z.boolean(), applied: z.literal(false), sent: z.literal(false),
 }).partial();
 
-export const GapBase = z.object({
-  kind: z.enum(['skill', 'level', 'region', 'remote']), detail: text(200), step: text(200),
-}).partial();
-
 export const SourceRowBase = z.object({
   id: text(200), source: text(80), company: text(200), title: text(300), url: z.url({ protocol: /^https?$/ }),
   location: z.string().nullable(), remote: REMOTE, status: STATUS, status_checked_at: z.string(),
@@ -52,7 +48,6 @@ export const CONSUMERS = {
   tailorInput: transformSchema(RoleBase, need(['id', 'title', 'company', 'reasons'])),
   applyPackInput: transformSchema(RoleBase, need(['id', 'title', 'company', 'url', 'remote', 'status'])),
   applyPackOut: transformSchema(ApplyPackBase, need(['roleId', 'title', 'company', 'url', 'checklist', 'notice', 'applied', 'sent'])),
-  gapsOut: transformSchema(GapBase, need(['kind', 'detail', 'step'])),
   sourceIngest: transformSchema(SourceRowBase, need(['id', 'source', 'company', 'title', 'url', 'status_checked_at'])),
 } as const;
 

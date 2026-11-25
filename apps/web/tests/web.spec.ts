@@ -2,7 +2,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { ABUSE_INPUTS } from '../../../packages/core/test/abuse.ts';
 import { GOLDEN_INPUTS } from '../../../packages/core/test/golden-inputs.ts';
-import { companyCount, parsePool, roleGaps } from '../../../packages/core/src/index.ts';
+import { companyCount, parsePool } from '../../../packages/core/src/index.ts';
 import { runMatch } from '../../../packages/core/src/surface.ts';
 
 const MARKER = 'quokkazebra';
@@ -199,46 +199,6 @@ test('WebMCP polyfill: find_roles updates the form; a stale state version is ref
   expect(fresh.error ?? null).toBe(null);
   expect(['results', 'ZeroResults']).toContain(fresh.verdict);
   await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
-});
-
-test('gaps: tailor_cv shows the gaps for a role, one step each, only when the role has gaps, the same list the tool returns', async ({ page }) => {
-  const pool = parsePool(JSON.parse(readFileSync(new URL('../public/pool.json', import.meta.url), 'utf8')))._unsafeUnwrap();
-  const description = 'Senior backend engineer in Stockholm, Sweden, Go and Postgres, distributed systems';
-  const want = runMatch({ description, region: ['SE', 'EU', 'US'] }, pool);
-  if (!want.ok) throw new Error('sample has no match');
-  const rows = Object.values(want.value.groups).flat();
-  const gapsOf = (id: string) => {
-    const row = rows.find(r => r.id === id)!;
-    return roleGaps({ understood: want.value.understood, regions: ['SE', 'EU', 'US'], remote: 'any' }, { ...row, tags: pool.rows.find(r => r.id === id)!.role_tags });
-  };
-  const withGaps = rows.find(r => gapsOf(r.id).length > 0);
-  const without = rows.find(r => gapsOf(r.id).length === 0);
-  expect(withGaps && without).toBeTruthy();
-  await page.goto('/?all');
-  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
-  expect((await call(page, 'find_roles', { stateVersion: 0, description, regions: ['SE', 'EU', 'US'] })).error ?? null).toBe(null);
-  await expect(page.getByTestId('results')).toBeVisible();
-
-  const gapped = await call(page, 'tailor_cv', { id: withGaps!.id });
-  expect(gapped.gaps).toEqual(gapsOf(withGaps!.id));
-  const panel = page.getByTestId('cv-outline');
-  await expect(panel).toContainText(withGaps!.title);
-  await expect(panel.getByTestId('role-gaps').locator('[data-gap]')).toHaveCount(gapsOf(withGaps!.id).length);
-  for (const g of gapsOf(withGaps!.id)) {
-    const item = panel.locator(`[data-gap="${g.kind}"]`);
-    await expect(item).toContainText(g.detail);
-    await expect(item.getByTestId('gap-step')).toHaveText(g.step);
-  }
-
-  const clean = await call(page, 'tailor_cv', { id: without!.id });
-  expect(clean.gaps).toEqual([]);
-  await expect(panel).toContainText(without!.title);
-  await expect(panel.getByTestId('role-gaps')).toHaveCount(0);
-
-  await call(page, 'tailor_cv', { id: withGaps!.id });
-  await expect(panel.getByTestId('role-gaps')).toBeVisible();
-  await page.getByLabel('Work mode').selectOption('remote');
-  await expect(page.getByTestId('role-gaps')).toHaveCount(0);
 });
 
 test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or send needs a person confirm and still does not send', async ({ page }) => {

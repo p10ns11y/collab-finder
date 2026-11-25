@@ -1,5 +1,5 @@
 import type {} from 'webmcp-types';
-import { roleGaps, type MatchResult, type MatchRow, type PublicPool, type RegionPref, type RemotePref } from '../../../packages/core/src/index.ts';
+import type { MatchResult, MatchRow } from '../../../packages/core/src/index.ts';
 import {
   APPLY_SEND_NOTICE,
   buildApplyPack,
@@ -25,17 +25,9 @@ export type WebMcpHost = {
   showAllOptions(): void;
   rowOf(id: string): MatchRow | null;
   description(): string;
-  gapState(): GapState;
   confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<ConfirmOutcome>;
   showCvOutline(outline: CvOutline): Promise<boolean>;
   showApplyPack(pack: ApplyPack): Promise<boolean>;
-};
-
-export type GapState = { view: { kind: string; result?: MatchResult }; pool: { kind: string; pool?: PublicPool }; regions: ReadonlyArray<Exclude<RegionPref, 'any'>>; remote: RemotePref };
-
-const gapsFor = ({ view, pool, regions, remote }: GapState, row: MatchRow) => {
-  const tags = pool.pool?.rows.find(r => r.id === row.id)?.role_tags;
-  return view.result && tags ? roleGaps({ understood: view.result.understood, regions, remote }, { ...row, tags }) : [];
 };
 
 export type ConfirmOutcome = 'confirmed' | 'cancelled' | 'unavailable';
@@ -160,7 +152,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
       mc.registerTool({
         name: 'tailor_cv',
         title: 'Tailor CV',
-        description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts, with any gaps between the form and the role and one step for each. Nothing is sent. This is not a submitted CV.',
+        description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.',
         annotations: { readOnlyHint: true },
         inputSchema: roleIdSchema,
         execute: async (input: Record<string, unknown>) => {
@@ -168,7 +160,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
           const row = host.rowOf(parsed.value.id);
           if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
-          const outline = buildCvOutline(host.description(), row, gapsFor(host.gapState(), row));
+          const outline = buildCvOutline(host.description(), row);
           if (!await host.showCvOutline(outline)) return panelUnavailable(host.version(), 'CV outline');
           return { stateVersion: host.version(), ...outline };
         },

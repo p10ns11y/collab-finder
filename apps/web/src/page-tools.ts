@@ -1,4 +1,4 @@
-import type { Gap, MatchResult, MatchRow, RegionPref, RemotePref } from '../../../packages/core/src/index.ts';
+import type { MatchResult, MatchRow, RegionPref, RemotePref } from '../../../packages/core/src/index.ts';
 
 export type Place = Exclude<RegionPref, 'any'>;
 export const PLACES: ReadonlyArray<Place> = ['SE', 'EU', 'UK', 'US'];
@@ -53,14 +53,13 @@ export type CvOutline = {
   title: string;
   company: string;
   emphasize: ReadonlyArray<string>;
-  gaps: ReadonlyArray<Gap>;
   notice: string;
 };
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'you', 'your', 'this', 'that', 'from', 'into', 'a', 'an', 'of', 'to', 'in', 'on', 'or', 'at']);
 const tokens = (s: string): ReadonlyArray<string> => (s.toLowerCase().match(/[a-z][a-z0-9+.#-]{1,}/g) ?? []).filter(w => !STOP.has(w));
 
-export function buildCvOutline(description: string, row: MatchRow, gaps: ReadonlyArray<Gap> = []): CvOutline {
+export function buildCvOutline(description: string, row: MatchRow): CvOutline {
   const named = new Set(tokens(description));
   const overlap = [...new Set(tokens(`${row.title} ${row.company}`).filter(w => named.has(w)))].slice(0, 8);
   const emphasize = [...overlap, ...row.reasons.slice(0, 5)].slice(0, 8);
@@ -69,7 +68,6 @@ export function buildCvOutline(description: string, row: MatchRow, gaps: Readonl
     title: row.title,
     company: row.company,
     emphasize: emphasize.length ? emphasize : row.reasons.slice(0, 5),
-    gaps,
     notice: 'This outline is built in your browser from the text on this page and public posting facts. It is not a submitted CV and nothing is sent.',
   };
 }

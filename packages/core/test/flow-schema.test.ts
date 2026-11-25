@@ -19,7 +19,7 @@ test('each consumer asks only for its own fields', () => {
   assert.equal(check('applyPackInput', role).ok, true);
   assert.equal(check('pickTool', {}).ok, false);
   assert.equal(check('pickTool', { id: 'ashby:1', apply: true }).ok, true);
-  assert.deepEqual(Object.keys(CONSUMERS).sort(), ['applyPackInput', 'applyPackOut', 'findRolesTool', 'gapsOut', 'matchCard', 'pickTool', 'sourceIngest', 'tailorInput']);
+  assert.deepEqual(Object.keys(CONSUMERS).sort(), ['applyPackInput', 'applyPackOut', 'findRolesTool', 'matchCard', 'pickTool', 'sourceIngest', 'tailorInput']);
 });
 
 test('an apply pack can never claim applied or sent', () => {
