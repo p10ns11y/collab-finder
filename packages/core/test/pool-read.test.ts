@@ -38,3 +38,13 @@ test('summary: every sample role has a short summary, it reaches the matched row
   assert.ok(shown.every(row => row.summary === pool.rows.find(r => r.id === row.id)?.summary));
   assert.equal(parsePool(withRows(r => ({ ...r, summary: 'x'.repeat(201) }))).isErr(), true);
 });
+
+test('sample rows agree with themselves: remote locations are remote, titles read as titles, summaries are unique and leave out the company', () => {
+  type Row = { title: string; company: string; summary: string; location: string | null; remote: string };
+  const rows = raw.rows as Row[];
+  assert.deepEqual(rows.filter(r => /^Remote\b/.test(r.location ?? '') && r.remote !== 'remote').map(r => r.title), []);
+  assert.deepEqual(rows.filter(r => /^Director, |, .*, /.test(r.title)).map(r => r.title), []);
+  assert.equal(new Set(rows.map(r => r.summary)).size, rows.length);
+  const companies = [...new Set(rows.map(r => r.company))];
+  assert.deepEqual(rows.filter(r => companies.some(c => r.summary.includes(c))).map(r => r.summary), []);
+});
