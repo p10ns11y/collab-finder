@@ -1,0 +1,23 @@
+Charter fonts in this directory are the same four TTFs used to build the
+apply-pack Typst CV (Typst 0.13.1). SHA-256:
+
+  8b43e40c23b03771362f36c0f903eaaff45462fd42e3803a6290d5e179eaf371  Charter-Roman.ttf
+  a169f38f9b0f641685befe577e347da3486e60fa5ca7ff9bcbb4fe59b148f846  Charter-Italic.ttf
+  471c34cac424c76b695f4b4b46db2e8cbd69d1dd9d64fb1d3f73da25c009648d  Charter-Bold.ttf
+  bf8624bd3c2918908cc2c160717059fe2f3239b8b1856ab7013259163aed714d  Charter-BoldItalic.ttf
+
+Name table: Charter Regular 2.000 (makeotfexe). They are shipped so Vercel
+and CI render the same faces as the local typst --font-path build.
+
+Bitstream Charter grant:
+
+  Copyright (c) 1989-1992, Bitstream Inc., Cambridge, MA.
+
+  You are hereby granted permission under all Bitstream propriety rights
+  to use, copy, modify, sublicense, sell, and redistribute the 4
+  Bitstream Charter (r) Type 1 outline fonts for any purpose and without
+  restriction; provided, that this notice is left intact on all copies
+  of such fonts and that Bitstream's trademark is acknowledged as shown
+  below on all unmodified copies of the 4 Charter Type 1 fonts.
+
+  BITSTREAM CHARTER is a registered trademark of Bitstream Inc.

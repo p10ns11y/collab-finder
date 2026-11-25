@@ -162,10 +162,11 @@ async function openCommand(target: "last" | { pack: string }): Promise<void> {
   await openPath(path);
 }
 
-async function runGenerate(pack: "master" | { ref: string }, noSubmitCopy: boolean): Promise<void> {
+async function runGenerate(pack: "master" | { ref: string }, noSubmitCopy: boolean, out?: string): Promise<void> {
   const script = join(home, "scripts", "generate-apply-cv.tsx");
-  const args = pack === "master" ? [] : [pack.ref];
+  const args = pack === "master" ? ["--master"] : [pack.ref];
   if (noSubmitCopy) args.push("--no-submit-copy");
+  if (out) args.push("--out", out);
   const proc = Bun.spawn(["bun", script, ...args], {
     cwd: home,
     stdout: "inherit",
@@ -268,7 +269,7 @@ async function dispatch(command: Command): Promise<void> {
       await pickCommand();
       return;
     case "generate":
-      await runGenerate(command.pack, command.noSubmitCopy);
+      await runGenerate(command.pack, command.noSubmitCopy, command.out);
       return;
     case "default":
       await defaultCommand();

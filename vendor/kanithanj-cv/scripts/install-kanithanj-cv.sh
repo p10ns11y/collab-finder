@@ -4,8 +4,7 @@
 #
 # From a collab-finder checkout:
 #   scripts/install-kanithanj-cv.sh
-# From any machine:
-#   curl -fsSL https://raw.githubusercontent.com/p10ns11y/collab-finder/main/scripts/install-kanithanj-cv.sh | bash
+# From any machine: clone the repo, then run that installer.
 # Optional:
 #   KANITHANJ_CV_REMOTE  git URL (default https://github.com/p10ns11y/collab-finder.git)
 #   KANITHANJ_CV_REF     branch or tag (default main)
