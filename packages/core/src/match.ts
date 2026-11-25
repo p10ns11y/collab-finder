@@ -4,7 +4,7 @@ import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, tokensOf, type CorpusStats, type TitleFocus } from './relevance.ts';
 import { INDUSTRIES, industryOfLike, type Industry } from './industry.ts';
-import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level, type WorldRegion } from './vocab.ts';
+import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, LOCATION_PARTS, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level, type WorldRegion } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -168,8 +168,8 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   if (u.entry && !entryFieldOk(row.title, u.learned)) return null;
   if (!u.entry && !titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
-  const found = row.region === 'EU' ? regionOf(row.location ?? '') : null;
-  const region = found && FAR.includes(found) ? found : row.region;
+  const parts = row.region === 'EU' ? (row.location ?? '').split(LOCATION_PARTS).map(regionOf).filter(r => r !== null) : [];
+  const region = parts.length && parts.every(r => FAR.includes(r)) ? parts[0]! : row.region;
   const reg = regionOk(p.regions, region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   MTS.lastIndex = 0;

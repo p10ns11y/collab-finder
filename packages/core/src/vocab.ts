@@ -179,6 +179,7 @@ const PLACE_WORDS = new Set([...('remote hybrid onsite on-site site anywhere wor
   + 'seville turin aarhus bergen espoo tampere krakow kraków wroclaw wrocław gdansk zürich geneva lausanne basel bern antwerp budapest bucharest sofia '
   + 'athens riga vilnius belgrade serbia zagreb kyiv ukraine tel aviv canberra auckland').split(' '), ...SE_WORD, ...UK_WORD, ...EU_COUNTRY, ...EU_CITY, ...LATAM, ...FAR.keys()]);
 const STATE_COLLIDE = new Set('de in me la id md co pa'.split(' '));
+export const LOCATION_PARTS = /\s*[/;|•]\s*/;
 export const regionOf = (location: string): PlaceRegion | null => {
   const words = placeWords(location);
   if (!words.length) return null;
@@ -199,6 +200,7 @@ export const regionOf = (location: string): PlaceRegion | null => {
   const last = words[words.length - 1]!;
   if (CA_PROVINCE.has(last)) return 'CA';
   const far = [...words, ...words.slice(1).map((w, i) => `${words[i]} ${w}`)].map(w => FAR.get(w)).find(r => r);
+  if (far === 'CA' && (US_STATE.has(last) || US_NAME.has(last))) return 'US';
   if (far) return far;
   if (words.some(w => UK_WORD.has(w))) return 'UK';
   const euCity = words.some(w => EU_CITY.has(w));
