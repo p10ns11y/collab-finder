@@ -434,14 +434,14 @@ async function main() {
     console.log(`Role: ${[company, title].filter(Boolean).join(" — ")}`);
   }
 
-  const { data, featuredKeys } = applyCvOverlay(masterData, overlay);
+  const { data, featuredKeys, upsertedKeys } = applyCvOverlay(masterData, overlay);
 
   const outDir = join(root, "out", "apply", slug);
   mkdirSync(outDir, { recursive: true });
   const outPdf = join(outDir, cvFileName);
 
   console.log(`Generating ${outPdf} …`);
-  await renderTypstCv(data, outPdf);
+  const rendered = await renderTypstCv(data, outPdf, { featuredKeys, upsertedKeys });
   console.log(`Wrote ${outPdf}`);
 
   // Flat upload path: out/apply/{name-role-id}.pdf
@@ -490,10 +490,7 @@ async function main() {
     generated_at: new Date().toISOString(),
     overlay_path: existsSync(overlayPath) ? overlayPath : null,
     featured_keys: featuredKeys ?? null,
-    projects_shown: (featuredKeys ?? []).map((key) => {
-      const p = data.projects.find((proj) => (proj.key ?? proj.name) === key);
-      return p ? { key, name: p.name, url: p.url } : { key, missing: true };
-    }),
+    projects_shown: rendered.projectsShown,
   };
   writeFileSync(join(outDir, "meta.json"), `${JSON.stringify(snapshot, null, 2)}\n`);
 

@@ -18,18 +18,13 @@ fi
 
 echo "OK cv-sot wave1 (no extract writer copy)"
 
-PULL="$ROOT/scripts/pull-cv-renderer.sh"
-[[ -x "$PULL" || -f "$PULL" ]] || fail "pull-cv-renderer.sh missing"
-grep -q 'src/components/cv-document.tsx' "$PULL" || fail "allowlist missing cv-document.tsx"
-if grep -q 'scripts/generate-apply-cv.tsx' "$PULL"; then
-  fail "pull-cv-renderer.sh must not copy the CLI writer"
-fi
-if grep -E 'HOME\}/Work/personal/devprofile|HOME/Work/personal/devprofile' "$PULL"; then
-  fail "pull-cv-renderer.sh must not default to a sibling checkout"
-fi
-grep -q 'ATS-LAYOUT-POLICY: single-column' "$PULL" || fail "pull must guard the ATS single-column marker"
-grep -q 'Re-smoke after any pull' "$PULL" || fail "pull help must say to re-smoke after any pull"
-echo "OK cv-sot wave2 (renderer pull allowlist)"
+for gone in   scripts/pull-cv-renderer.sh   scripts/test-pull-cv-renderer.sh   vendor/kanithanj-cv/src/components/cv-document.tsx   vendor/kanithanj-cv/scripts/ats-pdf-smoke.tsx   vendor/kanithanj-cv/src/lib/cv-layout-policy.ts
+do
+  if [[ -e "$ROOT/$gone" ]]; then
+    fail "$gone must stay deleted (react-pdf is not the CV renderer)"
+  fi
+done
+echo "OK cv-sot wave2 (react-pdf CV path stays deleted)"
 
 INSTALL="$ROOT/vendor/kanithanj-cv/scripts/install-kanithanj-cv.sh"
 grep -q 'set CVDATA_SRC=/path/to/cvdata.json' "$INSTALL" || fail "install must teach the cvdata pointer"

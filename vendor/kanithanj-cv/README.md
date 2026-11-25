@@ -17,8 +17,9 @@ Needs [bun](https://bun.sh).
 # From a collab-finder checkout
 scripts/install-kanithanj-cv.sh
 
-# From any machine (no sibling repos)
-curl -fsSL https://raw.githubusercontent.com/p10ns11y/collab-finder/main/scripts/install-kanithanj-cv.sh | bash
+# From any machine: clone, then run the installer
+git clone --depth 1 https://github.com/p10ns11y/collab-finder.git
+bash collab-finder/scripts/install-kanithanj-cv.sh
 ```
 
 Or **Preferences → Install kanithanj.cv** in kanithanj.ai.
@@ -121,7 +122,7 @@ The site repo owns the published JSON. The CLI owns a copy you refresh on purpos
 
 ## Look (maintainers)
 
-The apply-pack look lives in `typst/cv.typ`. React-pdf `cv-document.tsx` is no longer the CV renderer (cover letters still use it).
+The apply-pack look lives in `typst/cv.typ`. Cover letters still use react-pdf.
 
 Re-smoke after typst or font changes:
 

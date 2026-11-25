@@ -1,15 +1,11 @@
-/**
- * Download the official Typst 0.13.1 musl binary and verify SHA-256.
- * Usage: bun scripts/ensure-typst.ts
- * Prints the typst binary path on success.
- */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
-  chmodSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -29,10 +25,30 @@ function cacheRoot(): string {
   return join(homedir(), ".cache", "kanithanj.cv", "typst", TYPST_VERSION);
 }
 
+function sha256File(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function typstVersionLine(bin: string): string {
+  const result = spawnSync(bin, ["--version"], { encoding: "utf8" });
+  if (result.status !== 0) {
+    fail(`typst --version failed for ${bin}: ${result.stderr || result.stdout}`);
+  }
+  return (result.stdout || "").trim();
+}
+
+function assertTypst0131(bin: string): void {
+  const line = typstVersionLine(bin);
+  if (!/^typst\s+0\.13\.1\b/.test(line)) {
+    fail(`TYPST_BIN must be typst ${TYPST_VERSION}, got: ${line || "(empty)"}`);
+  }
+}
+
 export async function ensureTypstBin(): Promise<string> {
   const override = process.env.TYPST_BIN?.trim();
   if (override) {
     if (!existsSync(override)) fail(`TYPST_BIN does not exist: ${override}`);
+    assertTypst0131(override);
     return override;
   }
 
@@ -40,8 +56,8 @@ export async function ensureTypstBin(): Promise<string> {
   const dir = cacheRoot();
   mkdirSync(dir, { recursive: true });
   const bin = join(dir, "typst");
-  const stamp = join(dir, `${archive.file}.sha256`);
-  if (existsSync(bin) && existsSync(stamp) && readFileSync(stamp, "utf8").trim() === archive.sha256) {
+  if (existsSync(bin) && sha256File(bin) === archive.binarySha256) {
+    assertTypst0131(bin);
     return bin;
   }
 
@@ -59,16 +75,24 @@ export async function ensureTypstBin(): Promise<string> {
   }
   writeFileSync(tarPath, bytes);
 
-  const extract = join(tmpdir(), `typst-extract-${process.pid}`);
+  const extract = join(tmpdir(), `typst-extract-${process.pid}-${Date.now()}`);
   mkdirSync(extract, { recursive: true });
-  const unpacked = spawnSync("tar", ["-xJf", tarPath, "-C", extract], { encoding: "utf8" });
-  if (unpacked.status !== 0) fail(`tar extract failed: ${unpacked.stderr}`);
-  const found = spawnSync("find", [extract, "-type", "f", "-name", "typst"], { encoding: "utf8" });
-  const typstSrc = (found.stdout || "").trim().split("\n").filter(Boolean)[0];
-  if (!typstSrc) fail("typst binary missing from official archive");
-  writeFileSync(bin, readFileSync(typstSrc));
-  chmodSync(bin, 0o755);
-  writeFileSync(stamp, `${archive.sha256}\n`);
+  try {
+    const unpacked = spawnSync("tar", ["-xJf", tarPath, "-C", extract], { encoding: "utf8" });
+    if (unpacked.status !== 0) fail(`tar extract failed: ${unpacked.stderr}`);
+    const found = spawnSync("find", [extract, "-type", "f", "-name", "typst"], { encoding: "utf8" });
+    const typstSrc = (found.stdout || "").trim().split("\n").filter(Boolean)[0];
+    if (!typstSrc) fail("typst binary missing from official archive");
+    const binaryDigest = sha256File(typstSrc);
+    if (binaryDigest !== archive.binarySha256) {
+      fail(`Typst binary SHA-256 mismatch: got ${binaryDigest}, expected ${archive.binarySha256}`);
+    }
+    writeFileSync(bin, readFileSync(typstSrc));
+    chmodSync(bin, 0o755);
+  } finally {
+    rmSync(extract, { recursive: true, force: true });
+  }
+  assertTypst0131(bin);
   return bin;
 }
 

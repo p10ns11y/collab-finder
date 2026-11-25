@@ -158,7 +158,6 @@
       "include": [
         "vendor/kanithanj-cv/**",
         "scripts/install-kanithanj-cv.sh",
-        "scripts/pull-cv-renderer.sh",
         "scripts/pull-cvdata.sh",
         "scripts/test-cv-sot.sh",
         "scripts/test-pull-*"

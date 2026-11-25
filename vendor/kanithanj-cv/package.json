@@ -9,7 +9,8 @@
     "link-application-packs": "node scripts/link-application-packs.mjs",
     "test": "bun test src/lib",
     "test:ats-pdf": "bun scripts/typst-ats-smoke.tsx",
-    "ensure-typst": "bun scripts/ensure-typst.ts"
+    "ensure-typst": "bun scripts/ensure-typst.ts",
+    "test:ats-mutations": "bun scripts/typst-ats-mutations.tsx"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",

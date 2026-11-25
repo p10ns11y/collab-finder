@@ -43,9 +43,9 @@ function githubBlurbTruncated(text: string | undefined): boolean {
 export function applyCvOverlay<T extends CvDataLike>(
   master: T,
   overlay: CvOverlayV1 | null | undefined,
-): { data: T; featuredKeys: readonly string[] | undefined } {
+): { data: T; featuredKeys: readonly string[] | undefined; upsertedKeys: readonly string[] } {
   if (!overlay) {
-    return { data: master, featuredKeys: undefined };
+    return { data: master, featuredKeys: undefined, upsertedKeys: [] };
   }
 
   let projects = [...(master.projects ?? [])];
@@ -73,5 +73,6 @@ export function applyCvOverlay<T extends CvDataLike>(
   return {
     data,
     featuredKeys: overlay.featured_keys,
+    upsertedKeys: (overlay.projects_upsert ?? []).map(projectId),
   };
 }

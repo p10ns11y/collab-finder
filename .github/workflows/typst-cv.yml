@@ -1,0 +1,46 @@
+name: typst-cv
+
+on:
+  push:
+    branches: [master, main, feat/**]
+  pull_request:
+
+concurrency:
+  group: typst-cv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typst-cv:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: vendor/kanithanj-cv
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+
+      - name: poppler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+        working-directory: .
+
+      - name: Install package
+        run: bun install
+
+      - name: Unit tests
+        run: bun test src/lib
+
+      - name: Typst generate fixture
+        run: |
+          mkdir -p /tmp/typst-ci
+          bun -e 'import { readFileSync } from "node:fs"; import { renderTypstCv } from "./src/lib/render-typst-cv.ts"; const data = JSON.parse(readFileSync("typst/fixtures/ada-cvdata.json", "utf8")); await renderTypstCv(data, "/tmp/typst-ci/fixture.pdf"); console.log("wrote /tmp/typst-ci/fixture.pdf");'
+
+      - name: ATS checks
+        run: bun scripts/typst-ats-smoke.tsx --pdf /tmp/typst-ci/fixture.pdf
+
+      - name: ATS mutation suite
+        run: bun scripts/typst-ats-mutations.tsx
