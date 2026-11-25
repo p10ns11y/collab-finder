@@ -8,7 +8,8 @@
     "generate-apply-cv": "bun scripts/generate-apply-cv.tsx",
     "link-application-packs": "node scripts/link-application-packs.mjs",
     "test": "bun test src/lib",
-    "test:ats-pdf": "bun scripts/ats-pdf-smoke.tsx"
+    "test:ats-pdf": "bun scripts/typst-ats-smoke.tsx",
+    "ensure-typst": "bun scripts/ensure-typst.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",

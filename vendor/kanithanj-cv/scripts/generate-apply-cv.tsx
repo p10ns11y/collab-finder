@@ -32,18 +32,31 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import CoverLetterDocument from "@/components/cover-letter-document";
-import CVDocument from "@/components/cv-document";
 import { contactEmailFromCvdata, planCoverLetterPdf } from "@/lib/cover-letter";
-import masterData from "@/data/cvdata.json";
 import {
   buildApplyCvFilename,
   resolveApplyJobId,
 } from "@/lib/apply-cv-filename";
 import { applyCvOverlay, type CvOverlayV1 } from "@/lib/cv-overlay";
-import { packsRootPath, resolvePacksRoot } from "@/lib/cv-paths";
+import { renderTypstCv } from "@/lib/render-typst-cv";
+import { packsRootPath, resolveCvdataPointer, resolvePacksRoot } from "@/lib/cv-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
+
+function loadMasterData(): Record<string, unknown> {
+  const pointer = resolveCvdataPointer(root, process.env);
+  if (pointer.kind === "missing") {
+    console.error("No cvdata.json found.");
+    for (const path of pointer.tried) console.error(`  tried ${path}`);
+    console.error("Set CVDATA_SRC or put a file at the default config path.");
+    process.exit(1);
+  }
+  const path = pointer.kind === "linked" ? pointer.path : pointer.path;
+  return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+}
+
+const masterData = loadMasterData();
 
 type PackManifest = {
   schema?: string;
@@ -63,12 +76,19 @@ function usage(): never {
   console.error(`Usage:
   bun scripts/generate-apply-cv.tsx
   bun scripts/generate-apply-cv.tsx <pack|opp_N|id> [--no-submit-copy]
+  bun scripts/generate-apply-cv.tsx --master --out <file.pdf>
 
 Prefer: kanithanj.cv generate [pack]`);
   process.exit(1);
 }
 
-async function writeMasterCv(): Promise<void> {
+async function writeMasterCv(outOverride?: string): Promise<void> {
+  if (outOverride) {
+    const target = resolve(process.cwd(), outOverride);
+    await renderTypstCv(masterData, target);
+    console.log(target);
+    return;
+  }
   const personName =
     typeof masterData.name === "string" && masterData.name.trim()
       ? masterData.name.trim()
@@ -82,10 +102,7 @@ async function writeMasterCv(): Promise<void> {
   mkdirSync(applyOutDir, { recursive: true });
   const namedPdf = join(applyOutDir, namedFile);
   const masterPdf = join(applyOutDir, "cv.pdf");
-  await ReactPDF.render(
-    <CVDocument data={masterData as typeof masterData} />,
-    namedPdf,
-  );
+  await renderTypstCv(masterData, namedPdf);
   copyFileSync(namedPdf, masterPdf);
   console.log(masterPdf);
 }
@@ -346,9 +363,11 @@ async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
   if (args.includes("-h") || args.includes("--help")) usage();
   const noSubmitCopy = args.includes("--no-submit-copy");
-  const packArg = args.find((a) => !a.startsWith("-"));
-  if (!packArg) {
-    await writeMasterCv();
+  const outAt = args.indexOf("--out");
+  const outOverride = outAt >= 0 ? args[outAt + 1] : undefined;
+  const packArg = args.find((a, i) => !a.startsWith("-") && i !== outAt + 1);
+  if (!packArg || args.includes("--master")) {
+    await writeMasterCv(outOverride);
     return;
   }
 
@@ -422,10 +441,7 @@ async function main() {
   const outPdf = join(outDir, cvFileName);
 
   console.log(`Generating ${outPdf} …`);
-  await ReactPDF.render(
-    <CVDocument data={data as typeof masterData} featuredKeys={featuredKeys} />,
-    outPdf,
-  );
+  await renderTypstCv(data, outPdf);
   console.log(`Wrote ${outPdf}`);
 
   // Flat upload path: out/apply/{name-role-id}.pdf

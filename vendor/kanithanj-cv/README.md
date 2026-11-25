@@ -2,6 +2,9 @@
 
 Apply-CV PDF maker. Lives in this collab-finder tree (`vendor/kanithanj-cv`). That tree is the source of truth. Install copies it to `~/.local/share/kanithanj.cv` and puts `kanithanj.cv` on `PATH`.
 
+The CV renderer is Typst 0.13.1 (official pinned binary, see `typst/TYPST-PIN.md`) plus Charter fonts in `typst/fonts/`. `generate` compiles `typst/cv.typ` with facts from `cvdata.json` (via `cvdata.cv_pdf` plus canonical name, headline and summary). Cover letters still use react-pdf. This package does not ship a personal record.
+
+
 `generate` is the only write. It never mutates the site master `cvdata.json`.
 
 ## How to use
@@ -118,18 +121,12 @@ The site repo owns the published JSON. The CLI owns a copy you refresh on purpos
 
 ## Look (maintainers)
 
-PDF look files (`cv-document.tsx` and the four lib helpers) are pulled from `p10ns11y/devprofile` with `scripts/pull-cv-renderer.sh`. That script copies an allowlist only. It does not copy the CLI writer.
+The apply-pack look lives in `typst/cv.typ`. React-pdf `cv-document.tsx` is no longer the CV renderer (cover letters still use it).
 
-`cv-document.tsx` and `cv-layout-policy.ts` carry `ATS-LAYOUT-POLICY: single-column`. A pull keeps those files when the incoming look drops the marker or brings back `columnContainer` / `leftColumn` / `rightColumn`. The incoming bytes go to `vendor/kanithanj-cv/.pull-quarantine/` (gitignored).
-
-Re-smoke after any pull:
+Re-smoke after typst or font changes:
 
 ```bash
-# After a visual change is on GitHub
-KANITHANJ_RENDER_REF=main scripts/pull-cv-renderer.sh
-(cd vendor/kanithanj-cv && bun scripts/ats-pdf-smoke.tsx)
-# commit vendor, then
-kanithanj.cv sync
+(cd vendor/kanithanj-cv && bun scripts/typst-ats-smoke.tsx)
 ```
 
 ## Env
