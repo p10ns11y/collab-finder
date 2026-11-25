@@ -57,6 +57,10 @@ for (const [i, path] of paths.entries()) {
       assert.equal(n.version, s.version + (LIFECYCLE.has(edge.event) ? 0 : 1));
       shows(n, ev, newest);
       if (n.step === 'confirming') assert.equal(n.pack, s.pack, 'a pending request leaves the visible pack alone');
+      if (edge.event === 'CANCEL' || edge.event === 'CONFIRM_FAILED') {
+        assert.equal(n.pack, s.pack, 'closing the request leaves the visible pack alone');
+        if (s.ask && s.ask.pack !== s.pack) assert.notEqual(n.pack, s.ask.pack, 'a declined request never reaches the pack');
+      }
       if (!at.has(n.step)) at.set(n.step, n);
       s = n;
     }
@@ -88,6 +92,18 @@ for (const [name, first] of [['confirm A then B', 'REQUEST_CONFIRM'], ['pack A t
     assert.equal(s.step, 'confirmed');
     assert.equal(s.pack?.url, roles[1]!.pack.url);
     assert.notEqual(s.pack?.url, roles[0]!.pack.url);
+  });
+}
+
+for (const close of ['CANCEL', 'CONFIRM_FAILED'] as const) {
+  test(`pack A, then ${close} on B keeps A's pack and never shows B's`, () => {
+    const start = [{ type: 'POOL_LOADED' }, payload('MATCHED'), payload('PACK', 0), payload('REQUEST_CONFIRM', 1)] as FlowEvent[];
+    const s = start.reduce((a: Snap, e) => next(a, e)!, START);
+    assert.equal(s.step, 'confirming');
+    const n = next(s, { type: close })!;
+    assert.equal(n.step, 'matched');
+    assert.equal(n.pack?.url, roles[0]!.pack.url);
+    assert.notEqual(n.pack?.url, roles[1]!.pack.url);
   });
 }
 

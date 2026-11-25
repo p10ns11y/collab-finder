@@ -80,3 +80,15 @@ test('the App host keeps A on screen while B is pending, cancels A, and resolves
   host.onShown();
   assert.equal(await state(second), 'confirmed');
 });
+
+test('when the page cannot show the cards, Confirm reports unshown, never confirmed', async () => {
+  const pack: ApplyPack = { roleId: 'B', title: 'Engineer B', company: 'Company B', url: 'https://jobs.example.com/B', location: null, remote: 'remote', status: 'open', reasons: [], checklist: [], notice: '' };
+  const { host, live } = mount({ useRef: (current: unknown) => ({ current }), wantsAll: false, loadSoft: () => Promise.resolve({}) });
+  host.locals[flowRef]!.current = await import('../src/flow.ts');
+  const send = host.locals['send'] as unknown as (e: FlowEvent) => void;
+  for (const e of [{ type: 'POOL_LOADED' }, { type: 'MATCHED', view: { kind: 'results', result: {} as never, ms: 1 } }] as FlowEvent[]) send(e);
+  const asked = host.confirm({ title: pack.title, body: 'Review B', pack });
+  assert.equal((live[snapState] as Snap).step, 'confirming');
+  host.onConfirm();
+  assert.equal(await state(asked), 'unshown');
+});

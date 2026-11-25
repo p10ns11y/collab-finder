@@ -36,7 +36,7 @@ const requestConfirm = (page: Page, id: string) =>
   }, { source: invoke.toString(), id });
 
 type Role = { id: string; label: string };
-type Shown = { outlined?: Role; packed?: Role; asked?: Role };
+type Shown = { outlined?: Role; packed?: Role; asked?: Role; visible?: Role | null; closed?: boolean };
 
 const twoRoles = (a: Answer): [Role, Role] => {
   const all = Object.values(a.groups ?? {}).flat().map(r => ({ id: r.id, label: `${r.title} at ${r.company}` }));
@@ -60,6 +60,12 @@ const shows = async (page: Page, step: string, dialog: boolean, seen: Shown = {}
       const pack = page.getByTestId('apply-pack');
       if (await pack.count()) await expect(pack).not.toContainText(seen.asked!.label);
     }
+  }
+  if (seen.closed) {
+    const pack = page.getByTestId('apply-pack');
+    if (seen.visible) await expect(pack).toContainText(seen.visible.label);
+    else await count('apply-pack', 0);
+    if (seen.asked && seen.asked.id !== seen.visible?.id && await pack.count()) await expect(pack).not.toContainText(seen.asked.label);
   }
   await count('confirmed', step === 'confirmed' ? 1 : 0);
   await count('person-confirm', step === 'confirming' && dialog ? 1 : 0);
@@ -107,6 +113,7 @@ for (const [i, path] of paths.entries()) {
         }
         case 'TAILOR': {
           seen.outlined = role();
+          seen.visible = null;
           const a = await call(page, 'tailor_cv', { id: role().id });
           expect(a.error ?? null).toBe(null);
           expect(a.stateVersion).toBe(version + 1);
@@ -115,6 +122,7 @@ for (const [i, path] of paths.entries()) {
         }
         case 'PACK': {
           seen.packed = role();
+          seen.visible = role();
           const a = await call(page, 'show_apply_pack', { id: role().id });
           expect(a.error ?? null).toBe(null);
           expect(a.stateVersion).toBe(version + 1);
@@ -140,6 +148,7 @@ for (const [i, path] of paths.entries()) {
           if (edge.event === 'CONFIRM') {
             expect(a?.confirmed).toBe(true);
             seen.packed = seen.asked!;
+            seen.visible = seen.asked!;
             await expect(page.getByTestId('confirmed')).toBeVisible();
           } else {
             expect(a?.confirmed).toBeUndefined();
@@ -150,6 +159,8 @@ for (const [i, path] of paths.entries()) {
           break;
         }
       }
+      if (['MATCHED', 'MATCH_FAILED', 'EDIT'].includes(edge.event)) seen.visible = null;
+      seen.closed = edge.event === 'CANCEL' || edge.event === 'CONFIRM_FAILED';
       if (!LIFECYCLE.has(edge.event)) version += 1;
       if (edge.event === 'REQUEST_CONFIRM' && path.some(e => e.event === 'CONFIRM_FAILED')) continue;
       await expect(root).toHaveAttribute('data-step', edge.to);
@@ -183,6 +194,35 @@ for (const first of ['confirm', 'pack'] as const) {
     await expect(page.getByTestId('apply-pack')).not.toContainText(roles[0].label);
   });
 }
+
+test('content: pack A, then cancel B keeps A and never shows B', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  await expect(page.getByTestId('apply-pack')).toContainText(roles[0].label);
+  await requestConfirm(page, roles[1].id);
+  await expect(page.getByTestId('person-confirm')).toContainText(roles[1].label);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect((await page.evaluate(() => window.pendingForTest))?.error).toMatch(/cancelled/);
+  await expect(page.locator('[data-step]')).toHaveAttribute('data-step', 'matched');
+  await expect(page.getByTestId('apply-pack')).toContainText(roles[0].label);
+  await expect(page.getByTestId('apply-pack')).not.toContainText(roles[1].label);
+});
+
+test('confirm after the full view is closed reports the pack as not shown, never confirmed', async ({ page }) => {
+  await page.goto('/#all');
+  await toolsReady(page);
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await requestConfirm(page, roles[0].id);
+  await expect(page.getByTestId('person-confirm')).toContainText(roles[0].label);
+  await page.evaluate(() => { window.location.hash = ''; });
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  const a = await page.evaluate(() => window.pendingForTest);
+  expect(a?.confirmed).toBeUndefined();
+  expect(a?.error).toMatch(/could not be shown/);
+  await expect(page.getByTestId('apply-pack')).toHaveCount(0);
+});
 
 test('flow chunk retries on the next request while the pool fetch starts in parallel', async ({ page, context }) => {
   let unblock: (() => void) | undefined;

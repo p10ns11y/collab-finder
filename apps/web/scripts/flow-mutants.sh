@@ -21,6 +21,9 @@ mutants=(
   "own2 App keeps first ask content|src/App.tsx|s/ask: { ...ask, id: confirmId.current += 1 }/ask: { ...(snapRef.current?.ask ?? ask), id: confirmId.current += 1 }/"
   "new1 App resolves the older ask as confirmed|src/App.tsx|s/older?.('cancelled');/older?.('confirmed');/"
   "new2 cards show the pending ask's pack|src/App.tsx|s/pack={snap.pack} confirmed=/pack={snap.ask?.pack ?? snap.pack} confirmed=/"
+  "B3 Cancel shows the declined ask's pack|src/flow.ts|s/close: assign({ ask: null })/close: assign(({ context }) => ({ pack: context.ask?.pack ?? context.pack, ask: null }))/"
+  "X1 Cancel also clears the pack|src/flow.ts|s/close: assign({ ask: null })/close: assign({ ask: null, pack: null })/"
+  "X3 App reports confirmed when cards were not shown|src/App.tsx|s/.then(ok => resolve(ok ? outcome : 'unshown'));/.then(() => resolve(outcome));/"
   "bump dropped on PACK|src/flow.ts|s/PACK: { target: 'pack', actions: \['bump', 'showPack'\] }/PACK: { target: 'pack', actions: ['showPack'] }/"
 )
 printf 'mutant\tunit_failed\tunit_total\te2e_failed\te2e_total\n' > "$out/table.tsv"
@@ -33,7 +36,7 @@ for m in "${mutants[@]}"; do
   node --test check/flow.test.ts check/app-confirm.test.ts > "$out/$slug-unit.log" 2>&1
   uf=$(sed -n 's/^ℹ fail //p' "$out/$slug-unit.log"); ut=$(sed -n 's/^ℹ tests //p' "$out/$slug-unit.log")
   npx vite build > "$out/$slug-build.log" 2>&1 || { echo "build failed for $name" >&2; exit 2; }
-  PLAYWRIGHT_JSON_OUTPUT_NAME="$out/$slug-e2e.json" npx playwright test tests/flow.spec.ts --project chromium --workers=1 --timeout=15000 --reporter=json > /dev/null 2>&1
+  PLAYWRIGHT_JSON_OUTPUT_NAME="$out/$slug-e2e.json" npx playwright test ${PW_CONFIG:+-c "$PW_CONFIG"} tests/flow.spec.ts --project chromium --workers=1 --timeout=15000 --reporter=json > /dev/null 2>&1
   read -r ef et < <(node -e "const s=require(process.argv[1]).stats; console.log(s.unexpected+s.flaky, s.expected+s.unexpected+s.flaky)" "$out/$slug-e2e.json")
   if [ "${et:-0}" -eq 0 ]; then echo "no e2e tests ran for $name" >&2; exit 2; fi
   printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$uf" "$ut" "$ef" "$et" >> "$out/table.tsv"
