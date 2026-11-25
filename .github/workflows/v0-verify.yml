@@ -29,6 +29,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx tsc --noEmit
       - run: node --test test/*.test.ts
+      - name: 30,000-row match speed (CPU time)
+        run: node --test --test-concurrency=1 test/speed.perf.ts
       - name: no code comments
         run: "! grep -rnE '^\\s*//|/\\*' src test scripts --include='*.ts' | grep -v '@ts-expect-error'"
 
