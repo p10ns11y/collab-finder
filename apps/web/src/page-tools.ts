@@ -132,14 +132,16 @@ export type RoleSummary = {
   stateVersion: number;
   verdict: string;
   error: string | null;
+  note?: string;
   groups: Record<string, Array<{ id: string; title: string; company: string; reasons: ReadonlyArray<string> }>> | null;
 };
 
-export function summarizeRoles(answer: { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null }): RoleSummary {
+export function summarizeRoles(answer: { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null; note?: string }): RoleSummary {
   return {
     stateVersion: answer.stateVersion,
     verdict: answer.verdict,
     error: answer.error,
+    ...(answer.note ? { note: answer.note } : {}),
     groups: answer.result
       ? Object.fromEntries(Object.entries(answer.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))]))
       : null,

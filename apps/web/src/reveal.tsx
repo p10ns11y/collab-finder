@@ -13,7 +13,10 @@ const ROLES: ReadonlyArray<[string, string]> = [
   ['security engineer', 'Security'], ['engineering manager', 'Leading a tech team'],
 ];
 const TENURE: ReadonlyArray<[string, string]> = [['5+', '5+ years'], ['10+', '10+ years'], ['15+', '15+ years']];
-const HOMES: ReadonlyArray<[Home, string]> = [['SE', 'Sweden'], ['EU', 'Elsewhere in the EU'], ['UK', 'United Kingdom'], ['US', 'United States'], ['other', 'Somewhere else']];
+const HOMES: ReadonlyArray<[Home, string]> = [
+  ['SE', 'Sweden'], ['EU', 'Elsewhere in the EU'], ['UK', 'United Kingdom'], ['US', 'United States'],
+  ['CA', 'Canada'], ['LATAM', 'Latin America'], ['APAC', 'Asia-Pacific'], ['MEA', 'Middle East and Africa'], ['other', 'Somewhere else'],
+];
 const GROWTH: ReadonlyArray<[string, string]> = [
   ['AI infrastructure, machine learning', 'AI and machine learning'], ['platform engineering, infrastructure', 'Platform and infrastructure'],
   ['engineering manager', 'Leading a team'], ['product engineering', 'Product engineering'],
@@ -53,7 +56,7 @@ function Chips({ name, options, chosen, onPick }: { name: string; options: Reado
     <div role="group" aria-label={name} className="flex flex-wrap gap-2">
       {options.map(([v, l]) => (
         <button key={v} type="button" aria-pressed={chosen.includes(v)} onClick={() => onPick(v)}
-          className="min-h-11 rounded-pill border border-border bg-surface px-4 text-sm transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-bg focus-visible:outline-2 focus-visible:outline-accent">
+          className="min-h-11 rounded-pill border border-border bg-surface px-4 text-sm transition-colors hover:border-text-muted aria-pressed:border-text aria-pressed:bg-text aria-pressed:text-bg focus-visible:outline-2 focus-visible:outline-accent">
           {l}
         </button>
       ))}
@@ -65,7 +68,7 @@ function Dots({ step }: { step: number }) {
   return (
     <ol className="flex items-center gap-2" aria-label={`${step} of ${STEPS.length} unlocked`} data-testid="progress">
       {STEPS.map((s, i) => (
-        <li key={s} title={s} className={`size-2.5 rounded-full ${i < step ? 'bg-accent' : 'bg-border'}`}><span className="sr-only">{s}{i < step ? ' unlocked' : ''}</span></li>
+        <li key={s} title={s} className={`size-2.5 rounded-full ${i < step ? 'bg-text' : 'bg-border'}`}><span className="sr-only">{s}{i < step ? ' unlocked' : ''}</span></li>
       ))}
     </ol>
   );
@@ -78,7 +81,7 @@ function Count({ roles, fields, countries }: { roles: number; fields: number; co
   const span = [...(fields >= 2 ? [`across ${n(fields)} fields`] : []), ...(countries >= 1 ? [`in ${n(countries)} ${countries === 1 ? 'country' : 'countries'}`] : [])].join(' ');
   return (
     <p className="reveal sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-2 text-lg backdrop-blur-sm" data-testid="live-count" aria-live="polite">
-      <span key={seen.n} className="pop text-4xl font-semibold tabular-nums text-accent">{n(seen.n)}</span> roles {span || 'open to you'}
+      <span key={seen.n} className="pop text-4xl font-semibold tabular-nums">{n(seen.n)}</span> roles {span ? `${span} worldwide` : 'open to you worldwide'}
       {delta !== 0 && <span className="ml-2 text-sm text-text-muted">{delta > 0 ? '+' : '−'}{n(Math.abs(delta))}</span>}
     </p>
   );
@@ -150,7 +153,6 @@ export function Reveal({ pool }: { pool: PublicPool }) {
       {step >= 3 && ok && (
         <div className="reveal grid gap-3">
           <p className="text-xl font-medium text-balance" data-testid="read-back">{readBack(ok.understood, tenure, wide.fields.map(fieldLabel))}</p>
-          <p className="text-xs text-text-muted">Read only from what you typed and tapped, here in your browser.</p>
         </div>
       )}
 

@@ -282,7 +282,7 @@ export function SdkRegion({ value, onValueChange }: { value: ReadonlyArray<Place
       <RegionTrigger handle={picker} />
       <RegionPopup handle={picker} />
       <p className="text-xs text-text-muted">{labels.length ? labels.join(', ') : 'Anywhere'}</p>
-      <p id="region-help" className="text-xs text-text-muted">Pick any. None picked means anywhere.</p>
+      <p id="region-help" className="text-xs text-text-muted">Worldwide until you pick a region.</p>
     </div>
   );
 }
@@ -370,7 +370,7 @@ export function SdkResults({ result, ms }: { result: MatchResult; ms: number }) 
       <div className="mt-6">
         <MatchScroller handle={handle} rows={rows} items={items} />
         {selected && (
-          <a className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-2" href={selected.url} target="_blank" rel="noopener noreferrer">
+          <a className="mt-3 inline-block text-sm font-medium text-text underline underline-offset-2" href={selected.url} target="_blank" rel="noopener noreferrer">
             View posting for {selected.title} at {displayCompany(selected.company)} (opens in a new tab)
           </a>
         )}

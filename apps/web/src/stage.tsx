@@ -43,7 +43,7 @@ export function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View;
       <Alert tone="trap" data-testid="zero-results">
         No roles match all of your filters.
         <span className="mt-2 flex flex-wrap gap-2">
-          {view.widen.map(w => <Button key={w} variant="outline" size="sm" onClick={() => onWiden(w)}>{WIDEN_LABEL[w] ?? w}</Button>)}
+          {view.widen.map((w, i) => <Button key={w} variant={i ? 'outline' : 'default'} size="sm" onClick={() => onWiden(w)}>{WIDEN_LABEL[w] ?? w}</Button>)}
         </span>
       </Alert>
     );

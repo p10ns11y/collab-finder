@@ -384,3 +384,67 @@ test('flow design: a form rail and a state-driven stage, hairline matches and no
   const samples = await page.getByTestId('flow-stage').locator('[data-posting-id] [data-testid="why"]').allInnerTexts();
   expect(samples.every(t => !/ role\.$/.test(t))).toBe(true);
 });
+
+const cyanAnything = (page: Page) => page.evaluate(() => {
+  const probe = document.createElement('span'); probe.className = 'text-accent'; document.body.append(probe);
+  const accent = getComputedStyle(probe).color; probe.remove();
+  return [...document.querySelectorAll('body *')].filter(el => (el as HTMLElement).offsetParent !== null && [getComputedStyle(el).color, getComputedStyle(el).backgroundColor].includes(accent))
+    .map(el => (el.textContent ?? '').trim() || el.tagName);
+});
+
+test('design r4: first load uses eight homes and shows worldwide, cyan stays off counts and chips, no safety copy, text holds contrast while it rises', async ({ page }) => {
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Back-end systems', exact: true }).click();
+  await page.getByRole('button', { name: '5+ years', exact: true }).click();
+  const homes = page.getByRole('group', { name: 'Where do you live now?' }).getByRole('button');
+  await expect(homes).toHaveText(['Sweden', 'Elsewhere in the EU', 'United Kingdom', 'United States', 'Canada', 'Latin America', 'Asia-Pacific', 'Middle East and Africa', 'Somewhere else']);
+  await expect(page.getByTestId('live-count')).toContainText('worldwide');
+  await page.getByRole('button', { name: 'Canada', exact: true }).click();
+  await expect(page.getByTestId('first-fits')).toBeVisible();
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2aa']).withRules(['color-contrast']).analyze();
+  expect(axe.violations.flatMap(v => v.nodes.map(n => n.target.join(' ')))).toEqual([]);
+  const fades = await page.evaluate(() => document.getAnimations().flatMap(a => ((a.effect as KeyframeEffect | null)?.getKeyframes() ?? []).filter(k => 'opacity' in k)).length);
+  expect(fades).toBe(0);
+  await expect(page.getByTestId('first-fits').getByTestId('pick-label')).toContainText(['Outside Canada, worth a look']);
+  expect(await cyanAnything(page)).toEqual([]);
+  await expect(page.locator('body')).not.toContainText(/nothing you type leaves|Read only from what you typed|didn’t know about this/i);
+
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.locator('body')).not.toContainText(/nothing you type leaves|Skip your name|Industries:|judged from the title/i);
+  const worldwide = page.getByTestId('worldwide');
+  await expect(worldwide).toBeChecked();
+  await expect(page.getByText('Worldwide until you pick a region.')).toBeVisible();
+  await page.getByLabel('Canada', { exact: true }).check();
+  await expect(worldwide).not.toBeChecked();
+  await worldwide.check();
+  await expect(page.getByLabel('Canada', { exact: true })).not.toBeChecked();
+  await page.getByLabel('Middle East and Africa', { exact: true }).check();
+  await page.getByLabel('Work mode').selectOption('onsite');
+  await page.getByLabel('About you').fill(DESCRIPTION);
+  await page.getByRole('button', { name: 'Find roles' }).click();
+  await expect(page.getByTestId('zero-results')).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect.poll(() => cyanActions(page)).toEqual(['Search anywhere']);
+});
+
+test('a follow-up find_roles that matches nothing keeps the roles already shown, and tailor_cv still works on them', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION });
+  const [role] = twoRoles(first);
+  const ids = Object.values(first.groups ?? {}).flat().map(r => r.id);
+  const narrow = await call(page, 'find_roles', { stateVersion: first.stateVersion, regions: ['MEA'], remote: 'onsite' }) as Answer & { verdict?: string; note?: string };
+  expect(narrow.verdict).toBe('ZeroResults');
+  expect(narrow.error ?? null).toBe(null);
+  expect(narrow.note).toMatch(/kept the \d+ roles already shown/);
+  expect(Object.values(narrow.groups ?? {}).flat().map(r => r.id)).toEqual(ids);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await expect(page.getByTestId('zero-results')).toHaveCount(0);
+  await expect(page.getByLabel('Middle East and Africa', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Work mode')).toHaveValue('any');
+  const outline = await call(page, 'tailor_cv', { id: role.id });
+  expect(outline.error ?? null).toBe(null);
+  await expect(page.getByTestId('cv-outline')).toContainText(role.label.split(' at ')[0]!);
+});

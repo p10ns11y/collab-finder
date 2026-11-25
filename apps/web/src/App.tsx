@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Reveal } from './reveal.tsx';
 import {
-  poolStats, findPii, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
+  poolStats, findPii, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
   type MatchResult, type PublicPool, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
@@ -12,7 +12,6 @@ import type { FlowEvent, Snap, View } from './flow.ts';
 import { REGIONS, type Place } from './regions.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
-const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
@@ -105,14 +104,16 @@ export function App() {
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
   const nonLatin = useMemo(() => mostlyNonLatin(`${description}\n${goal}\n${likes}`), [description, goal, likes]);
 
-  const run = useCallback((over?: AgentSearch) => {
+  const run = useCallback((over?: AgentSearch, keepShown = false) => {
     if (!pool) return null;
     const t0 = performance.now();
     const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
+    const shown = snapRef.current?.view;
+    if (keepShown && shown?.kind === 'results' && r.isErr() && r.error.kind === 'ZeroResults') return { r, kept: shown.result, widen: r.error.widen };
     send(r.isOk() ? { type: 'MATCHED', view: { kind: 'results', result: r.value, ms } } : { type: 'MATCH_FAILED', view: toView(r.error) });
     requestAnimationFrame(() => resultsRef.current?.focus());
-    return r;
+    return { r, kept: null, widen: [] };
   }, [pool, description, goal, likes, regions, remote, productOnly]);
 
   const latest = useRef({ run, description });
@@ -149,13 +150,19 @@ export function App() {
     const host: WebMcpHost = {
       snap: () => snapRef.current,
       search: change => {
+        const out = latest.current.run(change, true);
+        const stateVersion = snapRef.current?.version ?? 0;
+        if (out?.kept) {
+          const n = Object.values(out.kept.groups).flat().length;
+          return { stateVersion, result: out.kept, verdict: 'ZeroResults', error: null, note: `No roles match that change. The page kept the ${n} roles already shown and the form as it was. To widen, change: ${out.widen.join(', ')}.` };
+        }
         if (change.description !== undefined) { setDescription(change.description); latest.current.description = change.description; }
         if (change.goal !== undefined) setGoal(change.goal);
         if (change.regions) setRegions(change.regions);
         if (change.remote) setRemote(change.remote);
         if (change.productOnly !== undefined) setProductOnly(change.productOnly);
-        const r = latest.current.run(change);
-        return { stateVersion: snapRef.current?.version ?? 0, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
+        const r = out?.r ?? null;
+        return { stateVersion, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
       },
       showAllOptions: () => {
         setShowAll(true);
@@ -200,9 +207,8 @@ export function App() {
         <h1 className="text-sm font-semibold tracking-tight text-text-muted">kanithanj.ai</h1>
         <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
           {pool
-            ? `${pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool).toLocaleString('en')} tech companies, checked ${pool.checkedRange.to.slice(0, 10)}. `
-            : `${OUT_OF_SCOPE_MSG} `}
-          Matching runs in your browser; nothing you type leaves this page.
+            ? `${pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool).toLocaleString('en')} tech companies, checked ${pool.checkedRange.to.slice(0, 10)}.`
+            : OUT_OF_SCOPE_MSG}
         </p>
       </header>
 
@@ -224,7 +230,7 @@ export function App() {
           <Textarea id="description" name="description" toolparamdescription="A short self-description of the work you do, without your name, email or phone" value={description} maxLength={MAX_CHARS + 200}
             onChange={e => { setDescription(e.target.value); formChanged(); }}
             placeholder="e.g. Senior backend engineer, 8 years of Go and Postgres, distributed systems" aria-describedby="description-help" autoComplete="off" spellCheck />
-          <p id="description-help" className="text-xs text-text-muted">At least {MIN_CHARS} characters. Skip your name, email and phone: they are not needed.</p>
+          <p id="description-help" className="text-xs text-text-muted">At least {MIN_CHARS} characters.</p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
@@ -234,7 +240,7 @@ export function App() {
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
           <Input id="likes" name="likes" toolparamdescription="Optional companies or interests, separated by commas. Stays in this tab." value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
             placeholder="e.g. Spotify, fintech, robotics" aria-describedby="likes-help" autoComplete="off" />
-          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies, titles and industries move up. Industries: {INDUSTRY_LABELS}.</p>
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas.</p>
         </div>
         <div className="grid gap-6 border-t border-border pt-6">
           <div className="grid gap-2">
@@ -246,6 +252,11 @@ export function App() {
               <fieldset className="grid gap-2" aria-describedby="region-help" toolparamdescription="Optional regions to keep. None picked means anywhere.">
                 <legend className="text-sm font-semibold">Regions</legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  <label className="flex min-h-11 items-center gap-2 text-sm lg:min-h-0">
+                    <input type="checkbox" checked={!regions.length} className="size-4 accent-text focus-visible:outline-accent" data-testid="worldwide"
+                      onChange={() => { setRegions([]); formChanged(); }} />
+                    Worldwide
+                  </label>
                   {REGIONS.map(([v, l]) => (
                     <label key={v} className="flex min-h-11 items-center gap-2 text-sm lg:min-h-0">
                       <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-text focus-visible:outline-accent"
@@ -254,7 +265,7 @@ export function App() {
                     </label>
                   ))}
                 </div>
-                <p id="region-help" className="text-xs text-text-muted">Pick any. None picked means anywhere.</p>
+                <p id="region-help" className="text-xs text-text-muted">Worldwide until you pick a region.</p>
               </fieldset>
             )}
           </div>
@@ -270,7 +281,7 @@ export function App() {
             onChange={() => { setProductOnly(!productOnly); formChanged(); }} />
           <span>
             Product companies only
-            <span id="product-only-help" className="block text-xs text-text-muted">Hides roles that look like agency, consultancy or freelance contracts, judged from the title and company name.</span>
+            <span id="product-only-help" className="block text-xs text-text-muted">Hides agency, consultancy and freelance roles.</span>
           </span>
         </label>
         {nonLatin && <p className="text-sm text-text-muted" data-testid="language-hint">Works best in English or Swedish.</p>}
@@ -280,7 +291,7 @@ export function App() {
             <Button type="button" variant="outline" size="sm" className="ml-2" onClick={removePii}>Remove them</Button>
           </Alert>
         )}
-        <div><Button type="submit" className="w-full transition-none" variant={SEARCHED.has(step) ? 'outline' : 'default'} data-testid="find-roles" disabled={!pool}>Find roles</Button></div>
+        <div><Button type="submit" className="w-full transition-none" variant={SEARCHED.has(step) || view.kind === 'zeroResults' ? 'outline' : 'default'} data-testid="find-roles" disabled={!pool}>Find roles</Button></div>
       </form>
       </div>
       <div ref={resultsRef} data-testid="flow-stage" tabIndex={-1} className="min-w-0 outline-none" aria-live="polite">
