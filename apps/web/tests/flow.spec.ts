@@ -76,7 +76,7 @@ const call = (page: import('@playwright/test').Page, name: string, input: Record
   }, { name, input });
 
 test('WebMCP tools drive the same machine; apply waits for a person and a cancel never reports confirmed', async ({ page }) => {
-  await page.goto('/flow/');
+  await page.goto('/flow');
   await expect.poll(async () => page.evaluate(async () => ((await document.modelContext?.getTools()) ?? []).map(t => t.name).sort())).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
   expect((await call(page, 'find_roles', {})).error).toBeTruthy();
   const found = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior platform engineer, Go' });
