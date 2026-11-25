@@ -49,7 +49,7 @@ export function RoleCard({ row, label = null }: { row: MatchRow; label?: string 
   const noted = proof?.ids.has(row.id) ?? false;
   return (
     <Card className="h-full" data-posting-id={row.id}>
-      {label && <p className="mb-1 text-xs font-medium text-accent" data-testid="pick-label">{label}</p>}
+      {label && <p className="mb-1 text-xs font-medium uppercase tracking-wider text-text-muted" data-testid="pick-label">{label}</p>}
       <h4 className="text-base font-semibold">{row.title}</h4>
       <p className="text-sm text-text-muted">{company}{row.location ? ` · ${row.location}` : ''}</p>
       <p className="mt-2 text-sm text-text" data-testid="why">{whyLine(row.reasons)}</p>

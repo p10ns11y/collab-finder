@@ -284,8 +284,8 @@ export function App() {
       </form>
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
+        {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} step={snap.step} onShown={() => settleCards(true)} /></SoftBoundary>}
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} confirmed={step === 'confirmed'} onShown={() => settleCards(true)} /></SoftBoundary>}
       </div>
       </>}
 
@@ -318,7 +318,7 @@ function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View; onWide
     case 'inputError': return <Alert tone="trap" data-testid="input-error">{view.msg}</Alert>;
     case 'piiWarning': return (
       <Alert tone="warn" data-testid="pii-blocked">
-        We did not match yet: your text contains {view.kinds.join(', ')}. Nothing was sent anywhere.
+        We did not match yet: your text contains {view.kinds.join(', ')}.
         <Button variant="outline" size="sm" className="ml-2" onClick={onRemovePii}>Remove them</Button>
       </Alert>
     );

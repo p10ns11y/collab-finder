@@ -96,10 +96,10 @@ export function buildApplyPack(row: MatchRow): ApplyPack {
     status: row.status,
     reasons: row.reasons.slice(0, 5),
     checklist: [
-      'Read the live posting; this page only keeps public facts and a link.',
+      'Read the live posting end to end.',
       'Check that the role is still open.',
-      'A person must confirm before any apply or send step.',
-      'This page does not apply or send for you.',
+      'Lead with the points that fit, in your own words.',
+      'Apply on the employer\'s page.',
     ],
     notice: APPLY_SEND_NOTICE,
   };

@@ -56,8 +56,10 @@ test('buildCvOutline stays local and names overlap plus reasons, never a submitt
 test('buildApplyPack is public facts plus a checklist and never claims to apply or send', () => {
   const pack = buildApplyPack(row());
   assert.equal(pack.url, 'https://jobs.example.com/ashby/1');
-  assert.ok(pack.checklist.some(item => /does not apply or send/.test(item)));
+  assert.ok(pack.checklist.every(item => !/(we|this page) (will )?(apply|send)|submitted|applied for you/i.test(item)));
+  assert.ok(pack.checklist.some(item => /employer's page/.test(item)));
   assert.equal(pack.notice, APPLY_SEND_NOTICE);
+  assert.match(APPLY_SEND_NOTICE, /never applies or sends/);
 });
 
 test('a cancelled confirm does not apply or send, and a confirm still does not send', () => {

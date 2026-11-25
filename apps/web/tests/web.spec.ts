@@ -217,12 +217,15 @@ test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or s
   const outline = await call(page, 'tailor_cv', { id: anyId });
   expect(outline.error ?? null).toBe(null);
   await expect(page.getByTestId('cv-outline')).toBeVisible();
-  await expect(page.getByTestId('cv-outline')).toContainText('not a submitted CV');
+  expect(String(outline.notice)).toMatch(/not a submitted CV and nothing is sent/);
+  await expect(page.getByTestId('cv-outline')).not.toContainText('nothing is sent');
   const pack = await call(page, 'show_apply_pack', { id: anyId });
   expect(pack.error ?? null).toBe(null);
   expect(String(pack.url)).toMatch(/^https:\/\//);
   await expect(page.getByTestId('apply-pack')).toBeVisible();
-  await expect(page.getByTestId('apply-pack')).toContainText('does not apply or send');
+  expect(String(pack.notice)).toMatch(/never applies or sends/);
+  await expect(page.getByTestId('apply-pack')).not.toContainText('never applies');
+  await expect(page.getByTestId('apply-pack').getByRole('link', { name: /Open posting/ })).toHaveAttribute('href', String(pack.url));
   const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
   await expect(page.getByTestId('person-confirm')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
@@ -241,6 +244,9 @@ test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or s
   await page.waitForLoadState('networkidle');
   const leaking = requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres, distributed'));
   expect(leaking).toHaveLength(0);
+  const origin = new URL(page.url()).origin;
+  expect(requests.filter(r => r.method() !== 'GET').map(r => `${r.method()} ${r.url()}`)).toEqual([]);
+  expect(requests.filter(r => !r.url().startsWith(origin)).map(r => r.url())).toEqual([]);
 });
 
 test('WebMCP confirm: Escape cancels and a second request reopens the dialog', async ({ page }) => {
