@@ -39,7 +39,7 @@ export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: str
   );
 }
 
-export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: ApplyPack | null }) {
+export function ToolCards({ outline, pack, confirmed }: { outline: CvOutline | null; pack: ApplyPack | null; confirmed: boolean }) {
   return (
     <>
       {outline && (
@@ -54,6 +54,7 @@ export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: 
         <Card className="mt-6" data-testid="apply-pack">
           <h2 className="text-lg font-semibold">Apply pack</h2>
           <p className="mt-1 text-sm text-text-muted">{pack.title} at {pack.company}</p>
+          {confirmed && <p className="mt-2 text-sm" data-testid="confirmed">A person confirmed. Open the posting yourself; nothing was applied or sent.</p>}
           <p className="mt-2 text-sm"><a className="text-accent underline" href={pack.url} target="_blank" rel="noopener noreferrer">View posting</a></p>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{pack.checklist.map(item => <li key={item}>{item}</li>)}</ul>
           <p className="mt-3 text-xs text-text-muted">{pack.notice}</p>
@@ -65,9 +66,9 @@ export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: 
 
 export { PersonConfirm as ConfirmPane };
 
-export function CardsPane({ outline, pack, onShown }: { outline: CvOutline | null; pack: ApplyPack | null; onShown: () => void }) {
+export function CardsPane({ outline, pack, confirmed, onShown }: { outline: CvOutline | null; pack: ApplyPack | null; confirmed: boolean; onShown: () => void }) {
   const shown = useRef(onShown);
   shown.current = onShown;
-  useLayoutEffect(() => { shown.current(); }, [outline, pack]);
-  return <ToolCards outline={outline} pack={pack} />;
+  useLayoutEffect(() => { shown.current(); }, [outline, pack, confirmed]);
+  return <ToolCards outline={outline} pack={pack} confirmed={confirmed} />;
 }

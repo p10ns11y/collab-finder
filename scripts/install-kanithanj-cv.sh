@@ -9,7 +9,7 @@ if [[ -f "$VENDOR_INSTALL" ]]; then
   exec bash "$VENDOR_INSTALL" "$@"
 fi
 
-# Piped from GitHub raw with no checkout: fetch vendor, then run its installer.
+# Without a local checkout: clone vendor, then run its installer.
 REMOTE="${KANITHANJ_CV_REMOTE:-https://github.com/p10ns11y/collab-finder.git}"
 REF="${KANITHANJ_CV_REF:-main}"
 TMP="$(mktemp -d)"

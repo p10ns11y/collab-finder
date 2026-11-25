@@ -1,0 +1,187 @@
+{
+  "name": "Ada Fixture",
+  "profile": "PROFILE_SENTINEL_ALPHA Senior engineer who ships TypeScript platforms and keeps hiring parsers honest with plain sentences.",
+  "landing": {
+    "role": "Senior Product and Systems Engineer \u00b7 AI/SI agentic workflows"
+  },
+  "cv_pdf": {
+    "document": {
+      "title": "Ada Fixture \u2013 CV",
+      "author": "Ada Fixture",
+      "description": "Fixture typst CV for ATS checks. PROFILE_SENTINEL_ALPHA",
+      "keywords": [
+        "TypeScript",
+        "AI",
+        "SI"
+      ]
+    },
+    "name": "Ada Fixture",
+    "headline": "Senior Product and Systems Engineer \u00b7 AI/SI agentic workflows",
+    "contact_line": [
+      {
+        "text": "Example City"
+      },
+      {
+        "text": "Exampleland citizen, EU work authorisation"
+      },
+      {
+        "text": "ada.fixture@example.com",
+        "href": "mailto:ada.fixture@example.com"
+      }
+    ],
+    "social_line": [
+      {
+        "text": "github.com/ada-fixture",
+        "href": "https://github.com/ada-fixture"
+      }
+    ],
+    "profile_line": [
+      {
+        "prefix": "Agent-readable profile: ",
+        "text": "example.com/llms.txt",
+        "href": "https://example.com/llms.txt"
+      }
+    ],
+    "summary": "PROFILE_SENTINEL_ALPHA Senior engineer who ships TypeScript platforms and keeps hiring parsers honest with plain sentences.",
+    "skills": [
+      [
+        "Languages",
+        "TECH_SENTINEL_RUST, TypeScript"
+      ],
+      [
+        "Practices",
+        "SKILL_SENTINEL_SYSTEM, Detail Orientation, UNBROKEN_SENTINEL_ORIENTATION_TOKEN"
+      ]
+    ],
+    "independent": {
+      "title": "ROLE_SENTINEL_INDEPENDENT",
+      "org": null,
+      "dates": "Jan 2025 \u2013 Present",
+      "note": "Fixture independent note.",
+      "note_link": {
+        "url": "https://example.com",
+        "label": "example.com"
+      },
+      "items": [
+        {
+          "lead": "PROJECT_SENTINEL_COLLAB",
+          "text": " \u2014 Shipped a small public tool used by the fixture suite.",
+          "links": [
+            {
+              "url": "https://example.com/collab",
+              "label": "example.com/collab"
+            }
+          ]
+        }
+      ]
+    },
+    "experience": [
+      {
+        "title": "ROLE_SENTINEL_ONEFLOW",
+        "org": "Northwind Labs",
+        "dates": "Jan 2023 \u2013 Dec 2024",
+        "items": [
+          {
+            "text": "BULLET_SENTINEL_ZOD integrated TypeScript and Zod inference across a legacy JavaScript codebase."
+          }
+        ],
+        "note": "TypeScript, Zod"
+      },
+      {
+        "title": "Fixture staff engineer 1",
+        "org": "Fixture Org 1",
+        "dates": "Jan 2011 \u2013 Dec 2011",
+        "items": [
+          {
+            "text": "Shipped a tracked typst-layout filler item 1.a so the second page is real body text, not a blank trailer."
+          },
+          {
+            "text": "Wrote integration notes 1.b covering TypeScript parsers and Zod checks used only in this fixture."
+          },
+          {
+            "text": "Kept the A4 typst sample honest 1.c with short words that do not overflow the page box."
+          }
+        ],
+        "note": "TypeScript, Zod"
+      },
+      {
+        "title": "Fixture staff engineer 2",
+        "org": "Fixture Org 2",
+        "dates": "Jan 2012 \u2013 Dec 2012",
+        "items": [
+          {
+            "text": "Shipped a tracked typst-layout filler item 2.a so the second page is real body text, not a blank trailer."
+          },
+          {
+            "text": "Wrote integration notes 2.b covering TypeScript parsers and Zod checks used only in this fixture."
+          },
+          {
+            "text": "Kept the A4 typst sample honest 2.c with short words that do not overflow the page box."
+          }
+        ],
+        "note": "TypeScript, Zod"
+      },
+      {
+        "title": "Fixture staff engineer 3",
+        "org": "Fixture Org 3",
+        "dates": "Jan 2013 \u2013 Dec 2013",
+        "items": [
+          {
+            "text": "Shipped a tracked typst-layout filler item 3.a so the second page is real body text, not a blank trailer."
+          },
+          {
+            "text": "Wrote integration notes 3.b covering TypeScript parsers and Zod checks used only in this fixture."
+          },
+          {
+            "text": "Kept the A4 typst sample honest 3.c with short words that do not overflow the page box."
+          }
+        ],
+        "note": "TypeScript, Zod"
+      },
+      {
+        "title": "Fixture staff engineer 4",
+        "org": "Fixture Org 4",
+        "dates": "Jan 2014 \u2013 Dec 2014",
+        "items": [
+          {
+            "text": "Shipped a tracked typst-layout filler item 4.a so the second page is real body text, not a blank trailer."
+          },
+          {
+            "text": "Wrote integration notes 4.b covering TypeScript parsers and Zod checks used only in this fixture."
+          },
+          {
+            "text": "Kept the A4 typst sample honest 4.c with short words that do not overflow the page box."
+          }
+        ],
+        "note": "TypeScript, Zod"
+      }
+    ],
+    "profile_in_brief": "COURSE_SENTINEL_CILIUM appears in publications. PUB_SENTINEL_ENERGY. EDU_SENTINEL_UPPSALA. EU work authorised. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. PAGE_FILLER The fixture repeats enough plain sentences so the typst sample fills two A4 pages without changing the thirteen content sentinels or inventing a side column. ",
+    "publications": [
+      {
+        "title": "COURSE_SENTINEL_CILIUM",
+        "org": "certification",
+        "dates": "Mar 2026"
+      },
+      {
+        "title": "PUB_SENTINEL_ENERGY",
+        "org": null,
+        "dates": "Nov 2017",
+        "detail": {
+          "venue": "Fixture Journal",
+          "link": {
+            "url": "https://doi.org/10.0000/fixture",
+            "label": "doi.org/10.0000/fixture"
+          }
+        }
+      }
+    ],
+    "education": [
+      {
+        "title": "EDU_SENTINEL_UPPSALA",
+        "org": "Example University",
+        "dates": "2010 \u2013 2016"
+      }
+    ]
+  }
+}

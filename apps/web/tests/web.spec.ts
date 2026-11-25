@@ -4,6 +4,7 @@ import { ABUSE_INPUTS } from '../../../packages/core/test/abuse.ts';
 import { GOLDEN_INPUTS } from '../../../packages/core/test/golden-inputs.ts';
 import { companyCount, parsePool } from '../../../packages/core/src/index.ts';
 import { runMatch } from '../../../packages/core/src/surface.ts';
+import { REGIONS } from '../src/regions.ts';
 
 const MARKER = 'quokkazebra';
 const DESCRIPTION = `Senior backend engineer, Go and Postgres, distributed systems ${MARKER}`;
@@ -154,7 +155,7 @@ test('identical output: the page shows the same ids per group as core, CLI and M
     await page.goto('/?all');
     await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
     const regions = input.region === undefined || input.region === 'any' ? [] : typeof input.region === 'string' ? [input.region] : input.region;
-    for (const [v, l] of [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']] as const) if (regions.includes(v)) await page.getByLabel(l, { exact: true }).check();
+    for (const [v, l] of REGIONS) if (regions.includes(v)) await page.getByLabel(l, { exact: true }).check();
     if (input.remote) await page.getByLabel('Work mode').selectOption(input.remote);
     if (input.productOnly) await page.getByLabel(/Product companies only/).check();
     await fill(page, input.description, input.goal ?? '', input.likes ?? '');
@@ -199,6 +200,35 @@ test('WebMCP polyfill: find_roles updates the form; a stale state version is ref
   expect(fresh.error ?? null).toBe(null);
   expect(['results', 'ZeroResults']).toContain(fresh.verdict);
   await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
+});
+
+test('regions: the form and find_roles offer all eight regions, and none picked keeps every place', async ({ page }) => {
+  await page.goto('/?all');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect(page.locator('input[name="region"]')).toHaveCount(8);
+  for (const [, l] of REGIONS) await expect(page.getByLabel(l, { exact: true })).not.toBeChecked();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const offered = await page.evaluate(async () => {
+    const tool = ((await document.modelContext?.getTools()) ?? []).find(t => t.name === 'find_roles') as unknown as { inputSchema: { properties: { regions: { items: { enum: string[] } } } } };
+    return tool.inputSchema.properties.regions.items.enum;
+  });
+  expect(offered).toEqual(REGIONS.map(([v]) => v));
+  const description = 'Senior frontend engineer with TypeScript and React, 8 years';
+  await call(page, 'find_roles', { stateVersion: 0, description });
+  await expect(page.getByTestId('results')).toBeVisible();
+  const anywhere = await page.locator('[data-posting-id]').count();
+  const r = await call(page, 'find_roles', { stateVersion: 1, regions: ['APAC', 'CA'] });
+  expect(r.error ?? null).toBe(null);
+  await expect(page.getByLabel('Asia-Pacific', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Canada', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Sweden', { exact: true })).not.toBeChecked();
+  await expect(page.getByTestId('results')).toBeVisible();
+  const far = await page.locator('[data-posting-id]').count();
+  expect(far).toBeGreaterThan(0);
+  expect(far).toBeLessThan(anywhere);
+  await expect(page.getByTestId('results')).toContainText(/Bengaluru|Singapore/);
+  await expect(page.getByTestId('results')).toContainText('Toronto');
+  await expect(page.getByTestId('results')).not.toContainText(/San Francisco|London|Berlin|Stockholm/);
 });
 
 test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or send needs a person confirm and still does not send', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { WORLD_REGIONS } from './vocab.ts';
 
 const httpsUrl = z.url({ protocol: /^https$/ });
 
@@ -6,7 +7,7 @@ export const SourceSubmissionSchema = z.strictObject({
   kind: z.enum(['careers_page', 'ats_board', 'community_list', 'open_dataset']),
   url: httpsUrl,
   company: z.string().trim().min(1).max(200).optional(),
-  regions: z.array(z.enum(['SE', 'EU', 'UK', 'US'])).max(4).default([]),
+  regions: z.array(z.enum(WORLD_REGIONS)).max(WORLD_REGIONS.length).default([]),
   role_tags: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
   submitted_at: z.iso.datetime(),
 });
@@ -25,7 +26,7 @@ export type SourceAudit = z.infer<typeof SourceAuditSchema>;
 
 export const GapGuidanceSchema = z.strictObject({
   topic: z.string().trim().min(1).max(80),
-  region: z.enum(['SE', 'EU', 'UK', 'US', 'any']),
+  region: z.enum([...WORLD_REGIONS, 'any']),
   rows_found: z.number().int().min(0),
   message: z.string().trim().min(1).max(200),
   suggestions: z.array(z.strictObject({

@@ -10,10 +10,10 @@ const row = (o: Partial<PublicRow> & Pick<PublicRow, 'id' | 'title'>): PublicRow
 });
 
 test('region: a Brazil-only location never stays in EU, SE or UK', () => {
-  assert.equal(honestRegion('EU', 'Porto Alegre,Rio Grande do Sul,Brazil'), 'other');
-  assert.equal(honestRegion('EU', 'Porto Seguro, Ba / Porto Seguro, Bahia, Brazil'), 'other');
-  assert.equal(honestRegion('SE', 'São Paulo, Brazil'), 'other');
-  assert.equal(honestRegion('UK', 'Remote - Brazil'), 'other');
+  assert.equal(honestRegion('EU', 'Porto Alegre,Rio Grande do Sul,Brazil'), 'LATAM');
+  assert.equal(honestRegion('EU', 'Porto Seguro, Ba / Porto Seguro, Bahia, Brazil'), 'LATAM');
+  assert.equal(honestRegion('SE', 'São Paulo, Brazil'), 'LATAM');
+  assert.equal(honestRegion('UK', 'Remote - Brazil'), 'LATAM');
 });
 
 test('region: mixed lists keep their European part, European places and other regions are untouched', () => {
@@ -29,7 +29,7 @@ const LATAM = ['Porto Alegre, Brazil', 'São Paulo, Brazil', 'Buenos Aires, Arge
 test('region property: rows whose every location is in Latin America leave Europe at build time', () => {
   fc.assert(fc.property(fc.array(fc.constantFrom(...LATAM), { minLength: 1, maxLength: 4 }), fc.constantFrom('SE', 'EU', 'UK'), (places, region) => {
     const { rows } = shapeRows([row({ id: 'greenhouse:1', title: 'Senior Software Engineer', location: places.join(' / '), region })], []);
-    return rows.length === 1 && rows[0]!['region'] === 'other';
+    return rows.length === 1 && rows[0]!['region'] === 'LATAM';
   }), RUNS);
 });
 

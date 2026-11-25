@@ -26,7 +26,9 @@ const cleanUrl = (file: string): string => {
 
 const isRefreshable = (url: string): boolean => url === '/pool.json' || /^\/pool-\d+\.json$/.test(url);
 
-const staticAssets = (dist: string): Set<string> => {
+const flagOnly = (spec: string): boolean => /\/(sdk-path|sheet-presentation)-[^/]*\.js$/.test(spec);
+
+const pageAssets = (dist: string): Set<string> => {
   const html = readFileSync(join(dist, 'index.html'), 'utf8');
   const seen = new Set<string>();
   const queue = [...html.matchAll(/\s(?:src|href)="(\/[^"]+)"/g)].map(m => m[1]);
@@ -38,9 +40,9 @@ const staticAssets = (dist: string): Set<string> => {
     seen.add(url);
     if (!url.endsWith('.js')) continue;
     const source = readFileSync(file, 'utf8');
-    for (const match of source.matchAll(/\bfrom\s*["'](\.[^"']+)["']|\bimport\s*["'](\.[^"']+)["']/g)) {
+    for (const match of source.matchAll(/\bfrom\s*["'](\.[^"']+)["']|\bimport\s*\(?\s*["'](\.[^"']+)["']/g)) {
       const spec = match[1] ?? match[2];
-      if (spec !== undefined) queue.push(resolveUrl(url, spec));
+      if (spec !== undefined && !flagOnly(spec)) queue.push(resolveUrl(url, spec));
     }
   }
   return seen;
@@ -55,10 +57,21 @@ const offlineServiceWorker = (): Plugin => ({
     const hash = createHash('sha256');
     for (const f of files) hash.update(readFileSync(join(dist, f)));
     const version = hash.digest('hex').slice(0, 16);
-    const linked = staticAssets(dist);
+    const linked = pageAssets(dist);
     const precache = [...new Set(['/', ...files.filter(f => !isRefreshable(f) && (linked.has(f) || !f.startsWith('/assets/'))).map(cleanUrl)])];
     const template = readFileSync(new URL('./sw.template.js', import.meta.url), 'utf8');
     writeFileSync(join(dist, 'sw.js'), template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache)));
+  },
+});
+
+const retryCopy = (): Plugin => ({
+  name: 'retry-copy',
+  apply: 'build',
+  enforce: 'pre',
+  async resolveId(source, importer, options) {
+    if (!importer?.endsWith('?r=1') || !(source === 'xstate' || importer.includes('/node_modules/xstate/'))) return null;
+    const hit = await this.resolve(source, importer.slice(0, -4), { ...options, skipSelf: true });
+    return hit && !hit.external ? { ...hit, id: `${hit.id}?r=1` } : null;
   },
 });
 
@@ -77,7 +90,7 @@ const cleanUrlPreview = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), offlineServiceWorker(), cleanUrlPreview()],
+  plugins: [retryCopy(), react(), tailwindcss(), offlineServiceWorker(), cleanUrlPreview()],
   build: {
     sourcemap: false,
     target: 'es2022',

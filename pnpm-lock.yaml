@@ -114,6 +114,9 @@ importers:
       tailwind-merge:
         specifier: 3.3.1
         version: 3.3.1
+      xstate:
+        specifier: 5.33.4
+        version: 5.33.4
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.11.0
@@ -136,6 +139,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 5.1.0
         version: 5.1.0(vite@7.1.12(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0))
+      '@xstate/graph':
+        specifier: 3.0.4
+        version: 3.0.4(xstate@5.33.4)
       tailwindcss:
         specifier: 4.1.16
         version: 4.1.16
@@ -2379,6 +2385,9 @@ packages:
   xstate@5.33.2:
     resolution: {integrity: sha512-8tC7yXgeCvpT8gKEeEje6ikJJG1wpnoLiXe+HfECW8m10ubMd3QxKOwWA8KxPJVBcLwfdRoMKYxIBGYKmo37/A==}
 
+  xstate@5.33.4:
+    resolution: {integrity: sha512-eGNMu3BNqU0Z85P+ouYG5OCZqIABU+QsW6vUieFt9p9gOGs3C+BL10Exg7XdRPSXPQKlP6XoYpYf93r9VmW8mQ==}
+
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
@@ -3522,6 +3531,10 @@ snapshots:
     dependencies:
       xstate: 5.33.2
 
+  '@xstate/graph@3.0.4(xstate@5.33.4)':
+    dependencies:
+      xstate: 5.33.4
+
   '@xstate/react@6.1.0(@types/react@19.2.16)(react@19.2.7)(xstate@5.33.2)':
     dependencies:
       react: 19.2.7
@@ -4242,6 +4255,8 @@ snapshots:
       isexe: 2.0.0
 
   xstate@5.33.2: {}
+
+  xstate@5.33.4: {}
 
   yallist@3.1.1: {}
 
