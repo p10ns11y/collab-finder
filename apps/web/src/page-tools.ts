@@ -138,3 +138,7 @@ export function panelUnavailable(stateVersion: number, panel: string): { stateVe
 export function confirmedButNotSent(stateVersion: number, url: string): { stateVersion: number; confirmed: true; applied: false; sent: false; url: string; notice: string } {
   return { stateVersion, confirmed: true, applied: false, sent: false, url, notice: APPLY_SEND_NOTICE };
 }
+
+export function confirmPending(stateVersion: number): { stateVersion: number; error: string } {
+  return { stateVersion, error: 'confirm pending: a person has not answered the open confirm step yet' };
+}
