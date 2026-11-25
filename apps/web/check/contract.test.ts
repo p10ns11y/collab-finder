@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { next, START } from '../src/flow.ts';
 
 const here = (p: string) => new URL(p, import.meta.url);
 const app = readFileSync(here('../src/App.tsx'), 'utf8');
@@ -22,7 +23,8 @@ test('every form field resets the view, as Edit does in the spec', () => {
     assert.match(app, handler, setter);
   }
   assert.match(app, /const formChanged = \(\) => \{ send\(\{ type: 'EDIT' \}\); \};/);
-  assert.match(flow, /case 'EDIT': return \{ \.\.\.n, view: \{ kind: 'idle' \}, outline: null, pack: null \};/);
+  const edited = next({ ...START, step: 'find', view: { kind: 'inputError', msg: 'x' } }, { type: 'EDIT' });
+  assert.equal(edited?.view.kind, 'idle');
   assert.match(tools, /if \(base !== v\) return summarizeRoles\(\{ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite/);
   assert.match(spec, /WidenFilters ==[\s\S]*?state' = "matching"/);
 });

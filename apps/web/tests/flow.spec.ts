@@ -8,7 +8,7 @@ const DESCRIPTION = 'Senior backend engineer with Go and Postgres, distributed s
 const shots = process.env['EVIDENCE_DIR'];
 let passed = 0;
 
-type Answer = { stateVersion: number; groups?: Record<string, Array<{ id: string }>>; error?: string; confirmed?: boolean; applied?: boolean; sent?: boolean };
+type Answer = { stateVersion: number; groups?: Record<string, Array<{ id: string; title: string; company: string }>>; error?: string; confirmed?: boolean; applied?: boolean; sent?: boolean };
 
 declare global { interface Window { pendingForTest: Promise<Answer> | null } }
 
@@ -30,14 +30,26 @@ const requestConfirm = (page: Page, id: string) =>
     return older;
   }, { source: invoke.toString(), id });
 
-const shows = async (page: Page, step: string, dialog: boolean) => {
+type Role = { id: string; label: string };
+type Shown = { outlined?: Role; packed?: Role; asked?: Role };
+
+const twoRoles = (a: Answer): [Role, Role] => {
+  const all = Object.values(a.groups ?? {}).flat().map(r => ({ id: r.id, label: `${r.title} at ${r.company}` }));
+  const first = all[0]!;
+  const second = all.find(r => !r.label.includes(first.label) && !first.label.includes(r.label));
+  if (!second) throw new Error('need two distinct roles');
+  return [first, second];
+};
+
+const shows = async (page: Page, step: string, dialog: boolean, seen: Shown = {}) => {
   const count = (id: string, n: number) => expect(page.getByTestId(id)).toHaveCount(n);
   if (step === 'loading') await expect(page.getByRole('status').filter({ hasText: 'Loading roles' })).toBeVisible();
   if (step === 'failed') await expect(page.getByRole('alert').filter({ hasText: 'Could not load the roles' })).toBeVisible();
   if (['loading', 'failed', 'find'].includes(step)) { await count('results', 0); await count('cv-outline', 0); await count('apply-pack', 0); }
   else await expect(page.getByTestId('results')).toBeVisible();
-  if (step === 'tailored') { await expect(page.getByTestId('cv-outline')).toBeVisible(); await count('apply-pack', 0); }
-  if (step === 'pack' || step === 'confirmed') await expect(page.getByTestId('apply-pack')).toBeVisible();
+  if (step === 'tailored') { await expect(page.getByTestId('cv-outline')).toContainText(seen.outlined!.label); await count('apply-pack', 0); }
+  if (step === 'pack' || step === 'confirmed') await expect(page.getByTestId('apply-pack')).toContainText(seen.packed!.label);
+  if (step === 'confirming' && dialog) await expect(page.getByTestId('person-confirm')).toContainText(seen.asked!.label);
   await count('confirmed', step === 'confirmed' ? 1 : 0);
   await count('person-confirm', step === 'confirming' && dialog ? 1 : 0);
 };
@@ -56,8 +68,10 @@ for (const [i, path] of paths.entries()) {
     const root = page.locator('[data-step]');
     await expect(root).toHaveAttribute('data-step', path[0]?.event === 'POOL_FAILED' ? 'failed' : 'find');
     let version = 0;
-    let id = '';
-    for (const edge of path) {
+    let roles: [Role, Role] | null = null;
+    const seen: Shown = {};
+    for (const [k, edge] of path.entries()) {
+      const role = () => roles![k % 2]!;
       switch (edge.event) {
         case 'POOL_LOADED': break;
         case 'POOL_FAILED': break;
@@ -70,7 +84,7 @@ for (const [i, path] of paths.entries()) {
           const a = await call(page, 'find_roles', { stateVersion: version, description: DESCRIPTION });
           expect(a.error ?? null).toBe(null);
           expect(a.stateVersion).toBe(version + 1);
-          id = Object.values(a.groups ?? {}).flat()[0]!.id;
+          roles = twoRoles(a);
           await expect(page.getByTestId('results')).toBeVisible();
           break;
         }
@@ -81,14 +95,16 @@ for (const [i, path] of paths.entries()) {
           break;
         }
         case 'TAILOR': {
-          const a = await call(page, 'tailor_cv', { id });
+          seen.outlined = role();
+          const a = await call(page, 'tailor_cv', { id: role().id });
           expect(a.error ?? null).toBe(null);
           expect(a.stateVersion).toBe(version + 1);
           await expect(page.getByTestId('cv-outline')).toBeVisible();
           break;
         }
         case 'PACK': {
-          const a = await call(page, 'show_apply_pack', { id });
+          seen.packed = role();
+          const a = await call(page, 'show_apply_pack', { id: role().id });
           expect(a.error ?? null).toBe(null);
           expect(a.stateVersion).toBe(version + 1);
           await expect(page.getByTestId('apply-pack')).toBeVisible();
@@ -96,7 +112,8 @@ for (const [i, path] of paths.entries()) {
           break;
         }
         case 'REQUEST_CONFIRM': {
-          const older = await requestConfirm(page, id);
+          seen.asked = role();
+          const older = await requestConfirm(page, role().id);
           if (older) { expect(older.confirmed).toBeUndefined(); expect(older.error).toMatch(/cancelled/); }
           if (!path.some(e => e.event === 'CONFIRM_FAILED')) await expect(page.getByTestId('person-confirm')).toBeVisible();
           break;
@@ -111,6 +128,7 @@ for (const [i, path] of paths.entries()) {
           expect(a?.sent).toBe(false);
           if (edge.event === 'CONFIRM') {
             expect(a?.confirmed).toBe(true);
+            seen.packed = seen.asked!;
             await expect(page.getByTestId('confirmed')).toBeVisible();
           } else {
             expect(a?.confirmed).toBeUndefined();
@@ -124,9 +142,32 @@ for (const [i, path] of paths.entries()) {
       if (!LIFECYCLE.has(edge.event)) version += 1;
       if (edge.event === 'REQUEST_CONFIRM' && path.some(e => e.event === 'CONFIRM_FAILED')) continue;
       await expect(root).toHaveAttribute('data-step', edge.to);
-      await shows(page, edge.to, true);
+      await shows(page, edge.to, true, seen);
     }
     passed += 1;
+  });
+}
+
+for (const first of ['confirm', 'pack'] as const) {
+  test(`content: ${first} A, then confirm B shows B's dialog and pack`, async ({ page }) => {
+    await page.goto('/?all');
+    await toolsReady(page);
+    const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+    if (first === 'pack') {
+      await call(page, 'show_apply_pack', { id: roles[0].id });
+      await expect(page.getByTestId('apply-pack')).toContainText(roles[0].label);
+    } else {
+      await requestConfirm(page, roles[0].id);
+      await expect(page.getByTestId('person-confirm')).toContainText(roles[0].label);
+    }
+    const older = await requestConfirm(page, roles[1].id);
+    if (first === 'confirm') expect(older?.error).toMatch(/cancelled/);
+    await expect(page.getByTestId('person-confirm')).toContainText(roles[1].label);
+    await expect(page.getByTestId('person-confirm')).not.toContainText(roles[0].label);
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    expect((await page.evaluate(() => window.pendingForTest))?.confirmed).toBe(true);
+    await expect(page.getByTestId('apply-pack')).toContainText(roles[1].label);
+    await expect(page.getByTestId('apply-pack')).not.toContainText(roles[0].label);
   });
 }
 
@@ -135,7 +176,8 @@ test('flow chunk retries on the next request while the pool fetch starts in para
   let flowBlocked = true;
   const flowWait = new Promise<void>(resolve => { unblock = resolve; });
   let fetched = false;
-  await context.route(/\/assets\/flow-/, async route => { if (flowBlocked) { await flowWait; await route.abort(); } else await route.continue(); });
+  const urls: string[] = [];
+  await context.route(/\/assets\/flow-/, async route => { urls.push(route.request().url()); if (flowBlocked) { await flowWait; await route.abort(); } else await route.continue(); });
   await page.route(/\/pool\.json/, async route => { fetched = true; await route.fulfill({ contentType: 'application/json', body: sample }); });
   await page.goto('/?all');
   await expect.poll(() => fetched).toBe(true);
@@ -145,6 +187,8 @@ test('flow chunk retries on the next request while the pool fetch starts in para
   flowBlocked = false;
   await page.getByRole('button', { name: 'Try again' }).click();
   await expect(page.locator('[data-step]')).toHaveAttribute('data-step', 'find');
+  expect(urls).toHaveLength(2);
+  expect(urls[1]).not.toBe(urls[0]);
   await page.getByLabel('About you').fill(DESCRIPTION);
   await page.getByRole('button', { name: 'Find roles' }).click();
   await expect(page.getByTestId('results')).toBeVisible();

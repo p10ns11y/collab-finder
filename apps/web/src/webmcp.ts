@@ -132,7 +132,7 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
     const pack = buildApplyPack(row);
     const outcome = await host.confirmApplyOrSend({
       title: 'Person confirm needed',
-      body: `A tool asked to apply or send for ${row.title}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
+      body: `A tool asked to apply or send for ${row.title} at ${row.company}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
       pack,
     });
     if (outcome === 'cancelled') return declinedConfirm(host.version());
