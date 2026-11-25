@@ -1,4 +1,4 @@
-import type { MatchResult, MatchRow, RemotePref } from '../../../packages/core/src/index.ts';
+import { isLocationPart, type MatchResult, type MatchRow, type RemotePref } from '../../../packages/core/src/index.ts';
 import { PLACES, type Place } from './regions.ts';
 
 export const REMOTES: ReadonlyArray<RemotePref> = ['any', 'remote', 'hybrid', 'onsite'];
@@ -52,21 +52,59 @@ export type CvOutline = {
   title: string;
   company: string;
   emphasize: ReadonlyArray<string>;
+  lead: string;
   notice: string;
 };
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'you', 'your', 'this', 'that', 'from', 'into', 'a', 'an', 'of', 'to', 'in', 'on', 'or', 'at']);
-const tokens = (s: string): ReadonlyArray<string> => (s.toLowerCase().match(/[a-z][a-z0-9+.#-]{1,}/g) ?? []).filter(w => !STOP.has(w));
+const GENERIC = new Set(['senior', 'staff', 'junior', 'lead', 'principal', 'mid', 'mid-level', 'engineer', 'engineers', 'engineering', 'developer', 'software', 'years', 'year', 'experience', 'i', 'am', 'a', 'an', 'the', 'my', 'of', 'on', 'working', 'building', 'who', 'writes', 'every', 'day', 'based', 'remote', 'hybrid']);
+const PHRASE_SPLIT = /[,;.\n()]|\b(?:and|with|in|at|using|plus)\b/i;
+const words = (s: string) => s.toLowerCase().match(/[a-z0-9][a-z0-9+#.-]*/g) ?? [];
+export const FACT = /^(?:Region|Open when|Level fits|Posting level|One level above|Seniority not stated|Location not confirmed|Remote policy|Work mode|Status unknown|Also listed)/;
+
+export function typedPhrases(description: string): ReadonlyArray<string> {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of description.split(PHRASE_SPLIT)) {
+    let run: string[] = [];
+    const flush = () => {
+      const phrase = run.join(' ').replace(/[^\p{L}\p{N}+#.\- ]/gu, '').trim();
+      run = [];
+      const key = phrase.toLowerCase();
+      if (!phrase || seen.has(key) || isLocationPart(phrase)) return;
+      seen.add(key);
+      out.push(phrase.charAt(0).toUpperCase() + phrase.slice(1));
+    };
+    for (const w of part.trim().split(/\s+/)) {
+      if (!w || GENERIC.has(w.toLowerCase()) || /^\d+\+?$/.test(w)) flush(); else run.push(w);
+    }
+    flush();
+  }
+  return out;
+}
+
+const andList = (xs: ReadonlyArray<string>) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+export function leadLine(phrases: ReadonlyArray<string>, description: string): string {
+  if (!phrases.length) return '';
+  const typed = phrases.map(p => {
+    const at = description.toLowerCase().indexOf(p.toLowerCase());
+    return at < 0 ? p : description.slice(at, at + p.length);
+  });
+  const rest = typed.slice(2);
+  return `Open with your ${andList(typed.slice(0, 2))} work${rest.length ? `, then show ${andList(rest)}` : ''}.`;
+}
 
 export function buildCvOutline(description: string, row: MatchRow): CvOutline {
-  const named = new Set(tokens(description));
-  const overlap = [...new Set(tokens(`${row.title} ${row.company}`).filter(w => named.has(w)))].slice(0, 8);
-  const emphasize = [...overlap, ...row.reasons.slice(0, 5)].slice(0, 8);
+  const posting = new Set(words([row.title, row.summary ?? '', ...row.reasons.filter(r => !FACT.test(r))].join(' ')));
+  const phrases = typedPhrases(description);
+  const hits = phrases.filter(p => words(p).some(w => posting.has(w)));
+  const emphasize = [...hits, ...phrases.filter(p => !hits.includes(p))].slice(0, 5);
   return {
     roleId: row.id,
     title: row.title,
     company: row.company,
-    emphasize: emphasize.length ? emphasize : row.reasons.slice(0, 5),
+    emphasize,
+    lead: leadLine(emphasize, description),
     notice: 'This outline is built in your browser from the text on this page and public posting facts. It is not a submitted CV and nothing is sent.',
   };
 }
@@ -93,12 +131,12 @@ export function buildApplyPack(row: MatchRow): ApplyPack {
     location: row.location,
     remote: row.remote,
     status: row.status,
-    reasons: row.reasons.slice(0, 5),
+    reasons: row.reasons.filter(r => !FACT.test(r)).slice(0, 5),
     checklist: [
-      'Read the live posting; this page only keeps public facts and a link.',
+      'Read the live posting end to end.',
       'Check that the role is still open.',
-      'A person must confirm before any apply or send step.',
-      'This page does not apply or send for you.',
+      'Lead with the points that fit, in your own words.',
+      'Apply on the employer\'s page.',
     ],
     notice: APPLY_SEND_NOTICE,
   };
@@ -108,14 +146,21 @@ export type RoleSummary = {
   stateVersion: number;
   verdict: string;
   error: string | null;
+  note?: string;
+  readAs: string | null;
   groups: Record<string, Array<{ id: string; title: string; company: string; reasons: ReadonlyArray<string> }>> | null;
 };
 
-export function summarizeRoles(answer: { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null }): RoleSummary {
+const readAs = (u: MatchResult['understood']) =>
+  `${[...u.roles, ...u.skills].join(', ') || 'general software engineering'}${u.seniority ? `, ${u.seniority} level` : ''}${u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}`;
+
+export function summarizeRoles(answer: { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null; note?: string }): RoleSummary {
   return {
     stateVersion: answer.stateVersion,
     verdict: answer.verdict,
     error: answer.error,
+    ...(answer.note ? { note: answer.note } : {}),
+    readAs: answer.result ? readAs(answer.result.understood) : null,
     groups: answer.result
       ? Object.fromEntries(Object.entries(answer.result.groups).map(([k, rows]) => [k, rows.slice(0, 10).map(r => ({ id: r.id, title: r.title, company: r.company, reasons: r.reasons }))]))
       : null,

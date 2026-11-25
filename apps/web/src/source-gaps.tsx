@@ -7,8 +7,12 @@ const KIND: Readonly<Record<GapGuidance['suggestions'][number]['kind'], string>>
   careers_page: 'Careers page', ats_board: 'Job board', community_list: 'Community list', open_dataset: 'Open dataset',
 };
 
-export default function SourceGaps({ last, view }: { last: { ask: MatchProfile; pool: PublicPool }; view: View }) {
-  const gap = useMemo(() => view.kind === 'results' || view.kind === 'zeroResults' ? gapGuidance(last.ask, last.pool, view.kind === 'results' ? view.result : null) : null, [last, view]);
+export default function SourceGaps({ last, view, keptZero = false }: { last: { ask: MatchProfile; pool: PublicPool }; view: View; keptZero?: boolean }) {
+  const gap = useMemo(() => {
+    if (keptZero) return gapGuidance(last.ask, last.pool, null);
+    if (view.kind === 'results' || view.kind === 'zeroResults') return gapGuidance(last.ask, last.pool, view.kind === 'results' ? view.result : null);
+    return null;
+  }, [last, view, keptZero]);
   if (!gap) return null;
   return (
     <section aria-labelledby="source-gaps-title" data-testid="source-gaps" data-topic={gap.topic} data-region={gap.region} className="my-6 rounded-lg border border-border bg-surface p-4">

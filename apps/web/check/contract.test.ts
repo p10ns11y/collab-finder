@@ -22,7 +22,7 @@ test('every form field resets the view, as Edit does in the spec', () => {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
-  assert.match(app, /const formChanged = \(\) => \{ send\(\{ type: 'EDIT' \}\); \};/);
+  assert.match(app, /const formChanged = \(\) => \{ setKeptZero\(false\); send\(\{ type: 'EDIT' \}\); \};/);
   const edited = next({ ...START, step: 'find', view: { kind: 'inputError', msg: 'x' } }, { type: 'EDIT' });
   assert.equal(edited?.view.kind, 'idle');
   assert.match(tools, /if \(base !== v\) return summarizeRoles\(\{ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite/);
@@ -78,7 +78,9 @@ test('the find-roles form is annotated for WebMCP and never auto-submits an appl
   const tools = readFileSync(here('../src/page-tools.ts'), 'utf8');
   assert.doesNotMatch(webmcp, /toolautosubmit/);
   assert.doesNotMatch(tools, /toolautosubmit/);
-  assert.match(webmcp, /name: 'find_roles'/);
-  assert.match(webmcp, /name: 'tailor_cv'/);
-  assert.match(webmcp, /name: 'show_apply_pack'/);
+  const catalog = readFileSync(here('../src/tool-catalog.ts'), 'utf8');
+  for (const name of ['find_roles', 'tailor_cv', 'show_apply_pack']) {
+    assert.match(webmcp, new RegExp(`pageTool\\('` + name + `'\\)`));
+    assert.match(catalog, new RegExp(`name: '` + name + `'`));
+  }
 });

@@ -3,7 +3,6 @@ import type { MatchProfile, MatchResult, PublicPool } from '../../../packages/co
 import { gapGuidance } from '../../../packages/core/src/source-gaps.ts';
 import type { Snap } from './flow.ts';
 import {
-  APPLY_SEND_NOTICE,
   buildApplyPack,
   buildCvOutline,
   confirmedButNotSent,
@@ -19,10 +18,10 @@ import {
   type CvOutline,
   type FindRolesChange,
 } from './page-tools.ts';
-import { PLACES } from './regions.ts';
+import { pageTool } from './tool-catalog.ts';
 
 export type AgentSearch = FindRolesChange;
-export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null };
+export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null; note?: string };
 export type WebMcpHost = {
   snap(): Snap | null;
   search(change: AgentSearch): HostAnswer;
@@ -92,30 +91,6 @@ export async function ensureWebMcp(signal: AbortSignal): Promise<AnyContext | nu
   return modelContext();
 }
 
-const FILTERS = {
-  regions: { type: 'array', items: { enum: PLACES } },
-  remote: { enum: ['any', 'remote', 'hybrid', 'onsite'] },
-  productOnly: { type: 'boolean' },
-};
-
-const roleIdSchema = {
-  type: 'object',
-  required: ['id'],
-  properties: {
-    id: { type: 'string', description: 'Id of a role already shown on the page' },
-  },
-};
-
-const rolePickSchema = {
-  type: 'object',
-  required: ['id'],
-  properties: {
-    ...roleIdSchema.properties,
-    apply: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not apply.' },
-    send: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not send.' },
-  },
-};
-
 export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Promise<void> {
   const mc = await ensureWebMcp(signal);
   if (!mc || signal.aborted) return;
@@ -134,8 +109,8 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
     if (!row) return { stateVersion: host.version(), error: 'not a role shown on the page' };
     const pack = buildApplyPack(row);
     const outcome = await host.confirmApplyOrSend({
-      title: 'Person confirm needed',
-      body: `A tool asked to apply or send for ${row.title} at ${row.company}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
+      title: `Open the posting for ${row.title}?`,
+      body: `${row.title} at ${row.company}${row.location ? `, ${row.location}` : ''}. You apply on the employer's page.`,
       pack,
     });
     if (outcome === 'cancelled') return declinedConfirm(host.version());
@@ -150,14 +125,7 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
   try {
     await Promise.all([
       mc.registerTool({
-        name: 'find_roles',
-        title: 'Find roles',
-        description: 'Fill the page form with a self-description and show matching roles in this browser. When few roles match, gap names the missing sources and what to add. Nothing leaves the page. Does not apply or send.',
-        inputSchema: {
-          type: 'object',
-          required: ['stateVersion'],
-          properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
-        },
+        ...pageTool('find_roles'),
         execute: (input: Record<string, unknown>) => {
           const parsed = parseFindRoles(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
@@ -168,16 +136,12 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
           host.showAllOptions();
           const answer = host.search(parsed.value.change);
           const last = host.lastAsk();
-          const gap = last && (answer.result || answer.verdict === 'ZeroResults') ? gapGuidance(last.ask, last.pool, answer.result) : null;
+          const gap = last && (answer.result || answer.verdict === 'ZeroResults') ? gapGuidance(last.ask, last.pool, answer.verdict === 'ZeroResults' ? null : answer.result) : null;
           return { ...summarizeRoles(answer), gap };
         },
       }, opts),
       mc.registerTool({
-        name: 'tailor_cv',
-        title: 'Tailor CV',
-        description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.',
-        annotations: { readOnlyHint: true },
-        inputSchema: roleIdSchema,
+        ...pageTool('tailor_cv'),
         execute: async (input: Record<string, unknown>) => {
           const parsed = parseRolePick(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
@@ -190,11 +154,7 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
         },
       }, opts),
       mc.registerTool({
-        name: 'show_apply_pack',
-        title: 'Show apply pack',
-        description: `Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. ${APPLY_SEND_NOTICE}`,
-        annotations: { readOnlyHint: true },
-        inputSchema: rolePickSchema,
+        ...pageTool('show_apply_pack'),
         execute: async (input: Record<string, unknown>) => {
           const parsed = parseRolePick(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };

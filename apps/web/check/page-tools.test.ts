@@ -6,6 +6,7 @@ import {
   TOOL_NAMES,
   buildApplyPack,
   buildCvOutline,
+  FACT,
   confirmedButNotSent,
   confirmUnavailable,
   declinedConfirm,
@@ -44,20 +45,38 @@ test('parseRolePick requires an id and only treats apply or send when they are t
   assert.equal(needsPersonConfirm({ id: 'ashby:1' }), false);
 });
 
-test('buildCvOutline stays local and names overlap plus reasons, never a submitted CV', () => {
-  const outline = buildCvOutline('Senior backend engineer, Go and Postgres', row());
+test('buildCvOutline leads with phrases the person typed, posting hits first, never generic words or posting facts', () => {
+  const reasons = ['Title matches what you do: distributed', 'Level fits: senior', 'Region: US (Austin, TX)', 'Open when last checked (2026-11-19)'];
+  const outline = buildCvOutline('Senior backend engineer with Go and Postgres, distributed systems, 8 years', row({ title: 'Distributed Systems Engineer', reasons }));
   assert.equal(outline.roleId, 'ashby:1');
-  assert.ok(outline.emphasize.includes('backend') || outline.emphasize.some(item => item.includes('backend')));
-  assert.ok(outline.emphasize.includes('Title matches what you do: backend'));
+  assert.deepEqual(outline.emphasize, ['Distributed systems', 'Backend', 'Go', 'Postgres']);
+  assert.equal(outline.lead, 'Open with your distributed systems and backend work, then show Go and Postgres.');
   assert.match(outline.notice, /not a submitted CV/);
   assert.doesNotMatch(outline.notice, /sent a CV|applied/i);
+});
+
+test('outline property: 1 to 5 lines, none a lone generic word, a fact, or a place', () => {
+  const GENERIC = /^(senior|staff|engineer|developer|software|years|experience)$/i;
+  for (const description of ['Senior backend engineer, Go and Postgres, distributed systems', 'Staff platform engineer in Stockholm, Sweden, Kubernetes, Terraform, Go, Rust, AWS and GCP',
+    'Machine learning engineer working on LLM inference', 'Senior engineer who writes TypeScript and Python every day', 'Senior full-stack engineer, TypeScript and React, 8 years']) {
+    const { emphasize } = buildCvOutline(description, row());
+    assert.ok(emphasize.length >= 1 && emphasize.length <= 5, description);
+    assert.ok(emphasize.every(line => !GENERIC.test(line) && !FACT.test(line) && !/Stockholm|Sweden/.test(line)), `${description}: ${emphasize.join(' | ')}`);
+  }
+});
+
+test('the apply pack keeps posting facts out of its reasons', () => {
+  const pack = buildApplyPack(row({ reasons: ['Title matches what you do: backend', 'Level fits: senior', 'Region: SE (Stockholm)', 'Open when last checked (2026-11-20)'] }));
+  assert.deepEqual(pack.reasons, ['Title matches what you do: backend']);
 });
 
 test('buildApplyPack is public facts plus a checklist and never claims to apply or send', () => {
   const pack = buildApplyPack(row());
   assert.equal(pack.url, 'https://jobs.example.com/ashby/1');
-  assert.ok(pack.checklist.some(item => /does not apply or send/.test(item)));
+  assert.ok(pack.checklist.every(item => !/(we|this page) (will )?(apply|send)|submitted|applied for you/i.test(item)));
+  assert.ok(pack.checklist.some(item => /employer's page/.test(item)));
   assert.equal(pack.notice, APPLY_SEND_NOTICE);
+  assert.match(APPLY_SEND_NOTICE, /never applies or sends/);
 });
 
 test('a cancelled confirm does not apply or send, and a confirm still does not send', () => {
@@ -95,5 +114,6 @@ test('summarizeRoles lists the first ten rows in each group and keeps the state 
   });
   assert.equal(out.stateVersion, 2);
   assert.equal(out.groups?.fitsNow.length, 10);
+  assert.equal(out.readAs, 'backend, go, senior level');
   assert.equal(TOOL_NAMES.join(','), 'find_roles,show_apply_pack,tailor_cv');
 });
