@@ -28,7 +28,6 @@ const NEXT: Readonly<Record<LedgerState | 'none', ReadonlyArray<LedgerState>>> =
   rejected: [],
   interview: [],
 };
-export const PAST_FILLED: ReadonlySet<LedgerState> = new Set(['filled', 'awaiting-submit', 'submitting', 'needs-check', 'submitted', 'rejected', 'interview']);
 export const APPROVAL_NAMESPACE = 'kanithanj-approve';
 export const ALLOWED_SIGNERS = '/etc/kanithanj/allowed_signers';
 const APPROVAL_PRINCIPAL = 'owner';

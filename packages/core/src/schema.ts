@@ -46,7 +46,6 @@ export function consumerSchema<K extends keyof Row>(keys: ReadonlyArray<K>) {
 }
 export const asResultCard   = consumerSchema(['id', 'title', 'company', 'url', 'status_checked_at']);
 export const asWebMcpResult = consumerSchema(['id', 'title', 'company', 'url', 'remote', 'status', 'status_checked_at']);
-export const asRefreshRow   = consumerSchema(['id', 'source', 'url', 'status', 'status_checked_at']);
 
 import { makeConditionalSchemaTransformer } from '@adaptate/core';
 export const RefineInputSchema = z.object({

@@ -20,6 +20,3 @@ export function applyWrite<T>(cur: Versioned<T>, w: Write<T>): Result<Versioned<
 }
 
 export type ToolResult<T> = { stateVersion: StateVersion; data: T };
-export function checkToolMatchesUi<T>(r: ToolResult<T>, ui: Versioned<unknown>): Result<ToolResult<T>, AgentError> {
-  return r.stateVersion === ui.version ? ok(r) : err({ kind: 'ToolUiDrift', toolVersion: r.stateVersion, uiVersion: ui.version });
-}
