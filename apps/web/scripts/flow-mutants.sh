@@ -20,7 +20,7 @@ mutants=(
   "(a) second ask keeps first content|src/flow.ts|s/ask: assign({ ask: ({ event }) => { assertEvent(event, 'REQUEST_CONFIRM'); return event.ask; } })/ask: assign({ ask: ({ context, event }) => { assertEvent(event, 'REQUEST_CONFIRM'); return context.ask ? { ...context.ask, id: event.ask.id } : event.ask; } })/"
   "own2 App keeps first ask content|src/App.tsx|s/ask: { ...ask, id: confirmId.current += 1 }/ask: { ...(snapRef.current?.ask ?? ask), id: confirmId.current += 1 }/"
   "new1 App resolves the older ask as confirmed|src/App.tsx|s/older?.('cancelled');/older?.('confirmed');/"
-  "new2 cards show the pending ask's pack|src/App.tsx|s/pack={snap.pack} confirmed=/pack={snap.ask?.pack ?? snap.pack} confirmed=/"
+  "new2 cards show the pending ask's pack|src/App.tsx|s/pack={snap.pack} step=/pack={snap.ask?.pack ?? snap.pack} step=/"
   "B3 Cancel shows the declined ask's pack|src/flow.ts|s/close: assign({ ask: null })/close: assign(({ context }) => ({ pack: context.ask?.pack ?? context.pack, ask: null }))/"
   "X1 Cancel also clears the pack|src/flow.ts|s/close: assign({ ask: null })/close: assign({ ask: null, pack: null })/"
   "X3 App reports confirmed when cards were not shown|src/App.tsx|s/.then(ok => resolve(ok ? outcome : 'unshown'));/.then(() => resolve(outcome));/"
