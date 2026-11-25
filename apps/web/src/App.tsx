@@ -191,7 +191,7 @@ export function App() {
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
-        if (w === 'region') { setRegions([]); run({ regions: [] }); }
+    if (w === 'region') { setRegions([]); run({ regions: [] }); }
     else if (w === 'productOnly') { setProductOnly(false); run({ productOnly: false }); }
     else if (w === 'remote') { setRemote('any'); run({ remote: 'any' }); }
     else goalRef.current?.focus();
