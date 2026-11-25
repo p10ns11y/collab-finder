@@ -42,11 +42,11 @@ Dev and production use the **same IPC** for commands; only where the React bundl
 Only adapters touch `@tauri-apps/api`. Everything above speaks ports and `Result`:
 
 ```typescript
-// src/adapters/tauri/safe-invoke.ts
+// apps/desktop/src/adapters/tauri/safe-invoke.ts
 invoke<T>(command, args)  →  Promise  →  wrapped as Result<T, AppError>
 ```
 
-`src/adapters/tauri/finder-adapter.ts` maps port methods to command names and args. The MVU core (`src/core/finder/`) has **no** Tauri imports — swappable for tests or a future MCP client.
+`apps/desktop/src/adapters/tauri/finder-adapter.ts` maps port methods to command names and args. The MVU core (`apps/desktop/src/core/finder/`) has **no** Tauri imports — swappable for tests or a future MCP client.
 
 ### Rust can inject state the UI never passes
 
@@ -120,10 +120,10 @@ User intent
 
 The **engine** is the combination of:
 
-1. **Msg** — typed intents (`src/core/finder/msg.ts`).
-2. **Update** — what should change in memory (`src/core/finder/update.ts`).
-3. **Effects** — what must run in the world (`src/core/finder/effects.ts`).
-4. **Adapters** — how those effects reach Rust (`src/adapters/tauri/`).
+1. **Msg** — typed intents (`apps/desktop/src/core/finder/msg.ts`).
+2. **Update** — what should change in memory (`apps/desktop/src/core/finder/update.ts`).
+3. **Effects** — what must run in the world (`apps/desktop/src/core/finder/effects.ts`).
+4. **Adapters** — how those effects reach Rust (`apps/desktop/src/adapters/tauri/`).
 
 React never calls `invoke` directly; that keeps the Intent Engine testable and MCP-ready (same msgs/ports, different adapter later).
 
@@ -214,9 +214,9 @@ sudo pacman -S --needed gnome-keyring   # or kwallet + secret service for your D
 
 | File | Purpose |
 |------|---------|
-| `src/adapters/tauri/safe-invoke.ts` | Sole `invoke` import |
-| `src/adapters/tauri/finder-adapter.ts` | Command name + args mapping |
-| `src/core/finder/effects.ts` | Intent → port calls |
-| `src/core/finder/program.ts` | Wires update + effects into MVU program |
+| `apps/desktop/src/adapters/tauri/safe-invoke.ts` | Sole `invoke` import |
+| `apps/desktop/src/adapters/tauri/finder-adapter.ts` | Command name + args mapping |
+| `apps/desktop/src/core/finder/effects.ts` | Intent → port calls |
+| `apps/desktop/src/core/finder/program.ts` | Wires update + effects into MVU program |
 | `src-tauri/src/lib.rs` | `#[tauri::command]` handlers + `generate_handler!` |
 | `src-tauri/src/commands.rs` | Testable persist helpers (search/cycle/lead/promote) |

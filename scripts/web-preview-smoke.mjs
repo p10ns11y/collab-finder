@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = join(root, process.argv[2] || process.env.WEB_DIST || 'dist-web')
+const dist = join(root, process.argv[2] || process.env.WEB_DIST || 'apps/desktop/dist-web')
 if (!existsSync(dist)) {
   console.error('web-preview-smoke: web output is missing. Run pnpm build:web first.')
   process.exit(1)

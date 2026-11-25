@@ -10,8 +10,8 @@ See [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) for the m
 
 | Layer | What to log | Where |
 |-------|-------------|--------|
-| **Intent** | `FinderMsg` type | `src/core/finder/effects.ts`, `update.ts` |
-| **IPC request** | command + JSON args | `src/adapters/tauri/safe-invoke.ts` |
+| **Intent** | `FinderMsg` type | `apps/desktop/src/core/finder/effects.ts`, `update.ts` |
+| **IPC request** | command + JSON args | `apps/desktop/src/adapters/tauri/safe-invoke.ts` |
 | **IPC handler** | Rust entry + side effects | `src-tauri/src/lib.rs` (handlers), `commands.rs` (persist helpers), `secrets.rs`, `db.rs` |
 | **External HTTP** | X API, TLS | Rust terminal only — not browser Network tab |
 
@@ -52,7 +52,7 @@ eprintln!("[ipc] search_x_recent query={query:?} max={max_results:?}");
 All IPC goes through a single file:
 
 ```typescript
-// src/adapters/tauri/safe-invoke.ts
+// apps/desktop/src/adapters/tauri/safe-invoke.ts
 invoke<T>(command, args) → Result<T, AppError>
 ```
 
@@ -161,6 +161,6 @@ For the full "reachable but no entry" keyring case (very common on Arch after da
 
 | File | Role |
 |------|------|
-| `src/adapters/tauri/safe-invoke.ts` | Sole `invoke` import — add dev intercept here |
-| `src/core/finder/effects.ts` | Maps `FinderMsg` → port calls |
+| `apps/desktop/src/adapters/tauri/safe-invoke.ts` | Sole `invoke` import — add dev intercept here |
+| `apps/desktop/src/core/finder/effects.ts` | Maps `FinderMsg` → port calls |
 | `src-tauri/src/lib.rs` | `#[tauri::command]` handlers |

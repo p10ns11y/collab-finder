@@ -3,7 +3,7 @@
  * Fit calibration report. Read-only.
  *
  *   node --experimental-strip-types scripts/fit-calibration.mjs
- *   node --experimental-strip-types scripts/fit-calibration.mjs --fixture src/core/domain/fixtures/outcome-seed.json
+ *   node --experimental-strip-types scripts/fit-calibration.mjs --fixture apps/desktop/src/core/domain/fixtures/outcome-seed.json
  *   node --experimental-strip-types scripts/fit-calibration.mjs --db /path/to/collab-finder.db
  *
  * Default input is the cited outcome fixture (fit_score null — nothing is imputed).
@@ -13,10 +13,10 @@ import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { calibrationReport } from '../src/core/domain/fit-calibration.ts'
+import { calibrationReport } from '../apps/desktop/src/core/domain/fit-calibration.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const defaultFixture = join(root, 'src/core/domain/fixtures/outcome-seed.json')
+const defaultFixture = join(root, 'apps/desktop/src/core/domain/fixtures/outcome-seed.json')
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag)

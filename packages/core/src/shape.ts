@@ -3,10 +3,9 @@ import { toPublicPool, type ExportFailure } from './export.ts';
 import { companyIndustries, type Industry } from './industry.ts';
 import { inScope } from './match.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
-import { isLeadershipRow, regionOf, type PlaceRegion } from './vocab.ts';
+import { isLeadershipRow, regionOf, LOCATION_PARTS, type PlaceRegion } from './vocab.ts';
 
 const EUROPE: ReadonlyArray<PlaceRegion> = ['SE', 'EU', 'UK'];
-const LOCATION_PARTS = /\s*[/;|•]\s*/;
 
 export const honestRegion = (region: string | null, location: string | null): string | null => {
   if (region === null || !location || !EUROPE.includes(region as PlaceRegion)) return region;

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { transformSchema } from '@adaptate/core';
+import { WORLD_REGIONS } from './vocab.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
-const PLACE = z.enum(['SE', 'EU', 'UK', 'US']);
+const PLACE = z.enum(WORLD_REGIONS);
 const REMOTE = z.enum(['remote', 'hybrid', 'onsite', 'unknown']);
 const STATUS = z.enum(['open', 'closed', 'unknown']);
 
@@ -10,7 +11,7 @@ export const FindRolesBase = z.object({
   stateVersion: z.number().int().min(0).optional(),
   description: z.string().max(2000).optional(),
   goal: z.string().max(500).optional(),
-  regions: z.array(PLACE).max(4).optional(),
+  regions: z.array(PLACE).max(WORLD_REGIONS.length).optional(),
   remote: z.enum(['any', 'remote', 'hybrid', 'onsite']).optional(),
   productOnly: z.boolean().optional(),
 });

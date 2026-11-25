@@ -1,7 +1,6 @@
-import type { MatchResult, MatchRow, RegionPref, RemotePref } from '../../../packages/core/src/index.ts';
+import type { MatchResult, MatchRow, RemotePref } from '../../../packages/core/src/index.ts';
+import { PLACES, type Place } from './regions.ts';
 
-export type Place = Exclude<RegionPref, 'any'>;
-export const PLACES: ReadonlyArray<Place> = ['SE', 'EU', 'UK', 'US'];
 export const REMOTES: ReadonlyArray<RemotePref> = ['any', 'remote', 'hybrid', 'onsite'];
 export const TOOL_NAMES = ['find_roles', 'show_apply_pack', 'tailor_cv'] as const;
 
@@ -137,4 +136,8 @@ export function panelUnavailable(stateVersion: number, panel: string): { stateVe
 
 export function confirmedButNotSent(stateVersion: number, url: string): { stateVersion: number; confirmed: true; applied: false; sent: false; url: string; notice: string } {
   return { stateVersion, confirmed: true, applied: false, sent: false, url, notice: APPLY_SEND_NOTICE };
+}
+
+export function confirmPending(stateVersion: number): { stateVersion: number; error: string } {
+  return { stateVersion, error: 'confirm pending: a person has not answered the open confirm step yet' };
 }

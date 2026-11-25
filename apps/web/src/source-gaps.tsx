@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { MatchProfile, PublicPool } from '../../../packages/core/src/index.ts';
-import type { View } from './App.tsx';
+import type { View } from './flow.ts';
 import { gapGuidance, type GapGuidance } from '../../../packages/core/src/source-gaps.ts';
 
 const KIND: Readonly<Record<GapGuidance['suggestions'][number]['kind'], string>> = {

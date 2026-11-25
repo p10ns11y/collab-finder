@@ -7,8 +7,8 @@ import { COVERS, TAG_TERMS, kindOf, label, termsIn } from './vocab.ts';
 
 export const THIN = 3;
 type Region = GapGuidance['region'];
-const PLACE: Readonly<Record<Region, string>> = { SE: 'Sweden', EU: 'the EU', UK: 'the UK', US: 'the US', any: 'all regions' };
-const WIDER: Readonly<Record<Region, Region | null>> = { SE: 'EU', UK: 'EU', EU: 'any', US: 'any', any: null };
+const PLACE: Readonly<Record<Region, string>> = { SE: 'Sweden', EU: 'the EU', UK: 'the UK', US: 'the US', CA: 'Canada', LATAM: 'Latin America', APAC: 'Asia-Pacific', MEA: 'the Middle East and Africa', any: 'all regions' };
+const WIDER: Readonly<Record<Region, Region | null>> = { SE: 'EU', UK: 'EU', EU: 'any', US: 'any', CA: 'any', LATAM: 'any', APAC: 'any', MEA: 'any', any: null };
 
 const INDEX = new WeakMap<PublicPool, ReadonlyArray<{ region: string | null; terms: Set<string> }>>();
 const indexOf = (pool: PublicPool) => {

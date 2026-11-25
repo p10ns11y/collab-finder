@@ -1,11 +1,13 @@
 import type {} from 'webmcp-types';
-import type { MatchProfile, MatchResult, MatchRow, PublicPool } from '../../../packages/core/src/index.ts';
+import type { MatchProfile, MatchResult, PublicPool } from '../../../packages/core/src/index.ts';
 import { gapGuidance } from '../../../packages/core/src/source-gaps.ts';
+import type { Snap } from './flow.ts';
 import {
   APPLY_SEND_NOTICE,
   buildApplyPack,
   buildCvOutline,
   confirmedButNotSent,
+  confirmPending,
   confirmUnavailable,
   declinedConfirm,
   needsPersonConfirm,
@@ -17,22 +19,22 @@ import {
   type CvOutline,
   type FindRolesChange,
 } from './page-tools.ts';
+import { PLACES } from './regions.ts';
 
 export type AgentSearch = FindRolesChange;
 export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null };
 export type WebMcpHost = {
-  version(): number;
-  search(baseVersion: number, change: AgentSearch): HostAnswer;
+  snap(): Snap | null;
+  search(change: AgentSearch): HostAnswer;
   showAllOptions(): void;
-  rowOf(id: string): MatchRow | null;
   lastAsk(): { ask: MatchProfile; pool: PublicPool } | null;
   description(): string;
-  confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<ConfirmOutcome>;
+  confirmApplyOrSend(ask: { title: string; body: string; pack: ApplyPack }): Promise<ConfirmOutcome>;
   showCvOutline(outline: CvOutline): Promise<boolean>;
   showApplyPack(pack: ApplyPack): Promise<boolean>;
 };
 
-export type ConfirmOutcome = 'confirmed' | 'cancelled' | 'unavailable';
+export type ConfirmOutcome = 'confirmed' | 'cancelled' | 'unavailable' | 'unshown';
 
 type AnyContext = { registerTool(tool: object, options?: { signal?: AbortSignal }): Promise<void> };
 
@@ -91,7 +93,7 @@ export async function ensureWebMcp(signal: AbortSignal): Promise<AnyContext | nu
 }
 
 const FILTERS = {
-  regions: { type: 'array', items: { enum: ['SE', 'EU', 'UK', 'US'] } },
+  regions: { type: 'array', items: { enum: PLACES } },
   remote: { enum: ['any', 'remote', 'hybrid', 'onsite'] },
   productOnly: { type: 'boolean' },
 };
@@ -114,18 +116,31 @@ const rolePickSchema = {
   },
 };
 
-export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Promise<void> {
+export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Promise<void> {
   const mc = await ensureWebMcp(signal);
   if (!mc || signal.aborted) return;
+  const host = {
+    ...app,
+    version: () => app.snap()?.version ?? 0,
+    pending: () => app.snap()?.step === 'confirming',
+    rowOf: (id: string) => {
+      const v = app.snap()?.view;
+      return v?.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id) ?? null) : null;
+    },
+  };
   const opts = { signal };
   const afterConfirm = async (id: string) => {
     const row = host.rowOf(id);
     if (!row) return { stateVersion: host.version(), error: 'not a role shown on the page' };
-    const outcome = await host.confirmApplyOrSend({ id: row.id, title: row.title, url: row.url });
-    if (outcome === 'cancelled') return declinedConfirm(host.version());
-    if (outcome !== 'confirmed') return confirmUnavailable(host.version());
     const pack = buildApplyPack(row);
-    if (!await host.showApplyPack(pack)) return { ...panelUnavailable(host.version(), 'apply pack'), applied: false, sent: false };
+    const outcome = await host.confirmApplyOrSend({
+      title: 'Person confirm needed',
+      body: `A tool asked to apply or send for ${row.title} at ${row.company}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
+      pack,
+    });
+    if (outcome === 'cancelled') return declinedConfirm(host.version());
+    if (outcome === 'unshown') return { ...panelUnavailable(host.version(), 'apply pack'), applied: false, sent: false };
+    if (outcome !== 'confirmed') return confirmUnavailable(host.version());
     return { ...confirmedButNotSent(host.version(), row.url), pack };
   };
   const ignoreAbort = (err: unknown) => {
@@ -146,8 +161,12 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
         execute: (input: Record<string, unknown>) => {
           const parsed = parseFindRoles(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+          if (host.pending()) return summarizeRoles({ ...confirmPending(host.version()), result: null, verdict: 'refused' });
+          const base = parsed.value.baseVersion;
+          const v = host.version();
+          if (base !== v) return summarizeRoles({ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${v}` });
           host.showAllOptions();
-          const answer = host.search(parsed.value.baseVersion, parsed.value.change);
+          const answer = host.search(parsed.value.change);
           const last = host.lastAsk();
           const gap = last && (answer.result || answer.verdict === 'ZeroResults') ? gapGuidance(last.ask, last.pool, answer.result) : null;
           return { ...summarizeRoles(answer), gap };
@@ -162,6 +181,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
         execute: async (input: Record<string, unknown>) => {
           const parsed = parseRolePick(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+          if (host.pending()) return confirmPending(host.version());
           const row = host.rowOf(parsed.value.id);
           if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
           const outline = buildCvOutline(host.description(), row);
@@ -179,6 +199,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           const parsed = parseRolePick(input);
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
           if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
+          if (host.pending()) return confirmPending(host.version());
           const row = host.rowOf(parsed.value.id);
           if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
           const pack = buildApplyPack(row);

@@ -1,6 +1,6 @@
 # Tauri command contract
 
-The desktop shell exposes Tauri commands (not an MCP server yet). The React layer calls them via `src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
+The desktop shell exposes Tauri commands (not an MCP server yet). The React layer calls them via `apps/desktop/src/adapters/tauri/*`. Registration: `src-tauri/src/lib.rs` `generate_handler![]`.
 
 **How `invoke` works (IPC vs HTTP, Intent Engine):** [tauri-ipc-and-intent-engine.md](./tauri-ipc-and-intent-engine.md) · **Debug in dev:** [tauri-ipc-debugging.md](./tauri-ipc-debugging.md)
 
@@ -90,7 +90,7 @@ Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcode
 | `fetch_hire_board` | `{ sheetUrl?, q?, geo?, requireCareerUrl?, limit? }` | `HireBoardLead[]` | Live CSV export; filter + heuristic skim; marks `already_in_db` via URL. **No bulk insert.** |
 | `select_hire_board_lead` | `{ company, location?, careerUrl, threadUrl? }` | `Opportunity` | Upserts `status=new` into `opportunities` (URL dedup). Evaluate uses `analyze_opportunity_target`. |
 
-`OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `src/core/domain/opportunity-target.ts`.
+`OpportunityTargetAnalysisResult.fit` is strict JSON from xAI (see `xai.rs` + `target_fit_v1`). Types mirror `apps/desktop/src/core/domain/opportunity-target.ts`.
 
 ## Durability ranker (Mission)
 
@@ -112,10 +112,10 @@ Implemented in `src-tauri/src/hire_board.rs`. Sheet identity is **not** hardcode
 ```
 View (finder-app-view.tsx)
   → dispatch FinderMsg
-  → MVU update (src/core/finder/)
-  → effects (src/core/finder/effects.ts)
-  → ports (src/ports/)
-  → adapters (src/adapters/tauri/)
+  → MVU update (apps/desktop/src/core/finder/)
+  → effects (apps/desktop/src/core/finder/effects.ts)
+  → ports (apps/desktop/src/ports/)
+  → adapters (apps/desktop/src/adapters/tauri/)
   → invoke(command, args)
 ```
 
