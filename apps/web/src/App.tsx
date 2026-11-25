@@ -17,8 +17,18 @@ const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?templa
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
-const ConfirmPane = lazy(() => import('./soft-lazy.tsx').then(m => ({ default: m.ConfirmPane })));
-const CardsPane = lazy(() => import('./soft-lazy.tsx').then(m => ({ default: m.CardsPane })));
+
+let softTry = 0;
+const loadSoft = () => {
+  const i = softTry;
+  return (i ? import('./person-confirm.tsx?r=1') : import('./person-confirm.tsx')).then(
+    m => m as typeof import('./person-confirm.tsx'),
+    (err: unknown) => {
+      if (softTry === i && i < 1) softTry += 1;
+      return Promise.reject(err);
+    },
+  );
+};
 
 class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -109,7 +119,11 @@ export function App() {
   const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (outcome: ConfirmOutcome) => void } | null>(null);
   const confirmRef = useRef<{ resolve: (outcome: ConfirmOutcome) => void } | null>(null);
   const confirmId = useRef(0);
-  const [cardsGen, setCardsGen] = useState(0);
+  const [soft, setSoft] = useState<typeof import('./person-confirm.tsx') | null>(null);
+  const setSoftRef = useRef(setSoft);
+  setSoftRef.current = setSoft;
+  const showAllRef = useRef(showAll);
+  showAllRef.current = showAll;
   const cardsWaiter = useRef<((shown: boolean) => void) | null>(null);
   const settleCards = (shown: boolean) => {
     const wait = cardsWaiter.current;
@@ -123,12 +137,15 @@ export function App() {
     setConfirmAsk(null);
     ask.resolve(outcome);
   };
-  const showPanel = (apply: () => void) => new Promise<boolean>(resolve => {
-    cardsWaiter.current?.(false);
-    cardsWaiter.current = resolve;
-    apply();
-    setCardsGen(n => n + 1);
-  });
+  const showPanel = (apply: () => void) => {
+    if (!showAllRef.current) return Promise.resolve(false);
+    return new Promise<boolean>(resolve => {
+      cardsWaiter.current?.(false);
+      cardsWaiter.current = resolve;
+      apply();
+      void loadSoft().then(m => setSoftRef.current(m), () => settleCards(false));
+    });
+  };
   useEffect(() => {
     const registration = new AbortController();
     const rowOf = (id: string) => {
@@ -164,6 +181,7 @@ export function App() {
         };
         confirmRef.current = ask;
         setConfirmAsk(ask);
+        void loadSoft().then(m => setSoftRef.current(m), () => settleConfirm('unavailable'));
       }),
       showCvOutline: next => showPanel(() => { setOutline(next); setPack(null); }),
       showApplyPack: next => showPanel(() => { setPack(next); }),
@@ -177,7 +195,7 @@ export function App() {
 
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
   const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
-  useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); settleCards(false); } }, [view]);
+  useEffect(() => { if (!showAll || view.kind !== 'results') { setOutline(null); setPack(null); settleCards(false); } }, [view, showAll]);
   const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
@@ -279,21 +297,18 @@ export function App() {
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {(outline || pack) && <SoftBoundary key={cardsGen} onError={() => settleCards(false)}><Suspense fallback={null}><CardsPane outline={outline} pack={pack} onShown={() => settleCards(true)} onUnavailable={() => settleCards(false)} /></Suspense></SoftBoundary>}
+        {(outline || pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={outline} pack={pack} onShown={() => settleCards(true)} /></SoftBoundary>}
       </div>
       </>}
 
-      {confirmAsk && (
+      {confirmAsk && soft && (
         <SoftBoundary key={confirmAsk.id} onError={() => settleConfirm('unavailable')}>
-          <Suspense fallback={null}>
-            <ConfirmPane
-              title={confirmAsk.title}
-              body={confirmAsk.body}
-              onCancel={() => settleConfirm('cancelled')}
-              onConfirm={() => settleConfirm('confirmed')}
-              onUnavailable={() => settleConfirm('unavailable')}
-            />
-          </Suspense>
+          <soft.ConfirmPane
+            title={confirmAsk.title}
+            body={confirmAsk.body}
+            onCancel={() => settleConfirm('cancelled')}
+            onConfirm={() => settleConfirm('confirmed')}
+          />
         </SoftBoundary>
       )}
 

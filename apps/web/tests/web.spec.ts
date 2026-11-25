@@ -271,6 +271,27 @@ test('WebMCP confirm: Escape cancels and a second request reopens the dialog', a
   expect(cancelledAgain.confirmed).toBeUndefined();
 });
 
+
+test('tailor_cv returns at once when the form is hidden after clearing the hash', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.error ?? null).toBe(null);
+  const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+  expect(anyId).toBeTruthy();
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeVisible();
+  await page.evaluate(() => { location.hash = ''; });
+  await expect(page.getByRole('button', { name: 'Find roles' })).toHaveCount(0);
+  const outline = await Promise.race([
+    call(page, 'tailor_cv', { id: anyId }),
+    new Promise<Record<string, unknown>>(resolve => setTimeout(() => resolve({ error: 'hung' }), 3000)),
+  ]);
+  expect(String(outline.error)).toMatch(/could not be shown/);
+  expect(outline.confirmed).toBeUndefined();
+  await expect(page.getByTestId('cv-outline')).toHaveCount(0);
+});
+
 test('WebMCP polyfill: find_roles on the home page reveals the form and results', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('reveal')).toBeVisible();
@@ -354,15 +375,26 @@ test.describe(() => {
     const pack = await call(page, 'show_apply_pack', { id: anyId });
     expect(String(pack.error)).toMatch(/could not be shown/);
     await expect(page.getByTestId('apply-pack')).toHaveCount(0);
+  });
+
+  test('a failed person-confirm chunk is retried on the next request', async ({ context, page }) => {
+    let block = true;
+    await context.route(/person-confirm/, route => block ? route.abort() : route.continue());
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+    expect(first.error ?? null).toBe(null);
+    const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+    const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+    expect(anyId).toBeTruthy();
+    const failed = await call(page, 'tailor_cv', { id: anyId });
+    expect(String(failed.error)).toMatch(/could not be shown/);
+    await expect(page.getByTestId('cv-outline')).toHaveCount(0);
     block = false;
-    const pendingAgain = call(page, 'show_apply_pack', { id: anyId, apply: true });
-    await expect(page.getByTestId('person-confirm')).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    const after = await pendingAgain;
-    expect(String(after.error)).toMatch(/cancelled/);
-    expect(after.applied).toBe(false);
-    expect(after.sent).toBe(false);
-    expect(after.confirmed).toBeUndefined();
+    const recovered = await call(page, 'tailor_cv', { id: anyId });
+    expect(recovered.error ?? null).toBe(null);
+    await expect(page.getByTestId('cv-outline')).toBeVisible();
   });
 });
 

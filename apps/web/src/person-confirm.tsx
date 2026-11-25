@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
@@ -61,4 +61,13 @@ export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: 
       )}
     </>
   );
+}
+
+export { PersonConfirm as ConfirmPane };
+
+export function CardsPane({ outline, pack, onShown }: { outline: CvOutline | null; pack: ApplyPack | null; onShown: () => void }) {
+  const shown = useRef(onShown);
+  shown.current = onShown;
+  useLayoutEffect(() => { shown.current(); }, [outline, pack]);
+  return <ToolCards outline={outline} pack={pack} />;
 }
