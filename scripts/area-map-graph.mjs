@@ -38,7 +38,7 @@ const SYNC_FILES = [
   'scripts/pulse-export.mjs',
   'scripts/pulse-import.mjs',
 ]
-const BUILD_FILES = ['package.json', 'src-tauri/Cargo.toml', 'vite.config.ts']
+const BUILD_FILES = ['package.json', 'src-tauri/Cargo.toml', 'apps/desktop/vite.config.ts']
 const LOCKFILES = new Set(['pnpm-lock.yaml', 'src-tauri/Cargo.lock'])
 const SOURCE_EXT = /\.(ts|tsx|mts|mjs|js|jsx)$/
 const TS_EXT = ['.ts', '.tsx', '.mts', '.mjs', '.js', '.jsx', '.json', '.css', '.md', '.txt']
@@ -294,13 +294,15 @@ function stripRustStrings(src) {
 }
 
 function loadAliases() {
-  const raw = readText('tsconfig.json').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const tsconfigRel = 'apps/desktop/tsconfig.json'
+  const raw = readText(tsconfigRel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
   const parsed = JSON.parse(raw)
   const paths = parsed.compilerOptions?.paths ?? {}
+  const base = posix.dirname(tsconfigRel)
   const aliases = []
   for (const [key, targets] of Object.entries(paths)) {
     if (!key.endsWith('/*') || !Array.isArray(targets) || !targets[0]?.endsWith('/*')) continue
-    aliases.push({ prefix: key.slice(0, -1), dest: targets[0].slice(0, -1) })
+    aliases.push({ prefix: key.slice(0, -1), dest: posix.normalize(posix.join(base, targets[0].slice(0, -1))) })
   }
   aliases.sort((left, right) => right.prefix.length - left.prefix.length)
   return aliases
@@ -508,7 +510,7 @@ function buildGraph(areas, areaByPath) {
   }
 
   for (const file of areaByPath.keys()) {
-    if (!file.startsWith('src/') || !SOURCE_EXT.test(file) || file.endsWith('.verify.mjs')) continue
+    if (!file.startsWith('apps/desktop/src/') || !SOURCE_EXT.test(file) || file.endsWith('.verify.mjs')) continue
     const src = stripTsComments(readText(file))
     for (const spec of tsSpecifiers(src)) {
       const resolved = resolveSpecifier(file, spec, aliases, areaByPath)
@@ -560,7 +562,7 @@ function buildGraph(areas, areaByPath) {
   }
   const unknown = []
   for (const file of areaByPath.keys()) {
-    if (!file.startsWith('src/') || !SOURCE_EXT.test(file) || file.endsWith('.verify.mjs')) continue
+    if (!file.startsWith('apps/desktop/src/') || !SOURCE_EXT.test(file) || file.endsWith('.verify.mjs')) continue
     for (const name of invokeNames(stripTsComments(readText(file)))) {
       const owner = owners.get(name)
       if (!owner) {
@@ -1027,7 +1029,7 @@ function main() {
     `owner get_llm_route_status ${owners.get('get_llm_route_status') ?? 'missing'}`,
     `owner run_local_grok_quest ${owners.get('run_local_grok_quest') ?? 'missing'}`,
     `owner get_operator_pack_status ${owners.get('get_operator_pack_status') ?? 'missing'}`,
-    `file-edge src/adapters/tauri/finder-adapter.ts src/core/domain/history.ts ${fileEdgeSet.has('src/adapters/tauri/finder-adapter.ts src/core/domain/history.ts') ? 'yes' : 'no'}`,
+    `file-edge apps/desktop/src/adapters/tauri/finder-adapter.ts apps/desktop/src/core/domain/history.ts ${fileEdgeSet.has('apps/desktop/src/adapters/tauri/finder-adapter.ts apps/desktop/src/core/domain/history.ts') ? 'yes' : 'no'}`,
     `apart-30 ${window30.apartCommits} ${window30.apartLines}`,
     `apart-90 ${window90.apartCommits} ${window90.apartLines}`,
     `area-lines-30 ${window30.areaLines}`,

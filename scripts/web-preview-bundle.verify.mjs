@@ -11,7 +11,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const viteBin = join(root, 'node_modules/vite/bin/vite.js')
+const desktop = join(root, 'apps/desktop')
+const viteBin = join(desktop, 'node_modules/vite/bin/vite.js')
 const fixtureMarks = ['Northwind Labs', 'Contoso Robotics']
 const realFiles = [
   'data/distillation/curation/profile-and-strategy.md',
@@ -47,7 +48,7 @@ function bundleText(dir) {
 
 function distinctiveRealNeedle(rel) {
   const real = readFileSync(join(root, rel), 'utf8')
-  const fixtures = join(root, 'src/web/fixtures')
+  const fixtures = join(root, 'apps/desktop/src/web/fixtures')
   const fixtureText = readdirSync(fixtures)
     .map((name) => readFileSync(join(fixtures, name), 'utf8'))
     .join('\n')
@@ -63,7 +64,7 @@ function distinctiveRealNeedle(rel) {
 
 function viteBuild(outDir, { env = {}, args = [] } = {}) {
   const child = spawnSync(process.execPath, [viteBin, 'build', '--outDir', outDir, '--emptyOutDir', ...args], {
-    cwd: root,
+    cwd: desktop,
     encoding: 'utf8',
     env: { ...process.env, ...env },
   })

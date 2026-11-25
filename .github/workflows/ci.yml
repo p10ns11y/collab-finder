@@ -96,7 +96,7 @@ jobs:
         run: |
           pnpm run check:client-leak
           pnpm build
-          node scripts/ci-client-leak.mjs dist
+          node scripts/ci-client-leak.mjs apps/desktop/dist
 
   check:
     needs: changes

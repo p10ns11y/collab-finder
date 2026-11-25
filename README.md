@@ -4,6 +4,8 @@ collab-finder: deterministic firm and warm-path facts for a downstream pick step
 
 Steering: [docs/STEERING.md](docs/STEERING.md)
 
+The desktop frontend is in `apps/desktop`. The public site is `apps/web`. Shared matching code is in `packages/core`. The Rust/Tauri crate stays in `src-tauri`.
+
 **Agents:** [AGENTS.md](AGENTS.md) · **Playbook:** [docs/agent-playbook.md](docs/agent-playbook.md) · **Guide:** [docs/GUIDE.md](docs/GUIDE.md)
 
 ---
