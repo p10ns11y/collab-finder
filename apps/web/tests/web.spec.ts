@@ -272,6 +272,32 @@ test.describe(() => {
     release();
     await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
   });
+
+  test('native navigator.modelContext registers tools without loading the polyfill', async ({ context, page }) => {
+    const hits: string[] = [];
+    await context.route(/webmcp-polyfill/, async route => {
+      hits.push(route.request().url());
+      await route.abort();
+    });
+    await page.addInitScript(() => {
+      const tools = new Map<string, { name: string }>();
+      const modelContext = {
+        registerTool: async (tool: { name: string }, options?: { signal?: AbortSignal }) => {
+          tools.set(tool.name, tool);
+          options?.signal?.addEventListener('abort', () => { tools.delete(tool.name); }, { once: true });
+        },
+        getTools: async () => [...tools.values()],
+      };
+      Object.defineProperty(navigator, 'modelContext', { configurable: true, enumerable: true, value: modelContext });
+    });
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await expect.poll(async () => page.evaluate(async () => {
+      const nav = navigator as unknown as { modelContext?: { getTools: () => Promise<Array<{ name: string }>> } };
+      return ((await nav.modelContext?.getTools()) ?? []).map(t => t.name).sort();
+    })).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    expect(hits).toEqual([]);
+  });
 });
 
 test('WebMCP polyfill stays out of the way of the ordinary form @firefox', async ({ page }) => {
@@ -284,7 +310,6 @@ test('WebMCP polyfill stays out of the way of the ordinary form @firefox', async
   expect(errors).toEqual([]);
   await expect(page.getByTestId('results')).toBeVisible();
 });
-
 
 test.describe('phone at 375x812', () => {
   test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });

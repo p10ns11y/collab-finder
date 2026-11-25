@@ -58,7 +58,7 @@ test('buildApplyPack is public facts plus a checklist and never claims to apply 
   assert.equal(pack.notice, APPLY_SEND_NOTICE);
 });
 
-test('an apply or send request without a person confirm is refused, and a confirm still does not send', () => {
+test('a cancelled confirm does not apply or send, and a confirm still does not send', () => {
   const cancelled = declinedConfirm(3);
   assert.equal(cancelled.applied, false);
   assert.equal(cancelled.sent, false);

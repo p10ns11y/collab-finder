@@ -33,34 +33,40 @@ type AnyContext = { registerTool(tool: object, options?: { signal?: AbortSignal 
 export const modelContext = (): AnyContext | null => {
   const doc = globalThis.document?.modelContext;
   if (doc && typeof doc.registerTool === 'function') return doc;
-  const nav = (globalThis.navigator as unknown as { modelContext?: AnyContext | undefined }).modelContext;
+  const nav = (globalThis.navigator as unknown as { modelContext?: AnyContext | undefined } | undefined)?.modelContext;
   return nav && typeof nav.registerTool === 'function' ? nav : null;
 };
 
 const afterFirstPaint = (signal: AbortSignal): Promise<boolean> => new Promise(resolve => {
   if (signal.aborted) { resolve(false); return; }
   let idleId: number | undefined;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let idleTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  let paintTimeoutId: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
+  let idleArmed = false;
   const finish = (ok: boolean) => {
     if (settled) return;
     settled = true;
     signal.removeEventListener('abort', onAbort);
     if (idleId !== undefined && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId);
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    if (idleTimeoutId !== undefined) clearTimeout(idleTimeoutId);
+    if (paintTimeoutId !== undefined) clearTimeout(paintTimeoutId);
     resolve(ok);
   };
   const onAbort = () => finish(false);
   const armIdle = () => {
+    if (idleArmed || settled) return;
+    idleArmed = true;
     if (signal.aborted) { finish(false); return; }
     if (typeof requestIdleCallback === 'function') idleId = requestIdleCallback(() => finish(true));
-    else timeoutId = setTimeout(() => finish(true), 0);
+    else idleTimeoutId = setTimeout(() => finish(true), 0);
   };
   signal.addEventListener('abort', onAbort, { once: true });
   requestAnimationFrame(() => {
     if (signal.aborted) { finish(false); return; }
     requestAnimationFrame(armIdle);
   });
+  paintTimeoutId = setTimeout(armIdle, 0);
 });
 
 let polyfill: Promise<void> | undefined;
@@ -84,11 +90,19 @@ const FILTERS = {
   productOnly: { type: 'boolean' },
 };
 
-const rolePickSchema = {
+const roleIdSchema = {
   type: 'object',
   required: ['id'],
   properties: {
     id: { type: 'string', description: 'Id of a role already shown on the page' },
+  },
+};
+
+const rolePickSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: {
+    ...roleIdSchema.properties,
     apply: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not apply.' },
     send: { type: 'boolean', description: 'If true, a person must confirm in the page. The page still does not send.' },
   },
@@ -107,59 +121,64 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
     host.showApplyPack(pack);
     return { ...confirmedButNotSent(host.version(), row.url), pack };
   };
+  const ignoreAbort = (err: unknown) => {
+    if (signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) return;
+    throw err;
+  };
   try {
-  await Promise.all([
-    mc.registerTool({
-      name: 'find_roles',
-      title: 'Find roles',
-      description: 'Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.',
-      inputSchema: {
-        type: 'object',
-        required: ['stateVersion'],
-        properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
-      },
-      execute: (input: Record<string, unknown>) => {
-        const parsed = parseFindRoles(input);
-        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
-        host.showAllOptions();
-        const answer = host.search(parsed.value.baseVersion, parsed.value.change);
-        return summarizeRoles(answer);
-      },
-    }, opts),
-    mc.registerTool({
-      name: 'tailor_cv',
-      title: 'Tailor CV',
-      description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.',
-      annotations: { readOnlyHint: true },
-      inputSchema: rolePickSchema,
-      execute: async (input: Record<string, unknown>) => {
-        const parsed = parseRolePick(input);
-        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
-        if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
-        const row = host.rowOf(parsed.value.id);
-        if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
-        const outline = buildCvOutline(host.description(), row);
-        host.showCvOutline(outline);
-        return { stateVersion: host.version(), ...outline };
-      },
-    }, opts),
-    mc.registerTool({
-      name: 'show_apply_pack',
-      title: 'Show apply pack',
-      description: `Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. ${APPLY_SEND_NOTICE}`,
-      annotations: { readOnlyHint: true },
-      inputSchema: rolePickSchema,
-      execute: async (input: Record<string, unknown>) => {
-        const parsed = parseRolePick(input);
-        if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
-        if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
-        const row = host.rowOf(parsed.value.id);
-        if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
-        const pack = buildApplyPack(row);
-        host.showApplyPack(pack);
-        return { stateVersion: host.version(), ...pack };
-      },
-    }, opts),
-  ]);
-  } catch { return; }
+    await Promise.all([
+      mc.registerTool({
+        name: 'find_roles',
+        title: 'Find roles',
+        description: 'Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.',
+        inputSchema: {
+          type: 'object',
+          required: ['stateVersion'],
+          properties: { stateVersion: { type: 'integer' }, description: { type: 'string' }, goal: { type: 'string' }, ...FILTERS },
+        },
+        execute: (input: Record<string, unknown>) => {
+          const parsed = parseFindRoles(input);
+          if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+          host.showAllOptions();
+          const answer = host.search(parsed.value.baseVersion, parsed.value.change);
+          return summarizeRoles(answer);
+        },
+      }, opts),
+      mc.registerTool({
+        name: 'tailor_cv',
+        title: 'Tailor CV',
+        description: 'Show a local outline of what to emphasize for a role already on the page, built from the text in the form and public posting facts. Nothing is sent. This is not a submitted CV.',
+        annotations: { readOnlyHint: true },
+        inputSchema: roleIdSchema,
+        execute: async (input: Record<string, unknown>) => {
+          const parsed = parseRolePick(input);
+          if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+          const row = host.rowOf(parsed.value.id);
+          if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
+          const outline = buildCvOutline(host.description(), row);
+          host.showCvOutline(outline);
+          return { stateVersion: host.version(), ...outline };
+        },
+      }, opts),
+      mc.registerTool({
+        name: 'show_apply_pack',
+        title: 'Show apply pack',
+        description: `Show a local apply pack for a role already on the page: public facts, the posting link, and a checklist. ${APPLY_SEND_NOTICE}`,
+        annotations: { readOnlyHint: true },
+        inputSchema: rolePickSchema,
+        execute: async (input: Record<string, unknown>) => {
+          const parsed = parseRolePick(input);
+          if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
+          if (needsPersonConfirm(parsed.value)) return afterConfirm(parsed.value.id);
+          const row = host.rowOf(parsed.value.id);
+          if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
+          const pack = buildApplyPack(row);
+          host.showApplyPack(pack);
+          return { stateVersion: host.version(), ...pack };
+        },
+      }, opts),
+    ].map(task => task.catch(ignoreAbort)));
+  } catch (err) {
+    ignoreAbort(err);
+  }
 }

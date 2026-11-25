@@ -66,7 +66,7 @@ test('the built page needs nothing the CSP blocks', { skip: !existsSync(here('..
 });
 
 test('the find-roles form is annotated for WebMCP and never auto-submits an apply or send', () => {
-  assert.match(app, /toolname="find_roles"/);
+  assert.match(app, /toolname="find_roles_form"/);
   assert.match(app, /tooldescription=/);
   assert.doesNotMatch(app, /toolautosubmit/);
   const webmcp = readFileSync(here('../src/webmcp.ts'), 'utf8');

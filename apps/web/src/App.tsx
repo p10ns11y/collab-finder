@@ -7,16 +7,16 @@ import {
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
-import { Card } from './components/ui/card.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
-import { PersonConfirm } from './person-confirm.tsx';
-import { registerWebMcp, type AgentSearch } from './webmcp.ts';
+import type { AgentSearch, WebMcpHost } from './webmcp.ts';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
+const PersonConfirm = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.PersonConfirm })));
+const ToolCards = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.ToolCards })));
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
 
@@ -107,7 +107,7 @@ export function App() {
       const v = latest.current.view;
       return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id) ?? null) : null;
     };
-    void registerWebMcp({
+    const host: WebMcpHost = {
       version: () => version.current,
       search: (base, change) => {
         if (base !== version.current) return { stateVersion: version.current, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${version.current}` };
@@ -138,7 +138,8 @@ export function App() {
       }),
       showCvOutline: next => { setOutline(next); setPack(null); },
       showApplyPack: next => { setPack(next); },
-    }, registration.signal);
+    };
+    void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal));
     return () => {
       registration.abort();
       confirmRef.current?.resolve(false);
@@ -149,7 +150,7 @@ export function App() {
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
   const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
   useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); } }, [view]);
-  const sdkPath = uiSdkFlag() && recover({ kind: 'WebMcpUnavailable' }).ui === 'switch-to-ui-sdk-path';
+  const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
@@ -183,7 +184,7 @@ export function App() {
 
       {showAll && <>
       <h2 className="mb-4 text-2xl font-semibold">Describe yourself</h2>
-      <form toolname="find_roles" tooldescription="Fill this form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send." onSubmit={onSubmit} className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:p-6" noValidate>
+      <form toolname="find_roles_form" tooldescription="Fill this form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send." onSubmit={onSubmit} className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:p-6" noValidate>
         <div className="grid gap-2">
           <Label htmlFor="description">About you</Label>
           <Textarea id="description" name="description" toolparamdescription="A short self-description of the work you do, without your name, email or phone" value={description} maxLength={MAX_CHARS + 200}
@@ -250,33 +251,19 @@ export function App() {
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {outline && (
-          <Card className="mt-6" data-testid="cv-outline">
-            <h2 className="text-lg font-semibold">CV outline</h2>
-            <p className="mt-1 text-sm text-text-muted">{outline.title} at {outline.company}</p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{outline.emphasize.map(item => <li key={item}>{item}</li>)}</ul>
-            <p className="mt-3 text-xs text-text-muted">{outline.notice}</p>
-          </Card>
-        )}
-        {pack && (
-          <Card className="mt-6" data-testid="apply-pack">
-            <h2 className="text-lg font-semibold">Apply pack</h2>
-            <p className="mt-1 text-sm text-text-muted">{pack.title} at {pack.company}</p>
-            <p className="mt-2 text-sm"><a className="text-accent underline" href={pack.url} target="_blank" rel="noopener noreferrer">View posting</a></p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{pack.checklist.map(item => <li key={item}>{item}</li>)}</ul>
-            <p className="mt-3 text-xs text-text-muted">{pack.notice}</p>
-          </Card>
-        )}
+        {(outline || pack) && <Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense>}
       </div>
       </>}
 
       {confirmAsk && (
-        <PersonConfirm
-          title={confirmAsk.title}
-          body={confirmAsk.body}
-          onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
-          onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
-        />
+        <Suspense fallback={null}>
+          <PersonConfirm
+            title={confirmAsk.title}
+            body={confirmAsk.body}
+            onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
+            onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
+          />
+        </Suspense>
       )}
 
       <footer className="mt-12 border-t border-border pt-4 text-xs text-text-muted">
