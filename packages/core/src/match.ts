@@ -4,7 +4,7 @@ import type { PiiKind, VisitorError, Warning } from './errors.ts';
 import type { PublicPool, PublicRow } from './schema.ts';
 import { corpusStats, isSkillList, queryTokens, relevance, titleFocus, tokensOf, type CorpusStats, type TitleFocus } from './relevance.ts';
 import { INDUSTRIES, industryOfLike, type Industry } from './industry.ts';
-import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level } from './vocab.ts';
+import { hasSwedish, inEnglish, isLeadershipRow, isLearner, isLocationPart, leadsEngineering, regionOf, swedishOnlyTitle, COVERS, ENGINEERING_TITLE, LEVELS, MANAGER_TITLE, MOBILE_TITLE, MTS, NARROWING_ROLES, NON_ENGINEERING_TITLE, PLACES, OUTSIDE_POOL, TAG_TERMS, currentLevel, isAgencyRow, kindOf, label, levelOf, levelOfPool, termsIn, type Level, type WorldRegion } from './vocab.ts';
 
 export const CORE_VERSION = '0.1.0';
 export const MIN_CHARS = 20;
@@ -12,7 +12,7 @@ export const MAX_CHARS = 2000;
 export const STALE_DAYS = 7;
 export const DEFAULT_LIMIT = 30;
 
-export type RegionPref = 'SE' | 'EU' | 'UK' | 'US' | 'any';
+export type RegionPref = WorldRegion | 'any';
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type RegionChoice = RegionPref | ReadonlyArray<RegionPref>;
 export type MatchProfile = { description: string; goal?: string; likes?: string; region?: RegionChoice; remote?: RemotePref; productOnly?: boolean };
@@ -122,8 +122,9 @@ const NORDIC_LOC = /(?:^|[^a-z])(?:sweden|sverige|stockholm|gothenburg|goteborg|
 
 const regionOk = (prefs: ReadonlyArray<Exclude<RegionPref, 'any'>>, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
-  if (r === null || r === 'other' || r === '') return 'unknown';
+  if (r === null || r === '') return 'unknown';
   if (prefs.length === 0) return 'yes';
+  if (r === 'other') return 'unknown';
   return prefs.some(pref => (pref === 'EU' ? r === 'EU' || r === 'SE' : r === pref)) ? 'yes' : 'no';
 };
 const remoteOk = (pref: RemotePref, r: PublicRow['remote']): 'yes' | 'no' | 'unknown' => {

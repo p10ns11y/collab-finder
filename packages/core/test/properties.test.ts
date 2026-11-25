@@ -62,7 +62,9 @@ const reasonOk = (r: string, row: MatchRow) =>
   || /^Work mode: (remote|hybrid|onsite)$/.test(r) || r === `Open when last checked (${row.lastChecked.slice(0, 10)})`;
 const compat = (pref: RegionChoice | undefined, region: string | null) => {
   const prefs = regionsOf(pref);
-  return region !== null && region !== 'other' && (region === 'remote-anywhere' || prefs.length === 0 || prefs.some(x => region === x || (x === 'EU' && region === 'SE')));
+  if (region === null || region === '') return false;
+  if (region === 'remote-anywhere' || prefs.length === 0) return true;
+  return region !== 'other' && prefs.some(x => region === x || (x === 'EU' && region === 'SE'));
 };
 
 test('P1 closed rows never appear in any group', () => {

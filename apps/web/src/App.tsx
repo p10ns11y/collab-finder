@@ -213,7 +213,7 @@ export function App() {
         <h1 className="text-sm font-semibold tracking-tight text-text-muted">kanithanj.ai</h1>
         <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
           {pool.kind === 'ready'
-            ? `${pool.pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool.pool).toLocaleString('en')} tech companies in SE/EU/UK/US, checked ${pool.pool.checkedRange.to.slice(0, 10)}. `
+            ? `${pool.pool.rows.length.toLocaleString('en')} engineering roles at ${companyCount(pool.pool).toLocaleString('en')} tech companies, checked ${pool.pool.checkedRange.to.slice(0, 10)}. `
             : `${OUT_OF_SCOPE_MSG} `}
           Matching runs in your browser; nothing you type leaves this page.
         </p>

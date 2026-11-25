@@ -164,7 +164,9 @@ const PLACE_WORDS = new Set(('remote hybrid onsite on-site site anywhere worldwi
   + 'budapest hungary bucharest romania sofia bulgaria athens greece tallinn estonia riga latvia vilnius lithuania belgrade serbia zagreb croatia '
   + 'kyiv ukraine istanbul turkey tel aviv israel dubai uae india bangalore bengaluru hyderabad pune singapore tokyo japan seoul korea sydney melbourne australia canberra auckland').split(' '));
 const PLACE_FILLER = new Set('and or in based only office first time zone zones timezone friendly the of within across from area region country countries city cities x f m d w h genders all gender'.split(' '));
-export type PlaceRegion = 'SE' | 'EU' | 'UK' | 'US' | 'other' | 'remote-anywhere';
+export const WORLD_REGIONS = ['SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA'] as const;
+export type WorldRegion = (typeof WORLD_REGIONS)[number];
+export type PlaceRegion = WorldRegion | 'other' | 'remote-anywhere';
 const foldPlace = (s: string): string => s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '');
 const placeWords = (s: string): string[] => foldPlace(s).split(/[^a-z0-9]+/).filter(Boolean);
 const placeHas = (words: ReadonlyArray<string>, w: string): boolean => words.includes(w);
