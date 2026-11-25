@@ -169,49 +169,187 @@ test('identical output: the page shows the same ids per group as core, CLI and M
   expect(compared).toBeGreaterThanOrEqual(5);
 });
 
-type Call = (name: string, input: Record<string, unknown>) => Promise<{ text: string; isError: boolean }>;
-const fakeModelContext = () => {
-  const tools = new Map<string, { execute(i: Record<string, unknown>): Promise<{ content: Array<{ text: string }>; isError?: boolean }> }>();
-  Object.defineProperty(navigator, 'modelContext', { value: { registerTool: (t: { name: string; execute: never }) => { tools.set(t.name, t); } } });
-  (window as unknown as { callTool: Call }).callTool = async (name, input) => { const r = await tools.get(name)!.execute(input); return { text: r.content[0]!.text, isError: r.isError === true }; };
-  (window as unknown as { toolNames: () => string[] }).toolNames = () => [...tools.keys()].sort();
-};
+const toolNames = (page: Page) =>
+  page.evaluate(async () => ((await document.modelContext?.getTools()) ?? []).map(t => t.name).sort());
 const call = (page: Page, name: string, input: Record<string, unknown> = {}) =>
-  page.evaluate(([n, i]) => (window as unknown as { callTool: Call }).callTool(n as string, i as Record<string, unknown>), [name, input] as const).then((r): Record<string, unknown> & { isError: boolean } => Object.assign(JSON.parse(r.text) as Record<string, unknown>, { isError: r.isError }));
+  page.evaluate(async ({ name, input }) => {
+    const ctx = document.modelContext;
+    if (!ctx) throw new Error('modelContext missing');
+    const tool = (await ctx.getTools()).find(t => t.name === name);
+    if (!tool) throw new Error(`missing ${name}`);
+    const raw = await ctx.executeTool(tool, input);
+    return JSON.parse(raw) as Record<string, unknown>;
+  }, { name, input });
 
-test('WebMCP, feature-detected: an agent drives the same form; a write on an old state version is refused after a human edit', async ({ page }) => {
-  await page.addInitScript(fakeModelContext);
+test('WebMCP polyfill: find_roles updates the form; a stale state version is refused after a human edit', async ({ page }) => {
   await page.goto('/?all');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
-  expect(await page.evaluate(() => (window as unknown as { toolNames: () => string[] }).toolNames())).toEqual(['get_state', 'match_roles', 'open_posting', 'refine_search']);
-  const v0 = (await call(page, 'get_state')).stateVersion as number;
-  const first = await call(page, 'match_roles', { stateVersion: v0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
-  expect(first.isError).toBe(false);
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.error ?? null).toBe(null);
   await expect(page.getByTestId('results')).toBeVisible();
   await expect(page.getByLabel('About you')).toHaveValue(/Go and Postgres/);
   const v1 = first.stateVersion as number;
-  expect(v1).toBe(v0 + 1);
+  expect(v1).toBe(1);
   await page.getByLabel('Work mode').selectOption('hybrid');
-  const stale = await call(page, 'refine_search', { stateVersion: v1, remote: 'remote' });
-  expect(stale.isError).toBe(true);
+  const stale = await call(page, 'find_roles', { stateVersion: v1, remote: 'remote' });
   expect(String(stale.error)).toMatch(/^StaleWrite/);
   await expect(page.getByLabel('Work mode')).toHaveValue('hybrid');
-  const fresh = await call(page, 'refine_search', { stateVersion: (await call(page, 'get_state')).stateVersion, regions: ['SE', 'EU'] });
-  expect(fresh.isError).toBe(false);
+  const fresh = await call(page, 'find_roles', { stateVersion: stale.stateVersion, regions: ['SE', 'EU'] });
+  expect(fresh.error ?? null).toBe(null);
   expect(['results', 'ZeroResults']).toContain(fresh.verdict);
   await expect(page.getByLabel('Sweden', { exact: true })).toBeChecked();
-  const groups = fresh.groups as Record<string, Array<{ id: string }>> | null;
-  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
-  if (anyId) expect(String((await call(page, 'open_posting', { id: anyId })).url)).toMatch(/^https:\/\//);
-  expect((await call(page, 'open_posting', { id: 'not-shown' })).isError).toBe(true);
 });
 
-test('WebMCP absent: the page registers nothing and works as before @firefox', async ({ page }) => {
-  await page.addInitScript(() => { Object.defineProperty(navigator, 'modelContext', { value: undefined }); });
+test('WebMCP polyfill: tailor_cv and show_apply_pack update the page; apply or send needs a person confirm and still does not send', async ({ page }) => {
+  const requests: Request[] = [];
+  page.on('request', r => requests.push(r));
+  await page.goto('/?all');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: `Senior backend engineer, Go and Postgres, distributed systems ${MARKER}` });
+  expect(first.error ?? null).toBe(null);
+  await expect(page.getByTestId('results')).toBeVisible();
+  const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+  expect(anyId).toBeTruthy();
+  expect((await call(page, 'tailor_cv', { id: 'not-shown' })).error).toMatch(/not a role shown on the page/);
+  const outline = await call(page, 'tailor_cv', { id: anyId });
+  expect(outline.error ?? null).toBe(null);
+  await expect(page.getByTestId('cv-outline')).toBeVisible();
+  await expect(page.getByTestId('cv-outline')).toContainText('not a submitted CV');
+  const pack = await call(page, 'show_apply_pack', { id: anyId });
+  expect(pack.error ?? null).toBe(null);
+  expect(String(pack.url)).toMatch(/^https:\/\//);
+  await expect(page.getByTestId('apply-pack')).toBeVisible();
+  await expect(page.getByTestId('apply-pack')).toContainText('does not apply or send');
+  const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  const cancelled = await pending;
+  expect(cancelled.applied).toBe(false);
+  expect(cancelled.sent).toBe(false);
+  const pendingYes = call(page, 'show_apply_pack', { id: anyId, send: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm' }).click();
+  const confirmed = await pendingYes;
+  expect(confirmed.confirmed).toBe(true);
+  expect(confirmed.applied).toBe(false);
+  expect(confirmed.sent).toBe(false);
+  expect(String(confirmed.url)).toMatch(/^https:\/\//);
+  await expect(page.getByTestId('apply-pack')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const leaking = requests.filter(r => carries(r, MARKER) || carries(r, 'Postgres, distributed'));
+  expect(leaking).toHaveLength(0);
+});
+
+test('WebMCP confirm: Escape cancels and a second request reopens the dialog', async ({ page }) => {
+  await page.goto('/?all');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.error ?? null).toBe(null);
+  const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+  const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+  expect(anyId).toBeTruthy();
+  const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.keyboard.press('Escape');
+  const cancelled = await pending;
+  expect(cancelled.applied).toBe(false);
+  expect(cancelled.sent).toBe(false);
+  await expect(page.getByTestId('person-confirm')).toHaveCount(0);
+  const pendingAgain = call(page, 'show_apply_pack', { id: anyId, apply: true });
+  await expect(page.getByTestId('person-confirm')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  const cancelledAgain = await pendingAgain;
+  expect(cancelledAgain.applied).toBe(false);
+  expect(cancelledAgain.sent).toBe(false);
+});
+
+test('WebMCP polyfill: find_roles on the home page reveals the form and results', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('reveal')).toBeVisible();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+  expect(first.error ?? null).toBe(null);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await expect(page.getByLabel('About you')).toHaveValue(/Go and Postgres/);
+});
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' });
+  test('WebMCP tools register after the polyfill chunk loads lazily', async ({ context, page }) => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const hits: string[] = [];
+    await context.route(/webmcp-polyfill/, async route => {
+      hits.push(route.request().url());
+      await held;
+      await route.continue();
+    });
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    expect(await toolNames(page)).toEqual([]);
+    await expect.poll(async () => hits.length).toBeGreaterThan(0);
+    expect(await toolNames(page)).toEqual([]);
+    release();
+    await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  });
+
+  test('native navigator.modelContext registers tools without loading the polyfill', async ({ context, page }) => {
+    const hits: string[] = [];
+    await context.route(/webmcp-polyfill/, async route => {
+      hits.push(route.request().url());
+      await route.abort();
+    });
+    await page.addInitScript(() => {
+      const tools = new Map<string, { name: string }>();
+      const modelContext = {
+        registerTool: async (tool: { name: string }, options?: { signal?: AbortSignal }) => {
+          tools.set(tool.name, tool);
+          options?.signal?.addEventListener('abort', () => { tools.delete(tool.name); }, { once: true });
+        },
+        getTools: async () => [...tools.values()],
+      };
+      Object.defineProperty(navigator, 'modelContext', { configurable: true, enumerable: true, value: modelContext });
+    });
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await expect.poll(async () => page.evaluate(async () => {
+      const nav = navigator as unknown as { modelContext?: { getTools: () => Promise<Array<{ name: string }>> } };
+      return ((await nav.modelContext?.getTools()) ?? []).map(t => t.name).sort();
+    })).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    await page.waitForLoadState('networkidle');
+    expect(hits).toEqual([]);
+  });
+
+  test('a failed person-confirm chunk cancels the request and leaves the form visible', async ({ context, page }) => {
+    await context.route(/person-confirm/, route => route.abort());
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+    const first = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer, Go and Postgres, distributed systems' });
+    expect(first.error ?? null).toBe(null);
+    const groups = first.groups as Record<string, Array<{ id: string }>> | null;
+    const anyId = groups ? Object.values(groups).flat()[0]?.id : undefined;
+    expect(anyId).toBeTruthy();
+    const pending = call(page, 'show_apply_pack', { id: anyId, apply: true });
+    const cancelled = await pending;
+    expect(cancelled.applied).toBe(false);
+    expect(cancelled.sent).toBe(false);
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeVisible();
+    await expect(page.getByLabel('About you')).toBeVisible();
+    await expect(page.getByTestId('person-confirm')).toHaveCount(0);
+  });
+});
+
+test('WebMCP polyfill stays out of the way of the ordinary form @firefox', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/?all');
   await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect.poll(async () => (await toolNames(page)).length).toBeGreaterThan(0);
   await fill(page, DESCRIPTION);
   expect(errors).toEqual([]);
   await expect(page.getByTestId('results')).toBeVisible();

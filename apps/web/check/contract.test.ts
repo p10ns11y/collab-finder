@@ -64,3 +64,16 @@ test('the built page needs nothing the CSP blocks', { skip: !existsSync(here('..
   assert.ok(!/\son[a-z]+=/i.test(html), 'no inline handlers');
   for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) assert.ok(/^(\/|data:)/.test(m[1]!), m[1]);
 });
+
+test('the find-roles form is annotated for WebMCP and never auto-submits an apply or send', () => {
+  assert.match(app, /toolname="find_roles_form"/);
+  assert.match(app, /tooldescription=/);
+  assert.doesNotMatch(app, /toolautosubmit/);
+  const webmcp = readFileSync(here('../src/webmcp.ts'), 'utf8');
+  const tools = readFileSync(here('../src/page-tools.ts'), 'utf8');
+  assert.doesNotMatch(webmcp, /toolautosubmit/);
+  assert.doesNotMatch(tools, /toolautosubmit/);
+  assert.match(webmcp, /name: 'find_roles'/);
+  assert.match(webmcp, /name: 'tailor_cv'/);
+  assert.match(webmcp, /name: 'show_apply_pack'/);
+});

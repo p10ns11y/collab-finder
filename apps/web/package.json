@@ -12,6 +12,7 @@
   "dependencies": {
     "@ui-sdk/core": "0.1.0-beta.13",
     "@ui-sdk/react": "0.1.0-beta.13",
+    "@w3c/webmcp-polyfill": "0.2.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "react": "19.2.0",
@@ -28,6 +29,7 @@
     "@vitejs/plugin-react": "5.1.0",
     "tailwindcss": "4.1.16",
     "typescript": "5.9.3",
-    "vite": "7.1.12"
+    "vite": "7.1.12",
+    "webmcp-types": "0.2.0"
   }
 }

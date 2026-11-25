@@ -82,6 +82,13 @@ export default defineConfig({
     sourcemap: false,
     target: 'es2022',
     modulePreload: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/@w3c/webmcp-polyfill') || id.includes('node_modules/webmcp-types')) return 'webmcp-polyfill';
+        },
+      },
+    },
   },
   server: { fs: { allow: ['../..'] } },
 });

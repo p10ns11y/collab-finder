@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Groups } from './cards.tsx';
 import { Reveal } from './reveal.tsx';
 import {
@@ -8,14 +8,24 @@ import {
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
-import { modelContext, registerWebMcp, type AgentSearch } from './webmcp.ts';
+import type { AgentSearch, WebMcpHost } from './webmcp.ts';
+import type { ApplyPack, CvOutline } from './page-tools.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
+const PersonConfirm = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.PersonConfirm })));
+const ToolCards = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.ToolCards })));
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
+
+class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError?.(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
 type View =
@@ -55,6 +65,7 @@ export function App() {
   const [productOnly, setProductOnly] = useState(false);
   const [remote, setRemote] = useState<RemotePref>('any');
   const [view, setView] = useState<View>({ kind: 'idle' });
+  const [showAll, setShowAll] = useState(wantsAll);
   const goalRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -91,14 +102,24 @@ export function App() {
   }, [pool, description, goal, likes, regions, remote, productOnly]);
 
   const version = useRef(0);
-  const latest = useRef({ run, view });
-  latest.current = { run, view };
+  const latest = useRef({ run, view, description });
+  latest.current = { run, view, description };
+  const [outline, setOutline] = useState<CvOutline | null>(null);
+  const [pack, setPack] = useState<ApplyPack | null>(null);
+  const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (ok: boolean) => void } | null>(null);
+  const confirmRef = useRef<{ resolve: (ok: boolean) => void } | null>(null);
+  const confirmId = useRef(0);
   useEffect(() => {
-    registerWebMcp({
+    const registration = new AbortController();
+    const rowOf = (id: string) => {
+      const v = latest.current.view;
+      return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id) ?? null) : null;
+    };
+    const host: WebMcpHost = {
       version: () => version.current,
       search: (base, change) => {
         if (base !== version.current) return { stateVersion: version.current, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${version.current}` };
-        if (change.description !== undefined) setDescription(change.description);
+        if (change.description !== undefined) { setDescription(change.description); latest.current.description = change.description; }
         if (change.goal !== undefined) setGoal(change.goal);
         if (change.regions) setRegions(change.regions);
         if (change.remote) setRemote(change.remote);
@@ -107,17 +128,38 @@ export function App() {
         const r = latest.current.run(change);
         return { stateVersion: version.current, result: r?.isOk() ? r.value : null, verdict: r === null ? 'refused' : r.isErr() ? r.error.kind : 'results', error: r === null ? 'pool not loaded' : null };
       },
-      urlOf: id => {
-        const v = latest.current.view;
-        return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id)?.url ?? null) : null;
+      showAllOptions: () => {
+        setShowAll(true);
+        if (!wantsAll()) window.location.hash = 'all';
       },
-    });
+      rowOf,
+      description: () => latest.current.description,
+      confirmApplyOrSend: detail => new Promise(resolve => {
+        confirmRef.current?.resolve(false);
+        const ask = {
+          id: confirmId.current += 1,
+          title: 'Person confirm needed',
+          body: `A tool asked to apply or send for ${detail.title}. This page will not apply or send. Confirm only if you want the posting link shown so you can open it yourself.`,
+          resolve,
+        };
+        confirmRef.current = ask;
+        setConfirmAsk(ask);
+      }),
+      showCvOutline: next => { setOutline(next); setPack(null); },
+      showApplyPack: next => { setPack(next); },
+    };
+    void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal)).catch(() => undefined);
+    return () => {
+      registration.abort();
+      confirmRef.current?.resolve(false);
+      confirmRef.current = null;
+    };
   }, []);
 
-  const [showAll, setShowAll] = useState(wantsAll);
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
   const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
-  const sdkPath = uiSdkFlag() && !modelContext() && recover({ kind: 'WebMcpUnavailable' }).ui === 'switch-to-ui-sdk-path';
+  useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); } }, [view]);
+  const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
   const widen = (w: string) => {
@@ -151,21 +193,21 @@ export function App() {
 
       {showAll && <>
       <h2 className="mb-4 text-2xl font-semibold">Describe yourself</h2>
-      <form onSubmit={onSubmit} className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:p-6" noValidate>
+      <form toolname="find_roles_form" tooldescription="Fill this form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send." onSubmit={onSubmit} className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:p-6" noValidate>
         <div className="grid gap-2">
           <Label htmlFor="description">About you</Label>
-          <Textarea id="description" name="description" value={description} maxLength={MAX_CHARS + 200}
+          <Textarea id="description" name="description" toolparamdescription="A short self-description of the work you do, without your name, email or phone" value={description} maxLength={MAX_CHARS + 200}
             onChange={e => { setDescription(e.target.value); formChanged(); }}
             placeholder="e.g. Senior backend engineer, 8 years of Go and Postgres, distributed systems" aria-describedby="description-help" autoComplete="off" spellCheck />
           <p id="description-help" className="text-xs text-text-muted">At least {MIN_CHARS} characters. Skip your name, email and phone: they are not needed.</p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
-          <Input id="goal" ref={goalRef} name="goal" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. AI infrastructure" autoComplete="off" />
+          <Input id="goal" ref={goalRef} name="goal" toolparamdescription="Optional area you want to grow into" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. AI infrastructure" autoComplete="off" />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
-          <Input id="likes" name="likes" value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
+          <Input id="likes" name="likes" toolparamdescription="Optional companies or interests, separated by commas. Stays in this tab." value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
             placeholder="e.g. Spotify, fintech, robotics" aria-describedby="likes-help" autoComplete="off" />
           <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies, titles and industries move up; nothing is added or removed. Industries we can tell from a company's own postings: {INDUSTRY_LABELS}. Stays in this browser tab and is never sent or saved.</p>
         </div>
@@ -176,7 +218,7 @@ export function App() {
                 <SdkRegion value={regions} onValueChange={next => { setRegions(next); formChanged(); }} />
               </Suspense>
             ) : (
-              <fieldset className="grid gap-2" aria-describedby="region-help">
+              <fieldset className="grid gap-2" aria-describedby="region-help" toolparamdescription="Optional regions to keep. None picked means anywhere.">
                 <legend className="text-sm font-medium">Regions</legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {REGIONS.map(([v, l]) => (
@@ -193,13 +235,13 @@ export function App() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="remote">Work mode</Label>
-            <Select id="remote" value={remote} onChange={e => { setRemote(e.target.value as RemotePref); formChanged(); }}>
+            <Select id="remote" name="remote" toolparamdescription="Preferred work mode" value={remote} onChange={e => { setRemote(e.target.value as RemotePref); formChanged(); }}>
               {REMOTES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" id="product-only" checked={productOnly} className="mt-0.5 size-4 accent-accent" aria-describedby="product-only-help"
+          <input type="checkbox" id="product-only" name="productOnly" toolparamdescription="If set, hide agency, consultancy or freelance-looking roles" checked={productOnly} className="mt-0.5 size-4 accent-accent" aria-describedby="product-only-help"
             onChange={() => { setProductOnly(!productOnly); formChanged(); }} />
           <span>
             Product companies only
@@ -218,8 +260,23 @@ export function App() {
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
+        {(outline || pack) && <SoftBoundary><Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense></SoftBoundary>}
       </div>
       </>}
+
+      {confirmAsk && (
+        <SoftBoundary onError={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}>
+          <Suspense fallback={null}>
+            <PersonConfirm
+              key={confirmAsk.id}
+              title={confirmAsk.title}
+              body={confirmAsk.body}
+              onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
+              onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
+            />
+          </Suspense>
+        </SoftBoundary>
+      )}
 
       <footer className="mt-12 border-t border-border pt-4 text-xs text-text-muted">
         <p>Public job facts and links only. Postings belong to the employers; always check the posting before applying.</p>
