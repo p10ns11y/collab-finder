@@ -18,8 +18,7 @@ export type VisitorError =
 
 export type AgentError =
   | { kind: 'WebMcpUnavailable' }
-  | { kind: 'StaleWrite'; baseVersion: number; currentVersion: number; by: Actor }
-  | { kind: 'ToolUiDrift'; toolVersion: number; uiVersion: number };
+  | { kind: 'StaleWrite'; baseVersion: number; currentVersion: number; by: Actor };
 
 export type PoolError =
   | { kind: 'PersonalFieldLeak'; keys: ReadonlyArray<string> }
@@ -27,10 +26,6 @@ export type PoolError =
   | { kind: 'PartialRefresh'; failed: ReadonlyArray<string>; countDrop: Partial<Record<string, number>> }
   | { kind: 'EvalRegressed'; before: number; after: number }
   | { kind: 'SchemaInvalid'; issues: ReadonlyArray<string> };
-
-export type SurfaceError =
-  | { kind: 'SurfaceDrift'; surface: Surface; firstDiffPath: string }
-  | { kind: 'VersionSkew'; surface: Surface; core: string; pool: string };
 
 export type IntelError =
   | { kind: 'MissingKey'; provider: string }
@@ -43,7 +38,7 @@ export type PackError =
   | { kind: 'UnshippedClaim'; claim: string; feature: string }
   | { kind: 'NameMismatch'; expected: string; found: string; where: string };
 
-export type AppError = VisitorError | AgentError | PoolError | SurfaceError | IntelError | PackError;
+export type AppError = VisitorError | AgentError | PoolError | IntelError | PackError;
 
 export type Warning =
   | { kind: 'PoolStale'; checkedAt: string; ageDays: number }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Button } from './components/ui/button.tsx';
 import { Card } from './components/ui/card.tsx';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
@@ -8,11 +8,21 @@ export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: str
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const onDialogCancel = (event: Event) => { event.preventDefault(); onCancel(); };
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      onCancel();
+    };
+    const onDialogCancel = (event: Event) => { event.preventDefault(); settle(); };
+    const onDialogClose = () => { settle(); };
     el.addEventListener('cancel', onDialogCancel);
+    el.addEventListener('close', onDialogClose);
     if (!el.open) el.showModal();
     return () => {
+      settled = true;
       el.removeEventListener('cancel', onDialogCancel);
+      el.removeEventListener('close', onDialogClose);
       if (el.open) el.close();
     };
   }, []);
@@ -51,4 +61,13 @@ export function ToolCards({ outline, pack }: { outline: CvOutline | null; pack: 
       )}
     </>
   );
+}
+
+export { PersonConfirm as ConfirmPane };
+
+export function CardsPane({ outline, pack, onShown }: { outline: CvOutline | null; pack: ApplyPack | null; onShown: () => void }) {
+  const shown = useRef(onShown);
+  shown.current = onShown;
+  useLayoutEffect(() => { shown.current(); }, [outline, pack]);
+  return <ToolCards outline={outline} pack={pack} />;
 }
