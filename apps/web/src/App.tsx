@@ -18,17 +18,18 @@ const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?templa
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
 
-let softTry = 0;
-const loadSoft = () => {
-  const i = softTry;
-  return (i ? import('./person-confirm.tsx?r=1') : import('./person-confirm.tsx')).then(
-    m => m as typeof import('./person-confirm.tsx'),
-    (err: unknown) => {
-      if (softTry === i && i < 1) softTry += 1;
+const retrying = <T,>(first: () => Promise<T>, again: () => Promise<unknown>) => {
+  let tries = 0;
+  return () => {
+    const i = tries;
+    return (i ? again() as Promise<T> : first()).catch((err: unknown) => {
+      if (tries === i && i < 1) tries += 1;
       return Promise.reject(err);
-    },
-  );
+    });
+  };
 };
+const loadSoft = retrying(() => import('./person-confirm.tsx'), () => import('./person-confirm.tsx?r=1'));
+const loadFlow = retrying(() => import('./flow.ts'), () => import('./flow.ts?r=1'));
 
 class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -66,10 +67,9 @@ export function App() {
   const send = (e: FlowEvent) => {
     const m = flowMod.current;
     const n = m && m.next(snapRef.current ?? m.START, e);
-    if (!n) return false;
+    if (!n) return;
     snapRef.current = n;
     setSnap(n);
-    return true;
   };
   const step = snap?.step ?? (down ? 'failed' : 'loading');
   const view: View = snap?.view ?? { kind: 'idle' };
@@ -97,12 +97,9 @@ export function App() {
       })
       .then((raw: unknown) => { const p = readPool(raw); return p.isOk() ? p.value : Promise.reject(new Error(p.error.kind)); });
     const refreshWorker = () => navigator.serviceWorker?.getRegistration().then(reg => reg?.update()).catch(() => undefined);
-    void import('./flow.ts').then(m => {
-      flowMod.current = m;
-      return attempt('')
-        .catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); })
-        .then(p => { poolStats(p); setPool(p); send({ type: 'POOL_LOADED' }); }, () => send({ type: 'POOL_FAILED' }));
-    }, () => setDown(true));
+    const flow = loadFlow().then(m => { flowMod.current = m; });
+    const data = attempt('').catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); });
+    Promise.all([flow, data]).then(([, p]) => { poolStats(p); setPool(p); send({ type: 'POOL_LOADED' }); }, () => flowMod.current ? send({ type: 'POOL_FAILED' }) : setDown(true));
   }, []);
   useEffect(loadPool, [loadPool]);
 
@@ -179,6 +176,7 @@ export function App() {
     void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal)).catch(() => undefined);
     return () => {
       registration.abort();
+      settleCards(false);
       confirmRef.current?.('cancelled');
       confirmRef.current = null;
     };

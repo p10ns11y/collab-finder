@@ -12,6 +12,9 @@ mutants=(
   "MATCH_FAILED->matched|s/MATCH_FAILED: 'find'/MATCH_FAILED: 'matched'/g"
   "RETRY dropped|s/failed: { RETRY: 'loading' }/failed: {}/"
   "CANCEL->confirmed|s/CANCEL: 'matched'/CANCEL: 'confirmed'/"
+  "EDIT keeps results|s/view: { kind: 'idle' }, outline: null, pack: null };/view: s.view, outline: null, pack: null };/"
+  "TAILOR keeps the old pack|s/outline: e.outline, pack: null/outline: e.outline/"
+  "CONFIRM drops the pack|s/pack: s.ask?.pack ?? null, ask: null/ask: null/"
 )
 printf 'mutant\tunit_failed\tunit_total\te2e_failed\te2e_total\n' > "$out/table.tsv"
 for m in "${mutants[@]}"; do
@@ -23,7 +26,7 @@ for m in "${mutants[@]}"; do
   node --test check/flow.test.ts > "$out/$slug-unit.log" 2>&1
   uf=$(sed -n 's/^ℹ fail //p' "$out/$slug-unit.log"); ut=$(sed -n 's/^ℹ tests //p' "$out/$slug-unit.log")
   npx vite build > "$out/$slug-build.log" 2>&1 || { echo "build failed for $name" >&2; exit 2; }
-  npx playwright test tests/flow.spec.ts --project chromium --workers=1 -g "flow path" --reporter=line > "$out/$slug-e2e.log" 2>&1
+  npx playwright test tests/flow.spec.ts --project chromium --workers=1 -g "flow path" --timeout=15000 --reporter=line > "$out/$slug-e2e.log" 2>&1
   ef=$(grep -oE '[0-9]+ failed' "$out/$slug-e2e.log" | tail -1 | awk '{print $1+0}'); et=$(grep -oE '[0-9]+ (passed|failed)' "$out/$slug-e2e.log" | tail -2 | awk '{s+=$1} END {print s}')
   printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$uf" "$ut" "$ef" "$et" >> "$out/table.tsv"
 done

@@ -30,6 +30,18 @@ const requestConfirm = (page: Page, id: string) =>
     return older;
   }, { source: invoke.toString(), id });
 
+const shows = async (page: Page, step: string, dialog: boolean) => {
+  const count = (id: string, n: number) => expect(page.getByTestId(id)).toHaveCount(n);
+  if (step === 'loading') await expect(page.getByRole('status').filter({ hasText: 'Loading roles' })).toBeVisible();
+  if (step === 'failed') await expect(page.getByRole('alert').filter({ hasText: 'Could not load the roles' })).toBeVisible();
+  if (['loading', 'failed', 'find'].includes(step)) { await count('results', 0); await count('cv-outline', 0); await count('apply-pack', 0); }
+  else await expect(page.getByTestId('results')).toBeVisible();
+  if (step === 'tailored') { await expect(page.getByTestId('cv-outline')).toBeVisible(); await count('apply-pack', 0); }
+  if (step === 'pack' || step === 'confirmed') await expect(page.getByTestId('apply-pack')).toBeVisible();
+  await count('confirmed', step === 'confirmed' ? 1 : 0);
+  await count('person-confirm', step === 'confirming' && dialog ? 1 : 0);
+};
+
 const toolsReady = (page: Page) => expect.poll(() => page.evaluate(async () => ((await document.modelContext?.getTools()) ?? []).length)).toBe(3);
 
 test.describe('path replays', () => {
@@ -42,6 +54,7 @@ for (const [i, path] of paths.entries()) {
     await page.goto('/?all');
     await toolsReady(page);
     const root = page.locator('[data-step]');
+    await expect(root).toHaveAttribute('data-step', path[0]?.event === 'POOL_FAILED' ? 'failed' : 'find');
     let version = 0;
     let id = '';
     for (const edge of path) {
@@ -111,10 +124,31 @@ for (const [i, path] of paths.entries()) {
       if (!LIFECYCLE.has(edge.event)) version += 1;
       if (edge.event === 'REQUEST_CONFIRM' && path.some(e => e.event === 'CONFIRM_FAILED')) continue;
       await expect(root).toHaveAttribute('data-step', edge.to);
+      await shows(page, edge.to, true);
     }
     passed += 1;
   });
 }
+
+test('flow chunk retries on the next request while the pool fetch starts in parallel', async ({ page, context }) => {
+  let unblock: (() => void) | undefined;
+  let flowBlocked = true;
+  const flowWait = new Promise<void>(resolve => { unblock = resolve; });
+  let fetched = false;
+  await context.route(/\/assets\/flow-/, async route => { if (flowBlocked) { await flowWait; await route.abort(); } else await route.continue(); });
+  await page.route(/\/pool\.json/, async route => { fetched = true; await route.fulfill({ contentType: 'application/json', body: sample }); });
+  await page.goto('/?all');
+  await expect.poll(() => fetched).toBe(true);
+  await expect(page.locator('[data-step]')).toHaveAttribute('data-step', 'loading');
+  unblock?.();
+  await expect(page.locator('[data-step]')).toHaveAttribute('data-step', 'failed');
+  flowBlocked = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.locator('[data-step]')).toHaveAttribute('data-step', 'find');
+  await page.getByLabel('About you').fill(DESCRIPTION);
+  await page.getByRole('button', { name: 'Find roles' }).click();
+  await expect(page.getByTestId('results')).toBeVisible();
+});
 
 test('a pending confirm refuses other tools with a clear error and keeps the version', async ({ page }) => {
   await page.goto('/?all');

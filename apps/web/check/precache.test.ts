@@ -47,6 +47,6 @@ test('precache uses clean URLs and the worker never stores a redirected response
 
 test('lazy chunks the main page loads are precached, so it works offline right after the first visit', () => {
   const entries = precacheOf(readFileSync(here('../dist/sw.js'), 'utf8'));
-  for (const name of ['flow', 'webmcp', 'webmcp-polyfill']) assert.equal(entries.filter(e => new RegExp(`^/assets/${name}-[\\w-]{8}\\.js$`).test(e)).length, 1, name);
-  assert.equal(entries.filter(e => /^\/assets\/person-confirm-[\w-]{8}\.js$/.test(e)).length, 2);
+  for (const name of ['webmcp', 'webmcp-polyfill']) assert.equal(entries.filter(e => new RegExp(`^/assets/${name}-[\\w-]{8}\\.js$`).test(e)).length, 1, name);
+  for (const name of ['flow', 'person-confirm']) assert.equal(entries.filter(e => new RegExp(`^/assets/${name}-[\\w-]{8}\\.js$`).test(e)).length, 2, name);
 });

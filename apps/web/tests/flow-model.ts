@@ -1,3 +1,5 @@
+import { getShortestPaths } from '@xstate/graph';
+import { createMachine } from 'xstate';
 import type { EventType, Step } from '../src/flow.ts';
 
 export type Edge = { from: Step; event: EventType; to: Step };
@@ -24,16 +26,18 @@ export const EDGES: ReadonlyArray<Edge> = STEPS.flatMap(from => EVENTS.flatMap(e
   return to ? [{ from, event, to }] : [];
 }));
 
+export const model = createMachine({
+  id: 'expected',
+  initial: 'loading',
+  states: Object.fromEntries(STEPS.map(from => [from, { on: Object.fromEntries(Object.entries(EXPECTED[from]).map(([event, to]) => [event, { target: to }])) }])),
+});
+
 const shortestPrefixes = (): ReadonlyMap<Step, ReadonlyArray<Edge>> => {
-  const prefix = new Map<Step, ReadonlyArray<Edge>>([['loading', []]]);
-  const queue: Step[] = ['loading'];
-  while (queue.length > 0) {
-    const from = queue.shift()!;
-    for (const e of EDGES.filter(x => x.from === from)) {
-      if (prefix.has(e.to)) continue;
-      prefix.set(e.to, [...prefix.get(from)!, e]);
-      queue.push(e.to);
-    }
+  const prefix = new Map<Step, ReadonlyArray<Edge>>();
+  for (const path of getShortestPaths(model, { events: EVENTS.map(type => ({ type })) })) {
+    const steps = path.steps.slice(1);
+    const edges = steps.map((st, k) => ({ from: String((k ? steps[k - 1]! : path.steps[0]!).state.value) as Step, event: st.event.type as EventType, to: String(st.state.value) as Step }));
+    prefix.set(String(path.state.value) as Step, edges);
   }
   return prefix;
 };
