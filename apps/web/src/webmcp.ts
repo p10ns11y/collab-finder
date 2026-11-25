@@ -1,5 +1,6 @@
 import type {} from 'webmcp-types';
-import type { MatchResult, MatchRow } from '../../../packages/core/src/index.ts';
+import type { MatchProfile, MatchResult, MatchRow, PublicPool } from '../../../packages/core/src/index.ts';
+import { gapGuidance } from '../../../packages/core/src/source-gaps.ts';
 import {
   APPLY_SEND_NOTICE,
   buildApplyPack,
@@ -24,6 +25,7 @@ export type WebMcpHost = {
   search(baseVersion: number, change: AgentSearch): HostAnswer;
   showAllOptions(): void;
   rowOf(id: string): MatchRow | null;
+  lastAsk(): { ask: MatchProfile; pool: PublicPool } | null;
   description(): string;
   confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<ConfirmOutcome>;
   showCvOutline(outline: CvOutline): Promise<boolean>;
@@ -135,7 +137,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
       mc.registerTool({
         name: 'find_roles',
         title: 'Find roles',
-        description: 'Fill the page form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send.',
+        description: 'Fill the page form with a self-description and show matching roles in this browser. When few roles match, gap names the missing sources and what to add. Nothing leaves the page. Does not apply or send.',
         inputSchema: {
           type: 'object',
           required: ['stateVersion'],
@@ -146,7 +148,9 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           if (!parsed.ok) return { error: parsed.error, stateVersion: host.version() };
           host.showAllOptions();
           const answer = host.search(parsed.value.baseVersion, parsed.value.change);
-          return summarizeRoles(answer);
+          const last = host.lastAsk();
+          const gap = last && (answer.result || answer.verdict === 'ZeroResults') ? gapGuidance(last.ask, last.pool, answer.result) : null;
+          return { ...summarizeRoles(answer), gap };
         },
       }, opts),
       mc.registerTool({

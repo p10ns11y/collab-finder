@@ -3,7 +3,7 @@ import { Groups } from './cards.tsx';
 import { Reveal } from './reveal.tsx';
 import {
   poolStats, findPii, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
-  type MatchResult, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
+  type MatchProfile, type MatchResult, type PublicPool, type RegionPref, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
@@ -17,6 +17,7 @@ const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?templa
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
+const SourceGaps = lazy(() => import('./source-gaps.tsx'));
 
 let softTry = 0;
 const loadSoft = () => {
@@ -38,7 +39,7 @@ class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode
 }
 
 type PoolState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; pool: PublicPool };
-type View =
+export type View =
   | { kind: 'idle' }
   | { kind: 'inputError'; msg: string }
   | { kind: 'piiWarning'; kinds: ReadonlyArray<string> }
@@ -101,11 +102,14 @@ export function App() {
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
   const nonLatin = useMemo(() => mostlyNonLatin(`${description}\n${goal}\n${likes}`), [description, goal, likes]);
 
+  const lastAsk = useRef<{ ask: MatchProfile; pool: PublicPool } | null>(null);
   const run = useCallback((over?: AgentSearch) => {
     if (pool.kind !== 'ready') return null;
     const t0 = performance.now();
-    const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool.pool);
+    const ask = { description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly };
+    const r = match(ask, pool.pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
+    lastAsk.current = { ask, pool: pool.pool };
     setView(r.isOk() ? { kind: 'results', result: r.value, ms } : toView(r.error));
     requestAnimationFrame(() => resultsRef.current?.focus());
     return r;
@@ -170,6 +174,7 @@ export function App() {
         if (!wantsAll()) window.location.hash = 'all';
       },
       rowOf,
+      lastAsk: () => lastAsk.current,
       description: () => latest.current.description,
       confirmApplyOrSend: detail => new Promise(resolve => {
         confirmRef.current?.resolve('cancelled');
@@ -296,6 +301,7 @@ export function App() {
       </form>
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
+        {lastAsk.current && <SoftBoundary><Suspense fallback={null}><SourceGaps last={lastAsk.current} view={view} /></Suspense></SoftBoundary>}
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
         {(outline || pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={outline} pack={pack} onShown={() => settleCards(true)} /></SoftBoundary>}
       </div>
