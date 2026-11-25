@@ -7,8 +7,10 @@ import {
   buildApplyPack,
   buildCvOutline,
   confirmedButNotSent,
+  confirmUnavailable,
   declinedConfirm,
   needsPersonConfirm,
+  panelUnavailable,
   parseFindRoles,
   parseRolePick,
   summarizeRoles,
@@ -63,6 +65,13 @@ test('a cancelled confirm does not apply or send, and a confirm still does not s
   assert.equal(cancelled.applied, false);
   assert.equal(cancelled.sent, false);
   assert.match(cancelled.error, /cancelled/);
+  assert.equal('confirmed' in cancelled, false);
+  const hidden = confirmUnavailable(5);
+  assert.equal(hidden.applied, false);
+  assert.equal(hidden.sent, false);
+  assert.match(hidden.error, /could not be shown/);
+  assert.equal('confirmed' in hidden, false);
+  assert.match(panelUnavailable(6, 'CV outline').error, /CV outline could not be shown/);
   const done = confirmedButNotSent(4, 'https://jobs.example.com/ashby/1');
   assert.equal(done.confirmed, true);
   assert.equal(done.applied, false);
