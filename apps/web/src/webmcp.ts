@@ -5,8 +5,10 @@ import {
   buildApplyPack,
   buildCvOutline,
   confirmedButNotSent,
+  confirmUnavailable,
   declinedConfirm,
   needsPersonConfirm,
+  panelUnavailable,
   parseFindRoles,
   parseRolePick,
   summarizeRoles,
@@ -23,10 +25,12 @@ export type WebMcpHost = {
   showAllOptions(): void;
   rowOf(id: string): MatchRow | null;
   description(): string;
-  confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<boolean>;
-  showCvOutline(outline: CvOutline): void;
-  showApplyPack(pack: ApplyPack): void;
+  confirmApplyOrSend(detail: { id: string; title: string; url: string }): Promise<ConfirmOutcome>;
+  showCvOutline(outline: CvOutline): Promise<boolean>;
+  showApplyPack(pack: ApplyPack): Promise<boolean>;
 };
+
+export type ConfirmOutcome = 'confirmed' | 'cancelled' | 'unavailable';
 
 type AnyContext = { registerTool(tool: object, options?: { signal?: AbortSignal }): Promise<void> };
 
@@ -115,10 +119,11 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
   const afterConfirm = async (id: string) => {
     const row = host.rowOf(id);
     if (!row) return { stateVersion: host.version(), error: 'not a role shown on the page' };
-    const ok = await host.confirmApplyOrSend({ id: row.id, title: row.title, url: row.url });
-    if (!ok) return declinedConfirm(host.version());
+    const outcome = await host.confirmApplyOrSend({ id: row.id, title: row.title, url: row.url });
+    if (outcome === 'cancelled') return declinedConfirm(host.version());
+    if (outcome !== 'confirmed') return confirmUnavailable(host.version());
     const pack = buildApplyPack(row);
-    host.showApplyPack(pack);
+    if (!await host.showApplyPack(pack)) return { ...panelUnavailable(host.version(), 'apply pack'), applied: false, sent: false };
     return { ...confirmedButNotSent(host.version(), row.url), pack };
   };
   const ignoreAbort = (err: unknown) => {
@@ -156,7 +161,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           const row = host.rowOf(parsed.value.id);
           if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
           const outline = buildCvOutline(host.description(), row);
-          host.showCvOutline(outline);
+          if (!await host.showCvOutline(outline)) return panelUnavailable(host.version(), 'CV outline');
           return { stateVersion: host.version(), ...outline };
         },
       }, opts),
@@ -173,7 +178,7 @@ export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Pro
           const row = host.rowOf(parsed.value.id);
           if (!row) return { error: 'not a role shown on the page', stateVersion: host.version() };
           const pack = buildApplyPack(row);
-          host.showApplyPack(pack);
+          if (!await host.showApplyPack(pack)) return panelUnavailable(host.version(), 'apply pack');
           return { stateVersion: host.version(), ...pack };
         },
       }, opts),
