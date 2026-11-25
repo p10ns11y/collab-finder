@@ -56,3 +56,41 @@ test('a person walks sources, find, match, tailor, apply pack and confirm', asyn
 });
 
 test.afterAll(() => { if (report) writeFileSync(report, JSON.stringify({ generated: paths.length, passed }, null, 2)); });
+
+const call = (page: import('@playwright/test').Page, name: string, input: Record<string, unknown>) =>
+  page.evaluate(async ({ name, input }) => {
+    const ctx = document.modelContext;
+    if (!ctx) throw new Error('modelContext missing');
+    const tool = (await ctx.getTools()).find(t => t.name === name);
+    if (!tool) throw new Error(`missing ${name}`);
+    return JSON.parse(await ctx.executeTool(tool, input)) as Record<string, unknown>;
+  }, { name, input });
+
+test('WebMCP tools drive the same machine; apply waits for a person and a cancel never reports confirmed', async ({ page }) => {
+  await page.goto('/flow/');
+  await expect.poll(async () => page.evaluate(async () => ((await document.modelContext?.getTools()) ?? []).map(t => t.name).sort())).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  expect((await call(page, 'find_roles', {})).error).toBeTruthy();
+  const found = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior platform engineer, Go' });
+  expect((found.roles as unknown[]).length).toBe(2);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(STATE_VIEW.matched);
+  expect((await call(page, 'find_roles', { stateVersion: 0, description: 'again' })).error).toMatch(/StaleWrite/);
+  expect((await call(page, 'tailor_cv', { id: 'nope' })).error).toBeTruthy();
+  expect((await call(page, 'tailor_cv', { id: 'sample:1' })).emphasize).toEqual(['platform', 'Go']);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(STATE_VIEW.tailored);
+  const pack = await call(page, 'show_apply_pack', { id: 'sample:1' });
+  expect(pack).toMatchObject({ applied: false, sent: false, url: 'https://jobs.example.com/sample/1' });
+  const cancelled = page.evaluate(async () => {
+    const ctx = document.modelContext!;
+    const tool = (await ctx.getTools()).find(t => t.name === 'show_apply_pack')!;
+    return JSON.parse(await ctx.executeTool(tool, { id: 'sample:1', apply: true })) as Record<string, unknown>;
+  });
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  const c = await cancelled;
+  expect(c.confirmed).toBeUndefined();
+  expect(c).toMatchObject({ applied: false, sent: false });
+  const confirmed = call(page, 'show_apply_pack', { id: 'sample:1', send: true });
+  await page.getByRole('button', { name: 'I confirm' }).click();
+  expect(await confirmed).toMatchObject({ confirmed: true, applied: false, sent: false });
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(STATE_VIEW.confirmed);
+  if (shots) await page.screenshot({ path: `${shots}/7-webmcp-confirmed.png`, fullPage: true });
+});

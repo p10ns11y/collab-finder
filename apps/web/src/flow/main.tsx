@@ -1,14 +1,12 @@
 import { StrictMode, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createActor } from 'xstate';
-import { STATE_VIEW, flow, type FlowEvent, type FlowState } from './machine.ts';
+import { STATE_VIEW, type FlowEvent, type FlowState } from './machine.ts';
 import { SAMPLE } from './sample.ts';
+import { actor, auto, replay } from './run.ts';
 import './flow.css';
 
-const actor = createActor(flow).start();
 const subscribe = (fn: () => void) => { const s = actor.subscribe(fn); return () => s.unsubscribe(); };
 const send = (e: FlowEvent) => actor.send(e);
-const replay = new URLSearchParams(location.search).has('replay');
 
 if (replay) Object.assign(window, { kanithanjFlow: { send, state: () => String(actor.getSnapshot().value) } });
 else send({ type: 'POOL_LOADED', size: SAMPLE.length });
@@ -16,14 +14,6 @@ else send({ type: 'POOL_LOADED', size: SAMPLE.length });
 const Button = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
   <button type="button" className="rounded-md border border-white/20 px-3 py-1.5 hover:bg-white/10" onClick={onClick}>{children}</button>
 );
-
-function auto(e: FlowEvent) {
-  send(e);
-  if (replay) return;
-  const s = actor.getSnapshot();
-  if (s.value === 'matching') send({ type: 'MATCHED', roles: SAMPLE });
-  if (s.value === 'tailoring' && s.context.picked) send({ type: 'TAILORED', outline: { roleId: s.context.picked.id, emphasize: s.context.picked.reasons } });
-}
 
 const VIEWS: Record<FlowState, () => ReactNode> = {
   sources: () => <p>Reading the source pool.</p>,
@@ -88,3 +78,5 @@ function Flow() {
 }
 
 createRoot(document.getElementById('root')!).render(<StrictMode><Flow /></StrictMode>);
+
+if (!replay) requestAnimationFrame(() => requestAnimationFrame(() => { void import('./tools.ts').then(m => m.registerFlowTools()); }));
