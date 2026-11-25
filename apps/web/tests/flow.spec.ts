@@ -315,3 +315,20 @@ test.afterAll(() => {
   const out = process.env['FLOW_E2E_REPORT'];
   if (out) writeFileSync(out, JSON.stringify({ paths: paths.length, transitions: EDGES.length, covered: covered(paths), passed }, null, 2));
 });
+
+test('flow design: a form rail and a state-driven stage, hairline matches and no reviewer copy', async ({ page }) => {
+  await page.goto('/?all');
+  await toolsReady(page);
+  await expect(page.getByTestId('flow-stage')).toContainText('Find your next role');
+  const roles = twoRoles(await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION }));
+  await expect(page.getByTestId('flow-stage')).toContainText('Your matches');
+  await expect(page.getByTestId('flow-stage').locator('[data-posting-id]').first()).toHaveAttribute('data-layout', 'row');
+  await call(page, 'tailor_cv', { id: roles[0].id });
+  await expect(page.getByTestId('cv-outline')).toContainText('Lead with');
+  await call(page, 'show_apply_pack', { id: roles[0].id });
+  await expect(page.getByTestId('apply-pack')).toContainText('Before you apply');
+  await requestConfirm(page, roles[1].id);
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByTestId('confirmed')).toContainText('✓');
+  await expect(page.locator('body')).not.toContainText(/nothing was applied|does not apply or send|nothing was sent/i);
+});

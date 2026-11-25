@@ -9,7 +9,7 @@ import { adopt, approveProposal, proposeRules, recallAt, type EvalCase } from '.
 const now = new Date('2026-11-19T20:00:00Z');
 const pool: PublicPool = parsePool(JSON.parse(readFileSync(new URL('../fixtures/pool.sample.json', import.meta.url), 'utf8')))._unsafeUnwrap();
 const PROFILES = [
-  { description: 'Senior full-stack engineer, TypeScript and React, 8 years', goal: 'agentic AI products', likes: 'Willowfield' },
+  { description: 'Senior full-stack engineer, TypeScript and React, 8 years', goal: 'agentic AI products', likes: 'Delphin Marine' },
   { description: 'Staff backend engineer with Go and Postgres, distributed systems', goal: 'AI infrastructure' },
   { description: 'Senior platform engineer, Kubernetes and cloud infrastructure' },
 ];

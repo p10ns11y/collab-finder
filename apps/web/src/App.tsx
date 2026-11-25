@@ -1,5 +1,4 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Groups } from './cards.tsx';
 import { Reveal } from './reveal.tsx';
 import {
   poolStats, findPii, INDUSTRIES, INDUSTRY_IDS, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
@@ -16,7 +15,6 @@ const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase(
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
-const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
 
 const retrying = <T,>(first: () => Promise<T>, again: () => Promise<unknown>) => {
   let tries = 0;
@@ -30,6 +28,7 @@ const retrying = <T,>(first: () => Promise<T>, again: () => Promise<unknown>) =>
 };
 const loadSoft = retrying(() => import('./person-confirm.tsx'), () => import('./person-confirm.tsx?r=1'));
 const loadFlow = retrying(() => import('./flow.ts'), () => import('./flow.ts?r=1'));
+const loadStage = retrying(() => import('./stage.tsx'), () => import('./stage.tsx?r=1'));
 
 class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -46,7 +45,6 @@ const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'outside-pool-roles': 'We do not match nursing, sales or mobile-only profiles yet.',
   'no-engineering-terms': 'We could not find a software or AI engineering skill or role in your description.',
 };
-const WIDEN_LABEL: Readonly<Record<string, string>> = { region: 'Search anywhere', remote: 'Any work mode', productOnly: 'Include agencies and freelance', goal: 'Add a goal', seniority: 'Any level' };
 
 const toView = (e: VisitorError): View => {
   const r = recover(e);
@@ -61,6 +59,7 @@ const wantsAll = () => window.location.hash === '#all' || new URLSearchParams(wi
 export function App() {
   const [pool, setPool] = useState<PublicPool | null>(null);
   const [snap, setSnap] = useState<Snap | null>(null);
+  const [stage, setStage] = useState<typeof import('./stage.tsx') | null>(null);
   const [down, setDown] = useState(false);
   const snapRef = useRef<Snap | null>(null);
   const flowMod = useRef<typeof import('./flow.ts') | null>(null);
@@ -97,7 +96,7 @@ export function App() {
       })
       .then((raw: unknown) => { const p = readPool(raw); return p.isOk() ? p.value : Promise.reject(new Error(p.error.kind)); });
     const refreshWorker = () => navigator.serviceWorker?.getRegistration().then(reg => reg?.update()).catch(() => undefined);
-    const flow = loadFlow().then(m => { flowMod.current = m; });
+    const flow = Promise.all([loadFlow(), loadStage()]).then(([m, st]) => { flowMod.current = m; setStage(st); });
     const data = attempt('').catch(() => { void refreshWorker(); return attempt(`?r=${Date.now()}`); });
     Promise.all([flow, data]).then(([, p]) => { poolStats(p); setPool(p); send({ type: 'POOL_LOADED' }); }, () => flowMod.current ? send({ type: 'POOL_FAILED' }) : setDown(true));
   }, []);
@@ -196,8 +195,8 @@ export function App() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6" data-step={step}>
-      <header className="mb-6">
+    <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-12 lg:py-12 xl:px-16" data-step={step}>
+      <header className="mb-6 lg:mb-12">
         <h1 className="text-sm font-semibold tracking-tight text-text-muted">kanithanj.ai</h1>
         <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
           {pool
@@ -216,9 +215,10 @@ export function App() {
 
       {!showAll && pool && <Reveal pool={pool} />}
 
-      {showAll && <>
-      <h2 className="mb-4 text-2xl font-semibold">Describe yourself</h2>
-      <form toolname="find_roles_form" tooldescription="Fill this form with a self-description and show matching roles in this browser. Nothing leaves the page. Does not apply or send." onSubmit={onSubmit} className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:p-6" noValidate>
+      {showAll && <div className="grid items-start gap-10 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-16">
+      <div>
+      <h2 className="mb-6 text-3xl font-semibold tracking-tight">Describe yourself</h2>
+      <form toolname="find_roles_form" tooldescription="Describe your experience and find matching roles." onSubmit={onSubmit} className="grid gap-6" noValidate>
         <div className="grid gap-2">
           <Label htmlFor="description">About you</Label>
           <Textarea id="description" name="description" toolparamdescription="A short self-description of the work you do, without your name, email or phone" value={description} maxLength={MAX_CHARS + 200}
@@ -228,15 +228,15 @@ export function App() {
         </div>
         <div className="grid gap-2">
           <Label htmlFor="goal">Where do you want to grow? <span className="text-text-muted">(optional)</span></Label>
-          <Input id="goal" ref={goalRef} name="goal" toolparamdescription="Optional area you want to grow into" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. AI infrastructure" autoComplete="off" />
+          <Input id="goal" ref={goalRef} name="goal" toolparamdescription="Optional area you want to grow into" value={goal} onChange={e => { setGoal(e.target.value); formChanged(); }} placeholder="e.g. SI infrastructure" autoComplete="off" />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="likes">Companies or interests you like <span className="text-text-muted">(optional)</span></Label>
           <Input id="likes" name="likes" toolparamdescription="Optional companies or interests, separated by commas. Stays in this tab." value={likes} maxLength={MAX_CHARS} onChange={e => { setLikes(e.target.value); formChanged(); }}
             placeholder="e.g. Spotify, fintech, robotics" aria-describedby="likes-help" autoComplete="off" />
-          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies, titles and industries move up; nothing is added or removed. Industries we can tell from a company's own postings: {INDUSTRY_LABELS}. Stays in this browser tab and is never sent or saved.</p>
+          <p id="likes-help" className="text-xs text-text-muted">Separate with commas. Matching companies, titles and industries move up. Industries: {INDUSTRY_LABELS}.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-6 border-t border-border pt-6">
           <div className="grid gap-2">
             {sdkPath ? (
               <Suspense fallback={<p role="status">Loading regions…</p>}>
@@ -244,11 +244,11 @@ export function App() {
               </Suspense>
             ) : (
               <fieldset className="grid gap-2" aria-describedby="region-help" toolparamdescription="Optional regions to keep. None picked means anywhere.">
-                <legend className="text-sm font-medium">Regions</legend>
+                <legend className="text-sm font-semibold">Regions</legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {REGIONS.map(([v, l]) => (
                     <label key={v} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-accent"
+                      <input type="checkbox" name="region" value={v} checked={regions.includes(v)} className="size-4 accent-text focus-visible:outline-accent"
                         onChange={() => { setRegions(regions.includes(v) ? regions.filter(x => x !== v) : [...regions, v]); formChanged(); }} />
                       {l}
                     </label>
@@ -266,7 +266,7 @@ export function App() {
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" id="product-only" name="productOnly" toolparamdescription="If set, hide agency, consultancy or freelance-looking roles" checked={productOnly} className="mt-0.5 size-4 accent-accent" aria-describedby="product-only-help"
+          <input type="checkbox" id="product-only" name="productOnly" toolparamdescription="If set, hide agency, consultancy or freelance-looking roles" checked={productOnly} className="mt-0.5 size-4 accent-text focus-visible:outline-accent" aria-describedby="product-only-help"
             onChange={() => { setProductOnly(!productOnly); formChanged(); }} />
           <span>
             Product companies only
@@ -280,14 +280,15 @@ export function App() {
             <Button type="button" variant="outline" size="sm" className="ml-2" onClick={removePii}>Remove them</Button>
           </Alert>
         )}
-        <div><Button type="submit" disabled={!pool}>Find roles</Button></div>
+        <div><Button type="submit" className="w-full" disabled={!pool}>Find roles</Button></div>
       </form>
-
-      <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
-        {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} step={snap.step} onShown={() => settleCards(true)} /></SoftBoundary>}
-        <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
       </div>
-      </>}
+      <div ref={resultsRef} data-testid="flow-stage" tabIndex={-1} className="min-w-0 outline-none" aria-live="polite">
+        {stage && <stage.StepRail step={step} />}
+        {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} step={snap.step} onShown={() => settleCards(true)} /></SoftBoundary>}
+        {stage && <stage.ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />}
+      </div>
+      </div>}
 
       {snap?.ask && soft && (
         <SoftBoundary key={snap.ask.id} onError={() => settleConfirm('unavailable')}>
@@ -312,53 +313,3 @@ export function App() {
   );
 }
 
-function ViewPanel({ view, onWiden, onRemovePii, sdkPath }: { view: View; onWiden: (w: string) => void; onRemovePii: () => void; sdkPath: boolean }) {
-  switch (view.kind) {
-    case 'idle': return null;
-    case 'inputError': return <Alert tone="trap" data-testid="input-error">{view.msg}</Alert>;
-    case 'piiWarning': return (
-      <Alert tone="warn" data-testid="pii-blocked">
-        We did not match yet: your text contains {view.kinds.join(', ')}.
-        <Button variant="outline" size="sm" className="ml-2" onClick={onRemovePii}>Remove them</Button>
-      </Alert>
-    );
-    case 'outOfScope': return (
-      <Alert tone="trap" data-testid="out-of-scope">
-        <strong className="font-semibold">Outside what we cover.</strong> {OUT_OF_SCOPE_MSG} {view.reason}
-      </Alert>
-    );
-    case 'zeroResults': return (
-      <Alert tone="trap" data-testid="zero-results">
-        No roles match all of your filters.
-        <span className="mt-2 flex flex-wrap gap-2">
-          {view.widen.map(w => <Button key={w} variant="outline" size="sm" onClick={() => onWiden(w)}>{WIDEN_LABEL[w] ?? w}</Button>)}
-        </span>
-      </Alert>
-    );
-    case 'results': return sdkPath
-      ? <Suspense fallback={<p role="status">Loading matches…</p>}><SdkResults result={view.result} ms={view.ms} /></Suspense>
-      : <Results result={view.result} ms={view.ms} />;
-  }
-}
-
-function Results({ result, ms }: { result: MatchResult; ms: number }) {
-  const stale = result.warnings.find(w => w.kind === 'PoolStale');
-  const u = result.understood;
-  const understood = [...u.roles, ...u.skills].join(', ');
-  return (
-    <section aria-labelledby="results-title" data-testid="results">
-      <h2 id="results-title" className="text-2xl font-semibold">Your matches</h2>
-      {result.likesMiss && <p className="mt-2 text-sm text-text-muted" data-testid="likes-miss">None of those words matched.</p>}
-      <p className="mt-1 text-sm text-text-muted">
-        Matched in {ms} ms in your browser. Read as: {understood || 'general software engineering'}
-        {u.seniority ? `, ${u.seniority} level` : ''}{u.goal.length ? `; goal: ${u.goal.join(', ')}` : ''}.
-      </p>
-      {stale && stale.kind === 'PoolStale' && (
-        <Alert tone="warn" className="mt-4" data-testid="stale-banner">
-          Statuses were last checked {stale.checkedAt} ({stale.ageDays} days ago). Some roles may have closed since; check the posting.
-        </Alert>
-      )}
-      <div className="mt-6"><Groups result={result} keys={['fitsNow', 'stepTowardGoal', 'stretch']} /></div>
-    </section>
-  );
-}
