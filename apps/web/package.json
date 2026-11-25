@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/tokens-css.ts && node scripts/prepare-pool.ts && tsc --noEmit && vite build",
+    "build": "node scripts/tokens-css.ts && node scripts/prepare-pool.ts && tsc --noEmit && vite build && vite build -c vite.flow.config.ts",
     "preview": "vite preview --port 4173 --strictPort",
     "test:e2e": "playwright test"
   },
@@ -17,7 +17,8 @@
     "clsx": "2.1.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "tailwind-merge": "3.3.1"
+    "tailwind-merge": "3.3.1",
+    "xstate": "5.33.4"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
@@ -27,6 +28,7 @@
     "@types/react": "19.2.16",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.0",
+    "@xstate/graph": "3.0.4",
     "tailwindcss": "4.1.16",
     "typescript": "5.9.3",
     "vite": "7.1.12",
