@@ -253,6 +253,27 @@ test('WebMCP polyfill: find_roles on the home page reveals the form and results'
   await expect(page.getByLabel('About you')).toHaveValue(/Go and Postgres/);
 });
 
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' });
+  test('WebMCP tools register after the polyfill chunk loads lazily', async ({ context, page }) => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const hits: string[] = [];
+    await context.route(/webmcp-polyfill/, async route => {
+      hits.push(route.request().url());
+      await held;
+      await route.continue();
+    });
+    await page.goto('/?all');
+    await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+    expect(await toolNames(page)).toEqual([]);
+    await expect.poll(async () => hits.length).toBeGreaterThan(0);
+    expect(await toolNames(page)).toEqual([]);
+    release();
+    await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  });
+});
+
 test('WebMCP polyfill stays out of the way of the ordinary form @firefox', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));

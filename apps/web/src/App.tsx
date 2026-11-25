@@ -107,7 +107,7 @@ export function App() {
       const v = latest.current.view;
       return v.kind === 'results' ? (Object.values(v.result.groups).flat().find(r => r.id === id) ?? null) : null;
     };
-    registerWebMcp({
+    void registerWebMcp({
       version: () => version.current,
       search: (base, change) => {
         if (base !== version.current) return { stateVersion: version.current, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${version.current}` };

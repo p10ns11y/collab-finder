@@ -37,6 +37,47 @@ export const modelContext = (): AnyContext | null => {
   return nav && typeof nav.registerTool === 'function' ? nav : null;
 };
 
+const afterFirstPaint = (signal: AbortSignal): Promise<boolean> => new Promise(resolve => {
+  if (signal.aborted) { resolve(false); return; }
+  let idleId: number | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let settled = false;
+  const finish = (ok: boolean) => {
+    if (settled) return;
+    settled = true;
+    signal.removeEventListener('abort', onAbort);
+    if (idleId !== undefined && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId);
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    resolve(ok);
+  };
+  const onAbort = () => finish(false);
+  const armIdle = () => {
+    if (signal.aborted) { finish(false); return; }
+    if (typeof requestIdleCallback === 'function') idleId = requestIdleCallback(() => finish(true));
+    else timeoutId = setTimeout(() => finish(true), 0);
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+  requestAnimationFrame(() => {
+    if (signal.aborted) { finish(false); return; }
+    requestAnimationFrame(armIdle);
+  });
+});
+
+let polyfill: Promise<void> | undefined;
+
+export async function ensureWebMcp(signal: AbortSignal): Promise<AnyContext | null> {
+  const current = modelContext();
+  if (current) return current;
+  if (!await afterFirstPaint(signal)) return null;
+  const again = modelContext();
+  if (again) return again;
+  polyfill ??= import('@w3c/webmcp-polyfill').then(mod => { if (!modelContext()) mod.installWebMCP(); });
+  try { await polyfill; }
+  catch { polyfill = undefined; return null; }
+  if (signal.aborted) return null;
+  return modelContext();
+}
+
 const FILTERS = {
   regions: { type: 'array', items: { enum: ['SE', 'EU', 'UK', 'US'] } },
   remote: { enum: ['any', 'remote', 'hybrid', 'onsite'] },
@@ -53,9 +94,9 @@ const rolePickSchema = {
   },
 };
 
-export function registerWebMcp(host: WebMcpHost, signal: AbortSignal): void {
-  const mc = modelContext();
-  if (!mc) return;
+export async function registerWebMcp(host: WebMcpHost, signal: AbortSignal): Promise<void> {
+  const mc = await ensureWebMcp(signal);
+  if (!mc || signal.aborted) return;
   const opts = { signal };
   const afterConfirm = async (id: string) => {
     const row = host.rowOf(id);
@@ -66,7 +107,8 @@ export function registerWebMcp(host: WebMcpHost, signal: AbortSignal): void {
     host.showApplyPack(pack);
     return { ...confirmedButNotSent(host.version(), row.url), pack };
   };
-  void Promise.all([
+  try {
+  await Promise.all([
     mc.registerTool({
       name: 'find_roles',
       title: 'Find roles',
@@ -118,5 +160,6 @@ export function registerWebMcp(host: WebMcpHost, signal: AbortSignal): void {
         return { stateVersion: host.version(), ...pack };
       },
     }, opts),
-  ]).catch(() => undefined);
+  ]);
+  } catch { return; }
 }

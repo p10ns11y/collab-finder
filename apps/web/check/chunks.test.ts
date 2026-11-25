@@ -61,3 +61,15 @@ test('ui-sdk and sdk-path chunks stay lazy and out of the flag-off precache', ()
   assert.ok(Array.isArray(precache));
   assert.deepEqual(precache.filter(entry => typeof entry === 'string' && sdkish(entry)), []);
 });
+
+const polyfillish = (entry: string) => entry.includes('webmcp-polyfill');
+
+test('webmcp polyfill is a separate lazy chunk, not statically linked from the entry', () => {
+  const html = readFileSync(join(dist, 'index.html'), 'utf8');
+  const src = /<script type="module"[^>]*\bsrc="(\/assets\/[^"]+\.js)"/.exec(html)?.[1];
+  assert.ok(src);
+  assert.equal(polyfillish(src), false);
+  const assets = readdirSync(join(dist, 'assets')).filter(f => f.endsWith('.js'));
+  assert.ok(assets.some(polyfillish));
+  assert.deepEqual([...staticAssets(dist)].filter(polyfillish), []);
+});
