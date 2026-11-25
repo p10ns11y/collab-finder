@@ -6,12 +6,9 @@ import {
 } from '@ui-sdk/core';
 import { popoverPreset } from '@ui-sdk/core/popover';
 import { usePart, usePrimitive, type PrimitiveHandle } from '@ui-sdk/react/primitive';
-import type { GroupKey, MatchResult, MatchRow, RegionPref } from '../../../packages/core/src/index.ts';
+import type { GroupKey, MatchResult, MatchRow } from '../../../packages/core/src/index.ts';
 
-type Place = Exclude<RegionPref, 'any'>;
-const REGIONS: ReadonlyArray<readonly [Place, string]> = [
-  ['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States'],
-];
+import { REGIONS, type Place } from './regions.ts';
 const GROUP_TITLE: Record<GroupKey, string> = {
   fitsNow: 'Fits now', stepTowardGoal: 'Step toward your goal', stretch: 'Stretch',
 };

@@ -120,6 +120,7 @@ export function understand(p: MatchProfile): Result<Understood, VisitorError> {
 }
 const NORDIC_LOC = /(?:^|[^a-z])(?:sweden|sverige|stockholm|gothenburg|goteborg|malmo|malmö|uppsala|oslo|bergen|norway|norge|copenhagen|københavn|denmark|danmark|helsinki|espoo|finland|reykjavik|iceland|nordics?)(?=$|[^a-z])/i;
 
+const FAR: ReadonlyArray<string> = ['CA', 'LATAM', 'APAC', 'MEA'];
 const regionOk = (prefs: ReadonlyArray<Exclude<RegionPref, 'any'>>, r: string | null): 'yes' | 'no' | 'unknown' => {
   if (r === 'remote-anywhere') return 'yes';
   if (r === null || r === '') return 'unknown';
@@ -167,7 +168,8 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
   if (u.entry && !entryFieldOk(row.title, u.learned)) return null;
   if (!u.entry && !titleHits.length && !coveredHits.length && !tagRoleHits.length && !skillHits.length && !genericHit && !goalHits.length) return null;
 
-  const region = row.region === 'EU' && regionOf(row.location ?? '') === 'other' ? 'other' : row.region;
+  const found = row.region === 'EU' ? regionOf(row.location ?? '') : null;
+  const region = found && FAR.includes(found) ? found : row.region;
   const reg = regionOk(p.regions, region); if (reg === 'no') return null;
   const rem = remoteOk(p.remote, row.remote); if (rem === 'no') return null;
   MTS.lastIndex = 0;

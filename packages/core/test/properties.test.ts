@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import fc from 'fast-check';
 import { inEnglish, inScope, likesText, mostlyNonLatin, regionOf, LIKED_POINTS, likedEntries, likesCompany, SCORE_BUCKET, titleFocus, languageGo, corpusStats, queryTokens, relevance, rowTokens, tokensOf, isLocationPart, isAgencyRow, match, understand, regionsOf, parsePool, normalizedTitle, LEVEL_STEP, GENERALIST_ROLES, PERSONAL_KEYS, type MatchProfile, type PublicPool, type PublicRow, type RegionChoice } from '../src/index.ts';
-import { COVERS, LEVELS, MOBILE_TITLE, TERMS, hasLeadershipPhrase, hasSwedish, isLeadershipRow, kindOf, levelOf, swedishOnlyTitle, termsIn } from '../src/vocab.ts';
+import { COVERS, LEVELS, MOBILE_TITLE, TERMS, hasLeadershipPhrase, hasSwedish, isLeadershipRow, kindOf, levelOf, swedishOnlyTitle, termsIn, type WorldRegion } from '../src/vocab.ts';
 import { matchUnder, unlistedLanguage, type MatchRow } from '../src/match.ts';
 import type { CorpusStats } from '../src/relevance.ts';
 
@@ -10,7 +10,7 @@ const PHRASES = ['backend', 'frontend', 'full-stack', 'platform', 'infrastructur
   'software engineer', 'developer', 'kubernetes', 'agentic', 'payments', 'growth', 'search', 'nurse', 'sales', 'iOS', 'manager',
   'web applications', 'Member of Technical Staff', 'customer service agent', 'Engineering Manager', 'Head of', 'Director'];
 const LEVEL_WORDS = ['', 'Junior', 'Mid-level', 'Senior', 'Staff', 'Lead', 'Principal'];
-const REGIONS = ['SE', 'EU', 'UK', 'US', 'remote-anywhere', 'other', null] as const;
+const REGIONS = ['SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA', 'remote-anywhere', 'other', null] as const;
 const REMOTES = ['remote', 'hybrid', 'onsite', 'unknown'] as const;
 const STATUSES = ['open', 'closed', 'unknown'] as const;
 const POOL_SENIORITY = ['mid', 'senior', 'staff', 'lead', 'principal', 'unknown', null] as const;
@@ -34,7 +34,7 @@ const poolArb: fc.Arbitrary<PublicPool> = fc.oneof({ weight: 1, arbitrary: fc.in
 const profileArb: fc.Arbitrary<MatchProfile> = fc.record({
   level: fc.constantFrom(...LEVEL_WORDS.filter(x => x !== 'Junior')), words: fc.oneof({ weight: 4, arbitrary: inScopeList }, { weight: 1, arbitrary: phraseList }),
   filler: fc.oneof({ weight: 3, arbitrary: fc.constant('') }, { weight: 1, arbitrary: fc.string({ maxLength: 40 }) }), goal: fc.array(fc.constantFrom(...PHRASES), { maxLength: 3 }),
-  region: fc.oneof({ weight: 3, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any', 'any') }, { weight: 1, arbitrary: fc.subarray(['SE', 'EU', 'UK', 'US'] as const, { minLength: 1 }) }) as fc.Arbitrary<RegionChoice>,
+  region: fc.oneof({ weight: 3, arbitrary: fc.constantFrom('SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA', 'any', 'any') }, { weight: 1, arbitrary: fc.subarray(['SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA'] as const, { minLength: 1 }) }) as fc.Arbitrary<RegionChoice>,
   remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any', 'any'),
 }).map(p => ({ description: `${p.level} engineer working on ${p.words.join(' and ')} ${p.filler}`, goal: p.goal.join(' '), region: p.region, remote: p.remote }) as MatchProfile);
 
@@ -299,7 +299,7 @@ test('P19 in stretch every confirmed-place row ranks above every unconfirmed-pla
 
 const levelPair = fc.record({
   row: rowArb(0).filter(r => !/member of technical staff/i.test(r.title)), at: fc.integer({ min: 1, max: LEVELS.length - 2 }), words: phraseList,
-  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any'),
+  region: fc.constantFrom('SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA', 'any'), remote: fc.constantFrom('remote', 'hybrid', 'onsite', 'any'),
 }).map(({ row, at, words, region, remote }) => {
   const mine = LEVELS[at]!;
   const plain = { ...row, title: row.title.replace(/^(Junior|Mid-level|Senior|Staff|Lead|Principal) /, ''), status: 'open' as const };
@@ -1017,16 +1017,17 @@ test('L7 when no interest word matches a company or title, the result says so on
   }), RUNS);
 });
 
-const KNOWN_PLACES: ReadonlyArray<readonly [string, string, 'SE' | 'EU' | 'UK' | 'US' | 'other']> = [
-  ['Porto Alegre', 'Brazil', 'other'], ['São Paulo', 'Brazil', 'other'], ['Rio de Janeiro', 'Brazil', 'other'],
-  ['Buenos Aires', 'Argentina', 'other'], ['Mexico City', 'Mexico', 'other'], ['Santiago', 'Chile', 'other'],
-  ['Bogotá', 'Colombia', 'other'], ['Lima', 'Peru', 'other'], ['Montevideo', 'Uruguay', 'other'],
+const KNOWN_PLACES: ReadonlyArray<readonly [string, string, WorldRegion]> = [
+  ['Porto Alegre', 'Brazil', 'LATAM'], ['São Paulo', 'Brazil', 'LATAM'], ['Rio de Janeiro', 'Brazil', 'LATAM'],
+  ['Buenos Aires', 'Argentina', 'LATAM'], ['Mexico City', 'Mexico', 'LATAM'], ['Santiago', 'Chile', 'LATAM'],
+  ['Bogotá', 'Colombia', 'LATAM'], ['Lima', 'Peru', 'LATAM'], ['Montevideo', 'Uruguay', 'LATAM'],
   ['Porto', 'Portugal', 'EU'], ['Lisbon', 'Portugal', 'EU'], ['Berlin', 'Germany', 'EU'], ['Amsterdam', 'Netherlands', 'EU'], ['Paris', 'France', 'EU'],
   ['Stockholm', 'Sweden', 'SE'], ['Malmö', 'Sweden', 'SE'], ['Gothenburg', 'Sweden', 'SE'],
   ['Oslo', 'Norway', 'EU'], ['Copenhagen', 'Denmark', 'EU'], ['Helsinki', 'Finland', 'EU'],
   ['London', 'United Kingdom', 'UK'], ['Manchester', 'UK', 'UK'],
   ['Austin', 'United States', 'US'], ['San Francisco', 'United States', 'US'], ['New York', 'NY', 'US'],
-  ['Toronto', 'Canada', 'other'], ['Bengaluru', 'India', 'other'], ['Singapore', 'Singapore', 'other'],
+  ['Toronto', 'Canada', 'CA'], ['Vancouver', 'BC', 'CA'], ['Bengaluru', 'India', 'APAC'], ['Singapore', 'Singapore', 'APAC'], ['Sydney', 'Australia', 'APAC'], ['Tokyo', 'Japan', 'APAC'],
+  ['Tel Aviv', 'Israel', 'MEA'], ['Dubai', 'UAE', 'MEA'], ['Lagos', 'Nigeria', 'MEA'], ['Cape Town', 'South Africa', 'MEA'],
 ];
 test('G1 a known city and country classify together, and Latin America is never EU', () => {
   fc.assert(fc.property(fc.constantFrom(...KNOWN_PLACES), fc.constantFrom(', ', ' - ', ' / '), ([city, country, region], sep) => {
@@ -1036,17 +1037,18 @@ test('G1 a known city and country classify together, and Latin America is never 
   }), RUNS);
 });
 
-test('G2 a Latin American row tagged EU is not treated as EU', () => {
-  fc.assert(fc.property(fc.constantFrom(...KNOWN_PLACES.filter(([, country, region]) => region === 'other' && /brazil|argentina|mexico|chile|colombia|peru|uruguay/i.test(country))), (pair) => {
+test('G2 a Latin American row tagged EU is treated as LATAM, never EU', () => {
+  fc.assert(fc.property(fc.constantFrom(...KNOWN_PLACES.filter(([, country, region]) => region === 'LATAM' && /brazil|argentina|mexico|chile|colombia|peru|uruguay/i.test(country))), (pair) => {
     const [city, country] = pair;
     const row: PublicRow = { ...OPEN_ROW, id: 'g2', company: 'Example Studio', title: 'Senior UI Programmer', url: 'https://jobs.example.com/g2', location: `${city}, ${country}`, region: 'EU' };
     const pool: PublicPool = { version: 'g2', checkedRange: { from: '2026-11-18T08:00:00Z', to: '2026-11-18T08:00:00Z' }, rows: [row] };
     const profile: MatchProfile = { description: 'Senior frontend engineer with TypeScript and React, 8 years', region: 'any', remote: 'any' };
     const r = ok(profile, pool, BIG);
     const eu = ok({ ...profile, region: 'EU' }, pool, BIG);
-    if (r.isErr()) return false;
+    const latam = ok({ ...profile, region: 'LATAM' }, pool, BIG);
+    if (r.isErr() || latam.isErr()) return false;
     const shown = allRows(r).find(x => x.id === 'g2');
-    return shown?.region === 'other' && shown.reasons.every(x => !x.startsWith('Region: EU')) && (eu.isErr() || eu.value.groups.fitsNow.every(x => x.id !== 'g2'));
+    return shown?.region === 'LATAM' && shown.reasons.every(x => !x.startsWith('Region: EU')) && (eu.isErr() || eu.value.groups.fitsNow.every(x => x.id !== 'g2')) && allRows(latam).some(x => x.id === 'g2');
   }), RUNS);
 });
 

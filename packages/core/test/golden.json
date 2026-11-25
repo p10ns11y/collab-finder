@@ -15,16 +15,7 @@
    "greenhouse:2820598",
    "lever:18a65fdc-fba6-8604-6430-d4537590efee",
    "greenhouse:7651996",
-   "greenhouse:4384864",
-   "greenhouse:6373643",
-   "greenhouse:2747276",
-   "greenhouse:6117549",
-   "greenhouse:8141343",
-   "lever:39171065-b48d-5519-b51c-ac13dab077e3",
-   "greenhouse:6112671",
-   "ashby:cc836a46-2ec2-b2ef-e667-2dabb6f028db",
-   "ashby:36627818-2d73-896e-d1eb-ab4d8d364377",
-   "greenhouse:2528644"
+   "greenhouse:4384864"
   ]
  },
  "seniorFullstackSe": {
@@ -36,20 +27,7 @@
    "greenhouse:6531727",
    "ashby:cca78417-9505-c53d-28d4-1bddbf68ed15",
    "greenhouse:7426894",
-   "greenhouse:9099833",
-   "greenhouse:9546610",
-   "greenhouse:9566900",
-   "greenhouse:3342379",
-   "greenhouse:8141343",
-   "greenhouse:6112671",
-   "ashby:20025ddd-3894-3e30-e928-72497c444f6f",
-   "ashby:36627818-2d73-896e-d1eb-ab4d8d364377",
-   "greenhouse:2528644",
-   "greenhouse:2063677",
-   "greenhouse:2747276",
-   "greenhouse:6117549",
-   "lever:39171065-b48d-5519-b51c-ac13dab077e3",
-   "greenhouse:2844862"
+   "greenhouse:9099833"
   ]
  },
  "platformRemote": {
@@ -81,14 +59,9 @@
   "stepTowardGoal": [],
   "stretch": [
    "lever:ccfb06b0-6225-4ce8-0675-dcc1ab149e0f",
-   "ashby:87ca06cd-e626-5710-9f50-20113f926842",
    "greenhouse:3567513",
    "greenhouse:6342175",
-   "greenhouse:9075618",
-   "lever:39171065-b48d-5519-b51c-ac13dab077e3",
-   "ashby:9306805c-db5f-43a8-6cc1-d40f8e70d6c8",
-   "greenhouse:9984834",
-   "ashby:36627818-2d73-896e-d1eb-ab4d8d364377"
+   "greenhouse:9075618"
   ]
  },
  "genericSwe": {
@@ -312,13 +285,7 @@
    "greenhouse:7426894",
    "greenhouse:4384864",
    "lever:db1fa4e9-f959-c530-d110-baa2703ddc46",
-   "greenhouse:7651996",
-   "greenhouse:9546610",
-   "greenhouse:9566900",
-   "greenhouse:3342379",
-   "ashby:20025ddd-3894-3e30-e928-72497c444f6f",
-   "greenhouse:2063677",
-   "greenhouse:2844862"
+   "greenhouse:7651996"
   ]
  },
  "nurse": {

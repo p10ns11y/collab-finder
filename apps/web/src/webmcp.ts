@@ -16,6 +16,7 @@ import {
   type CvOutline,
   type FindRolesChange,
 } from './page-tools.ts';
+import { PLACES } from './regions.ts';
 
 export type AgentSearch = FindRolesChange;
 export type HostAnswer = { stateVersion: number; result: MatchResult | null; verdict: string; error: string | null };
@@ -89,7 +90,7 @@ export async function ensureWebMcp(signal: AbortSignal): Promise<AnyContext | nu
 }
 
 const FILTERS = {
-  regions: { type: 'array', items: { enum: ['SE', 'EU', 'UK', 'US'] } },
+  regions: { type: 'array', items: { enum: PLACES } },
   remote: { enum: ['any', 'remote', 'hybrid', 'onsite'] },
   productOnly: { type: 'boolean' },
 };

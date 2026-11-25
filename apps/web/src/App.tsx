@@ -10,6 +10,7 @@ import { Button } from './components/ui/button.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
 import type { AgentSearch, ConfirmOutcome, WebMcpHost } from './webmcp.ts';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
+import { REGIONS, type Place } from './regions.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
@@ -46,8 +47,6 @@ type View =
   | { kind: 'zeroResults'; widen: ReadonlyArray<string> }
   | { kind: 'results'; result: MatchResult; ms: number };
 
-type Place = Exclude<RegionPref, 'any'>;
-const REGIONS: ReadonlyArray<[Place, string]> = [['SE', 'Sweden'], ['EU', 'EU (includes Sweden)'], ['UK', 'United Kingdom'], ['US', 'United States']];
 const REMOTES: ReadonlyArray<[RemotePref, string]> = [['any', 'Any'], ['remote', 'Remote only'], ['hybrid', 'Hybrid or remote'], ['onsite', 'On-site is fine']];
 const OUT_OF_SCOPE_REASON: Readonly<Record<string, string>> = {
   'junior': 'The pool has mid-level and senior roles only, no junior, intern or graduate roles yet.',
