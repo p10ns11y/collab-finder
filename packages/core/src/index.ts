@@ -3,7 +3,7 @@ export type { Tier, RegionChoice, MatchProfile, MatchOptions, MatchRow, MatchRes
 export { companyCount, parsePool, readPool } from './pool.ts';
 export { toPublicPool, type ExportFailure } from './export.ts';
 export { inScope, inLeadershipTrack } from './match.ts';
-export { inEnglish, mostlyNonLatin, isLeadershipRow, regionOf, SWEDISH } from './vocab.ts';
+export { inEnglish, mostlyNonLatin, isLeadershipRow, regionOf, SWEDISH, WORLD_REGIONS, type WorldRegion } from './vocab.ts';
 export { recover, OUT_OF_SCOPE_MSG, scopeMessage, type Recovery } from './pipeline.ts';
 export { PublicRowSchema, privacyScan, exportRow, PERSONAL_KEYS, type PublicRow, type PublicPool } from './schema.ts';
 export type { GroupKey } from './decisions.ts';

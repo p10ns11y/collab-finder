@@ -152,26 +152,20 @@ export const CLIENT_PLACEMENT = /(?:[Dd]eveloper|[Ee]ngineer|[Uu]tvecklare|[Aa]r
 export const AGENCY_COMPANY = /(?:^|[^a-z])(?:consult(?:ing|ancy|ants?)?|konsult(?:er|bolag)?|recruit(?:ment|ing|ers)?|rekryter(?:ing)?|staffing|bemanning|talent|agency|byr[åa]|outsourc(?:e|ing)|freelanc(?:e|ers?)|it[- ]services|tech[- ]services|nearshore|offshore|headhunt(?:ing|ers)?)(?=$|[^a-z])/i;
 export const isAgencyRow = (row: { title: string; company: string }): boolean => AGENCY_TITLE.test(row.title) || CLIENT_PLACEMENT.test(row.title) || AGENCY_COMPANY.test(row.company);
 
-const PLACE_WORDS = new Set(('remote hybrid onsite on-site site anywhere worldwide global emea europe european eu uk us usa united states kingdom americas america apac latam nordics nordic dach benelux cee '
-  + 'sweden swedish stockholm gothenburg göteborg goteborg malmö malmo uppsala lund linköping linkoping örebro västerås umeå '
-  + 'london manchester edinburgh cambridge oxford bristol leeds glasgow belfast england scotland wales ireland dublin '
-  + 'new york nyc san francisco bay area seattle austin boston chicago los angeles denver atlanta miami washington dc texas california '
-  + 'canada toronto vancouver montreal mexico brazil sao são paulo argentina buenos aires '
-  + 'berlin munich münchen hamburg frankfurt cologne köln stuttgart düsseldorf germany deutschland amsterdam rotterdam utrecht eindhoven netherlands '
-  + 'paris lyon toulouse nantes france madrid barcelona valencia seville spain lisbon porto portugal rome milan turin italy '
-  + 'copenhagen aarhus denmark oslo bergen norway helsinki espoo tampere finland warsaw krakow kraków wroclaw wrocław gdansk poland '
-  + 'vienna austria zurich zürich geneva lausanne basel bern switzerland brussels antwerp belgium luxembourg prague czech czechia '
-  + 'budapest hungary bucharest romania sofia bulgaria athens greece tallinn estonia riga latvia vilnius lithuania belgrade serbia zagreb croatia '
-  + 'kyiv ukraine istanbul turkey tel aviv israel dubai uae india bangalore bengaluru hyderabad pune singapore tokyo japan seoul korea sydney melbourne australia canberra auckland').split(' '));
 const PLACE_FILLER = new Set('and or in based only office first time zone zones timezone friendly the of within across from area region country countries city cities x f m d w h genders all gender'.split(' '));
-export type PlaceRegion = 'SE' | 'EU' | 'UK' | 'US' | 'other' | 'remote-anywhere';
+export const WORLD_REGIONS = ['SE', 'EU', 'UK', 'US', 'CA', 'LATAM', 'APAC', 'MEA'] as const;
+export type WorldRegion = (typeof WORLD_REGIONS)[number];
+export type PlaceRegion = WorldRegion | 'other' | 'remote-anywhere';
 const foldPlace = (s: string): string => s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '');
 const placeWords = (s: string): string[] => foldPlace(s).split(/[^a-z0-9]+/).filter(Boolean);
 const placeHas = (words: ReadonlyArray<string>, w: string): boolean => words.includes(w);
 const placePhrase = (words: ReadonlyArray<string>, p: string): boolean => ` ${words.join(' ')} `.includes(` ${p} `);
 const LATAM = new Set('brazil brasil bahia argentina mexico chile colombia peru uruguay paraguay bolivia ecuador venezuela panama guatemala cuba honduras nicaragua latam'.split(' '));
 const LATAM_PHRASE = ['porto alegre', 'porto seguro', 'rio grande do sul', 'sao paulo', 'rio de janeiro', 'buenos aires', 'mexico city', 'costa rica', 'puerto rico', 'latin america'];
-const OTHER_COUNTRY = new Set('canada india singapore australia japan china israel uae korea brazil'.split(' '));
+const FAR = new Map(([['CA', 'canada toronto vancouver montreal'],
+  ['APAC', 'apac india bengaluru bangalore hyderabad pune singapore australia sydney melbourne japan tokyo china korea seoul taiwan vietnam philippines indonesia malaysia thailand new_zealand hong_kong'],
+  ['MEA', 'mea israel tel_aviv uae dubai turkey istanbul egypt nigeria lagos kenya saudi qatar south_africa middle_east']] as const)
+  .flatMap(([region, list]) => list.split(' ').map(w => [w.replace('_', ' '), region] as const)));
 const SE_WORD = new Set('sweden sverige stockholm gothenburg goteborg malmo uppsala'.split(' '));
 const UK_WORD = new Set('uk england scotland wales london manchester edinburgh cambridge bristol oxford belfast glasgow'.split(' '));
 const US_STATE = new Set('al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok or pa ri sc sd tn tx ut vt va wa wv wi wy dc'.split(' '));
@@ -179,7 +173,13 @@ const US_NAME = new Set('alabama alaska arizona arkansas california colorado con
 const CA_PROVINCE = new Set('on bc qc ab mb sk ns nb'.split(' '));
 const EU_COUNTRY = new Set('germany deutschland france netherlands holland spain portugal italy ireland austria belgium poland denmark norway finland switzerland iceland estonia latvia lithuania czech czechia hungary romania greece croatia bulgaria slovakia slovenia luxembourg europe eu emea'.split(' '));
 const EU_CITY = new Set('berlin munich munchen amsterdam paris madrid barcelona lisbon lisboa dublin copenhagen kobenhavn helsinki oslo warsaw vienna zurich porto hamburg frankfurt cologne brussels prague tallinn rome milan lyon toulouse rotterdam eindhoven'.split(' '));
+const PLACE_WORDS = new Set([...('remote hybrid onsite on-site site anywhere worldwide global european us usa united states kingdom americas america nordics nordic dach benelux cee '
+  + 'swedish göteborg malmö lund linköping linkoping örebro västerås umeå leeds new york nyc san francisco bay area seattle austin boston chicago los '
+  + 'angeles denver atlanta miami washington dc texas california sao são paulo buenos aires münchen köln stuttgart düsseldorf utrecht nantes valencia '
+  + 'seville turin aarhus bergen espoo tampere krakow kraków wroclaw wrocław gdansk zürich geneva lausanne basel bern antwerp budapest bucharest sofia '
+  + 'athens riga vilnius belgrade serbia zagreb kyiv ukraine tel aviv canberra auckland').split(' '), ...SE_WORD, ...UK_WORD, ...EU_COUNTRY, ...EU_CITY, ...LATAM, ...FAR.keys()]);
 const STATE_COLLIDE = new Set('de in me la id md co pa'.split(' '));
+export const LOCATION_PARTS = /\s*[/;|•]\s*/;
 export const regionOf = (location: string): PlaceRegion | null => {
   const words = placeWords(location);
   if (!words.length) return null;
@@ -194,11 +194,14 @@ export const regionOf = (location: string): PlaceRegion | null => {
   if (remote && (has('global') || has('worldwide') || has('anywhere'))) return 'remote-anywhere';
   if (words.length === 1 && (has('remote') || has('anywhere') || has('worldwide'))) return 'remote-anywhere';
   if (phrase('new mexico') || phrase('united states') || has('usa')) return 'US';
-  if (LATAM_PHRASE.some(phrase) || words.some(w => LATAM.has(w))) return 'other';
+  if (LATAM_PHRASE.some(phrase) || words.some(w => LATAM.has(w))) return 'LATAM';
   if (phrase('united kingdom')) return 'UK';
   if (words.some(w => SE_WORD.has(w))) return 'SE';
   const last = words[words.length - 1]!;
-  if (CA_PROVINCE.has(last) || words.some(w => OTHER_COUNTRY.has(w))) return 'other';
+  if (CA_PROVINCE.has(last)) return 'CA';
+  const far = [...words, ...words.slice(1).map((w, i) => `${words[i]} ${w}`)].map(w => FAR.get(w)).find(r => r);
+  if (far === 'CA' && (US_STATE.has(last) || US_NAME.has(last))) return 'US';
+  if (far) return far;
   if (words.some(w => UK_WORD.has(w))) return 'UK';
   const euCity = words.some(w => EU_CITY.has(w));
   if ((US_STATE.has(last) || US_NAME.has(last)) && !(STATE_COLLIDE.has(last) && euCity)) return 'US';
