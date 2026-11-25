@@ -27,7 +27,7 @@ for m in "${mutants[@]}"; do
   sed -i "$expr" "$file"
   if cmp -s "$file" "$out/$(basename "$file").orig"; then echo "mutant $name did not change $file" >&2; exit 2; fi
   slug=$(echo "$name" | tr -c 'A-Za-z0-9' '-')
-  node --test check/flow.test.ts > "$out/$slug-unit.log" 2>&1
+  node --test check/flow.test.ts check/app-confirm.test.ts > "$out/$slug-unit.log" 2>&1
   uf=$(sed -n 's/^ℹ fail //p' "$out/$slug-unit.log"); ut=$(sed -n 's/^ℹ tests //p' "$out/$slug-unit.log")
   npx vite build > "$out/$slug-build.log" 2>&1 || { echo "build failed for $name" >&2; exit 2; }
   PLAYWRIGHT_JSON_OUTPUT_NAME="$out/$slug-e2e.json" npx playwright test tests/flow.spec.ts --project chromium --workers=1 --timeout=15000 --reporter=json > /dev/null 2>&1
