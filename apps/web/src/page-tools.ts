@@ -127,6 +127,14 @@ export function declinedConfirm(stateVersion: number): { stateVersion: number; e
   return { stateVersion, error: 'A person cancelled the confirm step. Nothing was applied or sent.', applied: false, sent: false };
 }
 
+export function confirmUnavailable(stateVersion: number): { stateVersion: number; error: string; applied: false; sent: false } {
+  return { stateVersion, error: 'the confirm step could not be shown', applied: false, sent: false };
+}
+
+export function panelUnavailable(stateVersion: number, panel: string): { stateVersion: number; error: string } {
+  return { stateVersion, error: `the ${panel} could not be shown` };
+}
+
 export function confirmedButNotSent(stateVersion: number, url: string): { stateVersion: number; confirmed: true; applied: false; sent: false; url: string; notice: string } {
   return { stateVersion, confirmed: true, applied: false, sent: false, url, notice: APPLY_SEND_NOTICE };
 }

@@ -8,17 +8,17 @@ import {
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input, Label, Select, Textarea } from './components/ui/field.tsx';
-import type { AgentSearch, WebMcpHost } from './webmcp.ts';
+import type { AgentSearch, ConfirmOutcome, WebMcpHost } from './webmcp.ts';
 import type { ApplyPack, CvOutline } from './page-tools.ts';
 import { uiSdkFlag } from './ui-sdk-flag.ts';
 
 const INDUSTRY_LABELS = INDUSTRY_IDS.map(id => INDUSTRIES[id].label.toLowerCase()).join(', ');
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
-const PersonConfirm = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.PersonConfirm })));
-const ToolCards = lazy(() => import('./person-confirm.tsx').then(m => ({ default: m.ToolCards })));
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
 const SdkResults = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkResults })));
+const ConfirmPane = lazy(() => import('./soft-lazy.tsx').then(m => ({ default: m.ConfirmPane })));
+const CardsPane = lazy(() => import('./soft-lazy.tsx').then(m => ({ default: m.CardsPane })));
 
 class SoftBoundary extends Component<{ onError?: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -106,9 +106,29 @@ export function App() {
   latest.current = { run, view, description };
   const [outline, setOutline] = useState<CvOutline | null>(null);
   const [pack, setPack] = useState<ApplyPack | null>(null);
-  const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (ok: boolean) => void } | null>(null);
-  const confirmRef = useRef<{ resolve: (ok: boolean) => void } | null>(null);
+  const [confirmAsk, setConfirmAsk] = useState<{ id: number; title: string; body: string; resolve: (outcome: ConfirmOutcome) => void } | null>(null);
+  const confirmRef = useRef<{ resolve: (outcome: ConfirmOutcome) => void } | null>(null);
   const confirmId = useRef(0);
+  const [cardsGen, setCardsGen] = useState(0);
+  const cardsWaiter = useRef<((shown: boolean) => void) | null>(null);
+  const settleCards = (shown: boolean) => {
+    const wait = cardsWaiter.current;
+    cardsWaiter.current = null;
+    wait?.(shown);
+  };
+  const settleConfirm = (outcome: ConfirmOutcome) => {
+    const ask = confirmRef.current;
+    if (!ask) return;
+    confirmRef.current = null;
+    setConfirmAsk(null);
+    ask.resolve(outcome);
+  };
+  const showPanel = (apply: () => void) => new Promise<boolean>(resolve => {
+    cardsWaiter.current?.(false);
+    cardsWaiter.current = resolve;
+    apply();
+    setCardsGen(n => n + 1);
+  });
   useEffect(() => {
     const registration = new AbortController();
     const rowOf = (id: string) => {
@@ -135,7 +155,7 @@ export function App() {
       rowOf,
       description: () => latest.current.description,
       confirmApplyOrSend: detail => new Promise(resolve => {
-        confirmRef.current?.resolve(false);
+        confirmRef.current?.resolve('cancelled');
         const ask = {
           id: confirmId.current += 1,
           title: 'Person confirm needed',
@@ -145,20 +165,19 @@ export function App() {
         confirmRef.current = ask;
         setConfirmAsk(ask);
       }),
-      showCvOutline: next => { setOutline(next); setPack(null); },
-      showApplyPack: next => { setPack(next); },
+      showCvOutline: next => showPanel(() => { setOutline(next); setPack(null); }),
+      showApplyPack: next => showPanel(() => { setPack(next); }),
     };
     void import('./webmcp.ts').then(m => m.registerWebMcp(host, registration.signal)).catch(() => undefined);
     return () => {
       registration.abort();
-      confirmRef.current?.resolve(false);
-      confirmRef.current = null;
+      settleConfirm('cancelled');
     };
   }, []);
 
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
   const formChanged = () => { version.current += 1; setView({ kind: 'idle' }); };
-  useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); } }, [view]);
+  useEffect(() => { if (view.kind !== 'results') { setOutline(null); setPack(null); settleCards(false); } }, [view]);
   const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
   const removePii = () => { setDescription(d => redactPii(d)); setGoal(g => redactPii(g)); setLikes(l => redactPii(l)); formChanged(); };
@@ -260,19 +279,19 @@ export function App() {
 
       <div ref={resultsRef} tabIndex={-1} className="mt-8 outline-none" aria-live="polite">
         <ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />
-        {(outline || pack) && <SoftBoundary><Suspense fallback={null}><ToolCards outline={outline} pack={pack} /></Suspense></SoftBoundary>}
+        {(outline || pack) && <SoftBoundary key={cardsGen} onError={() => settleCards(false)}><Suspense fallback={null}><CardsPane outline={outline} pack={pack} onShown={() => settleCards(true)} onUnavailable={() => settleCards(false)} /></Suspense></SoftBoundary>}
       </div>
       </>}
 
       {confirmAsk && (
-        <SoftBoundary onError={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}>
+        <SoftBoundary key={confirmAsk.id} onError={() => settleConfirm('unavailable')}>
           <Suspense fallback={null}>
-            <PersonConfirm
-              key={confirmAsk.id}
+            <ConfirmPane
               title={confirmAsk.title}
               body={confirmAsk.body}
-              onCancel={() => { confirmRef.current = null; confirmAsk.resolve(false); setConfirmAsk(null); }}
-              onConfirm={() => { confirmRef.current = null; confirmAsk.resolve(true); setConfirmAsk(null); }}
+              onCancel={() => settleConfirm('cancelled')}
+              onConfirm={() => settleConfirm('confirmed')}
+              onUnavailable={() => settleConfirm('unavailable')}
             />
           </Suspense>
         </SoftBoundary>

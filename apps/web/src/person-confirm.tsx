@@ -8,11 +8,21 @@ export function PersonConfirm({ title, body, onConfirm, onCancel }: { title: str
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const onDialogCancel = (event: Event) => { event.preventDefault(); onCancel(); };
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      onCancel();
+    };
+    const onDialogCancel = (event: Event) => { event.preventDefault(); settle(); };
+    const onDialogClose = () => { settle(); };
     el.addEventListener('cancel', onDialogCancel);
+    el.addEventListener('close', onDialogClose);
     if (!el.open) el.showModal();
     return () => {
+      settled = true;
       el.removeEventListener('cancel', onDialogCancel);
+      el.removeEventListener('close', onDialogClose);
       if (el.open) el.close();
     };
   }, []);

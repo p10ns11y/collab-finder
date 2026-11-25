@@ -258,6 +258,8 @@ test('WebMCP confirm: Escape cancels and a second request reopens the dialog', a
   const cancelled = await pending;
   expect(cancelled.applied).toBe(false);
   expect(cancelled.sent).toBe(false);
+  expect(String(cancelled.error)).toMatch(/cancelled/);
+  expect(cancelled.confirmed).toBeUndefined();
   await expect(page.getByTestId('person-confirm')).toHaveCount(0);
   const pendingAgain = call(page, 'show_apply_pack', { id: anyId, apply: true });
   await expect(page.getByTestId('person-confirm')).toBeVisible();
@@ -265,6 +267,8 @@ test('WebMCP confirm: Escape cancels and a second request reopens the dialog', a
   const cancelledAgain = await pendingAgain;
   expect(cancelledAgain.applied).toBe(false);
   expect(cancelledAgain.sent).toBe(false);
+  expect(String(cancelledAgain.error)).toMatch(/cancelled/);
+  expect(cancelledAgain.confirmed).toBeUndefined();
 });
 
 test('WebMCP polyfill: find_roles on the home page reveals the form and results', async ({ page }) => {
@@ -325,7 +329,8 @@ test.describe(() => {
   });
 
   test('a failed person-confirm chunk cancels the request and leaves the form visible', async ({ context, page }) => {
-    await context.route(/person-confirm/, route => route.abort());
+    let block = true;
+    await context.route(/person-confirm/, route => block ? route.abort() : route.continue());
     await page.goto('/?all');
     await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
     await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
@@ -338,9 +343,26 @@ test.describe(() => {
     const cancelled = await pending;
     expect(cancelled.applied).toBe(false);
     expect(cancelled.sent).toBe(false);
+    expect(String(cancelled.error)).toMatch(/could not be shown/);
+    expect(cancelled.confirmed).toBeUndefined();
     await expect(page.getByRole('button', { name: 'Find roles' })).toBeVisible();
     await expect(page.getByLabel('About you')).toBeVisible();
     await expect(page.getByTestId('person-confirm')).toHaveCount(0);
+    const outline = await call(page, 'tailor_cv', { id: anyId });
+    expect(String(outline.error)).toMatch(/could not be shown/);
+    await expect(page.getByTestId('cv-outline')).toHaveCount(0);
+    const pack = await call(page, 'show_apply_pack', { id: anyId });
+    expect(String(pack.error)).toMatch(/could not be shown/);
+    await expect(page.getByTestId('apply-pack')).toHaveCount(0);
+    block = false;
+    const pendingAgain = call(page, 'show_apply_pack', { id: anyId, apply: true });
+    await expect(page.getByTestId('person-confirm')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    const after = await pendingAgain;
+    expect(String(after.error)).toMatch(/cancelled/);
+    expect(after.applied).toBe(false);
+    expect(after.sent).toBe(false);
+    expect(after.confirmed).toBeUndefined();
   });
 });
 
