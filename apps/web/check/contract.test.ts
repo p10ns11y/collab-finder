@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { next, START } from '../src/flow.ts';
 
 const here = (p: string) => new URL(p, import.meta.url);
 const app = readFileSync(here('../src/App.tsx'), 'utf8');
+const flow = readFileSync(here('../src/flow.ts'), 'utf8');
+const tools = readFileSync(here('../src/webmcp.ts'), 'utf8');
 const spec = readFileSync(here('../../../spec/tla/WebTraps.tla'), 'utf8');
 
-test('the View kinds in App.tsx equal the Ready set in WebTraps.tla', () => {
-  const block = /type View =([\s\S]*?);\n/.exec(app)?.[1] ?? '';
+test('the View kinds in flow.ts equal the Ready set in WebTraps.tla', () => {
+  const block = /type View =([\s\S]*?);\n/.exec(flow)?.[1] ?? '';
   const viewKinds = [...block.matchAll(/kind: '([a-zA-Z]+)'/g)].map(m => m[1]!).sort();
   const ready = (/Ready == \{([^}]*)\}/.exec(spec)?.[1] ?? '').split(',').map(x => x.trim().replace(/"/g, '')).filter(Boolean).sort();
   assert.ok(viewKinds.length > 0);
@@ -19,8 +22,10 @@ test('every form field resets the view, as Edit does in the spec', () => {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
-  assert.match(app, /const formChanged = \(\) => \{ version\.current \+= 1; setView\(\{ kind: 'idle' \}\); \};/);
-  assert.match(app, /if \(base !== version\.current\) return \{ stateVersion: version\.current, result: null, verdict: 'refused', error: `StaleWrite/);
+  assert.match(app, /const formChanged = \(\) => \{ send\(\{ type: 'EDIT' \}\); \};/);
+  const edited = next({ ...START, step: 'find', view: { kind: 'inputError', msg: 'x' } }, { type: 'EDIT' });
+  assert.equal(edited?.view.kind, 'idle');
+  assert.match(tools, /if \(base !== v\) return summarizeRoles\(\{ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite/);
   assert.match(spec, /WidenFilters ==[\s\S]*?state' = "matching"/);
 });
 
