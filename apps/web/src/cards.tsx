@@ -54,7 +54,7 @@ export function RoleCard({ row, label = null, layout = 'card' }: { row: MatchRow
         {label && <p className="mb-1 text-xs uppercase tracking-wider text-text-muted" data-testid="pick-label">{label}</p>}
         <h4 className="text-base font-semibold">{row.title}</h4>
         <p className="mt-1 text-sm text-text-muted">{company}{row.location ? ` · ${row.location}` : ''}</p>
-        <p className="mt-2 text-sm text-text" data-testid="why">{whyLine(row.reasons)}</p>
+        <p className="mt-2 text-sm text-text" data-testid="why">{row.summary ?? whyLine(row.reasons)}</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {row.region && row.region !== 'other' ? <Badge>{row.region}</Badge> : <Badge tone="warn">Location not confirmed</Badge>}
           {row.remote !== 'unknown' && <Badge>{row.remote}</Badge>}

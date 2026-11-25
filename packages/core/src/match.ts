@@ -53,7 +53,7 @@ export type Tier = 0 | 1 | 2;
 export const LEVEL_STEP = 10;
 export const GENERALIST_ROLES: ReadonlySet<string> = new Set(['software', 'fullstack', 'frontend']);
 export type MatchRow = {
-  id: string; title: string; company: string; url: string; location: string | null;
+  id: string; title: string; summary?: string; company: string; url: string; location: string | null;
   region: string | null; remote: PublicRow['remote']; seniority: string | null; status: PublicRow['status'];
   lastChecked: string; ageDays: number; stale: boolean; tier: Tier; relevance: number; score: number; reasons: ReadonlyArray<string>; alsoIds: ReadonlyArray<string>;
 };
@@ -225,7 +225,7 @@ function judge(u: Understood, p: Prefs, row: PublicRow, now: Date): Scored | nul
     - (levelGap === 1 ? LEVEL_RELEVANCE_STEP : 0)) * 1e4) / 1e4;
   const tier: Tier = reg !== 'yes' ? 2 : row.status === 'open' && rem === 'yes' && levelGap <= 0 ? 0 : 1;
   return { group, row: {
-    id: row.id, title: row.title, company: row.company, url: row.url, location: row.location, region, remote: row.remote,
+    id: row.id, title: row.title, ...(row.summary ? { summary: row.summary } : {}), company: row.company, url: row.url, location: row.location, region, remote: row.remote,
     seniority: rowLevel, status: row.status, lastChecked: row.status_checked_at, ageDays, stale, tier, relevance: rel, score: shown, reasons, alsoIds: [],
   }, mobile: !mobileMismatch ? 'none' : roleHits.length || skillHits.length || coveredHits.length ? 'covered' : 'bottom' };
 }

@@ -331,4 +331,6 @@ test('flow design: a form rail and a state-driven stage, hairline matches and no
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByTestId('confirmed')).toContainText('✓');
   await expect(page.locator('body')).not.toContainText(/nothing was applied|does not apply or send|nothing was sent/i);
+  const samples = await page.getByTestId('flow-stage').locator('[data-posting-id] [data-testid="why"]').allInnerTexts();
+  expect(samples.every(t => !/ role\.$/.test(t))).toBe(true);
 });
