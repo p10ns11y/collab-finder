@@ -752,3 +752,39 @@ test('all options: empty groups never render and a goal nudge replaces the empty
   await expect(page.getByText(/\(0 of 0\)/)).toHaveCount(0);
   await expect(page.getByTestId('goal-nudge')).toBeVisible();
 });
+
+test('source gaps: thin results name the missing sources with one suggestion per source kind, the same guidance find_roles returns, and clear when results are enough or the form changes', async ({ page }) => {
+  await page.goto('/?all');
+  await expect(page.getByRole('button', { name: 'Find roles' })).toBeEnabled();
+  await expect.poll(async () => toolNames(page)).toEqual(['find_roles', 'show_apply_pack', 'tailor_cv']);
+  const panel = page.getByTestId('source-gaps');
+  const samePanel = async (gap: { message: string; suggestions: { kind: string; hint: string }[] }) => {
+    await expect(panel.getByTestId('gap-message')).toHaveText(gap.message);
+    await expect(panel.locator('li')).toHaveCount(gap.suggestions.length);
+    for (const s of gap.suggestions) await expect(panel.locator(`li[data-kind="${s.kind}"]`)).toContainText(s.hint);
+  };
+  type Gap = { topic: string; region: string; rows_found: number; message: string; suggestions: { kind: string; hint: string }[] } | null;
+  const zero = await call(page, 'find_roles', { stateVersion: 0, description: 'Senior backend engineer with Rust and Postgres', regions: ['SE'] });
+  expect(zero.verdict).toBe('ZeroResults');
+  const g0 = zero.gap as Gap;
+  expect(g0 && [g0.topic, g0.region, g0.rows_found]).toEqual(['Rust', 'SE', 0]);
+  expect(g0!.suggestions.map(s => s.kind)).toEqual(['careers_page', 'ats_board', 'community_list']);
+  await expect(page.getByTestId('zero-results')).toBeVisible();
+  await samePanel(g0!);
+  const thin = await call(page, 'find_roles', { stateVersion: zero.stateVersion, description: 'Senior full-stack engineer, TypeScript and React, 8 years', productOnly: true });
+  expect(thin.verdict).toBe('results');
+  const g1 = thin.gap as Gap;
+  expect(g1?.rows_found).toBe(1);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await samePanel(g1!);
+  const enough = await call(page, 'find_roles', { stateVersion: thin.stateVersion, description: 'Machine learning engineer working on LLM inference', regions: [], productOnly: false });
+  expect(enough.verdict).toBe('results');
+  expect(enough.gap).toBe(null);
+  await expect(page.getByTestId('results')).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  await page.getByLabel('Sweden', { exact: true }).check();
+  await fill(page, 'Senior backend engineer with Rust and Postgres');
+  await expect(panel).toHaveAttribute('data-topic', 'Rust');
+  await page.getByLabel('About you').fill('Senior backend engineer with Rust and Postgres, 9 years');
+  await expect(panel).toHaveCount(0);
+});

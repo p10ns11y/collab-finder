@@ -29,7 +29,7 @@ export const PAGE_TOOLS = [
   {
     name: 'find_roles',
     title: 'Find roles',
-    description: 'Fill the page form with a self-description and show matching roles in this browser. If a change matches nothing, the roles already shown stay. Nothing leaves the page. Does not apply or send.',
+    description: 'Fill the page form with a self-description and show matching roles in this browser. If a change matches nothing, the roles already shown stay. When few roles match, or a change matches nothing, gap names the missing sources and what to add. Nothing leaves the page. Does not apply or send.',
     inputSchema: {
       type: 'object',
       required: ['stateVersion'],

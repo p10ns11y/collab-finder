@@ -1,5 +1,6 @@
 import type {} from 'webmcp-types';
-import type { MatchResult } from '../../../packages/core/src/index.ts';
+import type { MatchProfile, MatchResult, PublicPool } from '../../../packages/core/src/index.ts';
+import { gapGuidance } from '../../../packages/core/src/source-gaps.ts';
 import type { Snap } from './flow.ts';
 import {
   buildApplyPack,
@@ -25,6 +26,7 @@ export type WebMcpHost = {
   snap(): Snap | null;
   search(change: AgentSearch): HostAnswer;
   showAllOptions(): void;
+  lastAsk(): { ask: MatchProfile; pool: PublicPool } | null;
   description(): string;
   confirmApplyOrSend(ask: { title: string; body: string; pack: ApplyPack }): Promise<ConfirmOutcome>;
   showCvOutline(outline: CvOutline): Promise<boolean>;
@@ -133,7 +135,9 @@ export async function registerWebMcp(app: WebMcpHost, signal: AbortSignal): Prom
           if (base !== v) return summarizeRoles({ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite: base ${base}, current ${v}` });
           host.showAllOptions();
           const answer = host.search(parsed.value.change);
-          return summarizeRoles(answer);
+          const last = host.lastAsk();
+          const gap = last && (answer.result || answer.verdict === 'ZeroResults') ? gapGuidance(last.ask, last.pool, answer.verdict === 'ZeroResults' ? null : answer.result) : null;
+          return { ...summarizeRoles(answer), gap };
         },
       }, opts),
       mc.registerTool({

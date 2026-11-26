@@ -2,7 +2,7 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import { Reveal } from './reveal.tsx';
 import {
   poolStats, findPii, match, mostlyNonLatin, readPool, recover, companyCount, redactPii, MIN_CHARS, MAX_CHARS, OUT_OF_SCOPE_MSG,
-  type MatchResult, type PublicPool, type RemotePref, type VisitorError,
+  type MatchProfile, type MatchResult, type PublicPool, type RemotePref, type VisitorError,
 } from '../../../packages/core/src/index.ts';
 import { Alert } from './components/ui/alert.tsx';
 import { Button } from './components/ui/button.tsx';
@@ -15,6 +15,7 @@ import { uiSdkFlag } from './ui-sdk-flag.ts';
 const REMOVAL_URL = 'https://github.com/p10ns11y/collab-finder/issues/new?template=remove-listing.yml';
 
 const SdkRegion = lazy(() => import('./sdk-path.tsx').then(m => ({ default: m.SdkRegion })));
+const SourceGaps = lazy(() => import('./source-gaps.tsx'));
 
 const retrying = <T,>(first: () => Promise<T>, again: () => Promise<unknown>) => {
   let tries = 0;
@@ -104,13 +105,23 @@ export function App() {
   const livePii = useMemo(() => [...new Set(findPii(`${description}\n${goal}\n${likes}`).map(s => s.pii))], [description, goal, likes]);
   const nonLatin = useMemo(() => mostlyNonLatin(`${description}\n${goal}\n${likes}`), [description, goal, likes]);
 
+  const lastAsk = useRef<{ ask: MatchProfile; pool: PublicPool } | null>(null);
+  const [gapLast, setGapLast] = useState<{ ask: MatchProfile; pool: PublicPool } | null>(null);
+  const [keptZero, setKeptZero] = useState(false);
   const run = useCallback((over?: AgentSearch, keepShown = false) => {
     if (!pool) return null;
     const t0 = performance.now();
-    const r = match({ description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly }, pool);
+    const ask = { description: over?.description ?? description, goal: over?.goal ?? goal, likes, region: over?.regions ?? regions, remote: over?.remote ?? remote, productOnly: over?.productOnly ?? productOnly };
+    const r = match(ask, pool);
     const ms = Math.max(1, Math.round(performance.now() - t0));
+    lastAsk.current = { ask, pool };
+    setGapLast({ ask, pool });
     const shown = snapRef.current?.view;
-    if (keepShown && shown?.kind === 'results' && r.isErr() && r.error.kind === 'ZeroResults') return { r, kept: shown.result, widen: r.error.widen };
+    if (keepShown && shown?.kind === 'results' && r.isErr() && r.error.kind === 'ZeroResults') {
+      setKeptZero(true);
+      return { r, kept: shown.result, widen: r.error.widen };
+    }
+    setKeptZero(false);
     send(r.isOk() ? { type: 'MATCHED', view: { kind: 'results', result: r.value, ms } } : { type: 'MATCH_FAILED', view: toView(r.error) });
     requestAnimationFrame(() => resultsRef.current?.focus());
     return { r, kept: null, widen: [] };
@@ -168,6 +179,7 @@ export function App() {
         setShowAll(true);
         if (!wantsAll()) window.location.hash = 'all';
       },
+      lastAsk: () => lastAsk.current,
       description: () => latest.current.description,
       confirmApplyOrSend: ask => new Promise(resolve => {
         const older = confirmRef.current;
@@ -189,7 +201,7 @@ export function App() {
   }, []);
 
   useEffect(() => { const on = () => setShowAll(wantsAll()); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on); }, []);
-  const formChanged = () => { send({ type: 'EDIT' }); };
+  const formChanged = () => { setKeptZero(false); send({ type: 'EDIT' }); };
   useEffect(() => { if (!showAll) settleCards(false); }, [showAll]);
   const sdkPath = uiSdkFlag();
   const onSubmit = (e: FormEvent) => { e.preventDefault(); run(); };
@@ -296,6 +308,7 @@ export function App() {
       </div>
       <div ref={resultsRef} data-testid="flow-stage" tabIndex={-1} className="min-w-0 outline-none" aria-live="polite">
         {stage && <stage.StepRail step={step} />}
+        {gapLast && <SoftBoundary><Suspense fallback={null}><SourceGaps last={gapLast} view={view} keptZero={keptZero} /></Suspense></SoftBoundary>}
         {snap && (snap.outline || snap.pack) && soft && <SoftBoundary onError={() => settleCards(false)}><soft.CardsPane outline={snap.outline} pack={snap.pack} step={snap.step} onShown={() => settleCards(true)} /></SoftBoundary>}
         {stage && <stage.ViewPanel view={view} onWiden={widen} onRemovePii={removePii} sdkPath={sdkPath} />}
       </div>

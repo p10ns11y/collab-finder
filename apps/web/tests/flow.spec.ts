@@ -434,13 +434,17 @@ test('a follow-up find_roles that matches nothing keeps the roles already shown,
   const first = await call(page, 'find_roles', { stateVersion: 0, description: DESCRIPTION });
   const [role] = twoRoles(first);
   const ids = Object.values(first.groups ?? {}).flat().map(r => r.id);
-  const narrow = await call(page, 'find_roles', { stateVersion: first.stateVersion, regions: ['MEA'], remote: 'onsite' }) as Answer & { verdict?: string; note?: string };
+  const narrow = await call(page, 'find_roles', { stateVersion: first.stateVersion, regions: ['MEA'], remote: 'onsite' }) as Answer & { verdict?: string; note?: string; gap?: { message: string; rows_found: number } };
   expect(narrow.verdict).toBe('ZeroResults');
   expect(narrow.error ?? null).toBe(null);
   expect(narrow.note).toMatch(/kept the \d+ roles already shown/);
   expect(Object.values(narrow.groups ?? {}).flat().map(r => r.id)).toEqual(ids);
+  expect(narrow.gap && typeof narrow.gap.message === 'string').toBe(true);
+  expect(narrow.gap!.rows_found).toBe(0);
   await expect(page.getByTestId('results')).toBeVisible();
   await expect(page.getByTestId('zero-results')).toHaveCount(0);
+  await expect(page.getByTestId('source-gaps')).toBeVisible();
+  await expect(page.getByTestId('gap-message')).toHaveText(narrow.gap!.message);
   await expect(page.getByLabel('Middle East and Africa', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Work mode')).toHaveValue('any');
   const outline = await call(page, 'tailor_cv', { id: role.id });

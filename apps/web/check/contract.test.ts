@@ -22,7 +22,7 @@ test('every form field resets the view, as Edit does in the spec', () => {
     const handler = new RegExp(`onChange=\\{(?:e|\\(\\)) => \\{ ${setter}\\([^;]*\\); formChanged\\(\\); \\}\\}`);
     assert.match(app, handler, setter);
   }
-  assert.match(app, /const formChanged = \(\) => \{ send\(\{ type: 'EDIT' \}\); \};/);
+  assert.match(app, /const formChanged = \(\) => \{ setKeptZero\(false\); send\(\{ type: 'EDIT' \}\); \};/);
   const edited = next({ ...START, step: 'find', view: { kind: 'inputError', msg: 'x' } }, { type: 'EDIT' });
   assert.equal(edited?.view.kind, 'idle');
   assert.match(tools, /if \(base !== v\) return summarizeRoles\(\{ stateVersion: v, result: null, verdict: 'refused', error: `StaleWrite/);
@@ -30,7 +30,7 @@ test('every form field resets the view, as Edit does in the spec', () => {
 });
 
 test('the likes box is form state in the spec: shown results match it and personal details in it stop the match', () => {
-  assert.match(app, /match\(\{ description: over\?\.description \?\? description, goal: over\?\.goal \?\? goal, likes,/);
+  assert.match(app, /const ask = \{ description: over\?\.description \?\? description, goal: over\?\.goal \?\? goal, likes,[^\n]*\n\s*const r = match\(ask, pool\);/);
   assert.match(app, /findPii\(`\$\{description\}\\n\$\{goal\}\\n\$\{likes\}`\)/);
   assert.match(spec, /ShownMatchesForm == state \\in Shown => shownFor = input \/\\ shownLikes = likes/);
   assert.match(spec, /Edit ==[\s\S]*?likes' = l/);
